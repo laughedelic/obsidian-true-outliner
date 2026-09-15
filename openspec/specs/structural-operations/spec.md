@@ -151,6 +151,20 @@ at. Written one column short, the child was a sibling to Obsidian and, once its 
 stack emptied, the child's deeper descendants after a blank line an indented code
 block (`docs/research/list-marker-content-column`).
 
+The column reached is the destination parent's AS THE OPERATION LEAVES IT, rather than as
+the operation found it. An operation that relocates a node also renumbers the ordered runs
+whose membership it changed, and a number crossing a digit boundary changes that parent's
+marker WIDTH, which moves its content column while the line the marker sits on stays put:
+measured, indenting `- c` out of `9. a` / `9. b` / `- c` renumbers the run it leaves and
+makes the target `10. b`, whose content column is four, while the node had been encoded
+against the three `9. b` had — and the re-parse returned it to the top level it started at.
+The renumbering requirement already carries a widened item's EXISTING subtree to the new
+column; a node ARRIVING in the same operation is not yet in that subtree, and is the other
+half of the same rule. Its narrowing direction is not visible to a depth measurement at all:
+a node written at `10. b`'s four columns under a target that ends as `2. b` is still the
+child the operation promised, one column deeper than that target requires
+(`docs/research/indent-under-a-renumbered-marker`).
+
 A list item is the only parent whose content column the parse REQUIRES a child to
 reach, and the rule SHALL NOT extend past it. A paragraph's child list attaches by
 ADJACENCY, so its column is free: an indented paragraph may own a flush-left list,
@@ -222,6 +236,20 @@ the chosen indentation therefore stands as the evidence gave it.
   fallback supplied
 - **THEN** the new indentation still infers tabs from the existing document content —
   the fallback never overrides an already-established indentation style
+
+#### Scenario: A destination whose renumbering widens its marker
+
+- **WHEN** `- c` is indented out of `9. a` / `9. b` / `- c`, where its departure renumbers the
+  run it leaves and makes the target `10. b`
+- **THEN** it is written at FOUR columns, and the re-parsed tree has it as a CHILD of `10. b`
+  rather than back at the top level
+
+#### Scenario: A destination whose renumbering narrows its marker
+
+- **WHEN** `- c` is indented out of `1. a` / `10. b` / `- c`, where its departure renumbers the
+  target to `2. b`
+- **THEN** it is written at THREE columns — the column the target ends with — rather than the
+  four the target carried when the operation began
 
 ### Requirement: Sibling reordering
 MoveUp/moveDown SHALL swap a node (with its entire subtree) with its previous/next sibling,
