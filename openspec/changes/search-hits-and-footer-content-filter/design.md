@@ -126,6 +126,17 @@ nothing and clears everything by the next render.
 - [The `isReference` → `isHit` rename touches every footer test and the conformance matrix's
   `is-reference` class] → The DOM class is kept as `is-hit` with the same meaning; the e2e specs
   that read it are updated in the same change and listed in tasks.
+- [A term can match a link's TARGET, which the row does not show] → D2 answers the term against
+  the node's inline markdown, where an aliased link is still `[[Target|alias]]`, while the mark
+  walk runs on the rendered row, where it reads `alias`. So a term matching only the target
+  admits the reference and marks nothing, and the reader gets a result with no visible reason
+  for it. Measured on the hub fixture's `[[Aurora Dashboard|the dashboard]]`: `Aurora` admits
+  the row, and the rendered text holds no occurrence to mark. Narrow — it needs an aliased link
+  whose target the alias does not repeat — and the alternatives both cost more than it does:
+  searching the rendered text would mean rendering every candidate before filtering, and
+  stripping link syntax before matching would make a term stop finding a note by the name it is
+  linked under. Left as it stands, and put to the manual pass (task 5.3) to say whether a reader
+  ever meets it.
 - [Two definitions of "what is visible" — D2's on the tree and `buildRows`' on the rows — could
   drift] → One unit test builds rows for a match and asserts the set of texts D2 searches equals
   the set of texts the rows carry, so a change to either fails it.
