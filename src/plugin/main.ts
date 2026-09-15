@@ -75,6 +75,7 @@ import { decorationsExtension, type MarkerVisibility } from './decorations';
 import { transactionFilterExtension } from './transaction-filter';
 import { viewRegistryExtension } from './view-registry';
 import { zoomStateExtension } from './zoom-state';
+import { outlineFilterStateExtension, setFilterSpans } from './outline-filter-state';
 import { guideHoverExtension } from './guide-hover';
 import { isOutlineMode, outlineStateExtension, outlineToggled } from './outline-state';
 import { zoomClickExtension } from './zoom-click';
@@ -85,7 +86,7 @@ import { viewFor } from './view-registry';
 import { deleteLineBoundaryBackward } from '@codemirror/commands';
 import { zoomScope } from './zoom-scope';
 import { zoomCleared, zoomTo } from './zoom-state';
-import { operandEscapes, parentOf, reresolveZoom, resolveZoom } from '../zoom';
+import { operandEscapes, parentOf, reresolveZoom, resolveZoom, type LineSpan } from '../zoom';
 import { toLineRange } from './cm-pos';
 import { nodeStartLine } from '../locate';
 import { parsedDoc } from './parsed-doc';
@@ -475,6 +476,9 @@ export default class TrueOutlinerPlugin extends Plugin {
     // extensions that READ the scope are registered after the state that holds
     // it and the reading order matches the dependency.
     this.registerEditorExtension(zoomStateExtension());
+    // Beside the zoom anchor, for the same reason: the hiding builder reads
+    // both, and a filter's spans are state the reader's gestures move.
+    this.registerEditorExtension(outlineFilterStateExtension());
     this.registerEditorExtension(guideHoverExtension());
     // Before every extension that GATES on the mode, so the field it reads is
     // installed by the time their own `create` runs.
@@ -997,6 +1001,20 @@ export default class TrueOutlinerPlugin extends Plugin {
    * rationale as `stats` and `motionCounts`, and here it is the surfaces' own
    * source of truth rather than test-only scaffolding.
    */
+  /**
+   * Set the active editor's filter to a visible set, or clear it with `null`.
+   *
+   * Public for the same reason `stats` and `activeTabOutlineMode` are: the
+   * harness drives the real state rather than a parallel one. Until task 3.1
+   * gives the panel a query to compute a set from, this is also how the spike
+   * puts many spans through the hiding builder on a real instance.
+   */
+  applyFilterSpans(spans: readonly LineSpan[] | null): void {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const cm = view?.file ? viewFor(view) : undefined;
+    if (cm) setFilterSpans(cm, spans);
+  }
+
   activeTabOutlineMode(): boolean | undefined {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     const cm = view?.file ? viewFor(view) : undefined;
