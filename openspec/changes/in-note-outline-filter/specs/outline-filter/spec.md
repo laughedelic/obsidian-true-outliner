@@ -14,8 +14,13 @@ command SHALL be available only in an editor view whose tab is in outline mode, 
 decline inside a nested per-cell editor by the same gate the other editor extensions use.
 
 Typing in the field SHALL apply the query to the note as it is typed. A query of fewer than two
-characters SHALL filter nothing. Closing the panel SHALL clear the query and restore the whole
-note. The panel SHALL be per editor view and SHALL NOT persist across tabs or sessions.
+characters SHALL filter nothing; this is this surface's threshold for when hiding begins and not
+a rule of the grammar, which the other search surfaces answer at one character.
+
+The panel SHALL show how many nodes the query matched. It SHALL offer a close control, Escape in
+the query field SHALL close it, and the command SHALL close it when it is already open. Closing
+the panel SHALL clear the query and restore the whole note. The panel SHALL be per editor view
+and SHALL NOT persist across tabs or sessions.
 
 #### Scenario: The command is absent outside outline mode
 
@@ -32,6 +37,16 @@ note. The panel SHALL be per editor view and SHALL NOT persist across tabs or se
 - **WHEN** the panel is closed while a query is active
 - **THEN** every line of the note renders again and no mark remains
 
+#### Scenario: Escape in the field closes the panel
+
+- **WHEN** Escape is pressed while the query field has focus
+- **THEN** the panel closes and the note renders whole
+
+#### Scenario: The panel counts what matched
+
+- **WHEN** a query matches three nodes
+- **THEN** the panel states that three nodes matched
+
 ### Requirement: Matches and their paths stay; everything else is hidden
 
 While a query is active, a node SHALL be visible when its own text matches the query or when it
@@ -40,9 +55,11 @@ vertical space and SHALL NOT receive the caret. A visible node SHALL render its 
 its chrome — marker, depth, guides — exactly as it does unfiltered. A match's children SHALL be
 hidden unless they match themselves.
 
-The note's title and properties SHALL stay visible. The backlinks footer SHALL keep rendering
-after the content, as it does under a zoom. Hidden content SHALL remain in the document
-unchanged.
+The note's title and its properties block SHALL keep rendering while the filter alone is active:
+the document preamble is not a node, and a filter re-reads a note rather than re-rooting it. A
+zoom still hides both, as `outline-zoom` requires, and a filter inside a zoom does not bring them
+back. The backlinks footer SHALL keep rendering after the content, as it does under a zoom.
+Hidden content SHALL remain in the document unchanged.
 
 Every occurrence of the query in a visible node SHALL be marked.
 
@@ -69,16 +86,27 @@ Every occurrence of the query in a visible node SHALL be marked.
 
 #### Scenario: Title, properties and footer stay
 
-- **WHEN** a note with frontmatter and references is filtered
+- **WHEN** a note with frontmatter and references is filtered and not zoomed
 - **THEN** its title and properties block render, and the footer renders after the content
 
-### Requirement: The visible set is fixed when the query runs
+#### Scenario: A zoom still hides the title and properties
 
-The set of visible nodes SHALL be decided when the query is applied and SHALL NOT change as the
+- **WHEN** a note with frontmatter is zoomed and then filtered
+- **THEN** neither the title nor the properties block renders, as it does zoomed and unfiltered
+
+### Requirement: The match set is fixed when the query runs
+
+The set of MATCHES SHALL be decided when the query is applied and SHALL NOT change as the
 document is edited. Editing a visible node so that it no longer contains the query SHALL keep it
 visible; inserting the query's text into a hidden node SHALL NOT reveal it; a node created by
-editing a visible node — splitting it, adding a sibling from it — SHALL be visible. Changing the
-query SHALL re-decide the set from the document as it then is.
+editing a visible node — splitting it, adding a sibling or a child from it — SHALL be visible.
+
+The PATH to each match SHALL NOT be fixed: the ancestors that stay visible are those the document
+has at the time it is rendered, so moving a match under a different parent SHALL make that parent
+visible and SHALL let the parent it left become hidden again.
+
+The set SHALL be re-decided from the document as it then is when the query changes, and when the
+zoom scope changes, since the scope decides which matches count.
 
 #### Scenario: Editing a match away keeps it
 
@@ -94,6 +122,16 @@ query SHALL re-decide the set from the document as it then is.
 
 - **WHEN** a match was edited away and the query is then changed and changed back
 - **THEN** that node is no longer visible
+
+#### Scenario: A moved match brings its new ancestors
+
+- **WHEN** a visible match is indented under a sibling that does not match
+- **THEN** that sibling becomes visible as part of the match's path
+
+#### Scenario: Zooming out re-decides
+
+- **WHEN** a match was edited away inside a zoom scope and the view is then zoomed out
+- **THEN** that node is no longer visible, and the matches in the wider scope are
 
 ### Requirement: The caret never lands on hidden content
 
