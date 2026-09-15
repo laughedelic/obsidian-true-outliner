@@ -15,18 +15,20 @@
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
+import { clearFolds, foldedLineRanges } from '../folding.js';
 import {
   FOOTER,
-  clearFilters,
   chooseFacetValue,
+  clearFilters,
   clickIn,
-  setSearchTerm,
   facetOptions,
   groupNames,
   openFilters,
   openFooter,
   readStable,
+  resizeLeafForFooter,
   scrollToFooter,
+  setSearchTerm,
   settle,
 } from '../footer.js';
 
@@ -257,7 +259,7 @@ describe('the footer’s controls', function () {
       return;
     }
 
-    await h.resizeLeafForFooter(340);
+    await resizeLeafForFooter(340);
     // Wider deadline: this measurement follows a real reflow across a
     // container query, which is slower to settle than most of this file's
     // reads and has room to run behind on a loaded CI box.
@@ -270,7 +272,7 @@ describe('the footer’s controls', function () {
     expect(narrow!.overflows).toBe(false);
     expect(narrow!.height).toBe(start!.height);
 
-    await h.resizeLeafForFooter(null);
+    await resizeLeafForFooter(null);
     const back = await readStable(measure, 20000);
     expect(back!.words).toBe(start!.words);
   });
@@ -321,7 +323,7 @@ describe('the footer’s controls', function () {
     expect(wide!.titleText).toBe('Structured backlinks');
     expect(wide!.totalsText).toMatch(/references?/);
 
-    await h.resizeLeafForFooter(340);
+    await resizeLeafForFooter(340);
     // Wider deadline — see the sibling case above ("sheds the facet words")
     // for why a post-resize measurement needs more room than this file's
     // other reads: measured reliably fast locally, and still timed out twice
@@ -336,7 +338,7 @@ describe('the footer’s controls', function () {
     // rather than to a literal pixel count, which the font stack decides.
     expect(narrow!.height).toBeLessThanOrEqual(wide!.height + 2);
 
-    await h.resizeLeafForFooter(null);
+    await resizeLeafForFooter(null);
     const back = await readStable(measure, 20000);
     expect(back!.titleText).toBe(wide!.titleText);
   });
@@ -546,7 +548,7 @@ describe('the footer’s controls', function () {
     await openFilters();
     await clearFilters();
     await openFilters();
-    await h.clearFolds();
+    await clearFolds();
 
     const expanded = (axis: string): Promise<string> =>
       browser.executeObsidian(
@@ -581,13 +583,13 @@ describe('the footer’s controls', function () {
 
     // The gesture really took the press — without this the case would pass on a
     // press that simply fell through to the editor as an ordinary click.
-    expect((await h.foldedLineRanges()).length).toBeGreaterThan(0);
+    expect((await foldedLineRanges()).length).toBeGreaterThan(0);
     expect(await expanded('folder')).toBe('false');
 
     // Put the view back where the rest of this spec expects it: folding takes
     // most of the note's height away, unfolding gives it back, and the scroller
     // does not return to the footer on its own.
-    await h.clearFolds();
+    await clearFolds();
     await scrollToFooter();
 
     // And the footer still answers presses of its own. Taking the footer out of

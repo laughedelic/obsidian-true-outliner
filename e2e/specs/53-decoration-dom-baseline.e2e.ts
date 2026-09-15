@@ -29,6 +29,7 @@ import * as path from 'node:path';
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
+import { clearFolds } from '../folding.js';
 import { ALL_DECORATION_FIXTURES, createFixture, type DecorationFixture } from '../fixtures/decorations.js';
 
 const BASELINES = path.join(process.cwd(), 'e2e', 'baselines', 'decorations');
@@ -169,6 +170,6 @@ describe('outline decorations: the DOM baseline', function () {
     await h.setCursorSettled(0, 0);
     await browser.pause(300);
     await check('heading-then-list--folded');
-    await h.clearFolds();
+    await clearFolds();
   });
 });

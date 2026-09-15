@@ -26,6 +26,7 @@
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
+import { pinBacklinksCapOff, waitForBacklinkIndexReady } from '../footer.js';
 
 const HUB = 'Projects/Aurora Dashboard.md';
 
@@ -45,7 +46,7 @@ describe('spike S5: what a hub note costs', function () {
     await obsidianPage.resetVault();
     await h.resetPluginState();
     // Not a volume spec: see `pinBacklinksCapOff`.
-    await h.pinBacklinksCapOff();
+    await pinBacklinksCapOff();
   });
 
   it('measures index build, summaries and per-source placement', async function () {
@@ -58,7 +59,7 @@ describe('spike S5: what a hub note costs', function () {
     // spec's own floor assertion below was written to catch, and which it
     // correctly caught on a slow CI runner. The floor stays: it is about the
     // fixture existing at all. This is about the cache having read it.
-    await h.waitForBacklinkIndexReady(HUB);
+    await waitForBacklinkIndexReady(HUB);
 
     const cost = await browser.executeObsidian(async ({ app, plugins }, target: string) => {
       const backlinks = (

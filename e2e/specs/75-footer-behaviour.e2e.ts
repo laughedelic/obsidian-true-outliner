@@ -15,6 +15,7 @@
 import { $, browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
+import { pinBacklinksCapOff } from '../footer.js';
 
 const TARGET = 'Backlinks/Reference target.md';
 const DORMANT = 'Notes/Sourdough Log.md';
@@ -82,7 +83,7 @@ describe('backlinks footer: behaviour', function () {
     await obsidianPage.resetVault();
     await h.resetPluginState();
     // Not a volume spec: see `pinBacklinksCapOff`.
-    await h.pinBacklinksCapOff();
+    await pinBacklinksCapOff();
     await browser.executeObsidian(({ plugins }) => {
       (plugins.trueOutliner as never as { backlinks: { rebuild(): void } }).backlinks.rebuild();
     });

@@ -8,6 +8,7 @@
 
 import { browser, expect } from '@wdio/globals';
 import * as h from '../helpers.js';
+import { clearFolds, foldedLineRanges, renderedLineTexts } from '../folding.js';
 
 const NOTE = 'Scratch/fold-grammar.md';
 
@@ -46,7 +47,7 @@ describe('folding and the editing grammar', () => {
     await h.createNote(NOTE, DOC);
     await h.openNote(NOTE);
     await h.setOutlineMode(true);
-    await h.clearFolds();
+    await clearFolds();
   });
 
   it('Enter at a folded node’s end makes a sibling after its subtree', async () => {
@@ -61,8 +62,8 @@ describe('folding and the editing grammar', () => {
       ['- one', '  - nested a', '  - nested b', '- x', '- two', ''].join('\n'),
     );
     // And the node the reader folded is still folded.
-    expect(await h.foldedLineRanges()).toEqual([{ from: 0, to: 2 }]);
-    expect(await h.renderedLineTexts()).not.toContain('  - nested a');
+    expect(await foldedLineRanges()).toEqual([{ from: 0, to: 2 }]);
+    expect(await renderedLineTexts()).not.toContain('  - nested a');
   });
 
   it('Enter inside a folded node’s text opens it first', async () => {
@@ -72,7 +73,7 @@ describe('folding and the editing grammar', () => {
     // children end up is something the reader has to see.
     await h.setCursorSettled(0, 4);
     await browser.keys(['Enter']);
-    expect(await h.foldedLineRanges()).toEqual([]);
+    expect(await foldedLineRanges()).toEqual([]);
     expect(await h.getBuffer()).toBe(
       ['- on', '  - e', '  - nested a', '  - nested b', '- two', ''].join('\n'),
     );
@@ -90,7 +91,7 @@ describe('folding and the editing grammar', () => {
       await h.createNote(NOTE, MIXED);
       await h.openNote(NOTE);
       await h.setOutlineMode(true);
-      await h.clearFolds();
+      await clearFolds();
       if (fold) {
         await h.setCursorSettled(2, 4);
         await h.runCommand('fold-node');
@@ -101,7 +102,7 @@ describe('folding and the editing grammar', () => {
     };
 
     const folded = await splitAt(true);
-    expect(await h.foldedLineRanges()).toEqual([]);
+    expect(await foldedLineRanges()).toEqual([]);
     expect(folded).toBe(await splitAt(false));
   });
 
@@ -113,16 +114,16 @@ describe('folding and the editing grammar', () => {
     await h.createNote(NOTE, MIXED);
     await h.openNote(NOTE);
     await h.setOutlineMode(true);
-    await h.clearFolds();
+    await clearFolds();
 
     await h.setCursorSettled(0, 3);
     await h.runCommand('fold-node');
-    expect(await h.foldedLineRanges()).toEqual([{ from: 0, to: 8 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 0, to: 8 }]);
     await h.setCursorSettled(0, 9); // the heading's own end
     await browser.keys(['Enter']);
     await browser.keys(['X']);
 
-    expect(await h.foldedLineRanges()).toEqual([]);
+    expect(await foldedLineRanges()).toEqual([]);
     // Directly under the heading, where an unfolded one puts it — not after the
     // whole section, and not past the next heading.
     expect(await h.getBuffer()).toContain('# Section\n\nX\n');
@@ -137,15 +138,15 @@ describe('folding and the editing grammar', () => {
     // in the same transaction. A folded node is one node to step over.
     await h.setCursorSettled(0, 3); // "- one", whose children are folded below
     await h.runCommand('fold-node');
-    expect(await h.foldedLineRanges()).toEqual([{ from: 0, to: 2 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 0, to: 2 }]);
     await browser.keys(['ArrowDown']);
     await browser.pause(200);
     expect((await h.getCursor()).line).toBe(3); // "- two", the far side
-    expect(await h.foldedLineRanges()).toEqual([{ from: 0, to: 2 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 0, to: 2 }]);
     await browser.keys(['ArrowUp']);
     await browser.pause(200);
     expect((await h.getCursor()).line).toBe(0);
-    expect(await h.foldedLineRanges()).toEqual([{ from: 0, to: 2 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 0, to: 2 }]);
   });
 
   it('extends a selection over a folded node as one node, and leaves it folded', async () => {
@@ -162,7 +163,7 @@ describe('folding and the editing grammar', () => {
       return { from: editor.getCursor('from').line, to: editor.getCursor('to').line };
     });
     expect(sel).toEqual({ from: 0, to: 2 });
-    expect(await h.foldedLineRanges()).toEqual([{ from: 0, to: 2 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 0, to: 2 }]);
   });
 
   it('deleting a folded node takes its hidden children with it', async () => {

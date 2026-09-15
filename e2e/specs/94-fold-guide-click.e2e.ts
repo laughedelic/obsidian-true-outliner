@@ -11,6 +11,18 @@
 
 import { browser, expect } from '@wdio/globals';
 import * as h from '../helpers.js';
+import {
+  clearFolds,
+  clickGuideColumn,
+  clickLineText,
+  foldedLineRanges,
+  guideColumnPoint,
+  hoverGuideColumn,
+  hoverLineText,
+  litGuide,
+  setGuideVisibility,
+  waitForRead,
+} from '../folding.js';
 
 const NOTE = 'Scratch/fold-guide.md';
 const HEADED = 'Scratch/fold-guide-headed.md';
@@ -60,31 +72,31 @@ describe('the guide gesture', () => {
     await h.createNote(NOTE, DOC);
     await h.openNote(NOTE);
     await h.setOutlineMode(true);
-    await h.clearFolds();
+    await clearFolds();
     await h.setCursorSettled(0, 3);
   });
 
   it('folds every child under the guide, and reopens them on a second press', async () => {
     // The guide at column 0 on line 2 belongs to "- root", so its children are
     // "- first", "- second" and "- third leaf" — the two with children fold.
-    await h.clickGuideColumn(2, 0);
-    expect(await h.foldedLineRanges()).toEqual([
+    await clickGuideColumn(2, 0);
+    expect(await foldedLineRanges()).toEqual([
       { from: 1, to: 2 },
       { from: 3, to: 4 },
     ]);
 
-    await h.clickGuideColumn(2, 0);
-    expect(await h.foldedLineRanges()).toEqual([]);
+    await clickGuideColumn(2, 0);
+    expect(await foldedLineRanges()).toEqual([]);
   });
 
   it('folds the rest when only some are open', async () => {
     await h.setCursorSettled(1, 5);
     await h.runCommand('fold-node');
-    expect(await h.foldedLineRanges()).toEqual([{ from: 1, to: 2 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 1, to: 2 }]);
     // "any open means fold them all" — one press reaches the reading this
     // gesture exists for, from any starting state.
-    await h.clickGuideColumn(3, 0);
-    expect(await h.foldedLineRanges()).toEqual([
+    await clickGuideColumn(3, 0);
+    expect(await foldedLineRanges()).toEqual([
       { from: 1, to: 2 },
       { from: 3, to: 4 },
     ]);
@@ -93,22 +105,22 @@ describe('the guide gesture', () => {
   it('does not move the caret or change the document', async () => {
     const before = await h.getBuffer();
     await h.setCursorSettled(5, 6);
-    await h.clickGuideColumn(2, 0);
+    await clickGuideColumn(2, 0);
     expect(await h.getCursor()).toEqual({ line: 5, ch: 6 });
     expect(await h.getBuffer()).toBe(before);
   });
 
   it('leaves a press on the node’s own text as a press on text', async () => {
-    await h.clickLineText(2);
-    expect(await h.foldedLineRanges()).toEqual([]);
+    await clickLineText(2);
+    expect(await foldedLineRanges()).toEqual([]);
     expect((await h.getCursor()).line).toBe(2);
   });
 
   it('leaves a press past the tolerance alone', async () => {
     // Halfway between two columns: near enough to be a near miss, far enough
     // that claiming it would start stealing presses from the level beside it.
-    await h.clickGuideColumn(2, 0, { offsetFraction: 0.5 });
-    expect(await h.foldedLineRanges()).toEqual([]);
+    await clickGuideColumn(2, 0, { offsetFraction: 0.5 });
+    expect(await foldedLineRanges()).toEqual([]);
   });
 
   it('reads the columns where they are painted, not where the tree puts them', async () => {
@@ -122,13 +134,13 @@ describe('the guide gesture', () => {
     await h.createNote(HEADED, HEADED_DOC);
     await h.openNote(HEADED);
     await h.setOutlineMode(true);
-    await h.clearFolds();
+    await clearFolds();
     await h.setCursorSettled(0, 3);
 
     // Column 2 belongs to "- thread", whose children are "shipped",
     // "prototype review" and "open questions" — the last two have children.
-    await h.clickGuideColumn(6, 2);
-    expect(await h.foldedLineRanges()).toEqual([
+    await clickGuideColumn(6, 2);
+    expect(await foldedLineRanges()).toEqual([
       { from: 5, to: 6 },
       { from: 7, to: 8 },
     ]);
@@ -141,13 +153,13 @@ describe('the guide gesture', () => {
     // column names it on the line — the stylesheet draws a band and shows the
     // cursor — and leaving clears it.
     if (h.IS_MOBILE_RUN) return;
-    await h.hoverGuideColumn(2, 0);
+    await hoverGuideColumn(2, 0);
     // The whole guide thickens — every line of "- root"'s subtree, which is
     // what a press would act on, through the width its own guide layer reads —
     // and only the pointer's own line takes the cursor.
-    expect(await h.litGuide()).toEqual({ thickened: [1, 2, 3, 4, 5], hand: true });
-    await h.hoverLineText(2);
-    expect(await h.litGuide()).toEqual({ thickened: [], hand: false });
+    expect(await litGuide()).toEqual({ thickened: [1, 2, 3, 4, 5], hand: true });
+    await hoverLineText(2);
+    expect(await litGuide()).toEqual({ thickened: [], hand: false });
   });
 
   it('names the guide by the level the zoom draws it at', async () => {
@@ -160,15 +172,15 @@ describe('the guide gesture', () => {
     await h.createNote(HEADED, HEADED_DOC);
     await h.openNote(HEADED);
     await h.setOutlineMode(true);
-    await h.clearFolds();
+    await clearFolds();
     await h.setCursorSettled(2, 3);
     await h.runCommand('zoom-in');
     try {
       await h.setCursorSettled(6, 3);
       // Column 1 in the zoom is "thread"'s guide; its children with children
       // are "prototype review" and "open questions".
-      await h.clickGuideColumn(4, 1); // DOM line 4 is document line 6 in the zoom
-      expect(await h.foldedLineRanges()).toEqual([
+      await clickGuideColumn(4, 1); // DOM line 4 is document line 6 in the zoom
+      expect(await foldedLineRanges()).toEqual([
         { from: 5, to: 6 },
         { from: 7, to: 8 },
       ]);
@@ -183,8 +195,8 @@ describe('the guide gesture', () => {
     // container and on nothing. The line is found by coordinates when the
     // target is not one. The band is wider on the left than the right, too:
     // nothing else claims the run between a guide and the one before it.
-    await h.clickGuideColumn(2, 0, { offsetFraction: -0.35 });
-    expect(await h.foldedLineRanges()).toEqual([
+    await clickGuideColumn(2, 0, { offsetFraction: -0.35 });
+    expect(await foldedLineRanges()).toEqual([
       { from: 1, to: 2 },
       { from: 3, to: 4 },
     ]);
@@ -195,10 +207,10 @@ describe('the guide gesture', () => {
     // not moved, which left the guide dark — and the cursor a caret — after
     // the first press, though a second press still worked.
     if (h.IS_MOBILE_RUN) return;
-    const onGuide = await h.guideColumnPoint(2, 0);
+    const onGuide = await guideColumnPoint(2, 0);
     await h.clickAtPoint(onGuide.x, onGuide.y);
     await browser.pause(300);
-    expect(await h.foldedLineRanges()).toEqual([
+    expect(await foldedLineRanges()).toEqual([
       { from: 1, to: 2 },
       { from: 3, to: 4 },
     ]);
@@ -208,8 +220,8 @@ describe('the guide gesture', () => {
     // reader who presses and immediately checks can catch the frame before it
     // lands, not a state that never arrives — a fixed pause here still failed
     // once in several dozen local runs and on CI, where the same gap is wider.
-    await h.waitForRead(
-      () => h.litGuide(),
+    await waitForRead(
+      () => litGuide(),
       (seen) => seen.hand === true && seen.thickened.join(',') === '1,2,3',
       'thickened [1,2,3] and hand true',
     );
@@ -221,7 +233,7 @@ describe('the guide gesture', () => {
     // per-depth width, a guide the caret is under does not thicken at all —
     // and nothing says it can be pressed, though the press works.
     if (h.IS_MOBILE_RUN) return;
-    await h.setGuideVisibility('ancestors');
+    await setGuideVisibility('ancestors');
     try {
       await h.setCursorSettled(2, 6); // inside "- root"'s subtree: its guide is accented
       const paint = () =>
@@ -233,11 +245,11 @@ describe('the guide gesture', () => {
             ).backgroundImage,
         );
       const rest = await paint();
-      await h.hoverGuideColumn(2, 0);
+      await hoverGuideColumn(2, 0);
       expect(await paint()).not.toBe(rest);
-      await h.hoverLineText(2);
+      await hoverLineText(2);
     } finally {
-      await h.setGuideVisibility('all');
+      await setGuideVisibility('all');
     }
   });
 
@@ -249,10 +261,10 @@ describe('the guide gesture', () => {
     await h.createNote(NOTE, ['# Head', '', '- a', '  - b', '- c', ''].join('\n'));
     await h.openNote(NOTE);
     await h.setOutlineMode(true);
-    await h.clearFolds();
+    await clearFolds();
     await h.setCursorSettled(4, 2);
-    await h.hoverGuideColumn(2, 0);
-    expect((await h.litGuide()).thickened).toEqual([1, 2, 3, 4]); // the gap line, then the children
+    await hoverGuideColumn(2, 0);
+    expect((await litGuide()).thickened).toEqual([1, 2, 3, 4]); // the gap line, then the children
   });
 
   it('leaves the caret alone on a guide press that finds nothing to fold', async () => {
@@ -263,10 +275,10 @@ describe('the guide gesture', () => {
     await h.createNote(NOTE, ['- root', '  - a', '  - b', ''].join('\n'));
     await h.openNote(NOTE);
     await h.setOutlineMode(true);
-    await h.clearFolds();
+    await clearFolds();
     await h.setCursorSettled(0, 3);
-    await h.clickGuideColumn(1, 0);
-    expect(await h.foldedLineRanges()).toEqual([]);
+    await clickGuideColumn(1, 0);
+    expect(await foldedLineRanges()).toEqual([]);
     expect(await h.getCursor()).toEqual({ line: 0, ch: 3 });
   });
 
@@ -277,26 +289,26 @@ describe('the guide gesture', () => {
     // rebuilds, it is there after the rebuild too.
     if (h.IS_MOBILE_RUN) return;
     await h.setCursorSettled(1, 4);
-    await h.hoverGuideColumn(3, 0);
-    expect((await h.litGuide()).thickened).toEqual([1, 2, 3, 4, 5]);
+    await hoverGuideColumn(3, 0);
+    expect((await litGuide()).thickened).toEqual([1, 2, 3, 4, 5]);
     await browser.keys(['ArrowDown']);
     await browser.pause(200);
     expect((await h.getCursor()).line).toBe(2);
-    expect(await h.litGuide()).toEqual({ thickened: [1, 2, 3, 4, 5], hand: true });
-    await h.hoverLineText(3);
+    expect(await litGuide()).toEqual({ thickened: [1, 2, 3, 4, 5], hand: true });
+    await hoverLineText(3);
   });
 
   it('is not offered when guides are not drawn', async () => {
     // The point is measured while they still are, so what changes between the
     // measurement and the press is the guide alone.
-    const point = await h.guideColumnPoint(2, 0);
-    await h.setGuideVisibility('off');
+    const point = await guideColumnPoint(2, 0);
+    await setGuideVisibility('off');
     try {
       await h.clickAtPoint(point.x, point.y);
       await browser.pause(150);
-      expect(await h.foldedLineRanges()).toEqual([]);
+      expect(await foldedLineRanges()).toEqual([]);
     } finally {
-      await h.setGuideVisibility('all');
+      await setGuideVisibility('all');
     }
   });
 });

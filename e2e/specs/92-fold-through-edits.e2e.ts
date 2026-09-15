@@ -10,6 +10,7 @@
 
 import { browser, expect } from '@wdio/globals';
 import * as h from '../helpers.js';
+import { clearFolds, foldedLineRanges, renderedLineTexts } from '../folding.js';
 
 const NOTE = 'Scratch/fold-edits.md';
 
@@ -28,7 +29,7 @@ async function freshNote(): Promise<void> {
   await h.createNote(NOTE, DOC);
   await h.openNote(NOTE);
   await h.setOutlineMode(true);
-  await h.clearFolds();
+  await clearFolds();
 }
 
 describe('folds through edits', () => {
@@ -39,7 +40,7 @@ describe('folds through edits', () => {
   it('a moved folded node stays folded, at its new position', async () => {
     await h.setCursorSettled(0, 3);
     await h.runCommand('fold-node');
-    expect(await h.foldedLineRanges()).toEqual([{ from: 0, to: 2 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 0, to: 2 }]);
 
     await h.runCommand('move-node-down');
     expect(await h.getBuffer()).toBe(
@@ -47,8 +48,8 @@ describe('folds through edits', () => {
     );
     // The fold followed the node: it now hides lines 3–4, which are the same
     // two children, in their new place.
-    expect(await h.foldedLineRanges()).toEqual([{ from: 2, to: 4 }]);
-    expect(await h.renderedLineTexts()).toEqual([
+    expect(await foldedLineRanges()).toEqual([{ from: 2, to: 4 }]);
+    expect(await renderedLineTexts()).toEqual([
       '- two',
       '  - under two',
       '- one2…',
@@ -63,9 +64,9 @@ describe('folds through edits', () => {
     // recorded indent as the case CodeMirror handles unaided.
     await h.setCursorSettled(3, 3);
     await h.runCommand('fold-node');
-    expect(await h.foldedLineRanges()).toEqual([{ from: 3, to: 4 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 3, to: 4 }]);
     await h.runCommand('indent-node');
-    expect(await h.foldedLineRanges()).toEqual([{ from: 3, to: 4 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 3, to: 4 }]);
   });
 
   it('a node containing folds keeps them when it moves', async () => {
@@ -73,14 +74,14 @@ describe('folds through edits', () => {
     await h.runCommand('fold-node');
     await h.setCursorSettled(3, 3);
     await h.runCommand('fold-node');
-    expect(await h.foldedLineRanges()).toEqual([
+    expect(await foldedLineRanges()).toEqual([
       { from: 0, to: 2 },
       { from: 3, to: 4 },
     ]);
     // Move the SECOND one up, past the first: both folds have to survive, one
     // because it moved and one because it was moved past.
     await h.runCommand('move-node-up');
-    expect(await h.foldedLineRanges()).toEqual([
+    expect(await foldedLineRanges()).toEqual([
       { from: 0, to: 1 },
       { from: 2, to: 4 },
     ]);
@@ -103,11 +104,11 @@ describe('folds through edits', () => {
         '',
       ].join('\n'),
     );
-    await browser.waitUntil(async () => (await h.foldedLineRanges()).length === 0, {
+    await browser.waitUntil(async () => (await foldedLineRanges()).length === 0, {
       timeout: 3000,
       timeoutMsg: 'an edit inside the fold left it closed',
     });
-    expect(await h.renderedLineTexts()).toContain('  - nested a EDITED');
+    expect(await renderedLineTexts()).toContain('  - nested a EDITED');
   });
 
   it('an edit deep inside a large folded subtree opens it too', async () => {
@@ -121,15 +122,15 @@ describe('folds through edits', () => {
     await h.createNote(note, text);
     await h.openNote(note);
     await h.setOutlineMode(true);
-    await h.clearFolds();
+    await clearFolds();
     await h.setCursorSettled(0, 3);
     await h.runCommand('fold-node');
-    expect(await h.foldedLineRanges()).toEqual([{ from: 0, to: 40 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 0, to: 40 }]);
 
     const edited = text.replace('  - child 35', '  - child 35 EDITED');
     expect(edited).not.toBe(text);
     await h.processFileExternally(note, edited);
-    await browser.waitUntil(async () => (await h.foldedLineRanges()).length === 0, {
+    await browser.waitUntil(async () => (await foldedLineRanges()).length === 0, {
       timeout: 3000,
       timeoutMsg: 'an edit past the thirty-second hidden line left the fold closed',
     });
@@ -143,35 +144,35 @@ describe('folds through edits', () => {
     expect(await h.getBuffer()).toContain('  - nested a!');
     await h.setCursorSettled(0, 3);
     await h.runCommand('fold-node');
-    expect(await h.foldedLineRanges()).toEqual([{ from: 0, to: 2 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 0, to: 2 }]);
 
     await browser.keys([h.PRIMARY_MOD, 'z']);
     expect(await h.getBuffer()).toBe(DOC);
-    await browser.waitUntil(async () => (await h.foldedLineRanges()).length === 0, {
+    await browser.waitUntil(async () => (await foldedLineRanges()).length === 0, {
       timeout: 3000,
       timeoutMsg: 'undo changed hidden text and left it hidden',
     });
-    expect(await h.renderedLineTexts()).toContain('  - nested a');
+    expect(await renderedLineTexts()).toContain('  - nested a');
   });
 
   it('undo of a move brings the fold back with it', async () => {
     await h.setCursorSettled(0, 3);
     await h.runCommand('fold-node');
     await h.runCommand('move-node-down');
-    expect(await h.foldedLineRanges()).toEqual([{ from: 2, to: 4 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 2, to: 4 }]);
 
     await browser.keys([h.PRIMARY_MOD, 'z']);
     expect(await h.getBuffer()).toBe(DOC);
     // Folds are not in the history — undoing re-inserts the same block
     // verbatim, and the same rule that carried the fold forward carries it
     // back. One undo, one step: the text and the fold arrive together.
-    expect(await h.foldedLineRanges()).toEqual([{ from: 0, to: 2 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 0, to: 2 }]);
 
     await browser.keys([h.PRIMARY_MOD, h.SHIFT, 'z']);
     expect(await h.getBuffer()).toBe(
       ['- two', '  - under two', '- one', '  - nested a', '  - nested b', '- three', ''].join('\n'),
     );
-    expect(await h.foldedLineRanges()).toEqual([{ from: 2, to: 4 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 2, to: 4 }]);
   });
 
   it('typing on a folded node’s own line leaves it folded', async () => {
@@ -182,6 +183,6 @@ describe('folds through edits', () => {
     expect(await h.getBuffer()).toContain('- one!');
     // The fold begins after the node's own line, so an edit there is outside
     // what it hides — nothing about the hidden content changed.
-    expect(await h.foldedLineRanges()).toEqual([{ from: 0, to: 2 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 0, to: 2 }]);
   });
 });
