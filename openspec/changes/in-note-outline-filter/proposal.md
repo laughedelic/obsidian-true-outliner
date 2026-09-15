@@ -13,8 +13,8 @@ why it is proposed separately and sequenced last.
 
 ## What Changes
 
-- **A command, "Filter outline", opens a filter panel** over the editor in outline mode, with a
-  query field, a match count and a close control. Typing filters the note live: nodes matching
+- **A command, "Filter outline", opens a filter panel** fixed above the editor's content in
+  outline mode, with a query field, a match count and a close control. Typing filters the note live: nodes matching
   the query stay, their ancestors stay so each match keeps its path, everything else is hidden —
   occupying no space and taking no caret. The note's own title and properties keep rendering, as
   they do unfiltered. Matches are marked. A match's children stay hidden unless they match
@@ -28,9 +28,15 @@ why it is proposed separately and sequenced last.
   the trail stays; zooming into a visible node keeps the filter, re-decided over the new scope;
   clearing the filter leaves the zoom as it was. A zoom still hides the title and the properties
   block, as `outline-zoom` requires — the filter adds nothing there and takes nothing away.
-- **The caret never lands on a hidden line.** A gesture or an operation whose result would put
-  the caret on hidden content lands it on the nearest visible line instead. Structural
-  operations otherwise act on the document as they always do, hidden content included.
+- **The caret never lands on a hidden line, and a selection never spans one.** A gesture whose
+  result would put the caret on hidden content lands it on the nearest visible line instead; one
+  that would extend a SELECTION past the visible run it started in is refused with a message,
+  because a range covering nodes the reader cannot see is one Copy and Delete would act on.
+  Clearing the query is the way to act across what the filter hid. Structural operations
+  otherwise act on the document as they always do, hidden content included.
+- **A query that matches nothing hides everything and says so**, rather than rendering the note
+  whole — the title, the properties and the footer stay, so the empty result is not an empty
+  editor.
 - **Same grammar as the other surfaces**: `matchNodes` from
   `search-hits-and-footer-content-filter`, so a query means the same thing in the footer, the
   palette and here. The one-character floor below is this surface's threshold for when to hide
@@ -55,6 +61,12 @@ implementation concern recorded in design.
   document is the truth and an operation acts on it whole; the caret rule is the only guard.
 - Revealing hidden content on demand from within the filtered view (a per-node "show hidden
   siblings" control). Clearing the query is the way out.
+- Org's second refinement — revealing the node after the last match, so the end of a sparse tree
+  is not claustrophobic (`docs/research/search-surfaces`, lesson 1). Our view is editable and
+  Enter at a visible node's end already makes a visible node, so the motivation does not carry;
+  the manual pass reports whether the end reads cramped without it.
+- Letting a selection span hidden content. Refused for now (design D3) rather than settled:
+  a refusal can widen later, and the surface has not been used yet.
 - Any change to the grammar; ancestor operators and fuzziness are later layers of the matcher.
 - Reading view.
 - Persisting a filter across tabs or sessions.
@@ -70,7 +82,8 @@ implementation concern recorded in design.
   complement is computed today, as `ZoomScope.hidden`), `src/plugin/zoom-decorations.ts` (the
   union of both surfaces' spans, and `ZOOMED_CLASS` left to the zoom alone),
   `src/plugin/zoom-scope.ts` (its visible-bounds resolver intersects with the filter's spans),
-  `main.ts` (the command), `scripts/spec-groups.mjs` (a label for the new spec's decade),
+  `src/result.ts` and `src/plugin/messages.ts` (a rejection reason and its cue for a selection
+  that would span a gap), `main.ts` (the command), `scripts/spec-groups.mjs` (a label for the new spec's decade),
   `styles/10-editor.css` and `styles/20-backlinks-footer.css` (the `to-match` rule moves to the
   part the two surfaces share), `tests/zoom-offsets.test.ts` (the new signature).
 - **Spike before implementation**: whether the hiding builder holds with many visible ranges,
