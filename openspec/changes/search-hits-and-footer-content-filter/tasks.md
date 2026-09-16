@@ -75,4 +75,4 @@
 - [x] 6.1 Add to `docs/research/structured-backlinks` D8 the note that the name-only rule is
       superseded by this change and the measurement that superseded it; verify the note links to
       `docs/research/search-surfaces`
-- [ ] 6.2 `openspec validate search-hits-and-footer-content-filter --strict`
+- [x] 6.2 `openspec validate search-hits-and-footer-content-filter --strict`
