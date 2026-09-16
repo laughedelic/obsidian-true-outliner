@@ -67,7 +67,8 @@ requirements keep holding, on the shared module.
 - **New**: `src/plugin/search-palette.ts` (the modal, its keyboard model, the open-and-zoom
   route), `src/plugin/lineage-list.ts` (the group head and the rows, extracted from the footer,
   one level above the `lineage-row.ts` that `lineage-text-rendering` already shares),
-  `src/plugin/vault-search.ts` (the progressive vault-wide search over the shared tree cache),
+  `src/plugin/vault-search.ts` (the progressive vault-wide search over the shared tree cache,
+  reporting a hit per matching node so a row can show the line the match is on),
   a `search-palette` spec, `e2e/specs/45-search-palette.e2e.ts`, `styles/70-search-palette.css`,
   `styles/15-lineage-list.css` (the row rules both surfaces share, out of the footer's part).
 - **Modified**: `src/plugin/backlinks-footer.ts` (calls the shared list renderer),
@@ -82,9 +83,9 @@ requirements keep holding, on the shared module.
 
 ## Sequencing
 
-Stacked on `search-hits-and-footer-content-filter`: it reads that change's matcher and hit
-model, and rewrites the footer file that change also edits. The two are one unit of work. The
-sidebar view comes after, off `main`.
+Off `main`. `search-hits-and-footer-content-filter` was the layer below and has merged, so what
+this change reads — `src/search.ts`'s matcher and `footer-model.ts`'s hit-shaped rows — is on
+`main` today and there is no candidate base to stack on. The sidebar view comes after.
 
 `in-note-outline-filter` is off `main` too, and near enough to touch the same two files without
 depending on this change or being depended on by it — a stack would charge both for an order

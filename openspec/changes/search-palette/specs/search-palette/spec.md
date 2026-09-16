@@ -39,12 +39,14 @@ opens.
 Results SHALL be grouped by note. Each group SHALL carry the note's name, its folder, and the
 number of hits in it. Within a group each hit SHALL render as a row in the outline's own
 notation — its kind's marker, its depth — beneath the squashed lineage rows that lead to it, the
-same squashing the backlinks footer applies. Hits in one note SHALL share their common ancestors
+same squashing the backlinks footer applies. A row SHALL show the line the match is on: for a
+node whose rendering picks one line or cell out of several — a code fence, a table, a callout —
+that SHALL be the one carrying the match, not the node's first. Hits in one note SHALL share their common ancestors
 rather than each repeating them.
 
-A group SHALL show only hits and the nodes that lead to them: no children of a hit, and no fold
-controls. A node between two hits SHALL be shown as its own row rather than squashed away, so the
-deeper hit is never indented under nothing. Every occurrence of the query in a rendered row SHALL
+A group SHALL show only hits and the nodes that lead to them: no fold controls, and no child of
+a hit unless it leads to another hit. A node between two hits SHALL be shown as its own row rather
+than squashed away, so the deeper hit is never indented under nothing. Every occurrence of the query in a rendered row SHALL
 be marked.
 
 Groups SHALL be ordered by the note's modification time, most recent first. Hits within a group
@@ -69,13 +71,19 @@ SHALL appear in document order.
 
 #### Scenario: A hit's children are not shown
 
-- **WHEN** the query matches a node that has children which do not match
+- **WHEN** the query matches a node whose children do not match and hold no match beneath them
 - **THEN** the children are not rendered and no fold control is offered
 
 #### Scenario: The match is marked
 
 - **WHEN** a row is rendered for a hit
 - **THEN** the matched text in it is visibly marked
+
+#### Scenario: A match inside a fence, a table or a callout
+
+- **WHEN** the query matches the third line of a code fence, a cell that is not the first, or a
+  callout's body rather than its title
+- **THEN** the row shows that line or cell, with the match marked in it
 
 #### Scenario: Recency orders the groups
 
@@ -85,7 +93,9 @@ SHALL appear in document order.
 ### Requirement: Two scopes, switched in place
 
 The palette SHALL search every markdown note in the vault by default. A key and a control in the
-input row SHALL toggle the scope to the note the palette was opened from, and back.
+input row SHALL toggle the scope to the markdown note the palette was opened from, and back. The
+narrowed scope SHALL be the note of the view that was active, not the last note active in the
+workspace.
 
 The control SHALL be present in both scopes, since on a phone it is the only way to switch: in the
 vault scope it SHALL offer the narrowed scope and name the key that reaches it, and once narrowed
@@ -115,13 +125,15 @@ control SHALL NOT be shown.
 
 #### Scenario: No note to narrow to
 
-- **WHEN** the palette was opened from a non-markdown view and the scope key is pressed
-- **THEN** the scope stays the vault, and no scope control is shown
+- **WHEN** the palette was opened from a view that is not a markdown note — the graph, a canvas,
+  a PDF — and the scope key is pressed
+- **THEN** the scope stays the vault, and no scope control is shown, whatever note was open before
+  it
 
 ### Requirement: The keyboard moves between hits, and focus stays in the query
 
-Exactly one hit SHALL be active whenever any hit is shown; the first hit becomes active when
-results change. The arrow keys SHALL move the active hit to the previous or next hit in display
+Exactly one hit SHALL be active whenever any hit is shown; the first hit becomes active when the
+query or the scope changes. A group arriving during a sweep SHALL NOT move the active hit. The arrow keys SHALL move the active hit to the previous or next hit in display
 order, across group boundaries. A modified arrow SHALL move to the first hit of the previous or
 next group. Both SHALL stop at the ends of the list rather than wrap: at the first hit the
 previous key SHALL leave it active, at the last hit the next key SHALL leave it active. Moving
@@ -213,12 +225,19 @@ move. A change to the query or the scope SHALL discard results an earlier query 
 painted, so no result of a superseded query is ever shown.
 
 The number of groups shown SHALL be capped. When the cap is reached, the palette SHALL state how
-many further notes hold hits and are not shown. The count SHALL be true for the whole scope.
+many further notes hold hits and are not shown. The count SHALL be true for the whole scope, and
+SHALL therefore appear only once the sweep for the current query has finished — a number that
+climbs as notes resolve is not a count of what is not shown.
 
 #### Scenario: Painted groups do not move
 
 - **WHEN** further groups arrive while earlier ones are already on screen
 - **THEN** each one is appended below them and no group already shown changes place
+
+#### Scenario: A group arriving does not steal the active hit
+
+- **WHEN** a hit some way down the list is active and another group arrives
+- **THEN** that hit is still the active one
 
 #### Scenario: A superseded query paints nothing
 
@@ -236,7 +255,8 @@ many further notes hold hits and are not shown. The count SHALL be true for the 
 The palette SHALL have a minimum query length below which it does not search. With a query
 shorter than that, an empty one included, the palette SHALL show no results and SHALL show its
 key hints. With a query at or above it that matches nothing in the active scope the palette SHALL
-say so.
+say so — but only once the sweep for that query has finished, since before then "nothing found so
+far" and "nothing to find" are the same picture and the palette would say so on every keystroke.
 
 #### Scenario: Nothing typed
 
@@ -250,13 +270,20 @@ say so.
 
 #### Scenario: Nothing found
 
-- **WHEN** the query matches no node in the active scope
+- **WHEN** the query matches no node in the active scope and the sweep has finished
 - **THEN** the palette states that there are no matches
+
+#### Scenario: A sweep in flight says nothing about matches
+
+- **WHEN** a query is typed and its sweep has not reached a note holding a hit yet
+- **THEN** the palette does not state that there are no matches
 
 ### Requirement: The palette is usable by assistive technology and on a phone
 
 The query field SHALL be exposed as a combobox controlling a listbox of hits, with the active
-hit announced as the active descendant and each hit an option. On a phone the palette SHALL fill
+hit announced as the active descendant and each hit an option. The scope control SHALL be outside
+the tab order, since focus stays in the field and the scope key is its keyboard route; it SHALL
+name the scope it switches to so that route is announced rather than implied. On a phone the palette SHALL fill
 the screen, hits SHALL be activated by tap, and the key hints SHALL be omitted.
 
 #### Scenario: Roles are present
