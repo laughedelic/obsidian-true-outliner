@@ -106,9 +106,13 @@
       composition tests, skip the intersection
 - [ ] 5.2 Run the spec under the mobile config; verify it passes
 - [ ] 5.3 Manual pass in a real vault under both themes, filtered and zoomed; record findings in
-      `docs/research/outline-filter-spike.md`, and in particular the two the design left to it:
-      whether the field's signal carries when the view is answering an earlier query, and how
-      often the selection refusal is met and what was wanted instead
+      `docs/research/outline-filter-spike.md`, and in particular the five the design left to it:
+      whether the field's signal carries when the view is answering an earlier query; how often
+      the selection refusal is met and what was wanted instead; whether a Backspace merge showing
+      a node that never matched reads as right or as leakage; whether the note returning whole
+      when the last match is edited away reads as a restore or as the filter breaking; and
+      whether a filtered view grows uncomfortably as nodes are created in it, since each one
+      stays
 
 ## 6. Docs and validation
 
