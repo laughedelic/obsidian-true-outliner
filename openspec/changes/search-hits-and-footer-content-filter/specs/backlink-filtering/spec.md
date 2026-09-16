@@ -1,9 +1,21 @@
-## RENAMED Requirements
+## REMOVED Requirements
 
-- FROM: `### Requirement: Source notes are searchable by name`
-- TO: `### Requirement: References are searchable by content and by note name`
+### Requirement: Source notes are searchable by name
 
-## MODIFIED Requirements
+**Reason**: The name-only rule was a cost decision, not a design one — matching content "would
+need the parsed tree of every candidate note", and placement's cost was assumed rather than
+measured. It has since been measured and is small, so the reason the rule existed is gone. A
+rename would understate what changed: the field answers a different question now, over a corpus
+the old requirement explicitly put out of reach, and the pipeline runs in a different order to
+do it.
+
+**Migration**: Replaced by "References are searchable by content and by note name", which keeps
+every guarantee this one made — the field is free text, it combines conjunctively with the axes,
+and an empty term admits everything — and widens what it matches to the content the footer
+renders around a reference. A reader who searched by note name before searches by note name
+still; nothing they could find becomes unfindable.
+
+## ADDED Requirements
 
 ### Requirement: References are searchable by content and by note name
 
@@ -61,6 +73,8 @@ those references. A source note none of whose references match SHALL NOT be show
 
 - **WHEN** a term admits some references and not others
 - **THEN** the reported reference and note totals count only the admitted ones
+
+## MODIFIED Requirements
 
 ### Requirement: Volume is capped, with the caps under the reader's control
 
