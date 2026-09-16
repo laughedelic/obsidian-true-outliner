@@ -136,10 +136,17 @@ preview, and a release there SHALL cancel.
 - **THEN** the run lands there and the fold opens, so nothing arrives invisible
 
 #### Scenario: An inexpressible destination is not offered
-- **WHEN** a heading-rooted run is dragged over a seam whose only depths lie inside a paragraph's
-  scope, which cannot hold a heading
+- **WHEN** a run whose own roots include an atom is dragged over a seam whose only depths lie
+  inside a paragraph's children, which cannot hold one
 - **THEN** no destination is offered at that seam, and a release there cancels rather than
   failing
+
+#### Scenario: Legality can differ between columns of one seam
+- **WHEN** a heading-rooted run is dragged along a seam inside a deep heading scope, where the
+  shallower columns leave room for the run's own heading levels and the deeper ones do not
+- **THEN** the shallower columns are offered and the deeper ones are not, so the destination stops
+  at the deepest column the run actually fits — a seam's legality is resolved per column, never
+  per seam
 
 #### Scenario: A run cannot land inside itself
 - **WHEN** the pointer moves over the rows of the dragged run's own subtree
@@ -166,6 +173,11 @@ The preview SHALL state three things:
 - **What the run becomes**: the mark the first root will have AFTER re-encoding for the
   destination SHALL be drawn at that column. A run that changes kind on arrival — a heading
   section landing in a list — SHALL show the kind it will have, never the kind it has in flight.
+- **What the drop will take with it**: where the destination would ABSORB content that is not part
+  of the run — a dropped heading opening a section over the anchor's following siblings — the
+  absorbed region SHALL be marked. Those rows change parent without moving, so nothing at the seam
+  would otherwise say they were involved, and a preview that states only the landing place states
+  half the result.
 
 The destination's PARENT SHALL additionally be distinguished, so the parent is named rather than
 counted out of columns.
@@ -189,6 +201,16 @@ selection, or persist anything.
 #### Scenario: The destination parent is distinguished
 - **WHEN** a destination is resolved several levels inside a subtree
 - **THEN** the parent the run will attach to is accented, alongside the indicator
+
+#### Scenario: An absorbing drop says what it will absorb
+- **WHEN** a heading-rooted run is held over a destination whose following siblings the dropped
+  heading's section would take in
+- **THEN** that region is marked as well as the landing place, and the marking ends where the
+  absorption ends
+
+#### Scenario: A drop that absorbs nothing marks nothing extra
+- **WHEN** a run that opens no section is held over any destination
+- **THEN** only the landing place is drawn, with no absorbed region marked
 
 #### Scenario: The document does not move before the release
 - **WHEN** a drag is in flight over any destination

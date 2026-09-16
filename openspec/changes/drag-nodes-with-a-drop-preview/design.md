@@ -13,6 +13,12 @@ See proposal.md for motivation. What shapes the approach is what the measurement
   `ops.ts` for the paste path.
 - A preview that follows the grid already has a shape to copy: `guide-hover.ts` carries pointer
   state as editor state and lets the decoration pass draw it.
+- This change is stacked on `paste-lands-where-it-is-pointed` (#122), which rewrites what an
+  insertion at a destination does: a heading payload converts where it used to be refused, the
+  expressibility guard moved into the shared re-encode step and that step now returns a typed
+  result, and a dropped heading's absorption of the following siblings is stated behaviour.
+  docs/research/node-drag-and-drop section 7a records what that means here; the decisions below
+  consume it rather than restating it.
 
 ## Goals / Non-Goals
 
@@ -116,9 +122,13 @@ Two filters narrow the interval, and both come from rules that already exist:
 - **Hidden depths are not offered.** A fold's subtree is not on screen, so its levels are not
   candidates; the deep bound is the deepest *visible* trailing descendant. A drop into a folded
   node opens the fold, which is `outline-folding`'s rule for any change to hidden content.
-- **A depth the operation would reject is not offered.** `insertSubtrees` already declines a
-  heading payload under a non-heading parent and an atom under a paragraph. Asking it, rather than
-  re-deriving its conditions, is what keeps the candidate set honest as that rule grows.
+- **A depth the operation would reject is not offered.** The candidate set is filtered by calling
+  the shared re-encode step per candidate and keeping the ones it accepts — one typed call, not a
+  predicate maintained beside it. The layer below makes that distinction concrete rather than
+  tidy: after it, one of the two surviving refusals (`at-h6-bound`) depends on the destination's
+  own heading DEPTH, so a heading payload can be legal at a seam's shallower columns and refused
+  at its deeper ones. A filter written from the old kind-based conditions would offer those
+  columns and fail on release, on the one axis this gesture exists to give the pointer.
 
 Snapping uses the guide gesture's own tolerance rather than a new one, so the columns a drag snaps
 to are the columns a press already resolves against.
@@ -136,11 +146,13 @@ is called by both the preview and the release. The preview renders its result; t
 it. They cannot disagree about where the run lands, what it lands beside, or what it becomes,
 because there is no second derivation to drift.
 
-This is what makes the cross-regime case honest. A heading section dropped into a list is
-re-encoded as list items, so the preview draws a bullet — not the heading glyph the run has while
-it is in flight. The kind comes from the same re-encoding the release performs
-(`reencodeBlocksForDestination`, and whatever `paste-heading-section-reencoding` settles for the
-cross-regime rule), never from the run's current kind.
+This is what makes the cross-regime case honest, and the layer below makes that case the common
+one rather than the refused one. A heading section dropped into a list is re-encoded as a list
+item carrying its own `#` run as text, so the preview draws a bullet — not the heading glyph the
+run has while it is in flight. Dropped among headings instead, the same run re-levels to the
+destination's depth and stays a heading. Both answers come from the one call the release makes
+(`reencodeBlocksForDestination`), never from the run's current kind and never from a reading of
+the destination taken here.
 
 ### D8. The preview draws the column, the mark, and the parent
 
@@ -152,11 +164,21 @@ The mockup compares five treatments at one destination. Carried:
   other mark is centred on it;
 - the mark the run will have, drawn at that column, per D7;
 - the destination parent accented, using the accent the caret trail already owns, so the parent is
-  named rather than counted out of columns.
+  named rather than counted out of columns;
+- and the region the drop will ABSORB, marked where there is one. A heading dropped among siblings
+  opens a section that takes the anchor's following siblings into it — the layer below states this
+  as the encoding's own meaning, bounded by the destination scope's end. Those rows change parent
+  without moving, so nothing at the seam says they were involved; a preview that draws only the
+  landing place is accurate and still leaves the reader surprised by half the result.
 
 Dropped: a full-width rule, which draws identically for all six destinations on a seam; and a
 parted slot, which re-lays out the document below the seam on every pointer move and has to put it
 all back when the drag is cancelled.
+
+The absorbed region is the one element the mockup does not yet draw, so how much of it to mark —
+the whole span, its first row, or a count — is carried as an open question rather than settled
+here. That it is marked at all is not open: it is the difference between a preview that states the
+result and one that states half of it.
 
 ### D9. The drop is one operation in the algebra
 
@@ -164,8 +186,8 @@ all back when the drag is cancelled.
 returning the same `OpResult<OpOutput>` they do. It is not a `deleteSubtreeGroups` followed by an
 `insertSubtrees` at the call site: both sides carry gap arithmetic and ordered-run renumbering, the
 destination's anchor shifts when the run is removed from above it, and a second ad hoc call site
-that half-remembers the rules is exactly the failure `paste-heading-section-reencoding`'s D16
-records.
+that half-remembers the rules is exactly the failure the layer below has now hit twice — first as
+a re-indent that one path skipped, then as the expressibility guard a second path never ran.
 
 One operation also means the drop inherits everything downstream for free — `dispatch.ts`'s single
 transaction and undo grouping, the caret policy, the fold carry, and the rejection cue.
@@ -232,9 +254,18 @@ unchanged until the release, so scrolling during a drag is scrolling.
   destruction; a drag with no live capture resolves to a cancel, never to a drop.
 - **Discoverability.** Nothing on the mark says it can be dragged until the pointer is over it. →
   The cursor over a mark states it, which is the same affordance the guide press already relies on.
+- **The layer below moves while this one is planned.** Six of its tasks need a real Obsidian
+  instance and one of them — whether Obsidian's metadata cache indexes a heading inside a list
+  item — could still change what a converted heading looks like. → Nothing here reads that answer:
+  the preview draws whatever the shared re-encode returns, so a change to the conversion changes
+  what the preview shows without changing a rule stated in this change. The restack cost is
+  correspondingly small, which is the argument for stacking rather than duplicating the rule.
 
 ## Open Questions
 
+- How much of an absorbed region the preview marks: the whole span, its first row, or a count.
+  Deferrable because the requirement is that it be stated, not how — the mockup can settle the
+  treatment during implementation, the way it settled the indicator's.
 - Whether a multi-root run should show how many roots are in flight, beyond the lifted rows
   themselves. Deferrable: it adds to the preview without changing what a drop does.
 - Whether a dwell over a folded node should open it mid-drag. Named as a non-goal in the proposal,

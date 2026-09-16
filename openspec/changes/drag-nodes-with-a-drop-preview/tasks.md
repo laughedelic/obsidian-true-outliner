@@ -4,28 +4,34 @@
       existing removal, insertion and re-encoding machinery (design D9) — verify it returns the
       same `OpResult<OpOutput>` shape as `indent` and `moveGroupsUp` and compiles with
       `npm run build`
-- [ ] 1.2 Reject a destination inside the operand's own subtrees, a destination the insertion rule
-      declines, and a destination that no longer exists — verify with unit tests in
-      `tests/ops.test.ts` asserting the rejection reason and a byte-identical document; negative
-      control: dropping the inside-the-operand guard makes the first of them produce a document
-      that no longer parses to the same node count
-- [ ] 1.3 Unit tests for the gap arithmetic on both sides — a run leaving from between two
+- [ ] 1.2 Reject a destination inside the operand's own subtrees, a destination that no longer
+      exists, and the two the insertion rule refuses after the layer below — a payload-root atom
+      into a paragraph's children, and a heading run whose deepest heading would re-level past the
+      last level markdown has — verify in `tests/ops.test.ts` by asserting each reason and a
+      byte-identical document; negative control: dropping the inside-the-operand guard makes the
+      first produce a document that no longer parses to the same node count
+- [ ] 1.3 Cover the absorption a moved heading inherits from the insertion rule — the anchor's
+      following siblings joining the moved heading's section, bounded by the destination scope's
+      end — verify in `tests/ops.test.ts` against the re-parsed tree; negative control: bounding
+      absorption at the anchor instead of at the scope leaves a following sibling outside the
+      section and fails
+- [ ] 1.4 Unit tests for the gap arithmetic on both sides — a run leaving from between two
       siblings and arriving between two others — in `tests/ops.test.ts`; negative control:
       carrying the anchor's trailing gap on the removal side as well as the insertion side
       doubles a blank line and fails the arrival assertion
-- [ ] 1.4 Unit tests for ordered renumbering on both sides, a run moved out of one ordered run and
+- [ ] 1.5 Unit tests for ordered renumbering on both sides, a run moved out of one ordered run and
       into the middle of another; negative control: skipping the renumber on the SOURCE side
       leaves a gap in the old run's numbering and fails
-- [ ] 1.5 Unit tests for re-encoding at the destination across depth and across regime, asserting
+- [ ] 1.6 Unit tests for re-encoding at the destination across depth and across regime, asserting
       internal relative nesting is preserved; negative control: passing the original blocks to the
       insertion instead of the re-encoded ones leaves the run at its source depth and fails
-- [ ] 1.6 A round-trip property in `tests/ops.test.ts`: a run moved to another destination in the
+- [ ] 1.7 A round-trip property in `tests/ops.test.ts`: a run moved to another destination in the
       same scope and moved back yields the original document byte for byte; negative control: a
       deliberate off-by-one in the destination index breaks it on the generated corpus
-- [ ] 1.7 Closure tests in `tests/closure.test.ts`: the result of every generated move re-parses to
+- [ ] 1.8 Closure tests in `tests/closure.test.ts`: the result of every generated move re-parses to
       a well-formed tree with the same node ids present; negative control: allowing a destination
       inside the operand makes the closure check report lost nodes
-- [ ] 1.8 A move whose destination is the run's current place produces no document change — verify
+- [ ] 1.9 A move whose destination is the run's current place produces no document change — verify
       by a unit test asserting an empty changeset rather than a no-op rewrite
 
 ## 2. Resolving a destination from a pointer position
@@ -40,10 +46,11 @@
 - [ ] 2.3 Exclude depths inside folded content, taking the deep bound from the deepest VISIBLE
       trailing descendant — verify with a unit test over a folded fixture; negative control:
       reading the deep bound from the unfolded tree offers hidden levels and fails
-- [ ] 2.4 Filter the candidate set through the operation itself rather than through restated
-      conditions (design D6) — verify a heading-rooted operand is offered no depth inside a
-      paragraph's scope; negative control: a hand-written kind check drifts from
-      `insertSubtrees`'s reasons and fails the case the operation rejects but the check allows
+- [ ] 2.4 Filter the candidate set by calling the shared re-encode step per candidate and keeping
+      what it accepts (design D6) — verify with a unit test that one seam inside a deep heading
+      scope offers its shallower columns and refuses its deeper ones for a heading-rooted operand;
+      negative control: a hand-written kind check, which cannot see a depth-dependent refusal at
+      all, offers every column of that seam and fails
 - [ ] 2.5 Exclude every seam and depth inside the operand's own subtrees — verify by a unit test
       over an operand in the middle of its own parent
 - [ ] 2.6 Snap the horizontal position to the nearest legal column using the guide gesture's own
@@ -92,15 +99,20 @@
       resolution the release uses (design D7) — verify a heading section dragged into a list
       previews a list mark; negative control: drawing the operand's current kind previews a
       heading glyph and fails
-- [ ] 4.4 Accent the destination parent with the accent the caret trail already publishes, without
+- [ ] 4.4 Mark the region an absorbing drop would take in, ending where the absorption ends, and
+      distinguishably from the lifted run and the destination accent — verify against a heading
+      drop whose section reaches three following siblings but not a fourth; negative control:
+      taking the region from the anchor alone marks nothing and fails. Settle the treatment against
+      the mockup first, per design D8's open question
+- [ ] 4.5 Accent the destination parent with the accent the caret trail already publishes, without
       changing its weight — verify by reading the resolved colour and width, as
       `hierarchy-position-indicators`'s own coverage does
-- [ ] 4.5 Render the operand's rows as lifted, in place, composing with the block-selection chrome
+- [ ] 4.6 Render the operand's rows as lifted, in place, composing with the block-selection chrome
       they already carry — verify the rows' resolved positions are unchanged mid-drag
-- [ ] 4.6 Add a new part under `styles/` for the preview and the lifted treatment, per the
+- [ ] 4.7 Add a new part under `styles/` for the preview and the lifted treatment, per the
       one-part-per-feature rule — verify `npm run build:plugin` emits it into `styles.css` in
       cascade order and no shared part was edited
-- [ ] 4.7 Clear every trace on every drag end — verify by asserting the absence of each class and
+- [ ] 4.8 Clear every trace on every drag end — verify by asserting the absence of each class and
       of the field's content after Escape, after a drop, and after a cancel
 
 ## 5. Touch, autoscroll, and the edges
@@ -133,9 +145,11 @@
 - [ ] 6.5 Cover a multi-root cover dragged as a unit, and the selection it leaves behind
 - [ ] 6.6 Cover the cases that must NOT move anything: a press that does not pass the threshold, a
       modified press, a drop with no destination, Escape mid-drag, an off-mode note
-- [ ] 6.7 Cover the fold cases: no hidden depths offered, and a drop into a folded node opening it
-- [ ] 6.8 Cover the zoom case: every destination inside the scope, and no drag that leaves it
-- [ ] 6.9 Run the desktop and mobile suites for the touched groups and record what the mobile run
+- [ ] 6.7 Cover an absorbing drop end to end: the preview's marked region, and the buffer after
+      the release showing the absorbed siblings inside the moved heading's section
+- [ ] 6.8 Cover the fold cases: no hidden depths offered, and a drop into a folded node opening it
+- [ ] 6.9 Cover the zoom case: every destination inside the scope, and no drag that leaves it
+- [ ] 6.10 Run the desktop and mobile suites for the touched groups and record what the mobile run
       could not drive — `npm run test:e2e -- --group dragging` and the mobile equivalent
 
 ## 7. Manual pass and record
@@ -151,7 +165,10 @@
 
 ## 8. Land
 
-- [ ] 8.1 `npm run lint`, `npm test` and `npm run build` clean
-- [ ] 8.2 Sync the delta specs into the main specs and archive the change on this branch, per the
+- [ ] 8.1 Re-check every statement this change makes about the insertion rule against the layer
+      below as it finally merged — its six open tasks can still move the conversion — and correct
+      anything that drifted; verify `openspec validate --strict` on both changes
+- [ ] 8.2 `npm run lint`, `npm test` and `npm run build` clean
+- [ ] 8.3 Sync the delta specs into the main specs and archive the change on this branch, per the
       change lifecycle
-- [ ] 8.3 `openspec validate drag-nodes-with-a-drop-preview --strict`
+- [ ] 8.4 `openspec validate drag-nodes-with-a-drop-preview --strict`

@@ -179,10 +179,48 @@ stated elsewhere:
 - A fold hides its subtree, so the depths inside a folded run are not offered — the deep bound is
   the deepest *visible* trailing descendant. A drop into a folded node opens the fold, which is
   `outline-folding`'s existing rule for a change to hidden content, not a new one.
-- A destination is only a candidate when the operation would be accepted there. `insertSubtrees`
-  already rejects a heading payload under a non-heading parent and an atom under a paragraph, so
-  filtering the candidates through the same rule is what keeps a preview from promising a landing
-  that the release will not deliver.
+- A destination is only a candidate when the operation would be accepted there. Asking the
+  operation, rather than restating its conditions, is what keeps a preview from promising a
+  landing the release will not deliver — and the next section is why that distinction is not
+  pedantry.
+
+## 7a. What the paste layer changes underneath this
+
+`paste-lands-where-it-is-pointed` rewrites what an insertion at a destination does, and this
+change sits on top of it. Three of its results reach the drag directly; they are recorded here
+rather than in the drag's own design because they are facts about the layer below, not decisions
+this change gets to take.
+
+**The candidate set grows.** A heading-rooted payload landing in a list scope used to be refused;
+it now converts, becoming a list item that carries its own `#` run as text. Nearly every seam is
+therefore reachable by nearly every payload, and a drag's preview has correspondingly more to say
+about what the run *becomes*, since conversion is now the common case rather than the refused one.
+
+**What remains refused is no longer a property of the destination's KIND.** Two rejections
+survive, and they are unalike:
+
+| refusal | what decides it |
+| --- | --- |
+| `insertion-not-expressible` | an atom among the payload's own ROOTS, landing in a paragraph's children — an atom deeper in the payload is fine |
+| `at-h6-bound` | the payload's DEEPEST heading, re-levelled to the destination, landing past `h6` |
+
+The second is the one that matters for a pointer gesture: it depends on the destination's own
+heading depth, so on ONE seam a heading payload can be legal at the shallower columns and refused
+at the deeper ones. Legality varies along the horizontal axis, which is exactly the axis a drag
+invented to let the pointer choose. A candidate set built from a copy of the old kind-based
+conditions would offer those deeper columns and fail on release.
+
+Asking is also cheap now: the guard moved into the shared re-encode step and that step returns a
+typed result, so "would this land?" is one call per candidate rather than a predicate to maintain
+beside it.
+
+**A dropped heading absorbs what follows it.** A heading opens a section running to the next
+heading of its level or shallower, so a heading-rooted run dropped among siblings takes the
+anchor's following siblings into its own section — stated behaviour in that change, bounded by
+the destination scope's end, not a defect to work around. For a drag this is new information the
+preview owes the reader: the seam and the column say where the run lands, and say nothing about
+the rows below it changing parent. A preview that draws only the landing place is accurate and
+still leaves the reader surprised.
 
 ## 8. What stays open
 
@@ -195,6 +233,9 @@ stated elsewhere:
 - **The cost of a preview per pointer move.** A transaction per move is what a native drag already
   dispatches, and `guide-hover.ts` already dispatches one per hovered column, so the shape is not
   new. It was not timed here against the enforcement funnel's budget.
+- **How much of an absorbed region a preview should mark.** Section 7a establishes that a heading
+  drop re-parents the rows below it and that the reader should see so. Whether that is the whole
+  absorbed span, its first row, or a count is a design question the mockup does not yet draw.
 - **A mark's painted ink versus its box.** Section 1 reports boxes. What a bullet's dot actually
   covers inside its span was measured once, for the gutter, in
   [marker-text-gap.md](marker-text-gap.md); this pass did not re-measure it and nothing here
