@@ -11,14 +11,16 @@
 
 ## 2. The shared renderer
 
-- [ ] 2.1 Create `src/plugin/lineage-list.ts` and move into it the footer's group head, row
-      renderer, marker helpers, glyphs, `renderInline`, `unwrapBlocks` and the match-marking
-      walk, parameterised by the per-surface options in design D2; make the footer call it.
-      Verify `npm run test:e2e:narrow -- 73-footer-render`, `74-footer-chrome-pass` and
-      `79-footer-appearance` pass unchanged
-- [ ] 2.2 Repoint the trail's imports of `renderInline` and the segment glyphs, which it takes
-      from `backlinks-footer.ts` today and the move relocates; its row rendering stays on
-      `lineage-row.ts`. Verify `npm run test:e2e:narrow -- 80-outline-zoom` passes unchanged
+- [ ] 2.1 Move the segment-level helpers down into `src/plugin/lineage-row.ts` (design D2):
+      `renderInline`, `unwrapBlocks`, `segmentGlyph`, `separatorGlyph`, `segmentMarker` and the
+      `markerSlot` / `ordinalMarker` / `checkboxGlyph` primitives beneath them; repoint
+      `zoom-trail.ts`'s three imports at it. Verify `npm run test:e2e:narrow -- 80-outline-zoom`
+      passes unchanged
+- [ ] 2.2 Create `src/plugin/lineage-list.ts` and move into it the footer's list level — the group
+      head, the row renderer, `markerFor` and the match-marking walk — parameterised by the
+      per-surface options in design D2, calling down into `lineage-row.ts` for the rest; make the
+      footer call it. Verify `npm run test:e2e:narrow -- 73-footer-render`,
+      `74-footer-chrome-pass` and `79-footer-appearance` pass unchanged
 - [ ] 2.3 Add the `descendantDepth` option to `buildRows` (design D3), defaulting to the
       footer's level; verify `tests/footer-model.test.ts` gains a case where zero emits no
       descendant rows and no fold counts, and one over a hit nested under a non-matching ancestor
@@ -50,15 +52,19 @@
       manually against the test vault with the queries from `docs/research/search-surfaces`'s
       captures
 - [ ] 4.3 Implement the keyboard model on the modal's `Scope`: arrows over hits, modified arrows
-      over groups, scroll-into-view, hover selection, Tab toggling scope and re-running the
-      query; verify manually and in 5.1
+      over groups, stopping at both ends rather than wrapping, scroll-into-view, selection on
+      pointer MOVEMENT rather than on the pointer being over a row, Tab toggling scope and
+      re-running the query; verify manually and in 5.1
 - [ ] 4.4 Implement landing on a hit through the registry (design D6): open, caret, scroll,
-      zoom root chosen by the leaf rule, gated on outline mode; Shift and the new-tab modifier
+      zoom root chosen by the leaf rule and withheld when a childless hit has no parent, gated on
+      outline mode; Shift and the new-tab modifier
       variants; the palette closes. Verify `grep -n "as any\|\.cm\b" src/plugin/search-palette.ts`
       is empty and 5.1 passes
 - [ ] 4.5 Register the "Search outline" command in `src/plugin/main.ts` with a plain `callback` so it is
       available in every view; verify the command is offered with outline mode off
-- [ ] 4.6 Styles: the palette's result scope inherits the footer's row rules; hit-only active
+- [ ] 4.6 Styles: split `styles/20-backlinks-footer.css` so the row rules and their custom
+      properties sit under the shared `to-lineage-list` scope in `styles/15-lineage-list.css`,
+      leaving `.to-backlinks` the footer's placement under a note (design D2); hit-only active
       state; the chip; the phone container query hiding the hints; verify on the desktop and
       mobile e2e configs by screenshot
 
@@ -71,7 +77,8 @@
       first hit; Tab narrows to the current note and back; Enter on a hit with children zooms to
       it, on a leaf to its parent, with the caret on the hit; Shift+Enter opens unzoomed; Enter
       outside outline mode opens unzoomed; a childless top-level hit opens unzoomed; a replaced
-      query shows only the replacement's results; the group cap's tail states the remainder. Negative controls: for the zoom tests, disable
+      query shows only the replacement's results; the next-hit key on the last hit does not wrap;
+      the group cap's tail states the remainder. Negative controls: for the zoom tests, disable
       the `zoomTo` dispatch; for the stale-results test, drop the generation guard; for the cap
       test, stop counting past the cap
 - [ ] 5.2 Run the same spec under the mobile config and add the tap-opens and hints-hidden
