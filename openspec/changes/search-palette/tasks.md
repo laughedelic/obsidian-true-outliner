@@ -96,7 +96,7 @@
       `white-space: normal`, which undoes the CodeMirror `pre-wrap` a block widget inherits and
       means nothing in a modal, its heading and its controls (design D2). Add the check that keeps
       it true: no `to-lineage-*` selector in the footer's part, and no `to-backlinks-*` selector in
-      the shared one, as a case in `tests/styles.test.ts` beside the brace check. Then `styles/70-search-palette.css`: the
+      the shared one, as a case in `tests/styles.test.ts` beside the brace check. Then `styles/80-search-palette.css`: the
       shell, the hit-only active state, the scope control, and the palette's own `container-type`
       with the query that hides the hints. Verify on the desktop and mobile e2e configs by
       screenshot
