@@ -88,6 +88,15 @@ ALWAYS           minimal encoding or reject; no hidden state.
 6. **Toggle persistence** ✅: remembered per note in the **plugin data store** (consistent
    with Q3 — files stay clean; frontmatter would pollute content for a pure UI mode).
 
+**Correction to follow-up 4** (2026-09-16, `paste-lands-where-it-is-pointed`): "no op can even
+attempt it, so this holds by construction rather than by rejection" is false for one operation.
+A PASTE can attempt it — its payload is parsed markdown, not a node being reparented — and
+measured, three insertion paths answered it three different ways, one of them by corrupting the
+buffer. The heading arm the encoding rule never needed is now stated in `structural-operations`;
+below a list item a heading encodes as a list item carrying its own `#` run, which CommonMark
+reads as a list item containing a heading. Details and the measurement in
+[paste-across-encoding-regimes.md](paste-across-encoding-regimes.md).
+
 See [org-mode-comparison.md](org-mode-comparison.md) for where this algebra aligns
 with and diverges from org-mode, the closest living reference system.
 
