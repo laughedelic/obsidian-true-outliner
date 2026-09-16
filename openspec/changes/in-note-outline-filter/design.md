@@ -190,11 +190,18 @@ what `positions-re-base-with-the-zoom` existed to fix — and the anchors need s
 either way. Matching the whole note and dropping what falls outside the cover costs one pass over
 nodes the reader cannot see and keeps the filter in one line space.
 
-The visible set is then the intersection of the filter's spans with the scope's cover, and the
-decorations builder takes that intersection as its visible spans. Zooming while filtered
-re-decides the match set over the new scope — the query is kept and the anchors recomputed,
-because the scope changed which matches count. Clearing the filter leaves the zoom field
-untouched.
+The visible set is then the intersection of the filter's spans with the scope's cover. That
+intersection is `shownSpans` in `outline-filter-scope.ts`, and it is what EVERY consumer reads —
+the hiding builder, the marks, the caret's vertical walk, the selection refusal, the panel's
+count — because they must all agree about what is on screen. Asking the filter's own spans is
+asking a narrower question, and inside a zoom the two differ: a caret stepping by the filter's
+answer alone lands on a match the zoom is hiding, which is how the single answer came to be one
+function rather than five call sites.
+
+Zooming therefore does not touch the match set at all. The anchors are the note's, the scope
+narrows what is drawn from them, and zooming out widens it back — which is what the composition
+cases measure. Clearing the filter leaves the zoom field untouched, and clearing the zoom leaves
+the filter's.
 
 ### D5. The panel is a CM6 top panel
 

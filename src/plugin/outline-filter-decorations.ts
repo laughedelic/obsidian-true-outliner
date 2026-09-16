@@ -18,7 +18,7 @@
 import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, type DecorationSet } from '@codemirror/view';
 import { StateField } from '@codemirror/state';
-import { filterVisibleSpans, outlineFilter } from './outline-filter-scope';
+import { outlineFilter, shownSpans } from './outline-filter-scope';
 import { markRanges } from './outline-filter-state';
 
 export const MATCH_CLASS = 'to-match';
@@ -26,7 +26,7 @@ export const MATCH_CLASS = 'to-match';
 const matchMark = Decoration.mark({ tagName: 'mark', class: MATCH_CLASS });
 
 function compute(state: EditorState): DecorationSet {
-  const spans = filterVisibleSpans(state);
+  const spans = shownSpans(state);
   const filter = outlineFilter(state);
   if (!spans || !filter?.answered) return Decoration.none;
   const builder = new RangeSetBuilder<Decoration>();

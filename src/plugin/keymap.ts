@@ -65,7 +65,7 @@ import { nodeAtLine, nodeStartLine } from "../locate";
 import { linePosToOffset, offsetToLinePos, toLineRange } from "./cm-pos";
 import { parsedDoc } from "./parsed-doc";
 import { zoomScope } from "./zoom-scope";
-import { filterVisibleSpans } from "./outline-filter-scope";
+import { shownSpans } from "./outline-filter-scope";
 import { crossesHiddenLines, nextVisibleLine } from "./outline-filter-state";
 import { vetoEffect } from "./transaction-filter";
 import { foldedEntryAt } from "./fold-service";
@@ -777,7 +777,7 @@ function refusedByFilter(
   doc: Text,
   ranges: readonly SelectionRange[],
 ): boolean {
-  const visible = filterVisibleSpans(view.state);
+  const visible = shownSpans(view.state);
   if (!visible) return false;
   const crosses = ranges.some(
     (range) =>
@@ -897,7 +897,7 @@ function makeVerticalHandler(forward: boolean) {
     let line = startLine;
     let node = nodeAtLine(outlineDoc, startLine);
     if (!node) return false; // preamble
-    const visible = filterVisibleSpans(view.state);
+    const visible = shownSpans(view.state);
     for (let guard = 0; guard < doc.lines + 1; guard++) {
       let nextLine = forward ? line + 1 : line - 1;
       // A folded node is one node to step over. The walk starts from the raw

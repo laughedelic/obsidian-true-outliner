@@ -76,7 +76,7 @@ import { transactionFilterExtension } from './transaction-filter';
 import { viewRegistryExtension } from './view-registry';
 import { zoomStateExtension } from './zoom-state';
 import { clearFilter, outlineFilterStateExtension, setFilterQuery } from './outline-filter-state';
-import { outlineFilter } from './outline-filter-scope';
+import { outlineFilter, shownMatchCount } from './outline-filter-scope';
 import { outlineFilterDecorationsExtension } from './outline-filter-decorations';
 import {
   closeFilterPanel,
@@ -1041,8 +1041,8 @@ export default class TrueOutlinerPlugin extends Plugin {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     const cm = view?.file ? viewFor(view) : undefined;
     const filter = cm ? outlineFilter(cm.state) : null;
-    if (!filter) return null;
-    return { query: filter.query, matched: filter.matched, count: filter.anchors?.length ?? 0 };
+    if (!filter || !cm) return null;
+    return { query: filter.query, matched: filter.matched, count: shownMatchCount(cm.state) };
   }
 
   activeTabOutlineMode(): boolean | undefined {
