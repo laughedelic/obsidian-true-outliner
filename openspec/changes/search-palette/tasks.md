@@ -54,7 +54,8 @@
 - [ ] 4.3 Implement the keyboard model on the modal's `Scope`: arrows over hits, modified arrows
       over groups, stopping at both ends rather than wrapping, scroll-into-view, selection on
       pointer MOVEMENT rather than on the pointer being over a row, Tab toggling scope and
-      re-running the query; verify manually and in 5.1
+      re-running the query, and the input-row control doing the same in both scopes (design D7);
+      verify manually and in 5.1
 - [ ] 4.4 Implement landing on a hit through the registry (design D6): open, caret, scroll,
       zoom root chosen by the leaf rule and withheld when a childless hit has no parent, gated on
       outline mode; Shift and the new-tab modifier
@@ -72,7 +73,8 @@
 
 - [ ] 5.1 Add `e2e/specs/45-search-palette.e2e.ts`, with its own helpers beside it as
       `e2e/search-palette.ts`, covering: the command opens the palette outside outline mode; a
-      query renders grouped hits under lineage with no children; two hits share their ancestor;
+      query renders grouped hits under lineage with no children; the vault scope carries a scope
+      control that narrows without a key; two hits share their ancestor;
       the match is marked; arrows cross a group boundary and the group jump lands on a group's
       first hit; Tab narrows to the current note and back; Enter on a hit with children zooms to
       it, on a leaf to its parent, with the caret on the hit; Shift+Enter opens unzoomed; Enter
