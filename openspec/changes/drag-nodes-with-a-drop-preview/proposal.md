@@ -101,7 +101,11 @@ has to be undone.
   the affordance-budget entry's question about the task's zoom stays open in
   docs/research/decoration-follow-ups.
 - **Hovering a folded node to open it.** A drop into a folded node opens the fold, which is
-  `outline-folding`'s existing rule; a dwell that expands mid-drag is a separate affordance.
+  `outline-folding`'s existing rule; a dwell that expands mid-drag is a separate affordance. Said
+  plainly, because the two halves of this are stated in different places and their consequence in
+  neither: a folded subtree's INTERIOR is not reachable by drag. A run can land as a folded node's
+  last child, and nowhere else inside it, so reaching a position among its hidden descendants means
+  cancelling, unfolding, and dragging again.
 - **A menu on the mark.** The third gesture the affordance budget names is untouched here.
 - **A setting to turn the gesture off.** One default behaviour, stated so that a setting can be
   added later without changing what the gesture means — the same position `outline-folding` took

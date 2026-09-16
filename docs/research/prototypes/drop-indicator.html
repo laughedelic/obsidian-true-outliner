@@ -314,7 +314,11 @@ const legend = document.getElementById('legend');
 function drawAmbiguity() {
   const d = LEGAL[+slider.value];
   render(document.getElementById('ambiguity'), {
-    style: 'bar', depth: d, lift: true, ticks: true, ghost: true, ghostKind: 'bullet',
+    // The ghost is the kind the run ARRIVES as, which the destination decides
+    // (D7). At the root, among heading siblings, a bulleted run re-encodes as a
+    // paragraph; everywhere else on this seam it lands in a list scope.
+    style: 'bar', depth: d, lift: true, ticks: true, ghost: true,
+    ghostKind: d === 0 ? 'para' : 'bullet',
     parentRow: PARENT_OF[d] ?? -1,
     litGuideAt: PARENT_OF[d] === null ? undefined : d - 1,
   });

@@ -69,9 +69,17 @@ The press is still consumed from `pointerdown`, exactly as today — the mousedo
 click behind it are still swallowed, so nothing else acts on the press while its meaning is
 undecided. What moves is only the moment the zoom's effect is dispatched.
 
-*Cost.* A shipped gesture's timing changes. The zoom's effect does not, and the existing
-mark-click scenarios in `outline-zoom` cover the outcome rather than the moment, so they keep
-passing through the new path.
+"Released" means `pointerup`, not `click`. A gesture that leaves the mark before releasing fires
+no `click` on it at all, so a rule written on `click` would decline exactly the case the threshold
+has to judge; `pointerup` is also the event the same gesture's drag half ends on, so both outcomes
+resolve at one moment.
+
+*Cost, and it is larger than "the timing changes".* The existing mark-click scenarios do NOT keep
+passing: `clickMark` in `e2e/specs/80-outline-zoom.e2e.ts` dispatches `pointerdown`, `mousedown`,
+`mouseup` and `click` — and no `pointerup` — so under this rule none of them zooms. The helper
+gains a `pointerup`; the scenarios themselves are unchanged, since they assert the outcome. This
+is not optional work discovered later, and it reaches the mobile suite too, which depends on that
+same helper because a coordinate-aimed press cannot be driven there at all.
 
 ### D3. Pointer events, never HTML5 drag-and-drop
 
@@ -130,8 +138,25 @@ Two filters narrow the interval, and both come from rules that already exist:
   at its deeper ones. A filter written from the old kind-based conditions would offer those
   columns and fail on release, on the one axis this gesture exists to give the pointer.
 
-Snapping uses the guide gesture's own tolerance rather than a new one, so the columns a drag snaps
-to are the columns a press already resolves against.
+  That call is necessary and NOT sufficient today, which is measured rather than suspected: it
+  accepts a payload under a `code`, `table` or `quote` parent, because its expressibility arm
+  tests the payload for atoms and the parent only for `paragraph`. An atom is a leaf. So this
+  change closes the gap where the layer below closed the others — in the shared re-encode step,
+  beside the guard it belongs with — rather than keeping a second condition in the candidate rule.
+  The deep bound's "that can hold children" above is the belt to that brace, and the two are
+  deliberately not one: a bound the resolver can state cheaply should not wait on an oracle.
+
+The horizontal rule is a PARTITION of the axis over the seam's legal columns, clamped at both
+ends: every x resolves to exactly one candidate, the nearest, with everything left of the first
+resolving to the first and everything right of the last to the last. It deliberately does NOT
+borrow `guideHit`'s tolerance, which an earlier draft of this design proposed. That function is a
+hit test, not a partition: its band is `unit/2 − 2` left and `unit/3` right, which leaves 7.33px
+between every pair of columns resolving to nothing at the default unit; it returns nothing at all
+right of the line's own text start, which during a drag is most of the screen; and it reads
+painted guide positions, so it cannot name the deepest candidate, whose level has no guide drawn
+on the row above's own line. Its asymmetry exists to keep a press clear of marks and chevrons — a
+drag has no press to keep clear of. With the cancel-on-no-destination rule, borrowing it would
+have thrown a drag away on a release into a dead band.
 
 *Alternatives.* Vertical position only, with the run always landing as a sibling of the row above:
 one rule, no ambiguity, and no way to reparent — which is most of what a drag is for. Modifier
@@ -189,8 +214,38 @@ destination's anchor shifts when the run is removed from above it, and a second 
 that half-remembers the rules is exactly the failure the layer below has now hit twice — first as
 a re-indent that one path skipped, then as the expressibility guard a second path never ran.
 
-One operation also means the drop inherits everything downstream for free — `dispatch.ts`'s single
-transaction and undo grouping, the caret policy, the fold carry, and the rejection cue.
+One operation also means the drop inherits what `editor-structural-commands` already guarantees
+every operation — the single transaction and its undo grouping, the caret policy, the fold carry,
+the rejection cue — rather than re-deriving them. Those live in the command funnel around
+`runOp` in `main.ts`, not in `dispatch.ts`, which is a pure edits-to-changes module; the drop has
+to ENTER that funnel, and it enters from a different place than the other two entry points, since
+it holds a CodeMirror view rather than Obsidian's `Editor`. That is work, not inheritance, and it
+has a task.
+
+`insertSubtrees` is not enough to build the move on by itself: it splices relative to an anchor
+SIBLING, and "the first child of a row that has none" — the deep bound of every seam in D6 —
+has no anchor to splice against. `enforce.ts` already carries a private `insertAsOnlyChildren` for
+exactly that case. The shared re-encode step already takes a parent and its two sibling lists and
+handles the empty one, so what is missing is a splice that takes a parent and an index. Adding it
+is what makes "one place the move is expressed" true rather than aspirational.
+
+### D9a. The operand's selection is set at the threshold, not at the press
+
+D5 collapses the selection to the pressed node's cover when the press lands outside the current
+one. That is not a neutral act: by `escalated-selection-decoration`, a selection that is an exact
+cover IS the block-selection interaction mode — the editor blurs, the covered lines render Live
+Preview rather than raw, the native highlight is suppressed, and block chrome appears.
+
+So the collapse happens when the press becomes a DRAG, at the threshold, and not when the press
+arrives. A sub-threshold press is a zoom, which moves the caret on its own terms and has no
+business entering block selection on the way. And "the selection as it was when the drag began",
+which the cancel rule restores, is the selection before that collapse.
+
+Two consequences the mode brings with it, both of which the implementation owes an answer:
+a row's rendered height can change when it stops rendering raw, and the seam resolution reads
+rendered positions — so the resolution is taken after the mode has settled, not across it. And
+with the content DOM blurred, the Escape that cancels has to be heard somewhere that is still
+listening; the drag's own capture is that place.
 
 ### D10. The preview is editor state, not a DOM overlay
 
@@ -239,8 +294,14 @@ unchanged until the release, so scrolling during a drag is scrolling.
   the case that distinguishes them — a press that moves and then returns to the mark before
   release is a drag, not a zoom.
 - **Composing removal and insertion gets the gaps or the numbering wrong (D9).** → Unit tests per
-  shape, closure tests that the result re-parses, and a round-trip property: a run dragged to a
-  destination in the same scope and dragged back yields the original document.
+  shape, and a closure property asserting that every node the run carried is still a node
+  afterwards — the form the layer below arrived at after finding that its first closure assertion
+  could not fail, because it re-checked the encode/parse round trip rather than the surgery.
+  A move-and-move-back round trip is NOT the mitigation: measured on this branch, moving a heading
+  absorbs the anchor's following siblings, so the return trip's anchor is inside the run it would
+  move and the property is false by construction for exactly the case this change adds. It holds
+  only for operands that absorb nothing, and the absorbing case gets a test asserting the
+  asymmetry instead.
 - **A preview per pointer move costs more than the budget allows.** → D10 dispatches only on a
   change of destination, and the drag writes no document changes, so the enforcement funnel sees
   nothing on the hot path. Timed against the existing budget during implementation rather than
@@ -254,6 +315,13 @@ unchanged until the release, so scrolling during a drag is scrolling.
   destruction; a drag with no live capture resolves to a cancel, never to a drop.
 - **Discoverability.** Nothing on the mark says it can be dragged until the pointer is over it. →
   The cursor over a mark states it, which is the same affordance the guide press already relies on.
+- **Almost everything the preview promises exists only while the button is down, and WebDriver
+  releases a held button when its call ends.** Measured: a press in one `performActions` call is
+  auto-released before the next call runs, so no assertion can be taken by stopping mid-drag. →
+  The suite records instead of stopping: a recorder installed in the page before the gesture
+  samples the resolved destination and the preview's state on each `pointermove`, the whole drag
+  runs in one call, and the assertions read the recording. Escape mid-drag is driven the same way,
+  as a key source and a pointer source ticking together in that one call.
 - **The layer below moves while this one is planned.** Six of its tasks need a real Obsidian
   instance and one of them — whether Obsidian's metadata cache indexes a heading inside a list
   item — could still change what a converted heading looks like. → Nothing here reads that answer:

@@ -17,9 +17,17 @@ SHALL remain what it is today: the zoom gesture `outline-zoom` states, resolved 
 released.
 
 The press SHALL be claimed at the moment it arrives, before its meaning is known, so that nothing
-else acts on it while it is undecided: it SHALL NOT place the caret, begin a text selection, fold
-the node, or toggle a task. A press that ends without passing the threshold SHALL deliver the
-gesture it would have delivered before this capability existed, unchanged.
+else acts on it while it is undecided: it SHALL NOT place the caret, begin a text selection, or
+fold the node. A press that ends without passing the threshold SHALL deliver the gesture it would
+have delivered before this capability existed, unchanged.
+
+A TASK's checkbox is the one mark where the claim is NARROWER, and deliberately so. Its toggle
+survives a drag only because a gesture that leaves the box produces no activation on it, so
+nothing has to be suppressed there and nothing SHALL be: the press is watched for movement rather
+than swallowed, and a press that never passes the threshold reaches the checkbox and toggles it,
+as it does today. Claiming that press and replaying the toggle as a document write is explicitly
+NOT the mechanism — the toggle is Obsidian's, with its own states and its own plugins, and this
+capability does not reimplement it.
 
 A MODIFIED press SHALL be left alone, as every other gesture on a mark already leaves it.
 
@@ -57,6 +65,22 @@ and a scroll are the same gesture.
 - **WHEN** the user presses a mark with the platform's primary modifier held and moves
 - **THEN** no drag begins
 
+### Requirement: A mark says it can be dragged before it is pressed
+
+A mark that is a drag source SHALL state so under the pointer, through the cursor, before any
+press is made. Nothing else on the row distinguishes a draggable mark from an ornament, and a
+gesture whose only discovery route is trying it is not discoverable — the same reason the guide
+press states itself under the pointer.
+
+#### Scenario: The cursor states the affordance
+- **WHEN** the pointer rests on a node's mark in outline mode
+- **THEN** the cursor says the mark is draggable, and moving off restores it
+
+#### Scenario: A mark that is not a drag source says nothing
+- **WHEN** the pointer rests on a mark the trail or the footer drew, or on any mark outside
+  outline mode
+- **THEN** the cursor is unchanged
+
 ### Requirement: What is dragged is the selection's covered subtrees
 
 The operand of a drag SHALL be resolved by the rule `selection-structural-ops` already states for
@@ -87,22 +111,42 @@ produced. A cover reached by dragging, by Shift+Arrow, by Mod+A or by undo drags
 While a drag is in flight, the pointer SHALL name at most one destination, resolved from both of
 its axes:
 
-- The VERTICAL position picks a seam — the boundary between two rendered rows.
-- The HORIZONTAL position picks a depth from the seam's legal interval, snapping to the nearest
-  legal column within a stated tolerance.
+- The VERTICAL position picks a seam — a boundary between two NODES.
+- The HORIZONTAL position picks a depth from the seam's legal interval.
 
-A seam's legal depths SHALL be the closed interval running from the depth of the row BELOW it to
-one level inside the deepest trailing descendant of the row ABOVE it. Shallower than the row below
-is excluded because it would make that row a descendant of what was dropped, which is a different
-operation; deeper than one level inside the row above is excluded because no parent exists at that
-depth.
+A seam SHALL be a boundary between nodes and SHALL NOT be taken from rendered rows. A table, a
+code fence and a paragraph broken over several lines each render several rows, and a trailing gap
+line renders a row of its own; boundaries taken from rows would invent seams inside a single node
+and on both sides of every blank line, at depths that are not node depths.
+
+A seam's legal depths SHALL be the closed interval running from the depth of the node BELOW it to
+one level inside the deepest trailing descendant of the node ABOVE it THAT CAN HOLD CHILDREN.
+Shallower than the node below is excluded because it would make that node a descendant of what was
+dropped, which is a different operation; deeper is excluded because no parent exists at that
+depth — including where the trailing descendant is a leaf, which offers no level inside it at all.
+
+The document's own two ends SHALL be seams, since moving a run to the top or the bottom is among
+the commonest things this gesture is for. Where there is no node below the seam, the shallow bound
+SHALL be the top level — or, under an active zoom, the zoom root's own child depth. The preamble
+SHALL NOT be a destination or a seam boundary: `node-selection-enforcement` places it outside
+jurisdiction, and the first seam is the one before the first NODE.
+
+The horizontal rule SHALL be a PARTITION of the axis across the seam's legal columns, clamped at
+BOTH ends: every horizontal position SHALL resolve to exactly one candidate — the nearest column —
+with positions left of the shallowest resolving to it and positions right of the deepest resolving
+to that. There SHALL be no position over the seam that resolves to no candidate, since a release
+where nothing is resolved cancels, and a drag thrown away by landing between two columns is a
+gesture that punishes precision it never asked for.
 
 The interval SHALL be further narrowed, and the narrowings SHALL come from rules already stated
 elsewhere rather than from conditions restated here:
 
 - Depths inside FOLDED content SHALL NOT be offered, the deep bound being the deepest VISIBLE
   trailing descendant. A drop whose destination lies inside a folded node SHALL open that fold, as
-  `outline-folding` already requires of any change to hidden content.
+  `outline-folding` already requires of any change to hidden content. Where that destination is
+  one level inside a folded node, the run SHALL land as its LAST child — the position the seam
+  itself names, since the seam sits after everything the fold hides. Every other seam's index is
+  fixed by the nodes that flank it; this one SHALL be stated rather than left to follow.
 - A depth at which the resulting operation would be REJECTED SHALL NOT be offered. The candidate
   set SHALL be filtered by the operation's own acceptance rather than by a copy of its conditions,
   so a destination the preview shows is always one the release can deliver.
@@ -125,6 +169,36 @@ preview, and a release there SHALL cancel.
   outermost legal column
 - **THEN** the destination stays at the shallowest legal depth rather than making the following
   row a descendant of the dragged run
+
+#### Scenario: The last seam takes a run to the top level
+- **WHEN** a run is dragged past the last node in the document
+- **THEN** the seam after it offers the top level as its shallowest destination, and a drop there
+  puts the run last in the document
+
+#### Scenario: The preamble is not a destination
+- **WHEN** a note begins with frontmatter and a run is dragged above the first node
+- **THEN** the shallowest destination offered sits after the preamble, and no destination places
+  the run inside or above it
+
+#### Scenario: A multi-line node offers no seam inside itself
+- **WHEN** the pointer moves down the rows of a table, a fenced code block or a paragraph broken
+  over several lines
+- **THEN** the seams offered are those before and after that node, and none between its own rows
+
+#### Scenario: A leaf offers no level inside it
+- **WHEN** the node above a seam is a code fence or a table, which cannot hold children
+- **THEN** no destination inside it is offered, and the deepest destination on that seam is one
+  level inside the nearest trailing ancestor that can hold children
+
+#### Scenario: Every horizontal position resolves to a column
+- **WHEN** the pointer moves continuously along a seam from far left of its shallowest column to
+  far right of its deepest
+- **THEN** the destination changes from column to column with no position in between resolving to
+  none, and positions past either end hold at that end's column
+
+#### Scenario: A drop into a folded node lands last
+- **WHEN** a run is dropped one level inside a folded node that hides three children
+- **THEN** the run lands after those three children and the fold opens
 
 #### Scenario: A folded subtree offers no depths
 - **WHEN** the row above the seam is folded and hides three levels of descendants
@@ -317,10 +391,20 @@ what the hit-testing does is half of what this gesture is. Where a platform cann
 way, the gap SHALL be recorded with the pass that covers it instead, and SHALL NOT be reported as
 coverage.
 
+State asserted DURING a drag SHALL be recorded rather than read by stopping: a held button does
+not survive the end of the driving call, so a gesture broken into calls to take a reading is no
+longer a held gesture at all. The suite SHALL sample what it needs from inside the page as the
+gesture runs, drive the whole gesture uninterrupted, and assert against the recording.
+
 #### Scenario: The drag is driven as a real pointer gesture
 - **WHEN** the desktop suite exercises a drop
 - **THEN** it is driven by a real pointer press, movement and release at coordinates, and the
   assertions read the resulting buffer
+
+#### Scenario: Mid-drag state is recorded, not read mid-drag
+- **WHEN** the suite asserts what the preview showed at each of several destinations in one drag
+- **THEN** the whole drag runs uninterrupted and the assertions read a recording taken from inside
+  the page, rather than pausing the gesture to look
 
 #### Scenario: An undrivable platform is recorded, not claimed
 - **WHEN** a platform's harness cannot aim a press at a mark
