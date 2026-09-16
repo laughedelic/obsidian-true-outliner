@@ -1,0 +1,75 @@
+/* The in-note filter's panel, mounted above the editor's content by
+ * `showPanel` (`outline-filter` D5). Its own part, per the convention that a
+ * feature's CSS does not go in the editor's — what the panel and the footer
+ * SHARE is the match mark, which lives in `10-editor.css` for that reason. */
+
+.to-filter-panel {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  padding: var(--size-4-2) var(--size-4-3);
+  border-bottom: 1px solid var(--background-modifier-border);
+  background-color: var(--background-primary);
+}
+
+.to-filter-field {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-1);
+  flex: 1;
+  min-width: 0;
+  padding-inline: var(--size-4-2);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background-color: var(--background-modifier-form-field);
+}
+
+.to-filter-icon {
+  display: flex;
+  color: var(--text-faint);
+}
+
+.to-filter-icon .svg-icon {
+  width: var(--icon-s);
+  height: var(--icon-s);
+}
+
+.to-filter-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  box-shadow: none;
+  padding-inline: 0;
+}
+
+/* The query no longer matches anything, while the view still answers an
+ * earlier one. The field says so because nothing else on screen can: the
+ * content is a standing result, not a stale render (D8). */
+.to-filter-input.is-missed {
+  color: var(--text-error);
+}
+
+.to-filter-status {
+  flex: none;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  /* Reserves its own room so the field does not resize as the count changes
+   * under the reader's typing. */
+  min-width: 6em;
+  text-align: right;
+}
+
+.to-filter-close {
+  flex: none;
+  padding: var(--size-4-1) var(--size-4-2);
+  color: var(--text-muted);
+  background: transparent;
+  box-shadow: none;
+}
+
+.to-filter-close:hover {
+  color: var(--text-normal);
+  background-color: var(--background-modifier-hover);
+}

@@ -75,6 +75,15 @@ import { decorationsExtension, type MarkerVisibility } from './decorations';
 import { transactionFilterExtension } from './transaction-filter';
 import { viewRegistryExtension } from './view-registry';
 import { zoomStateExtension } from './zoom-state';
+import { clearFilter, outlineFilterStateExtension, setFilterQuery } from './outline-filter-state';
+import { outlineFilter, shownMatchCount } from './outline-filter-scope';
+import { outlineFilterDecorationsExtension } from './outline-filter-decorations';
+import {
+  closeFilterPanel,
+  filterPanelOpen,
+  openFilterPanel,
+  outlineFilterPanelExtension,
+} from './outline-filter-panel';
 import { guideHoverExtension } from './guide-hover';
 import { isOutlineMode, outlineStateExtension, outlineToggled } from './outline-state';
 import { zoomClickExtension } from './zoom-click';
@@ -359,6 +368,14 @@ export default class TrueOutlinerPlugin extends Plugin {
     // of. The predicate is `zoomScope` itself, the same read `act` starts
     // with — cheap and side-effect-free, unlike `act`, which is why it is a
     // second function rather than a dry run of the first.
+    // Toggling, so the one command both opens the panel and puts it away —
+    // `outline-filter`'s spec asks for that rather than a second command whose
+    // only job is closing what the first opened.
+    this.addZoomCommand('filter-outline', 'Filter outline', (view) => {
+      if (filterPanelOpen(view.state)) closeFilterPanel(view);
+      else openFilterPanel(view);
+      return true;
+    });
     this.addZoomCommand(
       'zoom-out',
       'Zoom out one level',
@@ -475,6 +492,9 @@ export default class TrueOutlinerPlugin extends Plugin {
     // extensions that READ the scope are registered after the state that holds
     // it and the reading order matches the dependency.
     this.registerEditorExtension(zoomStateExtension());
+    // Beside the zoom anchor, for the same reason: the hiding builder reads
+    // both, and a filter's spans are state the reader's gestures move.
+    this.registerEditorExtension(outlineFilterStateExtension());
     this.registerEditorExtension(guideHoverExtension());
     // Before every extension that GATES on the mode, so the field it reads is
     // installed by the time their own `create` runs.
@@ -501,6 +521,10 @@ export default class TrueOutlinerPlugin extends Plugin {
     // sources, and keeping them adjacent and last makes any interaction with
     // the established layers attributable to them.
     this.registerEditorExtension(zoomDecorationsExtension());
+    // After the hiding builder, so a mark is only ever computed for a line the
+    // block replacements have already decided to keep.
+    this.registerEditorExtension(outlineFilterDecorationsExtension());
+    this.registerEditorExtension(outlineFilterPanelExtension());
     this.registerEditorExtension(zoomTrailExtension(this));
     this.registerEditorExtension(zoomClickExtension());
     this.registerEditorExtension(zoomViewExtension());
@@ -997,6 +1021,30 @@ export default class TrueOutlinerPlugin extends Plugin {
    * rationale as `stats` and `motionCounts`, and here it is the surfaces' own
    * source of truth rather than test-only scaffolding.
    */
+  /**
+   * Set the active editor's filter query, or clear the filter with `null`.
+   *
+   * Public for the same reason `stats` and `activeTabOutlineMode` are: the
+   * harness drives the real state rather than a parallel one. The panel (task
+   * 4.1) dispatches through the same two calls.
+   */
+  applyFilterQuery(query: string | null): void {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const cm = view?.file ? viewFor(view) : undefined;
+    if (!cm) return;
+    if (query === null) clearFilter(cm);
+    else setFilterQuery(cm, query);
+  }
+
+  /** What the filter reports about the active editor, for the same readers. */
+  activeFilter(): { query: string; matched: boolean; count: number } | null {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const cm = view?.file ? viewFor(view) : undefined;
+    const filter = cm ? outlineFilter(cm.state) : null;
+    if (!filter || !cm) return null;
+    return { query: filter.query, matched: filter.matched, count: shownMatchCount(cm.state) };
+  }
+
   activeTabOutlineMode(): boolean | undefined {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     const cm = view?.file ? viewFor(view) : undefined;

@@ -770,28 +770,6 @@
   color: var(--text-normal);
 }
 
-/*
- * A search term's own matches, told apart from an author's `==highlight==`.
- *
- * Both are `<mark>`; only ours carries the class, so the author's keeps
- * whatever the theme gives it and this one is drawn by the footer. The two can
- * sit in the same row — a term matching text the author happened to highlight
- * nests one inside the other — so the treatments have to differ by more than
- * intensity: this one is the accent colour the plugin uses for its own chrome,
- * over a wash of it, where a theme's highlight is a flat fill.
- *
- * Nothing here changes the row's metrics. A mark that added padding or weight
- * would reflow the line as the reader typed, which is the one thing a live
- * filter must not do.
- */
-.to-backlinks-content mark.to-match {
-  border-radius: var(--radius-s);
-  background-color: hsla(var(--color-accent-hsl), 0.25);
-  color: var(--text-normal);
-  padding: 0;
-  font-weight: inherit;
-}
-
 .to-backlinks-prop-name {
   font-family: var(--font-monospace);
   font-size: var(--font-ui-smaller);
