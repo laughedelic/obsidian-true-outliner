@@ -15,8 +15,9 @@ not the active tab is in outline mode; the palette is a navigation surface, not 
 command, and the mode gate on structural commands SHALL NOT apply to it. The plugin SHALL NOT
 bind a default hotkey to it.
 
-Opening the palette SHALL place the caret in its query field. Dismissing it SHALL return focus
-to where it was.
+Opening the palette SHALL place the caret in its query field. Dismissing it without choosing a
+hit SHALL return focus to where it was; confirming a hit SHALL leave focus in the note that
+opens.
 
 #### Scenario: Available outside outline mode
 
@@ -41,8 +42,10 @@ notation — its kind's marker, its depth — beneath the squashed lineage rows 
 same squashing the backlinks footer applies. Hits in one note SHALL share their common ancestors
 rather than each repeating them.
 
-A group SHALL show only hits and their lineage: no children of a hit, and no fold controls.
-Every occurrence of the query in a rendered row SHALL be marked.
+A group SHALL show only hits and the nodes that lead to them: no children of a hit, and no fold
+controls. A node between two hits SHALL be shown as its own row rather than squashed away, so the
+deeper hit is never indented under nothing. Every occurrence of the query in a rendered row SHALL
+be marked.
 
 Groups SHALL be ordered by the note's modification time, most recent first. Hits within a group
 SHALL appear in document order.
@@ -57,6 +60,12 @@ SHALL appear in document order.
 
 - **WHEN** the query matches two nodes under the same heading
 - **THEN** the heading appears once in the group, above both hits
+
+#### Scenario: A node between two hits keeps its row
+
+- **WHEN** the query matches a node and also a node two levels beneath it, and the node between
+  them does not match
+- **THEN** the node between them is shown as a row above the deeper hit
 
 #### Scenario: A hit's children are not shown
 
@@ -105,8 +114,10 @@ results change. The arrow keys SHALL move the active hit to the previous or next
 order, across group boundaries. A modified arrow SHALL move to the first hit of the previous or
 next group. Moving SHALL scroll the active hit into view.
 
-Focus SHALL remain in the query field throughout; hovering a hit with the pointer SHALL make it
-active; typing SHALL edit the query.
+Focus SHALL remain in the query field throughout; moving the pointer over a hit SHALL make it
+active; typing SHALL edit the query. Pointer MOVEMENT and not the pointer merely being over a
+row, so that a keyboard move which scrolls a row under a still pointer does not immediately
+select that row instead.
 
 #### Scenario: Arrows cross groups
 
@@ -134,7 +145,8 @@ Confirming the active hit — or activating a hit with the pointer — SHALL ope
 caret at the start of the hit's node, scrolled into view, and close the palette. When that tab is
 in outline mode the view SHALL be zoomed so that the hit is within the zoomed scope: to the hit
 itself when it has children, and to its parent when it does not, so the zoomed view is never a
-single line. Outside outline mode the note SHALL open unzoomed at the node.
+single line. A childless hit with no parent SHALL open the note unzoomed, by that same rule.
+Outside outline mode the note SHALL open unzoomed at the node.
 
 A shift-modified confirmation SHALL open the note unzoomed at the node. A confirmation carrying
 the platform's new-tab modifier SHALL open the note in a new tab, zoomed by the same rule.
@@ -149,6 +161,11 @@ the platform's new-tab modifier SHALL open the note in a new tab, zoomed by the 
 
 - **WHEN** a childless hit is active and confirmed, in outline mode
 - **THEN** the note opens zoomed to the hit's parent, with the caret on the hit's first line
+
+#### Scenario: A childless top-level hit has nothing to zoom to
+
+- **WHEN** a childless top-level hit is active and confirmed, in outline mode
+- **THEN** the note opens unzoomed with the caret on the hit's first line
 
 #### Scenario: No zoom outside outline mode
 
@@ -172,12 +189,18 @@ the platform's new-tab modifier SHALL open the note in a new tab, zoomed by the 
 
 ### Requirement: Results paint progressively and are bounded
 
-Groups SHALL appear as each note's tree resolves, without waiting for every note. A change to the
-query or the scope SHALL discard results an earlier query had not yet painted, so no result of a
-superseded query is ever shown.
+Groups SHALL appear as each note's tree resolves, without waiting for every note. Each group
+SHALL be appended in the order the recency rule gives it, and a group once painted SHALL NOT
+move. A change to the query or the scope SHALL discard results an earlier query had not yet
+painted, so no result of a superseded query is ever shown.
 
 The number of groups shown SHALL be capped. When the cap is reached, the palette SHALL state how
 many further notes hold hits and are not shown. The count SHALL be true for the whole scope.
+
+#### Scenario: Painted groups do not move
+
+- **WHEN** further groups arrive while earlier ones are already on screen
+- **THEN** each one is appended below them and no group already shown changes place
 
 #### Scenario: A superseded query paints nothing
 
@@ -192,13 +215,20 @@ many further notes hold hits and are not shown. The count SHALL be true for the 
 
 ### Requirement: Empty states say what they mean
 
-With an empty query the palette SHALL show no results and SHALL show its key hints. With a query
-that matches nothing in the active scope the palette SHALL say so.
+The palette SHALL have a minimum query length below which it does not search. With a query
+shorter than that, an empty one included, the palette SHALL show no results and SHALL show its
+key hints. With a query at or above it that matches nothing in the active scope the palette SHALL
+say so.
 
 #### Scenario: Nothing typed
 
 - **WHEN** the palette is open with an empty query
 - **THEN** no group is shown and the key hints are
+
+#### Scenario: Below the minimum length
+
+- **WHEN** the query is shorter than the minimum length
+- **THEN** no group is shown and the key hints are, as with an empty query
 
 #### Scenario: Nothing found
 

@@ -26,7 +26,7 @@ What this design builds on:
 
 **Goals:**
 
-- One renderer for a grouped lineage list, called by the footer, the palette and the trail.
+- One renderer for a grouped lineage list, called by the footer and the palette.
 - A palette whose keyboard model is over hits, with the shell's look and none of its internals.
 - Landing on a hit through the same public route the zoom commands use.
 - First paint that never waits for the last note.
@@ -65,6 +65,10 @@ chrome contract is the shared thing and the content rules are not
 (`.to-backlinks`) becomes the list's scope, so the palette inherits every row rule by wrapping its
 results in it.
 
+Appearance is the footer's too: the rows read `backlinksSegmentIcons` and `backlinksSeparator`
+rather than declaring a second pair, the way `lineage-row.ts` already has the trail read them.
+One choice governs every surface that draws a lineage, which is the point of the extraction.
+
 Alternative: leave the footer alone and keep the prototype's copy. Rejected: a marker or a
 segment rule fixed in one would silently diverge in the other, which is the defect class
 `docs/research/surfaces-and-embedding` records for two surfaces — and the same reasoning already
@@ -73,8 +77,21 @@ settled the level below.
 ### D3. The row model is asked for no descendants
 
 `buildRows` gains a `descendantDepth` option, defaulting to the footer's one level; the palette
-passes zero. Filtering descendant rows out afterwards, as the prototype did, leaves fold counts
-computed for rows that are then dropped.
+passes zero and renders every row that comes back.
+
+Filtering afterwards — the prototype's rule, keep the lineage rows and the node rows that are
+hits — is not the same result. The row model puts the nodes BETWEEN two hits on screen as plain
+node rows, so a hit nested under a non-matching ancestor is not left indented under nothing, and
+a hit-or-lineage filter discards exactly those rows:
+
+    zero descendants            the prototype's filter
+    ~ Heading                   ~ Heading
+      * alpha TARGET              * alpha TARGET
+        . middle node                 * beta TARGET
+          * beta TARGET
+
+The filter also pays for a level of descendant rows, and the fold counts computed over them,
+that nothing keeps.
 
 ### D4. One tree cache
 
@@ -87,9 +104,14 @@ both surfaces touch.
 
 ### D5. Progressive, generation-guarded search that yields
 
-`vault-search.ts` walks `vault.getMarkdownFiles()`, resolving each tree through the cache and
-calling back per note with hits, yielding to the event loop every few files so typing stays
-responsive during a cold sweep. A generation counter, bumped on every query or scope change,
+`vault-search.ts` walks `vault.getMarkdownFiles()` sorted by modification time, most recent
+first, resolving each tree through the cache and calling back per note with hits, yielding to the
+event loop every few files so typing stays responsive during a cold sweep. Sorted BEFORE the
+sweep, not after it: `mtime` is on the `TFile` and costs no read, and taking the order first is
+what lets a progressive paint append each group in its final place. The prototype sorted its
+groups at the end because it painted once, at the end; sorting late here would either move rows
+already on screen or leave the cap admitting whichever notes resolved first rather than the most
+recently modified ones. A generation counter, bumped on every query or scope change,
 makes a stale callback a no-op. The cap is on groups; the walk continues past it only to count,
 so the tail's number is true (`backlink-filtering`'s totals rule, applied here).
 
@@ -105,7 +127,9 @@ caret with the public `Editor` API and scroll it into view; then `viewFor(view)`
 `EditorView`, and dispatch `zoomTo` only if that state is in outline mode. No private member is
 touched. The zoom root is the hit when it has children, and its parent when it does not — a
 zoomed single line is the finding recorded in `docs/research/search-surfaces` ("What the prototype
-surfaced") — and the caret stays on the hit either way.
+surfaced") — and the caret stays on the hit either way. A childless hit with no parent, a
+top-level node or one in the preamble, opens the note unzoomed: the same rule, applied where the
+only alternatives are a zoom to one line and no zoom at all.
 
 Alternative: switch the tab into outline mode when it is not, so a hit always opens zoomed.
 Rejected for now: the mode is a per-tab reader choice (`outline-mode`), and a search should not
