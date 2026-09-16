@@ -517,3 +517,90 @@ describe('outline filter: composed with a zoom', function () {
     expect(await renderedLines()).toContain('- zqtarget too');
   });
 });
+
+describe('outline filter: structural work under a filter', function () {
+  before(async function () {
+    await obsidianPage.resetVault();
+    await h.resetPluginState();
+    await h.pinPositionIndicatorsOff();
+  });
+
+  afterEach(async function () {
+    await applyFilterQuery(null);
+    await h.runCommand('zoom-clear');
+    await h.dismissNotices();
+  });
+
+  it('Escape in the field closes the filter and restores the note', async function () {
+    await openSmall();
+    await h.runCommand('filter-outline');
+    await browser.pause(150);
+    await typeInPanel('zqtarget');
+    await browser.pause(200);
+    expect(await renderedLines()).not.toContain('- alpha');
+
+    await browser.keys(['Escape']);
+    await browser.pause(250);
+    expect((await panelState())?.open).toBe(false);
+    expect(await renderedLines()).toContain('- alpha');
+  });
+
+  it('the footer keeps rendering after the filtered content', async function () {
+    await openSmall();
+    await applyFilterQuery('zqtarget');
+    await browser.pause(250);
+    const present = await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      const el = view?.containerEl.querySelector('.to-backlinks') as HTMLElement | null;
+      return !!el;
+    });
+    expect(present).toBe(true);
+  });
+
+  it('a zoom still hides the title and properties while filtered', async function () {
+    await openProbe();
+    await h.setCursorSettled(PREAMBLE.length, 2);
+    await h.runCommand('zoom-in');
+    await applyFilterQuery(TOKEN);
+    await browser.pause(250);
+    expect(await chromeVisible()).toEqual({ title: false, properties: false });
+  });
+
+  it('moving a visible node carries its hidden children', async function () {
+    await openSmall();
+    await applyFilterQuery('zqtarget');
+    await browser.pause(200);
+    const before = await h.getBuffer();
+
+    // UP, not down: the match is the last node in its section, and moving it
+    // down would leave that section — which the structural rules refuse for
+    // reasons that have nothing to do with the filter.
+    await h.setCursorSettled(6, 10);
+    await h.runCommand('move-node-up');
+    await browser.pause(250);
+    await h.saveActiveFile();
+
+    const after = await h.getBuffer();
+    expect(after).not.toEqual(before);
+    // The hidden child travelled with the node it belongs to, staying directly
+    // beneath it — the document is the truth, whatever the filter is drawing.
+    const lines = after.split('\n');
+    const at = lines.findIndex((line) => line.startsWith('- zqtarget') && !line.includes('too'));
+    expect(lines[at + 1]).toBe('  - target kid');
+    expect(await renderedLines()).not.toContain('  - target kid');
+  });
+
+  it('a moved match brings its new ancestors into the path', async function () {
+    await openSmall();
+    await applyFilterQuery('zqtarget');
+    await browser.pause(200);
+    expect(await renderedLines()).not.toContain('- alpha');
+
+    await h.setCursorSettled(6, 10);
+    await h.runCommand('indent-node');
+    await browser.pause(250);
+    // `- alpha` is now the match's parent, so it is part of what keeps it
+    // reachable and the filter draws it.
+    expect(await renderedLines()).toContain('- alpha');
+  });
+});

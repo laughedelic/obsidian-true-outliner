@@ -94,3 +94,28 @@ in it and nothing the reader types can bring a match back — the rule above nee
 fire from. The filter therefore falls back to the whole note when its last anchor goes, which is
 the same state it was in before a query matched. `outline-filter`'s spec says so now; it did not
 before.
+
+## What the apply pass changed in the design
+
+Three of the design's decisions named a seam that turned out not to be the one, and each was
+found by a test rather than by re-reading. Recorded together because the pattern is the point:
+the zoom's machinery has more entry points than its design documents name, and a filter meets
+all of them.
+
+| Decision | Named | Actually |
+| --- | --- | --- |
+| D1 | the preamble span keeps the properties block | `ZOOMED_CLASS` does; the span only kept a stray blank line |
+| D3 (caret) | `zoom-state.ts`'s visible-bounds resolver | that resolver answers the zoom's automatic exit; vertical motion is `keymap.ts`'s own walk, and every other selection is `transaction-filter.ts`'s clamp |
+| D3 (selection) | the transaction filter | Shift+Arrow and Mod-A dispatch with no `userEvent`, which reads as programmatic, so the filter never sees them — the refusal sits beside the gestures |
+
+**One answer for what is drawn.** The composition with a zoom began in the hiding builder alone,
+and four other consumers — the marks, the caret's walk, the selection refusal, the panel's count —
+read the filter's own spans instead. Inside a zoom those differ: the anchors run the whole note
+while the scope draws one subtree, so the caret could step onto a match the zoom was hiding.
+`shownSpans` is the single answer now, and the count reports what the reader can reach rather than
+the anchor total.
+
+**Zooming does not re-decide the match set.** The anchors are the note's; the scope narrows what is
+drawn from them; zooming out widens it back. Simpler than recomputing per scope, and it keeps one
+story about what freezing means — a match freezes once, when the query runs.
+

@@ -92,7 +92,7 @@
 
 ## 5. End-to-end
 
-- [ ] 5.1 Add `e2e/specs/81-outline-filter.e2e.ts`, with its own helpers beside it as
+- [x] 5.1 Add `e2e/specs/81-outline-filter.e2e.ts`, with its own helpers beside it as
       `e2e/outline-filter.ts`, and a label for its decade in `scripts/spec-groups.mjs` so the CI
       check is named for the feature rather than `8x`. Covering: the command is absent outside
       outline mode; a deep match keeps its path and hides siblings; a match's children are
@@ -109,7 +109,7 @@
       controls: for the frozen-set tests, re-run the query on every change; for the caret tests,
       drop the resolver's intersection; for the selection test, allow the extension; for the
       composition tests, skip the intersection
-- [ ] 5.2 Run the spec under the mobile config; verify it passes
+- [x] 5.2 Run the spec under the mobile config; verify it passes
 - [ ] 5.3 Manual pass in a real vault under both themes, filtered and zoomed; record findings in
       `docs/research/outline-filter-spike.md`, and in particular the five the design left to it:
       whether the field's signal carries when the view is answering an earlier query; how often
