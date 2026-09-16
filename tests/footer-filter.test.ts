@@ -1,12 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import {
+  admitByAxes,
+  admitReferences,
   applyControls,
   axesOf,
   NO_FILTER,
+  orderAndCap,
   type ControlsState,
   type SourceRefs,
 } from '../src/plugin/footer-filter';
-import type { BacklinkReference, ReferenceKind } from '../src/plugin/backlink-index';
+import type {
+  BacklinkReference,
+  PlacedReference,
+  PlacedSource,
+  ReferenceKind,
+} from '../src/plugin/backlink-index';
+import type { OutlineNode } from '../src/model';
+import { parse } from '../src/parse';
 import {
   DEFAULT_GROUP_HEIGHT,
   GROUP_HEIGHT_CSS,
@@ -440,5 +450,206 @@ describe('the cap settings', () => {
   it('caps nothing at the no-limit setting', () => {
     const result = applyControls(VAULT, controls({ cap: OVERALL_CAP_REFERENCES.none }));
     expect(result.shortfall).toEqual({ references: 0, notes: 0 });
+  });
+});
+
+/**
+ * A placed source, built from real markdown so the term is answered against a
+ * real tree rather than a stub that could agree with the matcher by accident.
+ */
+function placedSource(path: string, markdown: string, refs: BacklinkReference[]): PlacedSource {
+  const doc = parse(markdown);
+  const nodeAt = (line: number): OutlineNode | undefined => {
+    let seen = 0;
+    const walk = (nodes: readonly OutlineNode[]): OutlineNode | undefined => {
+      for (const node of nodes) {
+        const own = node.lines.length;
+        if (line >= seen && line < seen + own) return node;
+        seen += own + node.trailingGap.length;
+        const below = walk(node.children);
+        if (below) return below;
+      }
+      return undefined;
+    };
+    return walk(doc.children);
+  };
+
+  const placed = new Map<number, PlacedReference>();
+  const matched = new Set<number>();
+  const references = refs.map((r) => {
+    if (r.line === undefined) return { ref: r };
+    const node = nodeAt(r.line);
+    if (!node) return { ref: r };
+    matched.add(node.id);
+    if (!placed.has(node.id)) {
+      placed.set(node.id, { kind: r.kind, text: r.original, kinds: new Set([r.kind]) });
+    }
+    return { ref: r, nodeId: node.id };
+  });
+
+  return {
+    path,
+    doc,
+    matches: (node: OutlineNode) => matched.has(node.id),
+    refs: placed,
+    properties: refs.filter((r) => r.kind === 'property'),
+    references,
+  };
+}
+
+const SOURCE_NOTE = `# Rollout log
+
+- planning the migration mentions [[Target]]
+  - a child row says persimmon
+    - a folded descendant says chrysalis
+- an unrelated bullet mentions [[Target]] too
+`;
+
+/** Two line-bearing references in different nodes, plus one property. */
+function rollout(): PlacedSource {
+  return placedSource('Notes/Rollout log.md', SOURCE_NOTE, [
+    { kind: 'note', sourcePath: 'Notes/Rollout log.md', line: 2, original: '[[Target]]' },
+    { kind: 'embed', sourcePath: 'Notes/Rollout log.md', line: 5, original: '[[Target]]' },
+    {
+      kind: 'property',
+      sourcePath: 'Notes/Rollout log.md',
+      property: 'related',
+      original: '[[Target]] quince',
+    },
+  ]);
+}
+
+describe('admitting references within a placed group', () => {
+  it('admits everything when no kind and no term is set', () => {
+    const admitted = admitReferences(rollout(), controls());
+    expect(admitted.count).toBe(3);
+    expect(admitted.nodes.size).toBe(2);
+    expect(admitted.properties).toHaveLength(1);
+  });
+
+  it('narrows by kind alone, as fillGroup used to by hand', () => {
+    const admitted = admitReferences(rollout(), controls({ kinds: new Set(['embed']) }));
+    expect(admitted.count).toBe(1);
+    expect(admitted.nodes.size).toBe(1);
+    expect(admitted.properties).toHaveLength(0);
+  });
+
+  it('narrows by term alone, against the content the footer shows', () => {
+    const admitted = admitReferences(rollout(), controls({ search: 'migration' }));
+    expect(admitted.count).toBe(1);
+    expect(admitted.nodes.size).toBe(1);
+  });
+
+  it('admits a reference whose match is in a child the footer renders', () => {
+    expect(admitReferences(rollout(), controls({ search: 'persimmon' })).count).toBe(1);
+  });
+
+  it('does not admit a reference whose only match is folded away', () => {
+    expect(admitReferences(rollout(), controls({ search: 'chrysalis' })).count).toBe(0);
+  });
+
+  it('admits every reference in the group when the note NAME matches', () => {
+    const admitted = admitReferences(rollout(), controls({ search: 'rollout' }));
+    expect(admitted.count).toBe(3);
+  });
+
+  it('combines kind and term conjunctively', () => {
+    const both = controls({ kinds: new Set<ReferenceKind>(['note']), search: 'migration' });
+    expect(admitReferences(rollout(), both).count).toBe(1);
+    const mismatched = controls({ kinds: new Set<ReferenceKind>(['embed']), search: 'migration' });
+    expect(admitReferences(rollout(), mismatched).count).toBe(0);
+  });
+
+  it('answers a property reference on its own text', () => {
+    const admitted = admitReferences(rollout(), controls({ search: 'quince' }));
+    expect(admitted.count).toBe(1);
+    expect(admitted.properties).toHaveLength(1);
+    expect(admitted.nodes.size).toBe(0);
+  });
+
+  it('counts references, not the nodes holding them', () => {
+    const twoInOneNode = placedSource('Notes/Pair.md', '- one node, two links to [[Target]]\n', [
+      { kind: 'note', sourcePath: 'Notes/Pair.md', line: 0, original: '[[Target]]' },
+      { kind: 'note', sourcePath: 'Notes/Pair.md', line: 0, original: '[[Target]]' },
+    ]);
+    const admitted = admitReferences(twoInOneNode, controls({ search: 'two links' }));
+    expect(admitted.count).toBe(2);
+    expect(admitted.nodes.size).toBe(1);
+  });
+});
+
+/**
+ * The term-active pipeline, run end to end over its pure pieces: the axes admit
+ * from summaries, every admitted group is placed, the term decides within each,
+ * and only then does the sort and the cap run (design D1).
+ *
+ * Composed here exactly as `render` composes it, so the ORDER of the three
+ * steps is what these tests are about — a pipeline that capped first would pass
+ * every other assertion in this file.
+ */
+function termPipeline(
+  sources: readonly SourceRefs[],
+  placedByPath: Map<string, PlacedSource>,
+  state: ControlsState,
+): ReturnType<typeof orderAndCap> {
+  const counted = admitByAxes(sources, state).map((group) => {
+    const placed = placedByPath.get(group.path);
+    return { ...group, count: placed ? admitReferences(placed, state).count : 0 };
+  });
+  return orderAndCap(counted, state);
+}
+
+const THREE_SOURCES: SourceRefs[] = [
+  src('Notes/Alpha.md', 300, 'note', 'note'),
+  src('Notes/Beta.md', 200, 'note'),
+  src('Notes/Gamma.md', 100, 'note'),
+];
+
+function threePlaced(): Map<string, PlacedSource> {
+  const one = (path: string, body: string, lines: number[]): [string, PlacedSource] => [
+    path,
+    placedSource(
+      path,
+      body,
+      lines.map((line) => ({ kind: 'note' as const, sourcePath: path, line, original: '[[Target]]' })),
+    ),
+  ];
+  return new Map([
+    // Both references in ONE node, so the group's count is 2 where a count of
+    // nodes would read 1 — the distinction `admitReferences` keeps.
+    one('Notes/Alpha.md', '- alpha body mentions zebra [[Target]] and [[Target]]\n', [0, 0]),
+    one('Notes/Beta.md', '- beta body, nothing else [[Target]]\n', [0]),
+    one('Notes/Gamma.md', '- gamma body mentions zebra [[Target]]\n', [0]),
+  ]);
+}
+
+describe('the term-active pipeline', () => {
+  const placed = threePlaced();
+
+  it('counts only the references the term admits', () => {
+    const result = termPipeline(THREE_SOURCES, placed, controls({ search: 'zebra' }));
+    // Two in Alpha, one in Gamma. Beta holds one that the term does not admit.
+    expect(result.totals).toEqual({ references: 3, notes: 2 });
+  });
+
+  it('drops a group with no admitted reference', () => {
+    const result = termPipeline(THREE_SOURCES, placed, controls({ search: 'zebra' }));
+    expect(paths(result)).toEqual(['Notes/Alpha.md', 'Notes/Gamma.md']);
+  });
+
+  it('applies the cap to what the term admitted, not the other way round', () => {
+    // A cap of 2 stops the ordinary pass at Alpha, so Gamma — last by mtime —
+    // is never read. With a term only Gamma answers, it is what the footer is
+    // for, and the cap has room for it precisely because the term ran first.
+    const state = controls({ search: 'gamma body', cap: 2 });
+    expect(paths(termPipeline(THREE_SOURCES, placed, state))).toEqual(['Notes/Gamma.md']);
+
+    // The same cap, with no term: Gamma sits beyond it and is not shown.
+    expect(paths(applyControls(THREE_SOURCES, controls({ cap: 2 })))).toEqual(['Notes/Alpha.md']);
+  });
+
+  it('leaves the ordinary pass untouched when the term is empty', () => {
+    const state = controls({ cap: 10 });
+    expect(termPipeline(THREE_SOURCES, placed, state)).toEqual(applyControls(THREE_SOURCES, state));
   });
 });

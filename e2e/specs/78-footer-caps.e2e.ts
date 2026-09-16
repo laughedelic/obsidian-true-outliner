@@ -113,6 +113,10 @@ describe('the overall cap and the per-note bound', function () {
    * The spec's own scenario, and the only way to tell the design apart from one
    * that filters after placement: a note beyond the cap is not READ, not merely
    * not shown.
+   *
+   * With NO search term, which is the condition the rule is stated under. A
+   * term is answered from content, so every axis-admitted source is read and
+   * the cap applies to what the term admits instead — the case below this one.
    */
   it('never places a note the cap did not admit', async function () {
     // The cap is already where it needs to be, with the footer settled at
@@ -174,6 +178,33 @@ describe('the overall cap and the per-note bound', function () {
     // Without the model applying the cap before `place()`, every source in the
     // fixture would appear here.
     expect([...counted.placed].sort()).toEqual([...counted.shownPaths].sort());
+    await settle();
+  });
+
+  /**
+   * The other half of the same ordering, and the reason the pipeline changes
+   * shape while a term is active: the cap now applies to what the term
+   * ADMITTED, so a note the cap would have skipped is read when the term is the
+   * only thing that can find it.
+   *
+   * The first assertion is this case's own control. If the cap did not exclude
+   * `Deep chain` to begin with, the second assertion proves nothing at all.
+   */
+  it('reads a note beyond the cap when a term is the only way to find it', async function () {
+    await setCap('25');
+    const capped = await readStable(groupNames);
+    expect(capped.length).toBeGreaterThan(0);
+    expect(capped).not.toContain('Deep chain');
+
+    await openFilters();
+    // An ancestor line in `Backlinks/Deep chain.md`, and nowhere else in the
+    // vault — so the term admits exactly one source, and that source sorts
+    // (by name, as this whole spec does) far past a cap of 25 references.
+    await setSearchTerm('open questions before Wednesday');
+    const found = await readStable(groupNames);
+    expect(found).toContain('Deep chain');
+
+    await setSearchTerm('');
     await settle();
   });
 
@@ -466,7 +497,7 @@ describe('the overall cap and the per-note bound', function () {
               (row) => row.getBoundingClientRect().bottom > limit,
             );
             if (clipped.length === 0) return null;
-            const references = clipped.filter((r) => r.classList.contains('is-reference'));
+            const references = clipped.filter((r) => r.classList.contains('is-hit'));
             return {
               label: rung.getAttribute('aria-label') ?? '',
               depth: rung.style.getPropertyValue('--to-depth'),

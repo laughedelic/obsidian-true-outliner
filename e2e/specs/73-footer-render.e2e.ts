@@ -76,7 +76,7 @@ describe('backlinks footer: first render', function () {
     const lines = await dump();
     expect(lines.some((l) => l.startsWith('head') && l.includes('Structured backlinks'))).toBe(true);
     expect(lines.some((l) => l.startsWith('group-head'))).toBe(true);
-    expect(lines.some((l) => l.startsWith('row+is-reference'))).toBe(true);
+    expect(lines.some((l) => l.startsWith('row+is-hit'))).toBe(true);
     // Lineage is what distinguishes this from Obsidian's own backlinks.
     expect(lines.some((l) => l.startsWith('row+is-lineage'))).toBe(true);
     // A nested list item's text must render as markdown, not as the code block
@@ -213,7 +213,7 @@ describe('backlinks footer: first render', function () {
             return [...out].sort();
           };
           const lineage = tags('.to-backlinks-row.is-lineage .to-backlinks-content');
-          const reference = tags('.to-backlinks-row.is-reference .to-backlinks-content');
+          const reference = tags('.to-backlinks-row.is-hit .to-backlinks-content');
           if (lineage.length === 0 || reference.length === 0) return null;
           return { lineage, reference };
         }),
@@ -272,7 +272,7 @@ describe('backlinks footer: first render', function () {
           // about media, not about one tag.
           const MEDIA = 'img, .internal-embed';
           const refWithImage = Array.from(
-            root.querySelectorAll('.to-backlinks-row.is-reference'),
+            root.querySelectorAll('.to-backlinks-row.is-hit'),
           ).find((r) => r.querySelector(MEDIA)) as HTMLElement | undefined;
           const refImage = refWithImage?.querySelector(MEDIA) as HTMLElement | undefined;
           return {
@@ -360,11 +360,11 @@ describe('backlinks footer: first render', function () {
           const lineage = one('.to-backlinks-row.is-lineage .to-backlinks-content');
           const linCode = one('.to-backlinks-row.is-lineage .to-backlinks-content code');
           const linMark = one('.to-backlinks-row.is-lineage .to-backlinks-content mark');
-          const refMark = one('.to-backlinks-row.is-reference .to-backlinks-content mark');
-          const refContent = one('.to-backlinks-row.is-reference .to-backlinks-content');
+          const refMark = one('.to-backlinks-row.is-hit .to-backlinks-content mark');
+          const refContent = one('.to-backlinks-row.is-hit .to-backlinks-content');
           const linTag = one('.to-backlinks-row.is-lineage .to-backlinks-content a.tag');
           const linStrong = one('.to-backlinks-row.is-lineage .to-backlinks-content strong');
-          const refTag = one('.to-backlinks-row.is-reference .to-backlinks-content a.tag');
+          const refTag = one('.to-backlinks-row.is-hit .to-backlinks-content a.tag');
           if (
             !lineage || !linCode || !linMark || !refMark || !refContent || !linTag || !refTag ||
             !linStrong
