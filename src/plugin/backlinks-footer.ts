@@ -41,28 +41,18 @@ import {
   getAllTags,
   type App,
 } from 'obsidian';
-import { matchRanges } from '../search';
 import { isOutlineMode } from './outline-state';
 import { nestedEditorField } from './nested-editor';
 import { contentEndAnchor } from './zoom-scope';
-import { buildMarkerIcon, FOLDED_NODE_CLASS } from './decorations';
-import { markSubject, type HeadingMarkerStyle } from './marker-shapes';
-import { glyph } from './glyph';
-import { renderInline } from './inline-render';
-import {
-  checkboxGlyph,
-  markerSlot,
-  ordinalMarker,
-  renderLineageContent,
-  segmentGlyph,
-  segmentMarker,
-  separatorGlyph,
-} from './lineage-row';
+import { chevronGlyph, glyph, makeDisclosure } from './chrome-controls';
+import type { HeadingMarkerStyle } from './marker-shapes';
+import { markMatches, renderInline } from './inline-render';
+import { renderGroupHead, renderRow, type LineageListOptions } from './lineage-list';
+import { markerSlot } from './lineage-row';
 import {
   OWN_CHROME_CLASS,
   applyLineChrome,
   lineChrome,
-  plainGuideBackground,
 } from './chrome-line';
 import {
   CHROME_VARS,
@@ -557,7 +547,18 @@ class FooterController {
       const { name, folder } = splitPath(group.path);
       const card = root.createDiv({ cls: 'to-backlinks-group' });
       const collapsed = state.collapsedGroups.has(group.path);
-      this.renderGroupHead(card, group.path, name, folder, group.count, collapsed);
+      renderGroupHead(card, {
+        name,
+        folder,
+        count: group.count,
+        collapsed,
+        onToggle: () => {
+          const groups = viewStateFor(this.targetPath).collapsedGroups;
+          if (collapsed) groups.delete(group.path);
+          else groups.add(group.path);
+          void this.render();
+        },
+      });
       if (collapsed) continue;
 
       const body = card.createDiv({ cls: 'to-backlinks-rows' });
@@ -722,7 +723,7 @@ class FooterController {
     // Collected so the truncation measurement below happens against the rows as
     // they will actually be, not as they are a frame after being appended.
     const pending: Promise<void>[] = [];
-    for (const row of rows) this.renderRow(built, sourcePath, row, pending);
+    for (const row of rows) renderRow(built, sourcePath, row, pending, this.listOptions());
     body.empty();
     // Rows were built off-tree just above and are moved into the widget's own
     // subtree.
@@ -886,6 +887,42 @@ class FooterController {
    * throws that row away either way; reading the live term means it was never
    * marked wrongly in the first place.
    */
+  /**
+   * What the shared list draws the footer's rows with.
+   *
+   * One place, rather than a branch inside the renderer: the settings, the view
+   * state and the re-render a fold triggers are the footer's own, and the list
+   * is told them rather than reaching for them. A second surface answers the
+   * same shape differently and the rows come out identical.
+   */
+  private listOptions(): LineageListOptions {
+    return {
+      icons: this.source.backlinksSegmentIcons,
+      separator: this.source.backlinksSeparator,
+      headingMarkerStyle: this.source.headingMarkerStyle,
+      // Two conditions, not one: its own setting, and the guide layer being
+      // drawn at all. A reader who turned the layer off does not expect it here.
+      guides: this.source.backlinksGuides && this.source.guideVisibility !== 'off',
+      folds: {
+        expanded: (sourcePath, nodeId) =>
+          viewStateFor(this.targetPath).expandedRows.has(`${sourcePath}:${nodeId}`),
+        toggle: (sourcePath, nodeId) => {
+          const rows = viewStateFor(this.targetPath).expandedRows;
+          const key = `${sourcePath}:${nodeId}`;
+          if (rows.has(key)) rows.delete(key);
+          else rows.add(key);
+          void this.render();
+        },
+      },
+      renderContent: (el, row, sourcePath) => this.renderContent(el, row, sourcePath),
+      renderSegment: (el, segment, sourcePath) => this.renderSegment(el, segment, sourcePath),
+      renderProperty: (el, markdown, sourcePath) => this.renderMarkdown(el, markdown, sourcePath),
+      onActivateSegment: (segment, event, sourcePath) =>
+        this.open(event, sourcePath, segment.nodeId),
+      onActivateRow: (row, event, sourcePath) => this.open(event, sourcePath, row.nodeId),
+    };
+  }
+
   private activeTerm(): string {
     return viewStateFor(this.targetPath).search.trim();
   }
@@ -1395,196 +1432,6 @@ class FooterController {
     else current.tagQuery = value;
   }
 
-  private renderGroupHead(
-    card: HTMLElement,
-    path: string,
-    name: string,
-    folder: string,
-    count: number,
-    collapsed: boolean,
-  ): void {
-    const head = card.createDiv({ cls: 'to-backlinks-group-head' });
-    head.toggleClass('is-collapsed', collapsed);
-    makeDisclosure(head, !collapsed, name);
-    const chevron = head.createSpan({ cls: 'to-backlinks-chevron' });
-    // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
-    chevron.appendChild(chevronGlyph(!collapsed));
-    head.createSpan({ cls: 'to-backlinks-group-name', text: name });
-    if (folder) head.createSpan({ cls: 'to-backlinks-group-folder', text: folder });
-    head.createSpan({ cls: 'to-backlinks-group-count', text: String(count) });
-
-    head.addEventListener('click', () => {
-      const state = viewStateFor(this.targetPath);
-      if (collapsed) state.collapsedGroups.delete(path);
-      else state.collapsedGroups.add(path);
-      void this.render();
-    });
-  }
-
-  /**
-   * One row, drawn as an outline line.
-   *
-   * The row IS a line: it takes the same class and custom properties
-   * `lineChrome` gives a `.cm-line`, and `styles.css` lays it out with the same
-   * rules. Nothing here computes an offset. The footer's earlier version had a
-   * flex gutter of its own and set `margin-inline-start` by hand, which is how
-   * its bullets ended up off the editor's column and its guides absent
-   * altogether (docs/research/backlinks-footer-spikes, S4).
-   *
-   * `nativeBlocks: false` because no row here has a block of its own: the
-   * rendered `<li>` is unwrapped and no atom keeps its box (D18), so every kind
-   * is laid out as an ordinary block line with our own marker. Left true, a
-   * quote or table row would take the atom rule, which moves the BOX by margin
-   * — and the marker, placed for a padding-shifted line, would land a gutter
-   * and a half away from its column.
-   */
-  private renderRow(
-    body: HTMLElement,
-    sourcePath: string,
-    row: FooterRow,
-    pending: Promise<void>[],
-  ): void {
-    const el = body.createDiv({ cls: 'to-backlinks-row' });
-    // The row says what KIND of node it holds. The chrome class says how it is
-    // laid out (every footer row is a block line) and the marker says the kind
-    // in glyphs, but neither is readable — by a stylesheet, by a snippet, or by the
-    // conformance matrix, which has to check that each kind got the treatment
-    // its own rule promises.
-    el.dataset.kind = row.type === 'node' ? row.fact.kind : row.type;
-    // Guides are off by default. The footer is a quotation of a tree, not the
-    // tree itself, and at a card's scale the stripes crowded a body that is only
-    // ever a few rows deep — indentation alone carries the depth here. The model
-    // reports `guideDepths` either way; this is the one site that declines to
-    // draw them, so the model has one shape under test rather than one per
-    // setting combination (design D7).
-    //
-    // Two conditions, not one: its own setting, and the guide layer being drawn
-    // at all. A reader who turned the layer off does not expect it here.
-    const drawsGuides = this.source.backlinksGuides && this.source.guideVisibility !== 'off';
-    applyLineChrome(
-      el,
-      lineChrome(row.fact, {
-        nativeBlocks: false,
-        ...(drawsGuides ? { guides: plainGuideBackground(row.guideDepths) } : {}),
-      }),
-    );
-
-    if (row.type === 'property') {
-      el.addClass('is-property');
-      // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
-      el.appendChild(markerSlot(propertyGlyph()));
-      const content = el.createSpan({ cls: 'to-backlinks-content' });
-      content.createSpan({ cls: 'to-backlinks-prop-name', text: row.property });
-      pending.push(this.renderMarkdown(content.createSpan(), row.markdown, sourcePath));
-      return;
-    }
-
-    if (row.type === 'lineage') {
-      // The look is `lineage-row.ts`'s shared primitive, verbatim — the same
-      // one `zoom-trail.ts` renders its own breadcrumb through. What differs
-      // is only what THIS surface does when a segment activates: open the
-      // source note at that ancestor, rather than re-root the view on it.
-      renderLineageContent(el, row.segments, {
-        icons: this.source.backlinksSegmentIcons,
-        separator: this.source.backlinksSeparator,
-        fallback: row.fact,
-        marker: (segment, fallback) => segmentMarker(segment, fallback, this.source.headingMarkerStyle),
-        glyph: (segment) => segmentGlyph(segment, this.source.headingMarkerStyle),
-        separatorGlyph,
-        // Collected, not discarded. `render()` measures every group's height
-        // once `pending` settles, to decide caps and "show more" — so a lineage
-        // row still filling in at that point is measured empty, and the numbers
-        // come from heights that no longer exist a frame later.
-        renderSegment: (target, segment) => {
-          pending.push(this.renderSegment(target, segment, sourcePath));
-        },
-        onActivate: (segment, event) => this.open(event, sourcePath, segment.nodeId),
-      });
-      return;
-    }
-
-    if (row.isHit) el.addClass('is-hit');
-
-    if (row.foldable) {
-      // Keyed on the row HAVING a subtree, never on it being folded right now.
-      // The old condition (`foldedCount > 0`) stopped being true the moment a
-      // reader expanded the row, so the control that could close it again was
-      // never drawn — expansion was a one-way door.
-      const key = `${sourcePath}:${row.nodeId}`;
-      const expanded = viewStateFor(this.targetPath).expandedRows.has(key);
-      // The editor's own fold chrome, in the editor's own column — but a real
-      // BUTTON, which the editor's is not. Chrome is what the two surfaces
-      // share; semantics are not. An editor line has a fold command behind it
-      // and a footer row has nothing, so this element is the only route a
-      // keyboard reader has, and it keeps its role, its label and a state that
-      // tracks both directions.
-      // The row itself carries the folded state, so its marker takes the same
-      // treatment a folded node's does in the editor. The class goes on the row
-      // rather than the control because that is what the marker is inside.
-      el.toggleClass(FOLDED_NODE_CLASS, !expanded);
-      const fold = el.createEl('button', { cls: 'to-backlinks-fold to-decor-fold-toggle' });
-      fold.type = 'button';
-      fold.setAttribute('aria-label', expanded ? 'Hide children' : `Show ${row.foldedCount} hidden`);
-      fold.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-      fold.toggleClass('is-collapsed', !expanded);
-      // The DOWN chevron, as the editor's own control draws it: the shared
-      // `.is-collapsed` rotation turns a down-pointing glyph to the right,
-      // which is what "folded" looks like everywhere else. Starting from the
-      // right-pointing glyph turned it to point UP when folded.
-      // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
-      fold.appendChild(chevronGlyph(true));
-      const toggle = (event: Event) => {
-        event.stopPropagation();
-        const rows = viewStateFor(this.targetPath).expandedRows;
-        if (expanded) rows.delete(key);
-        else rows.add(key);
-        void this.render();
-      };
-      fold.addEventListener('click', toggle);
-      // Enter and Space handled explicitly, though a `button` activates on both
-      // by itself: inside the editor's own key handling the default action does
-      // not survive to reach it — measured, a focused row control that ignored
-      // every press. The row's own activation handler makes the same choice for
-      // the same reason.
-      fold.addEventListener('keydown', (event) => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        event.preventDefault();
-        toggle(event);
-      });
-    }
-
-    // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
-    el.appendChild(markerFor(row, this.source.headingMarkerStyle));
-
-    const content = el.createSpan({ cls: 'to-backlinks-content' });
-    // The rendered content gets its own span: `MarkdownRenderer` resolves
-    // asynchronously, and `unwrapBlocks` only unwraps a LONE wrapper — so a tag
-    // appended beside it in the meantime left the `<p>` in place, which is a
-    // block element in a row and exactly what the model forbids.
-    pending.push(this.renderContent(content.createSpan(), row, sourcePath));
-    if (row.referenceKind === 'embed') {
-      content.createSpan({ cls: 'to-backlinks-tag', text: 'embed' });
-    }
-    // Reachable AND operable from the keyboard, on the same terms as a lineage
-    // segment. The row was clickable and nothing else: a keyboard-only reader
-    // could tab to the links INSIDE a mention — which go to the link's own
-    // target — and had no way at all to reach the thing the row is for, which is
-    // the referencing node. `role="link"` without a key handler would be worse
-    // than nothing: it advertises a control the keyboard can reach and cannot
-    // use.
-    el.setAttribute('role', 'link');
-    el.tabIndex = 0;
-    el.addEventListener('click', (event) => this.open(event, sourcePath, row.nodeId));
-    el.addEventListener('keydown', (event) => {
-      if (event.key !== 'Enter') return;
-      // A nested link owns Enter when the focus is on IT, not on the row.
-      if (event.target !== el) return;
-      // Order matters — see the segment handler above.
-      this.open(event, sourcePath, row.nodeId);
-      event.preventDefault();
-    });
-  }
-
   /**
    * Obsidian renders the node's own text, so links, tags, checkboxes and
    * formatting look exactly as they do anywhere else. `sourcePath` is the
@@ -1705,112 +1552,6 @@ class FooterController {
   }
 }
 
-/**
- * The marker for a node row, by the mechanism its kind needs.
- *
- * Three, because the footer's content comes from the reading-mode renderer and
- * that renderer answers in three shapes:
- *
- * - An ORDERED item's number is not notation, it is what the item is called.
- *   Unwrapping the `<ol>` discards it, so it is read back off the source line
- *   and drawn in the gutter, right-aligned against the text the way a list
- *   numbers itself.
- * - An ATOM (quote, callout, table, code, html) arrives as a real block with no
- *   text run to sit beside, so its marker is positioned against the row's box —
- *   the same absolute mechanism the editor uses for its widget atoms. Note the
- *   set is wider here than in the editor, where a quote and a code fence are
- *   still `.cm-line`s; this renderer returns a block for every one of them.
- * - Everything else sits in the inline flow, beside the first text run.
- */
-function markerFor(row: Extract<FooterRow, { type: 'node' }>, style: HeadingMarkerStyle): HTMLElement {
-  if (row.task !== undefined) return markerSlot(checkboxGlyph(row.task));
-  if (row.ordinal) return ordinalMarker(row.ordinal);
-  return markerSlot(buildMarkerIcon(markSubject(row.fact, style)));
-}
-
-/** The class the term's own marks carry, so a stylesheet rule can tell them
- * from an author's `==highlight==`, which renders as a bare `<mark>`. */
-export const MATCH_MARK_CLASS = 'to-match';
-
-/**
- * Every occurrence of `query` in a rendered row, wrapped in a `<mark>`.
- *
- * On the RENDERED element, never on the markdown that produced it. A row's
- * content is Obsidian's output — links, code spans, formatting — and rewriting
- * the source string to insert a tag would break whatever the term happened to
- * land inside: a term matching part of a link target would cut the link in two.
- * Walking text nodes reaches exactly the characters a reader can see and
- * nothing else, so the row's links, its layout and its text all survive.
- *
- * Text nodes are collected before any is replaced. Splitting one while the
- * walker is still traversing inserts the new nodes into what it is walking, and
- * the walker then marks the fragment it has just produced.
- */
-export function markMatches(el: HTMLElement, query: string): void {
-  const term = query.trim();
-  if (term.length === 0) return;
-
-  const walker = el.doc.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-  const texts: Text[] = [];
-  for (let node = walker.nextNode(); node; node = walker.nextNode()) texts.push(node as Text);
-
-  for (const text of texts) {
-    const value = text.data;
-    // WHERE the term occurs is `search.ts`'s answer, by the same rule that
-    // admitted the row. This function only cuts the text node up around it.
-    const ranges = matchRanges(value, term);
-    if (ranges.length === 0) continue;
-    // Assembled in a DocumentFragment — detached until `replaceWith` puts it
-    // where the text node was, so nothing is appended into mounted DOM here and
-    // the guard's CM6 feedback loop cannot apply. The one mounted mutation is
-    // the replacement itself, which swaps a node for its own split-up self.
-    const frag = createFragment();
-    let last = 0;
-    for (const { from, to } of ranges) {
-      // eslint-disable-next-line no-restricted-syntax -- detached fragment
-      frag.append(value.slice(last, from));
-      // The MATCHED text, not the query: the two differ in case, and showing
-      // the reader their own typing in place of the note's words would be a
-      // rewrite rather than a highlight.
-      // eslint-disable-next-line no-restricted-syntax -- detached fragment
-      frag.append(createEl('mark', { cls: MATCH_MARK_CLASS, text: value.slice(from, to) }));
-      last = to;
-    }
-    // eslint-disable-next-line no-restricted-syntax -- detached fragment
-    frag.append(value.slice(last));
-    text.replaceWith(frag);
-  }
-}
-
-/**
- * Makes an element operable as a disclosure control.
- *
- * The heads are rows of several spans rather than single controls, so they
- * cannot be `button` elements without nesting interactive content inside one.
- * `role` plus a tab stop plus a key handler is the equivalent a composite row
- * gets — and `aria-expanded` is the part that matters, because the control's
- * meaning is which way it will move, which no label can say.
- */
-function makeDisclosure(el: HTMLElement, expanded: boolean, label: string): void {
-  el.setAttribute('role', 'button');
-  el.setAttribute('aria-expanded', String(expanded));
-  el.setAttribute('aria-label', label);
-  el.tabIndex = 0;
-  el.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    // Only when EL ITSELF has focus. The section header carries this
-    // disclosure and also carries the filter and sort buttons as children —
-    // Enter or Space on one of those bubbles here too, and without this guard
-    // it both fired `el.click()` (folding the section) and, via
-    // `preventDefault`, cancelled the button's OWN native activation from the
-    // same keypress. A keyboard reader tabbing to the filter toggle could
-    // never open it; every press folded the footer instead.
-    if (event.target !== el) return;
-    event.preventDefault();
-    el.click();
-  });
-}
-
 function linkGlyph(): SVGSVGElement {
   const el = glyph(24, ['M9 17H7A5 5 0 0 1 7 7h2', 'M15 7h2a5 5 0 1 1 0 10h-2', 'M8 12h8'], {
     fill: 'none', stroke: 'currentColor', 'stroke-width': '1.9', 'stroke-linecap': 'round',
@@ -1830,30 +1571,6 @@ function capChevron(up: boolean): SVGSVGElement {
     'stroke-width': '2',
     'stroke-linecap': 'round',
     'stroke-linejoin': 'round',
-  });
-}
-
-/**
- * The chevron, in both the orientations this file needs.
- *
- * Both chevrons in the footer — fold and cap — come from this one path.
- *
- * It was the lineage separator too, before every segment gained its own icon
- * and the separator went. Before that it was the text glyph `❯` (U+276F), a
- * DINGBAT most UI fonts do not carry: it rendered from whatever fallback the
- * platform chose, at a weight and baseline nobody picked and differing between
- * machines. Worth keeping in mind for any future mark — an SVG has none of that.
- */
-function chevronGlyph(open: boolean): SVGSVGElement {
-  return glyph(16, [open ? 'M3 6l5 5 5-5' : 'M6 3l5 5-5 5'], {
-    fill: 'none', stroke: 'currentColor', 'stroke-width': '2',
-    'stroke-linecap': 'round', 'stroke-linejoin': 'round',
-  });
-}
-
-function propertyGlyph(): SVGSVGElement {
-  return glyph(16, ['M2 4.5h4M9 4.5h5M2 11.5h5M10 11.5h4'], {
-    fill: 'none', stroke: 'currentColor', 'stroke-width': '1.6', 'stroke-linecap': 'round',
   });
 }
 
