@@ -565,6 +565,7 @@ measured before being changed:
 Left open and filed separately: renumbering can push a marker past the parser's nine-digit
 ceiling (`999999999.` → `1000000000.`), which re-parses as a paragraph. Pre-existing on
 every insert path, and closing it means deciding what an operation does at the ceiling.
+Extracted to [#120](https://github.com/laughedelic/obsidian-true-outliner/issues/120).
 
 **Not fixed here — abandoning a position opened OVER a block selection leaves debris.**
 Block-select a paragraph, press Enter, then move away.

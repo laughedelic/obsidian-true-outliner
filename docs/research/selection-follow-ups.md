@@ -16,6 +16,11 @@ Phase C doesn't scope-creep:
   keymap/decoration work, independent of edit rewriting; it does not need to wait for
   Phase C, nor Phase C for it.
 
+An entry marked **Extracted to #N** has moved: the issue is where its diagnosis, its
+measurements and its candidate fixes now live and are kept current, and the entry here keeps
+only enough to say what it is and where it went. The heading stays so citations to it still
+resolve. Everything not so marked is still held here in full.
+
 ## Resolved by amendment in the same change (2026-07-20)
 
 Two of the original findings were adopted as D4 amendments rather than deferred —
@@ -1044,6 +1049,15 @@ This affects every key routed through `makeHandler` — Tab, Shift+Tab, Alt+Arro
 and it is quiet rather than loud, because it produces a plausible outline rejection instead
 of an error.
 
+**CLOSED since, and the entry above is stale (re-read 2026-09-16 against `03f83b5`).**
+`makeHandler` now opens with `if (!outlinePathOf(view)) return false;` (`keymap.ts:83`), and
+`outlinePathOf` itself now opens with `if (isNestedEditor(view)) return undefined;`
+(`keymap.ts:491`) — so the structural keys carry the same nested-editor guard the motion
+handlers do, and none of them plans against a cell's document any more. `nested-editor.ts`'s
+own docstring records the change and cites Q27 for the measurement behind it, which dates the
+fix to that work rather than to a change of its own. What survives is the paragraph below: the
+D5 subject case is still reachable through the command path, and still scoped out on its merits.
+
 *(An earlier version of this entry claimed "a table cannot be moved by keyboard at all
 today." That was too strong: it was measured only through the Alt+Arrow binding, and the
 exposed commands were never tried. Corrected after a real-vault report.)*
@@ -1065,15 +1079,10 @@ about the keymap path. Corrected in the same review round that corrected the cla
 
 ## Parked: an exact subtree cover is read off a caret-derived range (opened 2026-09-12, `delete-to-content-start`)
 
+**Extracted to [#115](https://github.com/laughedelic/obsidian-true-outliner/issues/115).**
 `node-edit-enforcement` reads a deletion whose range exactly covers a node's subtree as a
-structural deletion of that node. The requirement was written for a SELECTION that covers the
-node, but classification sees only the range: a "delete to the start of the line" from the end
-of a childless paragraph that owns no trailing gap — a paragraph followed directly by another
-node — produces the same range as selecting the line, and the paragraph is removed with its line
-and its gap, the caret landing at the previous node's content end, where the user expected an
-empty line under the caret. `delete-to-content-start` moved the list-item case out of reach by
-starting its range at the content start, which is never column 0; a paragraph's content start is
-column 0, so the key stays stock there and the reading still applies
-(`docs/research/delete-to-content-start`). Whether an exact cover should require a non-empty
-selection before the edit, or a `userEvent` the caret-derived commands do not carry, is the
-open question.
+structural deletion of that node, and classification sees only the range — so a caret-derived
+"delete to the start of the line" from the end of a childless paragraph produces the same range
+as selecting the line, and the paragraph is removed. Whether an exact cover should require a
+non-empty selection, or a `userEvent` the caret-derived commands do not carry, is the open
+question; both readings are in the issue.

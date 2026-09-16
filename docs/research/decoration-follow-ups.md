@@ -12,40 +12,20 @@ When an item graduates to real work, it should get its own openspec change (or f
 one), not be patched ad hoc — several of these touch the model or are design decisions,
 not bug fixes.
 
+An entry marked **Extracted to #N** has moved: the issue is where its diagnosis, its
+measurements and its candidate fixes now live and are kept current, and the entry here keeps
+only enough to say what it is and where it went. The heading stays so citations to it still
+resolve. Everything not so marked is still held here in full.
+
 ## Known gaps (diagnosed, deferred)
 
 ### Under the Minimal theme, boxed atoms (callouts, code blocks) overflow the reading column when indented
 
-Found during the selection-visual-treatment change's manual visual pass (activating the
-real Minimal theme, kepano's, already present in the test vault via the existing e2e
-infrastructure — `obsidianPage.setTheme('Minimal')`). Toggling outline mode on a note with
-a callout or code block nested under a heading: the box's LEFT edge correctly shifts
-right by our own `margin-left` (additive indentation, Experiment 1), but its RIGHT edge
-stays exactly where it was — the box doesn't shrink, it just moves, so it now overflows
-past the reading column's right edge by exactly our own margin contribution. Confirmed
-live via computed style: Minimal sizes these boxed elements with `max-width: 88%` (of
-some ancestor), which resolves to a fixed pixel `width` that does NOT recompute when
-`margin-left` changes — unlike the bundled themes, where the same elements apparently use
-`width: auto` (so the browser recomputes width as "available space minus margins,"
-correctly shrinking to accommodate our added margin). A depth-1 callout measured: bundled
-theme's heading sibling had `marginLeft: 40.8px, marginRight: 40.8px` (symmetric, native
-centering); the callout with our own indentation added had `marginLeft: 84.8px,
-marginRight: -3.2px` — a negative right margin is the tell: the box's fixed width plus
-the new left margin already exceeds the centering container's width, so the right edge
-is forced outward to compensate.
-
-This is a base-indentation issue (`MarginCompensation`, Experiment 1), not a
-selection-visual-treatment one — the escalated-selection chrome merely inherits whatever
-box width these atoms end up with, and was found while manually reviewing that change's
-own screenshots, not caused by it. **Not an obvious/low-risk fix**: closing it properly
-means live-measuring, per widget-atom kind, what width the box would have BEFORE our own
-margin contribution (mirroring `nativeMarginBasePx`'s "read the native value live, don't
-assume" pattern, but for `max-width`-based sizing instead of `margin-inline: auto`), then
-explicitly constraining `width`/`max-width` to compensate — and verifying that fix doesn't
-regress the bundled-theme case (which already works via a completely different sizing
-mechanism, `width: auto`). Needs its own investigation with Minimal (and ideally another
-max-width-style theme) actually installed and screenshotted, not a guess from one data
-point.
+**Extracted to [#118](https://github.com/laughedelic/obsidian-true-outliner/issues/118).** A
+`max-width`-sized box moves right with our own `margin-left` without shrinking, so it overflows
+the reading column by exactly our contribution. A base-indentation issue
+(`MarginCompensation`, Experiment 1), not a selection-chrome one. The measurements, the
+bundled-theme contrast and what a fix has to do are in the issue.
 
 ### A non-list-item child of a list item is indented twice
 
@@ -1130,16 +1110,11 @@ fix, one more kind to cover.
   hover-revealed — and it stays a real `button` with a label and an `aria-expanded`, because what
   the two surfaces share is chrome and never semantics.
 
-- **A node holding several references renders one row.** `place()` keeps the FIRST
-  reference per node, so a table with mentions in two different cells, or a code
-  fence with two, contributes 2 to the count and one row to the footer. The count
-  and the rows then disagree, and the second reference has no place a reader can
-  reach. Two honest resolutions: emit one row per reference (which means a row
-  key that is not the node id, and a decision about how two rows of the same node
-  order against its siblings), or define node-level deduplication explicitly and
-  count nodes rather than references. Found in review; deferred because it is a
-  model change rather than a rendering one, and the count/row contract should be
-  decided with `backlinks-controls`' counting rules rather than ahead of them.
+- **A node holding several references renders one row** — extracted to
+  [#121](https://github.com/laughedelic/obsidian-true-outliner/issues/121). `place()` keeps
+  the FIRST reference per node, so the header's count and the footer's rows disagree. A
+  model change rather than a rendering one; the two resolutions and why the contract belongs
+  with `backlinks-controls`' counting rules are in the issue.
 
 - ~~**A footer row's fold only goes one way.**~~ — **done** (`better-folding-ux`, section 8),
   and by exactly the fix this entry predicted: the row model now carries `foldable` — whether the
