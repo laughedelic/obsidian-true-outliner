@@ -109,9 +109,14 @@ converting would demote a heading where a heading was perfectly writable, and re
 end of the sibling run would put the content somewhere other than where it was pointed.
 
 Two things make it affordable. It is visible — the absorbed content is drawn nested under the
-pasted node before anything else happens. And it is bounded: measured, absorption never reaches
-past the destination scope's own end, because the enclosing heading's next sibling is shallower
-than anything the payload can be re-levelled to.
+pasted node before anything else happens. And it is bounded, because the payload re-levels from
+the destination's own heading SIBLINGS: landing level with them, the next one ends its section.
+
+That bound was first argued from the PARENT's level, and an independent review round proved the
+argument wrong — a scope whose headings skip a level (an `h1` whose children are `h3`) gave the
+payload `h2`, which is shallower than the siblings it lands among and swallows them. Taking the
+level from the siblings, as `encodingKindAtDestination` takes a kind from them, is what makes
+the bound true rather than merely stated.
 
 The exception is the root of a note with no headings, where there is no scope end and everything
 below the caret is absorbed. Recorded as a risk below rather than special-cased.
@@ -140,9 +145,11 @@ with the existing cue on every path.
 
 ### D6. One call site
 
-`reencodeBlocksForDestination` is the shared path D16 extracted. The heading arm, the guard and
-the conversion all go there. `encodingKindAtDestination` in `rules.ts` gains the kind decision,
-per its own comment that revising these rules should stay a local change.
+`reencodeBlocksForDestination` is the shared path D16 extracted. The guard and the conversion go
+there. The heading arm's RULE — which level a payload takes at a destination — goes in `rules.ts`
+beside `encodingKindAtDestination`, per that module's own comment that revising these rules
+should stay a local change: the two are one rule over the two regimes, one answering with a kind
+and one with a level.
 
 ### D7. What the measurement retired
 

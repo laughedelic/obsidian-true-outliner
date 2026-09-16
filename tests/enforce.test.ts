@@ -914,6 +914,21 @@ function pasteThroughBothGates(
   return computeVerdict(classify(facts, doc), doc, edit);
 }
 
+/** The pasted subtree's own shape, relative to its root — so results landing at
+ * different depths, or in different documents, are still comparable. */
+function pastedSubtreeShape(doc: OutlineDoc): string {
+  const root = [...walkNodes(doc)].find((n) => (n.lines[0] ?? '').trimStart().startsWith('- ## Notes'));
+  if (!root) return '<no pasted subtree>';
+  const out: string[] = [];
+  const walk = (node: OutlineNode, depth: number): void => {
+    const kind = node.kind === 'heading' ? `h${node.level}` : node.kind;
+    out.push(`${'  '.repeat(depth)}${kind}: ${(node.lines[0] ?? '').trim()}`);
+    for (const child of node.children) walk(child, depth + 1);
+  };
+  walk(root, 0);
+  return out.join('\n');
+}
+
 const SECTION_PAYLOAD = '## Notes\n\nSome prose.\n\n- alpha\n  - beta\n';
 const ATOM_PAYLOAD = '```\ncode\n```\n\n- gamma\n';
 
@@ -930,15 +945,27 @@ describe('the insertion path does not change the answer', () => {
     );
     const typeOverWholeScope = pasteThroughBothGates('- one\n  - a\n', pos(1, 4), pos(1, 5), SECTION_PAYLOAD);
 
+    const shapes: string[] = [];
     for (const verdict of [caret, typeOverWithSurvivor, typeOverWholeScope]) {
       expect(verdict.kind).toBe('rewrite');
-    }
-    // Every path lands the same converted subtree, at the same depth.
-    for (const verdict of [caret, typeOverWithSurvivor, typeOverWholeScope]) {
       if (verdict.kind !== 'rewrite') continue;
-      expect(encode(verdict.after)).toContain('  - ## Notes');
-      expect(encode(verdict.after)).toContain('    - Some prose.');
+      shapes.push(pastedSubtreeShape(verdict.after));
     }
+    // The same tree, compared as a tree — not three documents that each happen
+    // to contain a substring. The whole-scope path lands in a document of its
+    // own by construction (it has no surviving sibling), so what is compared is
+    // the pasted subtree, which is what "the same resulting tree" means here.
+    expect(shapes).toHaveLength(3);
+    expect(shapes[1]).toBe(shapes[0]);
+    expect(shapes[2]).toBe(shapes[0]);
+    expect(shapes[0]).toBe(
+      [
+        'list-item: - ## Notes',
+        '  list-item: - Some prose.',
+        '    list-item: - alpha',
+        '      list-item: - beta',
+      ].join('\n'),
+    );
   });
 
   it('an atom below a paragraph is refused on all three paths', () => {

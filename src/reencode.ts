@@ -241,7 +241,7 @@ export function headingWithLevel(node: OutlineNode, level: number): OutlineNode 
  * Setext is rewritten to ATX first: an underline occupies a second line, and a
  * list item's marker line has nowhere to put one.
  */
-export function headingContentLine(node: OutlineNode): string {
+function headingContentLine(node: OutlineNode): string {
   const atx = node.setext ? headingWithLevel(node, node.level ?? 1) : node;
   return (atx.lines[0] ?? '').trim();
 }

@@ -12,7 +12,11 @@ level-shifting operations move a heading by level rather than by reparenting —
 encoding from the same function, with one arm per kind of destination:
 
 - In a HEADING-BEARING scope (the root, or a heading's children) it SHALL remain a heading, and
-  re-level so its root sits at the destination's depth.
+  re-level to the destination's own depth. That level SHALL be taken from the destination's
+  heading SIBLINGS — nearest preceding, else following — and only from the parent (one past its
+  level, or 1 at root) where the scope has no heading sibling to copy. Reading the parent alone
+  is wrong wherever a scope SKIPS a level: the payload lands shallower than the siblings it is
+  placed among and opens a section that swallows them.
 - In a LIST scope it SHALL become a list item, carrying its own `#` run verbatim into that
   item's text.
 
@@ -85,10 +89,16 @@ SHALL live there with it, so no insertion path can reach the re-encode without i
 - **WHEN** a payload is pasted into a destination of the same encoding regime
 - **THEN** the existing re-indentation behavior applies unchanged
 
-#### Scenario: An atom below a paragraph is still refused
-- **WHEN** a payload containing an atom is inserted into a paragraph's children
+#### Scenario: An atom AT THE PAYLOAD'S TOP LEVEL below a paragraph is refused
+- **WHEN** a payload whose own roots include an atom is inserted into a paragraph's children
 - **THEN** the insertion is rejected as inexpressible, on every insertion path, rather than
   re-encoded
+
+#### Scenario: An atom DEEPER in the payload is not refused
+- **WHEN** a payload rooted at a heading, with an atom among its descendants, is inserted into a
+  paragraph's children
+- **THEN** the insertion is accepted: the root converts to a list item and the atom is a legal
+  child of it, so nothing here is inexpressible
 
 ### Requirement: A pasted heading takes the content that follows it into its section
 A heading inserted among siblings opens a section that extends to the next heading of its level
@@ -96,9 +106,9 @@ or shallower, so the anchor's following siblings SHALL become part of the insert
 This is the encoding's own meaning and SHALL NOT be worked around by relocating the insertion
 or by demoting the heading: a caret at a heading level is a request for a section at that level.
 
-Absorption SHALL NOT reach past the destination scope's own end — the enclosing heading's next
-sibling is shallower than any level the payload can be re-levelled to, and therefore ends the
-inserted section.
+Absorption SHALL NOT reach past the destination scope's own end. A payload re-levelled from its
+heading siblings sits level WITH them, so the next such sibling ends the inserted section, and
+the enclosing heading's own next sibling — shallower again — ends it in either case.
 
 #### Scenario: Following siblings join the pasted section
 - **WHEN** a heading-rooted payload is pasted after a sibling that is followed by more content
@@ -108,3 +118,8 @@ inserted section.
 #### Scenario: A sibling heading ends the pasted section
 - **WHEN** the anchor's following sibling is a heading of the enclosing scope's level
 - **THEN** that heading and everything after it stay outside the pasted section
+
+#### Scenario: A scope whose headings skip a level still ends the pasted section
+- **WHEN** a payload is pasted among an `h1`'s children, which are `h3` headings
+- **THEN** it takes `h3` from those siblings rather than `h2` from the parent, and the following
+  `h3` stays outside the pasted section

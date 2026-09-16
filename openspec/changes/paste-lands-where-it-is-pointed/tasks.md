@@ -21,16 +21,16 @@
 
 ## 3. The heading arm
 
-- [x] 3.1 `encodingKindAtDestination` decides a heading payload's fate from the destination
-      kind: stays a heading in a heading-bearing scope, becomes a list item in a list scope
-      (design D1)
-- [x] 3.2 Re-levelling in `reencodeForDestination`: the payload's root takes the destination's
+- [x] 3.1 `rules.ts` decides a heading payload's fate from the destination, beside
+      `encodingKindAtDestination`: `destinationHeadingLevel` answers with a level in a
+      heading-bearing scope and `undefined` in a list scope, where the payload converts (design D1)
+- [x] 3.2 Re-levelling in `reencodeHeadingSubtree`: the payload's root takes the destination's
       depth, every heading in it shifts by the same delta, routed through `headingWithLevel` so
       setext normalizes to ATX; a payload whose deepest heading would pass `h6` is refused with
       `at-h6-bound`, on the same terms `indent` refuses it (design D2a)
 - [x] 3.3 Conversion into a list scope re-encodes every node in the payload that HAS CHILDREN
       as a list item, carrying a heading's own `#` run verbatim into the item's text (D1/D2)
-- [x] 3.4 Unit tests in `tests/reencode.test.ts` for both arms at several depths. Negative
+- [x] 3.4 Unit tests in `tests/edit-ops.test.ts` for both arms at several depths. Negative
       control — against today's re-encode step, which has no heading arm, the payload keeps
       its source levels and every one of these fails
 - [x] 3.5 Unit test: the payload's tree is preserved exactly across the conversion — same node
@@ -75,6 +75,27 @@
       if it has landed by then
 - [ ] 6.4 Record the findings in `docs/research/open-questions`, as the entry that settles the
       heading arm left open since Q2 follow-up #4
+
+## 6b. Review round (independent review, 2026-09-16)
+
+- [x] 6b.1 Replace the tautological `insertSubtrees` closure assertion with a payload-survival
+      property that can fail. Negative control — it failed on its sixth generated case, against
+      the boundary defect below
+- [x] 6b.2 Separate a list item from every first child a continuation line swallows (`hr`,
+      `quote`, `callout` alongside the `paragraph` and `html` the rule already named)
+- [x] 6b.3 Separate an `html` block from whatever follows it — an HTML block ends at a blank
+      line, not at its closing tag. Pre-existing, reached by any operation placing one before a
+      sibling; surfaced by 6b.1
+- [x] 6b.4 Take the destination heading level from the scope's heading SIBLINGS, not from its
+      parent, so a level-skipped scope cannot let a pasted section swallow them (design D3)
+- [x] 6b.5 Move that rule into `rules.ts` beside `encodingKindAtDestination`, which is where
+      design D6 says it belongs; drop the dead `rootKind` parameter and the unreachable clamp
+- [x] 6b.6 Neutralize the `at-h6-bound` cue, now reachable from a paste rather than an indent
+- [x] 6b.7 Tests for the two requirements that had none: setext in the HEADING arm, and the
+      three insert paths compared as trees rather than as substrings across three documents
+- [ ] 6b.8 Follow-up change for the two parked mechanisms this one widens the reach of — atoms
+      losing their kind past column 3, and a converted heading splitting an ordered run. Both
+      measured in `docs/research/paste-across-encoding-regimes` (P5, P6)
 
 ## 7. Land
 

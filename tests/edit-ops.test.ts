@@ -837,6 +837,19 @@ describe('a payload landing in a HEADING-bearing scope re-levels', () => {
     expect(encode(result.value.doc)).toContain('# Notes');
   });
 
+  it('a setext payload is rewritten to ATX on the way in', () => {
+    // Negative control: without routing the re-level through `headingWithLevel`
+    // the underline survives as a second line, and the `=====` re-parses as a
+    // setext heading of its own at the destination.
+    const result = insertAfter('# One\n\nprose\n', 'prose', 'Title\n=====\n\nbody\n');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const out = encode(result.value.doc);
+    expect(out).toContain('## Title');
+    expect(out).not.toContain('=====');
+    expect(byLine(parse(out), '## Title').kind).toBe('heading');
+  });
+
   it('refuses at the h6 bound, on the deepest heading in the payload', () => {
     // Negative control: clamping instead puts two of the payload's levels on
     // one, and converting to content at section level hands the run to the
@@ -895,6 +908,30 @@ describe('a pasted heading takes the content that follows it', () => {
     expect(shape(encode(result.value.doc))).toContain('      list-item: - three');
   });
 
+  it('the level comes from the scope\'s heading siblings, so a level SKIP does not let it escape', () => {
+    // Negative control: taking the level from the parent alone (`# One` + 1)
+    // puts the payload at h2 among h3 siblings, and `### Four` — never copied,
+    // never pointed at — becomes its child.
+    const result = insertAfter(
+      '# One\n\n### Three\n\nprose\n\n### Four\n\nmore\n',
+      '### Three',
+      '## Notes\n\nbody\n',
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(shape(encode(result.value.doc))).toBe(
+      [
+        'h1: # One',
+        '  h3: ### Three',
+        '    paragraph: prose',
+        '  h3: ### Notes',
+        '    paragraph: body',
+        '  h3: ### Four',
+        '    paragraph: more',
+      ].join('\n'),
+    );
+  });
+
   it('a sibling heading of the enclosing level ends the pasted section', () => {
     const result = insertAfter(
       '# One\n\n## Two\n\n### Three\n\nprose\n\n### Four\n\nmore\n',
@@ -917,19 +954,41 @@ describe('closure over the new arms', () => {
   // LIST scope only by chance. This drives the conversion arm at every node of
   // every generated document, which is where the re-encode has to build
   // indentation rather than carry it.
-  it('a heading payload inserted at ANY node re-parses to the tree the op declared', () => {
-    const payloads = [SECTION, '## Outer\n\ntext\n\n### Inner\n\nmore\n', 'Section\n=======\n\nbody\n'];
+  // An `insertSubtrees` result's `doc` IS `parse(encode(surgery))` — `finalize`
+  // re-parses before returning. So `treesEqual(result.doc, parse(encode(result.doc)))`
+  // re-checks the encode/parse round-trip and CANNOT fail on a surgery the
+  // re-parse reads differently, which is the failure mode that matters here.
+  // What can fail is the payload's own survival: every node the payload carried
+  // has to still be a node afterwards. Absorption reparents without adding or
+  // removing, so the delta is exactly the payload's node count either way.
+  it('every node in the payload is still a node after the insertion', () => {
+    const payloads = [
+      SECTION,
+      '## Outer\n\ntext\n\n### Inner\n\nmore\n',
+      'Section\n=======\n\nbody\n',
+      // First children a continuation line would swallow, which is how a
+      // payload node stops being one.
+      '## H\n---\n',
+      '## H\n> quoted\n> more\n',
+      '## H\n> [!note] titled\n> body\n',
+      '## H\n<div>\nx\n</div>\n',
+      '## H\n```\ncode\n```\n',
+      '## A\n\n### B\n---\n',
+    ];
     fc.assert(
       fc.property(arbTree(), fc.nat(), fc.nat(), fc.boolean(), (doc, n, p, before) => {
         const anchor = nthNode(doc, n);
         if (!anchor) return true;
-        const blocks = parse(payloads[p % payloads.length]!).children;
+        const payload = payloads[p % payloads.length]!;
+        const blocks = parse(payload).children;
+        const expected = [...walkNodes(parse(payload))].length;
+        const beforeCount = [...walkNodes(doc)].length;
         const result = insertSubtrees(doc, anchor.id, blocks, before ? 'before' : 'after');
-        // Negative control: re-indenting a heading instead of re-encoding it
-        // pushes the line past three columns, where it stops being a heading —
-        // the declared tree and the re-parse then disagree and this fails.
+        // Negative control: without the boundary repair for a first child a
+        // continuation would swallow, `## H` + `---` lands as ONE list item
+        // carrying both lines and this fails with a delta one short.
         if (!result.ok) return KNOWN_REASONS.has(result.rejection.reason);
-        return treesEqual(result.value.doc, parse(encode(result.value.doc)));
+        return [...walkNodes(result.value.doc)].length - beforeCount === expected;
       }),
       { numRuns: 400 },
     );

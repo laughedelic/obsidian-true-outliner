@@ -308,3 +308,80 @@ principle's other branch, and it costs nothing the rest of the change wanted.
 
 A destination already at `h6` is the same case by the same arithmetic: its children have no
 heading level left.
+
+## Addendum (review round): four defects the implementation's own tests could not see
+
+An independent review of the implementation, run with no access to the reasoning behind it,
+found two node-losing defects and the reason neither was caught. Recorded here because the
+reason generalizes.
+
+### The closure property was tautological
+
+`finalize` returns `doc: parse(encode(surgery))` — the operation's own result is already the
+re-parse. So `treesEqual(result.doc, parse(encode(result.doc)))`, which is how
+`insertSubtrees` closure had been asserted, re-checks the encode/parse round trip and can never
+fail on a surgery the re-parse reads differently. That is precisely the failure that matters,
+and the assertion was blind to it. The three older property tests over the structural ops share
+the shape.
+
+What replaced it is a property that CAN fail: every node the payload carried is still a node
+afterwards. Absorption reparents without adding or removing, so the node-count delta equals the
+payload's own count either way, and a swallowed node shows up immediately. It failed on its
+sixth generated case.
+
+### A list item's continuation lines swallow most first children
+
+`normalizeBoundaries` separated a list item from its first child only for `paragraph` and
+`html`. Measured against `parse` at every child column, the kinds a continuation line claims are
+everything EXCEPT `code`, `table` and a nested list item — `hr`, `quote` and `callout` included.
+A payload of `## H` followed immediately by `---` came out as ONE list item carrying both lines.
+
+The rule is now stated the other way round, as the three exceptions, so a kind added later is
+separated by default rather than silently absorbed.
+
+### An HTML block runs to a blank line, not to its closing tag
+
+Surfaced by the new property rather than by review. A payload ending in `<div>…</div>` took the
+node that followed it into its own lines, because CommonMark ends an HTML block at a blank line.
+`needsBlankBetween` had no case for an `html` leaf at all, so this reached any operation that
+places one before a sibling — it predates this change and is not specific to a paste.
+
+### The destination heading level ignored the sibling run
+
+Recorded in the main decision above. Worth keeping here as the shape of the mistake: the bound
+on absorption was argued from the parent's level, the argument read as obviously true, and it is
+false for every scope whose headings skip a level. The fix is the rule the content regime
+already used — take it from your siblings, not from your parent.
+
+## Parked: two pre-existing mechanisms this change widens the reach of
+
+Both are real, both are measured, neither is caused by the re-encode rule — and both now fire on
+payloads that previously could not reach them at all. Deferred deliberately rather than folded
+in, since fixing either properly is its own change.
+
+### P5. `hr`, `quote`, `callout` and `html` lose their kind past column 3
+
+`HR_RE`, `QUOTE_RE`, `CALLOUT_RE` and `HTML_OPEN_RE` in `parse.ts` all require `^ {0,3}`, and a
+child column derived from a list marker crosses that at the second level of nesting. Measured:
+`- one` / `  - two` with `## H` + `---` pasted gives a `paragraph` where the payload had an `hr`.
+`code` and `table` survive, having no such limit.
+
+The node survives — the boundary fix above guarantees that much — but its KIND does not, so the
+outline shows a paragraph where the document showed a rule. Directly pasting a callout into a
+depth-2 list already did this before any of this change, so the mechanism is old; what is new is
+that every heading payload converting into a list now routes its atoms through the same columns.
+
+This falsifies design D7's "atoms move as opaque units and land at the right column", which was
+measured only at depth 1.
+
+### P6. A converted heading is always a `-`, which splits an ordered run
+
+`headingAsListItem` hardcodes `{ type: 'bullet', marker: '-' }`, as the paragraph→list-item
+conversion beside it already did. Dropped into an ordered run, the bullet splits it, and
+`renumberOrderedAgainst` then renumbers the tail as a new run: measured, `- top` /
+`  8. eight` / `  9. nine` / `  10. ten` with a heading pasted after `9. nine` leaves `10. ten`
+renumbered to `8. ten` — untouched content, renumbered wrongly. Into a `*` run it starts a
+second CommonMark list.
+
+A plain bullet payload does the same today, so the mechanism is old and the renumbering half of
+it is arguably the sharper bug of the two.

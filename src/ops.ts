@@ -20,7 +20,7 @@
  *   levels) has no positional encoding and is rejected.
  */
 
-import type { ListStyle, NodePath, OutlineDoc, OutlineNode } from './model';
+import type { ListStyle, NodeKind, NodePath, OutlineDoc, OutlineNode } from './model';
 import { childrenAt, findPath, isAtom, makeNode, nodeAt, updateSiblings } from './model';
 import { forEachNodeWithLine, nodeAtLine, nodeStartLine } from './locate';
 import { subtreeCoverOf, type Cover } from './escalate';
@@ -29,7 +29,7 @@ import { encode, encodeLines } from './encode';
 import { parse, indentWidth } from './parse';
 import type { Edit, OpResult } from './result';
 import { accept, diffLines, reject } from './result';
-import { encodingKindAtDestination, listAttachesTo } from './rules';
+import { destinationHeadingLevel, encodingKindAtDestination, listAttachesTo } from './rules';
 import {
   childBaseCol,
   headingAsListItem,
@@ -239,7 +239,7 @@ function headingLevelSurgery(
   node: OutlineNode,
   delta: number,
 ): OpResult<Surgery> {
-  if (delta > 0 && maxHeadingLevel(node) >= 6) return reject('at-h6-bound');
+  if (delta > 0 && maxHeadingLevel(node) >= MAX_HEADING_LEVEL) return reject('at-h6-bound');
   if (delta < 0 && (node.level ?? 1) <= 1) return reject('at-h1-bound');
   const surgery = updateSiblings(doc, path.slice(0, -1), (siblings) =>
     siblings.map((sibling, i) =>
@@ -295,7 +295,28 @@ function needsBlankBetween(prev: OutlineNode, next: OutlineNode): boolean {
       indentWidth(next.lines[0] ?? '') >= contentCol
     );
   }
+  // An HTML block ends at a BLANK LINE, not at its closing tag, so whatever
+  // follows one is inside it until a separator says otherwise — whatever kind
+  // that neighbour is. Surfaced by the payload-survival property: a payload
+  // ending in `<div>…</div>` took the node after it into its own lines.
+  if (leaf.kind === 'html') return true;
   return false;
+}
+
+/**
+ * Kinds that a list item's own CONTINUATION LINES swallow when they follow its
+ * marker line with no blank between — measured against `parse` at every child
+ * column. A node that lands there stops being a node at all: its lines join the
+ * item's, and the tree comes back one node short.
+ *
+ * `code`, `table` and a nested list item are the exceptions: each opens on a
+ * line the continuation rule cannot claim, so each is read as a child either
+ * way. Everything else needs the separator, `hr`, `quote` and `callout`
+ * included — the first two were the ones the rule used to name, and the rest
+ * reached this seam once a payload could be re-encoded INTO a list item.
+ */
+function swallowedAsContinuation(kind: NodeKind): boolean {
+  return kind !== 'code' && kind !== 'table' && kind !== 'list-item';
 }
 
 /**
@@ -312,7 +333,7 @@ function normalizeBoundaries(doc: OutlineDoc): OutlineDoc {
         firstChild &&
         fixed.kind === 'list-item' &&
         fixed.trailingGap.length === 0 &&
-        (firstChild.kind === 'paragraph' || firstChild.kind === 'html')
+        swallowedAsContinuation(firstChild.kind)
       ) {
         fixed = { ...fixed, trailingGap: [''] };
       }
@@ -1994,21 +2015,6 @@ export function reindentSubtreeVerbatim(node: OutlineNode, indentText: string): 
 }
 
 /**
- * The heading level a payload's root takes at this destination, or
- * `undefined` where a heading cannot be written at all — below a list item or
- * a paragraph, which `parse.ts` never nests one under.
- *
- * Root scope names level 1; a heading's children name one past their parent.
- * A level past `MAX_HEADING_LEVEL` is the heading regime running out, and the
- * caller reads it the same way it reads `undefined`.
- */
-function destinationHeadingLevel(parent: OutlineNode | 'root'): number | undefined {
-  if (parent === 'root') return 1;
-  if (parent.kind === 'heading') return (parent.level ?? 1) + 1;
-  return undefined;
-}
-
-/**
  * A payload re-encoded for a LIST scope, every node in it, at the depth its
  * position in the payload gives it.
  *
@@ -2019,19 +2025,13 @@ function destinationHeadingLevel(parent: OutlineNode | 'root'): number | undefin
  * the rest — what the no-conversion path does — drops a level of the payload's
  * own hierarchy, which is the guarantee this whole step exists to keep.
  *
- * A heading becomes a list item carrying its `#` run as text. A childless
- * paragraph or list item keeps its kind, and its own marker with it, so an
- * ordered payload does not silently become bullets. Atoms move as units.
- *
- * `rootKind` is the context-determined encoding for the payload's own roots;
- * descendants take their kind from the payload instead, since their
- * surroundings travel with them.
+ * A heading becomes a list item carrying its `#` run as text, whatever the
+ * destination's context encoding says: a `#` run at a paragraph's own column
+ * would re-parse as a heading and break out of the list. A childless paragraph
+ * or list item keeps its kind, and its own marker with it, so an ordered
+ * payload does not silently become bullets. Atoms move as units.
  */
-function reencodeIntoListScope(
-  node: OutlineNode,
-  indentText: string,
-  rootKind?: 'paragraph' | 'list-item',
-): OutlineNode {
+function reencodeIntoListScope(node: OutlineNode, indentText: string): OutlineNode {
   const hasChildren = node.children.length > 0;
   let encoded: OutlineNode;
   if (node.kind === 'heading') {
@@ -2040,7 +2040,7 @@ function reencodeIntoListScope(
     encoded = reencodeForDestination(node, undefined, indentText);
   } else {
     const own = node.kind === 'list-item' ? 'list-item' : 'paragraph';
-    const wanted = hasChildren ? 'list-item' : (rootKind ?? own);
+    const wanted = hasChildren ? 'list-item' : own;
     encoded = reencodeForDestination(node, wanted === own ? undefined : wanted, indentText);
   }
   // The child column is the item's own content column, as `childBaseCol` reads
@@ -2065,7 +2065,7 @@ function reencodeIntoListScope(
  */
 function reencodeHeadingSubtree(node: OutlineNode, delta: number): OutlineNode {
   if (node.kind !== 'heading') return node;
-  const levelled = headingWithLevel(node, Math.max(1, (node.level ?? 1) + delta));
+  const levelled = headingWithLevel(node, (node.level ?? 1) + delta);
   return {
     ...levelled,
     children: node.children.map((child) =>
@@ -2112,7 +2112,7 @@ export function reencodeBlocksForDestination(
   // run to the attachment rule, which reparents it under whatever paragraph
   // precedes it. The unifying principle's other branch is the honest answer
   // when no encoding exists.
-  const destLevel = destinationHeadingLevel(parent);
+  const destLevel = destinationHeadingLevel({ parent, precedingSiblings, followingSiblings });
   if (destLevel !== undefined) {
     for (const block of parsedBlocks) {
       if (block.kind !== 'heading') continue;
@@ -2143,7 +2143,7 @@ export function reencodeBlocksForDestination(
         // parse nests one under a paragraph or a list item, so the recursion
         // each arm runs owns every other heading in the payload.
         return headingLevel === undefined
-          ? reencodeIntoListScope(block, indentText, newContentKind)
+          ? reencodeIntoListScope(block, indentText)
           : reencodeHeadingSubtree(block, headingLevel - (block.level ?? 1));
       }
       const isContentBlock = block.kind === 'paragraph' || block.kind === 'list-item';
@@ -2173,7 +2173,6 @@ export function insertSubtrees(
   const anchorIndex = anchorPath[anchorPath.length - 1]!;
   const parent = parentPath.length === 0 ? 'root' : nodeAt(doc, parentPath)!;
   const siblings = childrenAt(doc, parentPath);
-
 
   const insertIndex = position === 'before' ? anchorIndex : anchorIndex + 1;
   const precedingSiblings = siblings.slice(0, insertIndex);
