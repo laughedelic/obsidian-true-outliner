@@ -9,8 +9,9 @@ private cast, and the row model is asked for no descendants rather than having t
 
 What this design builds on:
 
-- `search-hits-and-footer-content-filter` gives `matchNodes(doc, query)` and a row model that
-  speaks of hits.
+- `src/search.ts` holds `matchNodes(doc, query)` and `matchRanges(text, query)`, and
+  `footer-model.ts`'s rows speak of hits — both landed with
+  `search-hits-and-footer-content-filter`.
 - The footer's rows are drawn by `FooterController.renderRow` and its marker helpers in
   `backlinks-footer.ts`; the lineage row is already a shared primitive (`lineage-row.ts`) that
   the zoom trail also calls, and the trail imports `renderInline` and the segment glyphs from the
@@ -57,9 +58,14 @@ chrome, and what a segment does when activated. This change takes the level abov
 a LIST of rows: the group head, `renderRow` for the three row types, `markerFor`, and the
 match-marking walk from `search-hits-and-footer-content-filter`. Its callers are the footer and
 the palette; the trail is not one, because it draws a single chain rather than a list of rows.
-What differs per surface is passed as options — whether a node row gets a fold control, whether
-media renders, what a click does — because the chrome contract is the shared thing and the content
-rules are not (`docs/research/surfaces-and-embedding`, "The two renderers").
+What differs per surface is passed as options, and there are more of them than the three the
+shape suggests: `FooterController.renderRow` reaches for the guide settings, the `App`, the owning
+`Component`, the active term, the expanded-rows state, the re-render that a fold toggle triggers
+and the collector the pending renders are pushed onto, and `renderGroupHead` for the collapsed-
+groups state and that same re-render. Eight or nine, then, passed because the chrome contract is
+the shared thing and the content rules are not (`docs/research/surfaces-and-embedding`, "The two
+renderers"). Whether the palette's groups collapse at all is a question the shared group head has
+to be given an answer to; they do not, so it is passed the option saying so.
 
 The rest of what the footer holds goes DOWN rather than across. `renderInline` and `unwrapBlocks`,
 `segmentGlyph`, `separatorGlyph`, `segmentMarker`, and the `markerSlot` / `ordinalMarker` /
@@ -114,6 +120,15 @@ parsed again for the palette and vice versa. The index exposes the instance it o
 the cache itself changes. A second cache — what the prototype did — doubles memory for every note
 both surfaces touch.
 
+What one cache does not do is bound what the sweep leaves behind. `entries` is a plain `Map` with
+`forget(path)` and `clear()` and no eviction, and `clearTrees()` has no caller outside the footer's
+cost spec — so today the cache holds the notes that reference whatever is open, and after this
+change one whole-vault sweep pins a parsed tree for every markdown file for the rest of the
+session. That is the same cost in either design, and it is the figure task 1.1 records beside the
+timings: retained heap after the sweep, on the same vault. A bound belongs here only if that
+figure says so, and the choice then is an LRU over the map or dropping the palette's own
+additions when it closes.
+
 ### D5. Progressive, generation-guarded search that yields
 
 `vault-search.ts` walks `vault.getMarkdownFiles()` sorted by modification time, most recent
@@ -123,9 +138,22 @@ sweep, not after it: `mtime` is on the `TFile` and costs no read, and taking the
 what lets a progressive paint append each group in its final place. The prototype sorted its
 groups at the end because it painted once, at the end; sorting late here would either move rows
 already on screen or leave the cap admitting whichever notes resolved first rather than the most
-recently modified ones. A generation counter, bumped on every query or scope change,
-makes a stale callback a no-op. The cap is on groups; the walk continues past it only to count,
-so the tail's number is true (`backlink-filtering`'s totals rule, applied here).
+recently modified ones. A generation counter, bumped on every query or scope change, is checked
+at every yield point and ends the walk there — not only silenced at the callback. Silencing the
+callback alone leaves a superseded sweep reading and parsing to the end, so a fast typist has one
+whole-vault sweep in flight per keystroke, which is the opposite of what the guard is for. The cap
+is on groups; the walk continues past it only to count, so the tail's number is true
+(`backlink-filtering`'s totals rule, applied here).
+
+The callback carries a hit per node rather than a bare id. `matchNodes` answers with ids, and a
+row's text is `nodeContent(node, hitOf(node))`, whose per-kind rule needs to be told WHICH line the
+hit is on: with nothing passed, a fence shows its first non-fence line, a table its first cell and
+a callout its title — so a hit anywhere else in one of those nodes renders text the query does not
+appear in, and the palette shows a hit with nothing marked. The search therefore reports, per
+matching node, the index of the first of its own lines that `matchRanges` finds the term in, and
+that occurrence as written; `matchRanges` is already exported beside `matchNodes`, so this reads
+the matcher rather than changing it. The text as written and not the query itself, because
+`tableTextOf` picks its cell with a case-SENSITIVE `includes`.
 
 The cold sweep is the one unmeasured cost (`docs/research/search-surfaces`, open question 1). The
 first task measures it in the application on a vault of a few thousand notes and records the
@@ -139,9 +167,9 @@ caret with the public `Editor` API and scroll it into view; then `viewFor(view)`
 `EditorView`, and dispatch `zoomTo` only if that state is in outline mode. No private member is
 touched. The zoom root is the hit when it has children, and its parent when it does not — a
 zoomed single line is the finding recorded in `docs/research/search-surfaces` ("What the prototype
-surfaced") — and the caret stays on the hit either way. A childless hit with no parent, a
-top-level node or one in the preamble, opens the note unzoomed: the same rule, applied where the
-only alternatives are a zoom to one line and no zoom at all.
+surfaced") — and the caret stays on the hit either way. A childless top-level hit has no parent
+to take, and opens the note unzoomed: the same rule, applied where the only alternatives are a
+zoom to one line and no zoom at all.
 
 Alternative: switch the tab into outline mode when it is not, so a hit always opens zoomed.
 Rejected for now: the mode is a per-tab reader choice (`outline-mode`), and a search should not
@@ -149,17 +177,19 @@ flip it. Recorded as the alternative to revisit if readers ask.
 
 ### D7. Scope is the note the palette opened from
 
-Captured at open time as `workspace.getActiveFile()`; absent when there is none, in which case
-neither the key nor the control is offered. Tab is the toggle key because both prior-art palettes
+Captured at open time as `getActiveViewOfType(MarkdownView)?.file`, not `getActiveFile()`: that
+one "will return the most recently active file" when the current view is not a `FileView`, so from
+the graph view the palette would offer to narrow to whichever note was open last, and from a canvas
+or a PDF to a file it cannot parse. Absent when there is none, in which case neither the key nor
+the control is offered. Tab is the toggle key because both prior-art palettes
 that offer the hop use it (`docs/research/search-surfaces`, survey: Omnisearch, RemNote) and a
 modal has no other use for it.
 
 The control stands in for that key where there is no key. It is in the input row in both scopes,
 with two appearances: while the vault is active it reads "This note" and carries the key's own
 glyph, an offer rather than a label; once narrowed it becomes the chip naming the note, with the
-way back on it. Showing it only when narrowed — the prototype's shape, and what an earlier draft
-of this spec said — leaves a phone with nothing to tap in the scope it opens in, which is to say
-no way to reach the narrowed scope at all. Labelling the default instead ("Vault") fills the row
+way back on it. Showing it only when narrowed — the prototype's shape — leaves a phone with nothing to tap in
+the scope it opens in, which is to say no way to reach the narrowed scope at all. Labelling the default instead ("Vault") fills the row
 to report that nothing has changed.
 
 ### D8. Keys through the modal's `Scope`, roles on the DOM
@@ -177,16 +207,19 @@ whole results area, and looks the same as a move by one row (`docs/research/sear
 ### D9. Minimum query length, no debounce
 
 A one-character query matches nearly every node and paints a wall; two characters is the floor,
-as in the prototype. No debounce: the measured cost does not need one and the generation guard
-already makes a fast typist's intermediate queries free. Added only if the cold-sweep
-measurement says so.
+as in the prototype. No debounce: the generation guard ends a superseded walk at its next yield
+(D5), so an intermediate query costs the files read before the next keystroke rather than a whole
+sweep. The only figure in hand is the prototype's, over 149 notes; task 1.1 measures the vault
+this is designed for, and a debounce is added if that figure asks for one.
 
 ### D10. Phone
 
-Obsidian renders a `Modal` full-screen on a phone; the palette keeps that. Hits open on tap and
-the instructions row is hidden by the existing phone container query — which is the second reason
-the scope control carries the key's glyph rather than relying on the hints to name it, and the
-first reason it is present in both scopes (D7).
+Obsidian renders a `Modal` full-screen on a phone; the palette keeps that. Hits open on tap, and
+the instructions row is hidden by a container query the palette declares over its own shell — the
+footer's `@container` rule is on `.to-backlinks` and switches its own compact labels, so there is
+nothing here to inherit. That the hints can be hidden is the second reason the scope control
+carries the key's glyph rather than relying on them to name it, and the first reason it is present
+in both scopes (D7).
 
 ## Risks / Trade-offs
 
@@ -199,8 +232,10 @@ first reason it is present in both scopes (D7).
 - [A results DOM for a broad query on a large vault] → the group cap bounds it, and rows render
   markdown lazily as the footer's do.
 - [Zooming into a hit whose tab was opened in a new leaf races the view becoming active] →
-  `openLinkText` resolves once the leaf is open; the registry lookup is by the resolved view,
-  not by "whatever is active now"; a missing view means "opened unzoomed", never a wrong one.
+  the leaf is taken from `getLeaf(newLeaf)` and opened with `leaf.openFile(file)`, so the view is
+  in hand rather than read back off "whatever is active now" — `openLinkText` answers
+  `Promise<void>` and hands back neither. A wrong view is therefore impossible; a view the
+  registry has not yet seen is the open question below.
 - [The registry has no entry for a view that has not yet mounted its editor extensions] →
   fall back to opening unzoomed, and cover the case in e2e by opening a note that is not yet
   loaded.
