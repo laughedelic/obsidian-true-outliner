@@ -53,17 +53,29 @@ ancestor chain itself into `src/plugin/lineage-row.ts`, which the footer and zoo
 trail both render through; what it deliberately left with each surface is the row element, its
 chrome, and what a segment does when activated. This change takes the level above it.
 
-`src/plugin/lineage-list.ts` receives what the prototype duplicated from the footer and
-`lineage-row.ts` does not hold: the group head, `renderRow` for the three row types, `markerFor` /
-`markerSlot` / `ordinalMarker`, the glyphs, `renderInline` and `unwrapBlocks`, and the
+`src/plugin/lineage-list.ts` receives what the prototype duplicated from the footer and is about
+a LIST of rows: the group head, `renderRow` for the three row types, `markerFor`, and the
 match-marking walk from `search-hits-and-footer-content-filter`. Its callers are the footer and
-the palette; the trail is not one, because it draws a single chain rather than a list of rows, and
-it goes on calling `lineage-row.ts` directly. What differs per surface is passed as options —
-whether a node row gets a fold control, whether media renders, what a click does — because the
-chrome contract is the shared thing and the content rules are not
-(`docs/research/surfaces-and-embedding`, "The two renderers"). The footer's own CSS scope
-(`.to-backlinks`) becomes the list's scope, so the palette inherits every row rule by wrapping its
-results in it.
+the palette; the trail is not one, because it draws a single chain rather than a list of rows.
+What differs per surface is passed as options — whether a node row gets a fold control, whether
+media renders, what a click does — because the chrome contract is the shared thing and the content
+rules are not (`docs/research/surfaces-and-embedding`, "The two renderers").
+
+The rest of what the footer holds goes DOWN rather than across. `renderInline` and `unwrapBlocks`,
+`segmentGlyph`, `separatorGlyph`, `segmentMarker`, and the `markerSlot` / `ordinalMarker` /
+`checkboxGlyph` primitives beneath them describe one segment or one marker, never a list — and
+three of them are what the trail imports from `backlinks-footer.ts` today, for want of a better
+home. They join `lineage-row.ts`, the level that matches them and the one the trail already calls,
+so the trail's import line changes module and nothing else. `lineage-list.ts` calls down for them
+the same way.
+
+The CSS splits the same way. The row rules and the custom properties they rest on move to a scope
+both surfaces set — `to-lineage-list`, in its own part under `styles/` — and `.to-backlinks` keeps
+only what places the footer under a note: the 4rem top margin and the 1.75rem padding, which are
+correct for a section below a document and wrong inside a modal. Wrapping the palette's results in
+the footer's own class, as the prototype's styling implied, would hand it that placement to undo
+and would make every rule later added to `.to-backlinks` a rule someone has to check against the
+palette.
 
 Appearance is the footer's too: the rows read `backlinksSegmentIcons` and `backlinksSeparator`
 rather than declaring a second pair, the way `lineage-row.ts` already has the trail read them.
@@ -148,6 +160,11 @@ Arrows, the modified arrows, Enter with its modifiers and Tab are registered on 
 `Scope`, which Obsidian pushes while the modal is open and pops when it closes. The field
 carries `role="combobox"` with `aria-activedescendant` naming the active hit's row id; the
 results container is the `listbox` and each hit row an `option`. Lineage rows are presentation.
+
+The ends stop rather than wrap. The prototype wrapped, which reads fine over a handful of hits
+and badly over a capped list of many groups: the move from the last hit to the first scrolls the
+whole results area, and looks the same as a move by one row (`docs/research/search-surfaces`,
+"What the prototype surfaced", where the note asked for the stop).
 
 ### D9. Minimum query length, no debounce
 

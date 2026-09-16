@@ -112,7 +112,9 @@ When the palette is opened with no note active, the narrowed scope SHALL NOT be 
 Exactly one hit SHALL be active whenever any hit is shown; the first hit becomes active when
 results change. The arrow keys SHALL move the active hit to the previous or next hit in display
 order, across group boundaries. A modified arrow SHALL move to the first hit of the previous or
-next group. Moving SHALL scroll the active hit into view.
+next group. Both SHALL stop at the ends of the list rather than wrap: at the first hit the
+previous key SHALL leave it active, at the last hit the next key SHALL leave it active. Moving
+SHALL scroll the active hit into view.
 
 Focus SHALL remain in the query field throughout; moving the pointer over a hit SHALL make it
 active; typing SHALL edit the query. Pointer MOVEMENT and not the pointer merely being over a
@@ -128,6 +130,11 @@ select that row instead.
 
 - **WHEN** a hit in the middle of a group is active and the next-group key is pressed
 - **THEN** the first hit of the following group becomes active
+
+#### Scenario: The ends stop
+
+- **WHEN** the last hit is active and the next-hit key is pressed
+- **THEN** it stays active and the first hit is not selected
 
 #### Scenario: The active hit is kept in view
 
