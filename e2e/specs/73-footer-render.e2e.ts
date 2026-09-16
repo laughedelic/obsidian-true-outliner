@@ -43,15 +43,17 @@ function dump(): Promise<string[]> {
     const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
     if (!root) return ['<no footer>'];
     const out: string[] = [];
-    root.querySelectorAll('.to-backlinks-head, .to-backlinks-group-head, .to-backlinks-row, .to-backlinks-resolving')
+    root.querySelectorAll('.to-backlinks-head, .to-lineage-group-head, .to-lineage-row, .to-lineage-resolving')
       .forEach((el) => {
-        // Only the footer's OWN classes name what a line is. A row also carries
-        // the editor's chrome classes (`to-decor-block`, `to-decor-atom`),
-        // which say how it is drawn, not what it is — including them here would
-        // make every assertion below sensitive to a layout change.
+        // Only the classes that name what a line IS. A row also carries the
+        // editor's chrome classes (`to-decor-block`, `to-decor-atom`), which say
+        // how it is drawn rather than what it is — including them here would
+        // make every assertion below sensitive to a layout change. Two prefixes
+        // because the rows are drawn by the shared lineage list and the heading
+        // above them is the footer's own.
         const cls = Array.from(el.classList)
-          .filter((c) => c.startsWith('to-backlinks-') || c.startsWith('is-'))
-          .map((c) => c.replace('to-backlinks-', ''))
+          .filter((c) => /^(to-backlinks-|to-lineage-|is-)/.test(c))
+          .map((c) => c.replace(/^to-(backlinks|lineage)-/, ''))
           .join('+');
         out.push(`${cls}: ${(el.textContent ?? '').trim().slice(0, 70)}`);
       });
@@ -157,7 +159,7 @@ describe('backlinks footer: first render', function () {
         browser.executeObsidian(() => {
           const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
           if (!root) return null;
-          const segs = Array.from(root.querySelectorAll('.to-backlinks-row.is-lineage .to-backlinks-seg'));
+          const segs = Array.from(root.querySelectorAll('.to-lineage-row.is-lineage .to-lineage-seg'));
           if (segs.length === 0) return null;
           const html = segs.map((s) => s.innerHTML).join('');
           const text = segs.map((s) => (s as HTMLElement).innerText).join(' ');
@@ -212,8 +214,8 @@ describe('backlinks footer: first render', function () {
             });
             return [...out].sort();
           };
-          const lineage = tags('.to-backlinks-row.is-lineage .to-backlinks-content');
-          const reference = tags('.to-backlinks-row.is-hit .to-backlinks-content');
+          const lineage = tags('.to-lineage-row.is-lineage .to-lineage-content');
+          const reference = tags('.to-lineage-row.is-hit .to-lineage-content');
           if (lineage.length === 0 || reference.length === 0) return null;
           return { lineage, reference };
         }),
@@ -248,7 +250,7 @@ describe('backlinks footer: first render', function () {
         browser.executeObsidian(() => {
           const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
           if (!root) return null;
-          const rows = Array.from(root.querySelectorAll('.to-backlinks-row')) as HTMLElement[];
+          const rows = Array.from(root.querySelectorAll('.to-lineage-row')) as HTMLElement[];
           if (rows.length === 0) return null;
           const heights = rows.map((r) => r.getBoundingClientRect().height);
           const line = parseFloat(getComputedStyle(rows[0]!).lineHeight || '0');
@@ -258,7 +260,7 @@ describe('backlinks footer: first render', function () {
           // atom never has children, so no chain could carry it and
           // `chainImages === 0` held whether or not media was ever dropped.
           const chainText = Array.from(
-            root.querySelectorAll('.to-backlinks-row.is-lineage .to-backlinks-content'),
+            root.querySelectorAll('.to-lineage-row.is-lineage .to-lineage-content'),
           )
             .map((el) => (el as HTMLElement).innerText)
             .join(' ');
@@ -272,7 +274,7 @@ describe('backlinks footer: first render', function () {
           // about media, not about one tag.
           const MEDIA = 'img, .internal-embed';
           const refWithImage = Array.from(
-            root.querySelectorAll('.to-backlinks-row.is-hit'),
+            root.querySelectorAll('.to-lineage-row.is-hit'),
           ).find((r) => r.querySelector(MEDIA)) as HTMLElement | undefined;
           const refImage = refWithImage?.querySelector(MEDIA) as HTMLElement | undefined;
           return {
@@ -283,7 +285,7 @@ describe('backlinks footer: first render', function () {
               : 0,
             referenceImageHeight: refImage?.getBoundingClientRect().height ?? 0,
             chainImages: root.querySelectorAll(
-              '.to-backlinks-row.is-lineage :is(img, .internal-embed)',
+              '.to-lineage-row.is-lineage :is(img, .internal-embed)',
             ).length,
             chainKeptAltText: chainText.includes('the hover mock'),
             chainShowsEmbedSource: /!\[|hover-mock\.png/.test(chainText),
@@ -357,14 +359,14 @@ describe('backlinks footer: first render', function () {
           };
           const ground = parse(getComputedStyle(document.body).backgroundColor);
           const one = (sel: string): Element | null => root.querySelector(sel);
-          const lineage = one('.to-backlinks-row.is-lineage .to-backlinks-content');
-          const linCode = one('.to-backlinks-row.is-lineage .to-backlinks-content code');
-          const linMark = one('.to-backlinks-row.is-lineage .to-backlinks-content mark');
-          const refMark = one('.to-backlinks-row.is-hit .to-backlinks-content mark');
-          const refContent = one('.to-backlinks-row.is-hit .to-backlinks-content');
-          const linTag = one('.to-backlinks-row.is-lineage .to-backlinks-content a.tag');
-          const linStrong = one('.to-backlinks-row.is-lineage .to-backlinks-content strong');
-          const refTag = one('.to-backlinks-row.is-hit .to-backlinks-content a.tag');
+          const lineage = one('.to-lineage-row.is-lineage .to-lineage-content');
+          const linCode = one('.to-lineage-row.is-lineage .to-lineage-content code');
+          const linMark = one('.to-lineage-row.is-lineage .to-lineage-content mark');
+          const refMark = one('.to-lineage-row.is-hit .to-lineage-content mark');
+          const refContent = one('.to-lineage-row.is-hit .to-lineage-content');
+          const linTag = one('.to-lineage-row.is-lineage .to-lineage-content a.tag');
+          const linStrong = one('.to-lineage-row.is-lineage .to-lineage-content strong');
+          const refTag = one('.to-lineage-row.is-hit .to-lineage-content a.tag');
           if (
             !lineage || !linCode || !linMark || !refMark || !refContent || !linTag || !refTag ||
             !linStrong
@@ -452,10 +454,10 @@ describe('backlinks footer: first render', function () {
           const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
           if (!root) return null;
           const segs = Array.from(
-            root.querySelectorAll('.to-backlinks-row.is-lineage .to-backlinks-seg'),
+            root.querySelectorAll('.to-lineage-row.is-lineage .to-lineage-seg'),
           );
           const read = (seg: Element) => {
-            const icon = seg.querySelector('.to-backlinks-seg-icon');
+            const icon = seg.querySelector('.to-lineage-seg-icon');
             if (!icon) return null;
             // A zero-size inline-block on the baseline: its box edge IS the
             // baseline of the line it sits in, which is what "the lower edge of
@@ -471,7 +473,7 @@ describe('backlinks footer: first render', function () {
           };
           const out = segs.map(read).filter(Boolean);
           // The row's own gutter marker, which every mark in the footer matches.
-          const marker = root.querySelector('.to-backlinks-row.is-lineage > .to-decor-marker-icon');
+          const marker = root.querySelector('.to-lineage-row.is-lineage > .to-decor-marker-icon');
           if (!marker || out.length === 0) return null;
           return { icons: out, markerPx: marker.getBoundingClientRect().height };
         }),

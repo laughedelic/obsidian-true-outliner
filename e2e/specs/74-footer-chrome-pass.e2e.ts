@@ -58,7 +58,7 @@ function rowChrome(): Promise<
   return browser.executeObsidian(() => {
     const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
     if (!root) return [];
-    return Array.from(root.querySelectorAll<HTMLElement>('.to-backlinks-row')).map((el) => {
+    return Array.from(root.querySelectorAll<HTMLElement>('.to-lineage-row')).map((el) => {
       const icon = el.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
       const cs = getComputedStyle(el);
       return {
@@ -197,9 +197,9 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
     const rows = await browser.executeObsidian(() => {
       const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
       if (!root) return [];
-      return Array.from(root.querySelectorAll<HTMLElement>('.to-backlinks-row')).map((el) => {
+      return Array.from(root.querySelectorAll<HTMLElement>('.to-lineage-row')).map((el) => {
         const icon = el.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
-        const content = el.querySelector<HTMLElement>(':scope > .to-backlinks-content');
+        const content = el.querySelector<HTMLElement>(':scope > .to-lineage-content');
         if (!icon || !content) return null;
         const i = icon.getBoundingClientRect();
         const c = content.getBoundingClientRect();
@@ -231,16 +231,16 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
     const chains = await browser.executeObsidian(() => {
       const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
       if (!root) return [];
-      return Array.from(root.querySelectorAll<HTMLElement>('.to-backlinks-row.is-lineage')).map(
+      return Array.from(root.querySelectorAll<HTMLElement>('.to-lineage-row.is-lineage')).map(
         (el) => ({
-          segments: el.querySelectorAll('.to-backlinks-seg').length,
-          inlineIcons: el.querySelectorAll('.to-backlinks-seg .to-backlinks-seg-icon').length,
+          segments: el.querySelectorAll('.to-lineage-seg').length,
+          inlineIcons: el.querySelectorAll('.to-lineage-seg .to-lineage-seg-icon').length,
           rowMarkers: el.querySelectorAll(':scope > .to-decor-marker-icon').length,
           // The mark that used to sit between two names, and must not return.
           separators: el.querySelectorAll('.to-backlinks-sep').length,
           // A leading icon on segment 0 would double the gutter marker.
           firstHasIcon:
-            el.querySelector('.to-backlinks-seg')?.querySelector('.to-backlinks-seg-icon') != null,
+            el.querySelector('.to-lineage-seg')?.querySelector('.to-lineage-seg-icon') != null,
         }),
       );
     });
@@ -272,15 +272,15 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
 
     const sizes = await browser.executeObsidian(() => {
       const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
-      const chain = root?.querySelector<HTMLElement>('.to-backlinks-row.is-lineage');
+      const chain = root?.querySelector<HTMLElement>('.to-lineage-row.is-lineage');
       const marker = chain?.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
-      const inline = chain?.querySelector<HTMLElement>('.to-backlinks-seg-icon');
+      const inline = chain?.querySelector<HTMLElement>('.to-lineage-seg-icon');
       // A DEPTH-0 row, where the arithmetic below has no depth term: its text
       // starts one gutter in, and a marker centred on `text - gutter` therefore
       // sits exactly on the row's own left edge. No CSS length has to be read
       // back for that — and none can be: a custom property hands back the
       // SPECIFIED value (`1.25rem`), not resolved pixels.
-      const root0 = root?.querySelector<HTMLElement>('.to-backlinks-row[style*="--to-depth: 0"]');
+      const root0 = root?.querySelector<HTMLElement>('.to-lineage-row[style*="--to-depth: 0"]');
       const marker0 = root0?.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
       if (!root || !chain || !marker || !inline || !root0 || !marker0) return null;
 
@@ -383,7 +383,7 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
           const icon = line.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
           if (icon) measure(line, icon, `editor:${i}`);
         });
-        leaf.querySelectorAll<HTMLElement>('.to-backlinks-row').forEach((row, i) => {
+        leaf.querySelectorAll<HTMLElement>('.to-lineage-row').forEach((row, i) => {
           const icon = row.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
           // Every footer marker takes the plain-line contract, including an
           // atom's: D18 gives a row no box to centre against, and 8b.6 deleted
@@ -451,11 +451,11 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
         const line = leaf?.querySelector('.cm-content > .cm-line.to-decor-block') ?? null;
         return {
           editor: gap(line?.querySelector(':scope > .to-decor-marker-icon svg') ?? null, line),
-          footer: Array.from(leaf?.querySelectorAll<HTMLElement>('.to-backlinks-row.is-hit') ?? [])
+          footer: Array.from(leaf?.querySelectorAll<HTMLElement>('.to-lineage-row.is-hit') ?? [])
             .map((el) =>
               gap(
                 el.querySelector(':scope > .to-decor-marker-icon svg'),
-                el.querySelector(':scope > .to-backlinks-content'),
+                el.querySelector(':scope > .to-lineage-content'),
               ),
             )
             .filter((v): v is number => v !== null),
@@ -506,7 +506,7 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
       const footer = document.querySelector<HTMLElement>('.workspace-leaf.mod-active .to-backlinks');
       if (!footer) return null;
       const head = footer.querySelector<HTMLElement>('.to-backlinks-head');
-      const row = Array.from(footer.querySelectorAll<HTMLElement>('.to-backlinks-row')).find(
+      const row = Array.from(footer.querySelectorAll<HTMLElement>('.to-lineage-row')).find(
         (el) => el.style.getPropertyValue('--to-depth').trim() === '0',
       );
       if (!head || !row) return null;
@@ -562,9 +562,9 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
       };
 
       const gaps: Array<{ label: string; clearance: number }> = [];
-      for (const el of Array.from(footer.querySelectorAll<HTMLElement>('.to-backlinks-row'))) {
-        const ordinal = el.querySelector(':scope > .to-backlinks-ordinal');
-        const content = el.querySelector(':scope > .to-backlinks-content');
+      for (const el of Array.from(footer.querySelectorAll<HTMLElement>('.to-lineage-row'))) {
+        const ordinal = el.querySelector(':scope > .to-lineage-ordinal');
+        const content = el.querySelector(':scope > .to-lineage-content');
         if (!ordinal || !content) continue;
         const digits = inkRight(ordinal);
         // The FIRST line box, not the union. A row's content wraps on a narrow
@@ -598,7 +598,7 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
         const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
         if (!root) return [];
         const BLOCK = 'h1,h2,h3,h4,h5,h6,p,ul,ol,li,blockquote,table,pre,hr,div';
-        return Array.from(root.querySelectorAll<HTMLElement>('.to-backlinks-row')).flatMap((row) =>
+        return Array.from(root.querySelectorAll<HTMLElement>('.to-lineage-row')).flatMap((row) =>
           Array.from(row.querySelectorAll(BLOCK)).map(
             (el) => `${el.tagName} in "${(row.textContent ?? '').trim().slice(0, 40)}"`,
           ),
@@ -622,14 +622,14 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
     const rows = await browser.executeObsidian(() => {
       const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
       if (!root) return [];
-      return Array.from(root.querySelectorAll<HTMLElement>('.to-backlinks-row')).map((el) => {
+      return Array.from(root.querySelectorAll<HTMLElement>('.to-lineage-row')).map((el) => {
         const cs = getComputedStyle(el);
         return {
           text: (el.textContent ?? '').trim().slice(0, 40),
           fontSize: parseFloat(cs.fontSize),
           height: el.getBoundingClientRect().height,
           hasCheckbox: !!el.querySelector(':scope > .to-decor-marker-icon'),
-          ordinal: el.querySelector('.to-backlinks-ordinal')?.textContent ?? null,
+          ordinal: el.querySelector('.to-lineage-ordinal')?.textContent ?? null,
         };
       });
     });
@@ -658,7 +658,7 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
     const heights = await browser.executeObsidian(() => {
       const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
       if (!root) return [];
-      return Array.from(root.querySelectorAll<HTMLElement>('.to-backlinks-row'))
+      return Array.from(root.querySelectorAll<HTMLElement>('.to-lineage-row'))
         .map((el) => {
           const lineHeight = parseFloat(getComputedStyle(el).lineHeight);
           const h = el.getBoundingClientRect().height;
@@ -689,10 +689,10 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
     const rows = await browser.executeObsidian(() => {
       const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
       if (!root) return [];
-      return Array.from(root.querySelectorAll<HTMLElement>('.to-backlinks-row')).map((el) => {
+      return Array.from(root.querySelectorAll<HTMLElement>('.to-lineage-row')).map((el) => {
         const icon = el.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
-        const ordinal = el.querySelector<HTMLElement>(':scope > .to-backlinks-ordinal');
-        const content = el.querySelector<HTMLElement>(':scope > .to-backlinks-content');
+        const ordinal = el.querySelector<HTMLElement>(':scope > .to-lineage-ordinal');
+        const content = el.querySelector<HTMLElement>(':scope > .to-lineage-content');
         const marker = icon ?? ordinal;
 
         // The text's own optical middle, in the row's own font.
@@ -816,7 +816,7 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
     const rows = await browser.executeObsidian(() => {
       const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
       if (!root) return [];
-      return Array.from(root.querySelectorAll<HTMLElement>('.to-backlinks-row')).map((el) => {
+      return Array.from(root.querySelectorAll<HTMLElement>('.to-lineage-row')).map((el) => {
         const cs = getComputedStyle(el);
         // The row's own padding is spent once, not per line, so it comes off
         // before the height is compared against a multiple of a line.
@@ -923,20 +923,20 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
         // order is a real contract, but it is not THIS test's — this one is
         // about what each row carries, and it should not go red for a reason it
         // cannot see.
-        const groups = Array.from(root.querySelectorAll<HTMLElement>('.to-backlinks-group')).sort(
+        const groups = Array.from(root.querySelectorAll<HTMLElement>('.to-lineage-group')).sort(
           (a, b) =>
-            (a.querySelector('.to-backlinks-group-name')?.textContent ?? '').localeCompare(
-              b.querySelector('.to-backlinks-group-name')?.textContent ?? '',
+            (a.querySelector('.to-lineage-group-name')?.textContent ?? '').localeCompare(
+              b.querySelector('.to-lineage-group-name')?.textContent ?? '',
             ),
         );
         groups.forEach((group) => {
-          out.push(`# ${group.querySelector('.to-backlinks-group-name')?.textContent ?? '?'}`);
-          group.querySelectorAll<HTMLElement>('.to-backlinks-row').forEach((el) => {
+          out.push(`# ${group.querySelector('.to-lineage-group-name')?.textContent ?? '?'}`);
+          group.querySelectorAll<HTMLElement>('.to-lineage-row').forEach((el) => {
             const roles = ['is-lineage', 'is-hit', 'is-property'].filter((c) =>
               el.classList.contains(c),
             );
-            const ordinal = el.querySelector('.to-backlinks-ordinal')?.textContent ?? '';
-            const text = (el.querySelector('.to-backlinks-content')?.textContent ?? '').trim();
+            const ordinal = el.querySelector('.to-lineage-ordinal')?.textContent ?? '';
+            const text = (el.querySelector('.to-lineage-content')?.textContent ?? '').trim();
             out.push(
               `${'  '.repeat(Number(el.style.getPropertyValue('--to-depth') || 0))}` +
                 `[${el.dataset.kind}${roles.length ? ` ${roles.join(' ')}` : ''}]` +
@@ -965,7 +965,7 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
    * They are real `button`s so a keyboard can reach them, which means putting
    * down Obsidian's own styling — and that is a specificity fight, not a
    * declaration. Obsidian styles buttons as `.markdown-source-view button`,
-   * one class plus one element, so a bare `.to-backlinks-fold` loses. Measured
+   * one class plus one element, so a bare `.to-lineage-fold` loses. Measured
    * when it did: the resting button carried a solid background and an 8px
    * radius while its `:hover` was correctly transparent, because the hover
    * selector happened to have two classes and won.
@@ -987,7 +987,7 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
     } | null> =>
       browser.executeObsidian(() => {
         const root = document.querySelector('.workspace-leaf.mod-active');
-        const el = root?.querySelector<HTMLElement>('.to-backlinks-fold');
+        const el = root?.querySelector<HTMLElement>('.to-lineage-fold');
         const marker = root?.querySelector<HTMLElement>('.to-backlinks .to-decor-marker-icon');
         if (!el || !marker) return null;
         const cs = getComputedStyle(el);
@@ -1013,7 +1013,7 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
     // back in exactly the same place.
     expect(rest!.color).toBe(rest!.markerColor);
 
-    await (await $('.workspace-leaf.mod-active .to-backlinks-fold')).moveTo();
+    await (await $('.workspace-leaf.mod-active .to-lineage-fold')).moveTo();
     await browser.pause(200);
     const hovered = await chrome();
     expect(transparent(hovered!.bg)).toBe(true);

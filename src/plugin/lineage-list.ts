@@ -96,17 +96,17 @@ export interface LineageListOptions {
 
 export function renderGroupHead(card: HTMLElement, group: GroupHead): void {
   const { name, folder, count, collapsed } = group;
-  const head = card.createDiv({ cls: 'to-backlinks-group-head' });
+  const head = card.createDiv({ cls: 'to-lineage-group-head' });
   head.toggleClass('is-collapsed', collapsed);
   if (group.onToggle) makeDisclosure(head, !collapsed, name);
   if (group.onToggle) {
-    const chevron = head.createSpan({ cls: 'to-backlinks-chevron' });
+    const chevron = head.createSpan({ cls: 'to-chevron' });
     // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
     chevron.appendChild(chevronGlyph(!collapsed));
   }
-  head.createSpan({ cls: 'to-backlinks-group-name', text: name });
-  if (folder) head.createSpan({ cls: 'to-backlinks-group-folder', text: folder });
-  head.createSpan({ cls: 'to-backlinks-group-count', text: String(count) });
+  head.createSpan({ cls: 'to-lineage-group-name', text: name });
+  if (folder) head.createSpan({ cls: 'to-lineage-group-folder', text: folder });
+  head.createSpan({ cls: 'to-lineage-group-count', text: String(count) });
 
   if (group.onToggle) head.addEventListener('click', group.onToggle);
 }
@@ -135,7 +135,7 @@ export function renderRow(
   pending: Promise<void>[],
   options: LineageListOptions,
 ): HTMLElement {
-  const el = body.createDiv({ cls: 'to-backlinks-row' });
+  const el = body.createDiv({ cls: 'to-lineage-row' });
   // The row says what KIND of node it holds. The chrome class says how it is
   // laid out (every footer row is a block line) and the marker says the kind
   // in glyphs, but neither is readable — by a stylesheet, by a snippet, or by the
@@ -163,8 +163,8 @@ export function renderRow(
     el.addClass('is-property');
     // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
     el.appendChild(markerSlot(propertyGlyph()));
-    const content = el.createSpan({ cls: 'to-backlinks-content' });
-    content.createSpan({ cls: 'to-backlinks-prop-name', text: row.property });
+    const content = el.createSpan({ cls: 'to-lineage-content' });
+    content.createSpan({ cls: 'to-lineage-prop-name', text: row.property });
     pending.push(options.renderProperty(content.createSpan(), row.markdown, sourcePath));
     return el;
   }
@@ -212,7 +212,7 @@ export function renderRow(
     // treatment a folded node's does in the editor. The class goes on the row
     // rather than the control because that is what the marker is inside.
     el.toggleClass(FOLDED_NODE_CLASS, !expanded);
-    const fold = el.createEl('button', { cls: 'to-backlinks-fold to-decor-fold-toggle' });
+    const fold = el.createEl('button', { cls: 'to-lineage-fold to-decor-fold-toggle' });
     fold.type = 'button';
     fold.setAttribute('aria-label', expanded ? 'Hide children' : `Show ${row.foldedCount} hidden`);
     fold.setAttribute('aria-expanded', expanded ? 'true' : 'false');
@@ -243,14 +243,14 @@ export function renderRow(
   // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
   el.appendChild(markerFor(row));
 
-  const content = el.createSpan({ cls: 'to-backlinks-content' });
+  const content = el.createSpan({ cls: 'to-lineage-content' });
   // The rendered content gets its own span: `MarkdownRenderer` resolves
   // asynchronously, and `unwrapBlocks` only unwraps a LONE wrapper — so a tag
   // appended beside it in the meantime left the `<p>` in place, which is a
   // block element in a row and exactly what the model forbids.
   pending.push(options.renderContent(content.createSpan(), row, sourcePath));
   if (row.referenceKind === 'embed') {
-    content.createSpan({ cls: 'to-backlinks-tag', text: 'embed' });
+    content.createSpan({ cls: 'to-lineage-tag', text: 'embed' });
   }
   // Reachable AND operable from the keyboard, on the same terms as a lineage
   // segment. The row was clickable and nothing else: a keyboard-only reader

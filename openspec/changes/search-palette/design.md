@@ -116,6 +116,12 @@ margin and the 1.75rem padding, correct for a section below a document and wrong
 nothing to a modal, its heading and its controls. After the split a `to-backlinks-*` rule cannot
 reach the palette by construction rather than by discipline.
 
+One class takes neither prefix. The chevron is drawn by the footer's own heading and by the
+list's group head, from the disclosure that `chrome-controls.ts` now holds, and giving it either
+prefix would split one base rule in two — so it becomes `to-chevron`, the shape `to-match` already
+uses, and the footer's three positional rules go on scoping it under `.to-backlinks-head`, which
+the palette never renders.
+
 The rename reaches `lineage-row.ts`'s own class strings and the footer's e2e selectors — 46
 distinct `to-backlinks-*` names across 11 e2e files, of which the shared ones move. That is the
 price of the isolation, paid once, in the change that creates the second surface.

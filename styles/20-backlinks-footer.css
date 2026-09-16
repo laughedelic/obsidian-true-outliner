@@ -78,8 +78,8 @@
  * above the text's against the editor's own 0.8px.
  */
 .to-backlinks-head,
-.to-backlinks-group-head,
-.to-backlinks-resolving {
+.to-lineage-group-head,
+.to-lineage-resolving {
   font-size: var(--font-ui-small);
 }
 
@@ -212,7 +212,7 @@
  * that column minus the half-icon the rows already inset by, so the two add up
  * to it rather than one of them guessing.
  */
-.to-backlinks-group {
+.to-lineage-group {
   position: relative;
   background: var(--background-primary-alt);
   border: 1px solid var(--background-modifier-border);
@@ -222,7 +222,7 @@
   margin-bottom: 0.6rem;
 }
 
-.to-backlinks-group-head {
+.to-lineage-group-head {
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -230,7 +230,7 @@
   color: var(--text-muted);
 }
 
-.to-backlinks-group-head:hover {
+.to-lineage-group-head:hover {
   color: var(--text-normal);
 }
 
@@ -245,11 +245,11 @@
  * consistency worth having here is with the other group heads beside it, not
  * with the section above them.
  */
-.to-backlinks-head:not(.is-collapsed) > .to-backlinks-head-title > .to-backlinks-chevron {
+.to-backlinks-head:not(.is-collapsed) > .to-backlinks-head-title > .to-chevron {
   opacity: 0;
 }
 
-.to-backlinks-head:hover > .to-backlinks-head-title > .to-backlinks-chevron {
+.to-backlinks-head:hover > .to-backlinks-head-title > .to-chevron {
   opacity: 1;
 }
 
@@ -257,7 +257,7 @@
  * the marker's left edge by the same 3px gap. Absolute against `.to-backlinks-head`
  * (`position: relative`) — `.to-backlinks-head-title` between them sets no
  * `position` of its own, so it is not the containing block. */
-.to-backlinks-head > .to-backlinks-head-title > .to-backlinks-chevron {
+.to-backlinks-head > .to-backlinks-head-title > .to-chevron {
   position: absolute;
   left: calc(
     -1 * (var(--to-marker-icon-size, 0.85rem) / 2 + 3px + var(--to-fold-size, 0.7rem))
@@ -267,7 +267,7 @@
 /* One box wide with a marker icon, so the chevron's centre and every depth-0
  * marker's centre are the same column — the group's own control sits directly
  * above the rows it opens. */
-.to-backlinks-chevron {
+.to-chevron {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -279,21 +279,21 @@
   color: var(--to-backlinks-mark);
 }
 
-.to-backlinks-group-name {
+.to-lineage-group-name {
   font-weight: var(--font-semibold);
 }
 
-.to-backlinks-group-folder,
-.to-backlinks-group-count {
+.to-lineage-group-folder,
+.to-lineage-group-count {
   color: var(--text-faint);
   font-size: var(--font-ui-smaller);
 }
 
-.to-backlinks-group-count {
+.to-lineage-group-count {
   margin-inline-start: auto;
 }
 
-.to-backlinks-resolving {
+.to-lineage-resolving {
   color: var(--text-faint);
   font-size: var(--font-ui-smaller);
   padding: 0.2rem 0 0.2rem var(--to-marker-gutter);
@@ -311,7 +311,7 @@
  * and left it with no guides at all: a second layout answering the same
  * question differently (docs/research/backlinks-footer-spikes, S4).
  */
-.to-backlinks-row {
+.to-lineage-row {
   padding: 0.1rem 0;
   cursor: pointer;
   /* Set on the ROW, so the marker's `0.5ex` correction resolves against the
@@ -337,7 +337,7 @@
  * editor does not have, and the guide overlay paints behind the row's own
  * background (`z-index: -1`), so a filled row would hide the guides it sits on.
  * The affordance is on the text instead. */
-.to-backlinks-row:hover .to-backlinks-content {
+.to-lineage-row:hover .to-lineage-content {
   color: var(--text-normal);
 }
 
@@ -346,7 +346,7 @@
  * are drawn identically. Only the text separates them (docs/research/structured-backlinks, D4).
  * The icon itself is `.to-decor-marker-icon`, shared with the editor — sized,
  * shifted and coloured by that rule, not by this one. */
-.to-backlinks-content {
+.to-lineage-content {
   overflow-wrap: break-word;
 }
 
@@ -385,7 +385,7 @@
  * the slot grows rightward and pushes its own text out, which is what the
  * editor does too rather than letting the digits cross their own text.
  */
-.to-backlinks-ordinal {
+.to-lineage-ordinal {
   --to-ordinal-slot: calc(
     var(--to-marker-gutter) + var(--to-marker-icon-size, 0.85rem) / 2
   );
@@ -409,7 +409,7 @@
 
 /* A code row is one line of a fence, shown as what it is. No block, no frame:
  * the marker already says code. */
-.to-backlinks-code {
+.to-lineage-code {
   font-family: var(--font-monospace);
   font-size: 0.9em;
   background: none;
@@ -418,7 +418,7 @@
 }
 
 /* Context, not substance: dimmer, and smaller. */
-.to-backlinks-row.is-lineage .to-backlinks-content {
+.to-lineage-row.is-lineage .to-lineage-content {
   color: var(--text-faint);
 }
 
@@ -448,7 +448,7 @@
  * size, breaking the footer's one-size-for-every-mark contract by 0.94px.
  * Sizing the row scales the text, the inline icons and the marker together.
  */
-.to-backlinks .to-backlinks-row.is-lineage .to-backlinks-content {
+.to-backlinks .to-lineage-row.is-lineage .to-lineage-content {
   font-size: calc(1em * var(--to-chain-scale));
 }
 
@@ -469,7 +469,7 @@
  * same property. So the inline icons divide the factor back out and every mark
  * in the footer stays one size, whatever the row's text does.
  */
-.to-backlinks .to-backlinks-row.is-lineage .to-backlinks-seg-icon {
+.to-backlinks .to-lineage-row.is-lineage .to-lineage-seg-icon {
   width: calc(0.8em / var(--to-chain-scale));
   height: calc(0.8em / var(--to-chain-scale));
 }
@@ -487,7 +487,7 @@
  * `currentColor` throughout rather than a token, so every mark follows the row
  * — including through the row's own hover, which a fixed colour would not.
  */
-.to-backlinks-row.is-lineage .to-backlinks-content a {
+.to-lineage-row.is-lineage .to-lineage-content a {
   color: inherit;
   text-decoration: underline;
   text-decoration-color: currentColor;
@@ -504,7 +504,7 @@
  * bold ancestor, in a row whose whole job is to be quiet. The bold itself
  * stays; only the colour is declined.
  */
-.to-backlinks-row.is-lineage .to-backlinks-content :is(strong, em, b, i, del, s) {
+.to-lineage-row.is-lineage .to-lineage-content :is(strong, em, b, i, del, s) {
   color: inherit;
 }
 
@@ -514,7 +514,7 @@
  * inside it leaves for somewhere else entirely. `alias` is the curled arrow the
  * platform already uses for exactly that, and it costs the row no ink.
  */
-.to-backlinks-row.is-lineage .to-backlinks-content a.external-link {
+.to-lineage-row.is-lineage .to-lineage-content a.external-link {
   cursor: alias;
 }
 
@@ -522,7 +522,7 @@
  * little more ink than the row around it — not as a chip. A pill would be a
  * second object in a line that is one. The fill on hover is what says it is
  * operable. */
-.to-backlinks-row.is-lineage .to-backlinks-content a.tag {
+.to-lineage-row.is-lineage .to-lineage-content a.tag {
   color: color-mix(in srgb, currentColor 55%, var(--text-normal) 45%);
   background: none;
   border: none;
@@ -534,7 +534,7 @@
    * which Obsidian had already sized down to `--tag-size`. */
 }
 
-.to-backlinks-row.is-lineage .to-backlinks-content a.tag:hover {
+.to-lineage-row.is-lineage .to-lineage-content a.tag:hover {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
@@ -566,7 +566,7 @@
  * the composited ground close to the row's own background, which is the ground
  * the theme already guarantees its text colour is legible against.
  */
-.to-backlinks-content mark {
+.to-lineage-content mark {
   color: inherit;
   /* 0.3, not 0.4, and the number is a contrast floor rather than a taste. Swept
    * across five themes in both schemes, a 0.4 tint left a reference row's
@@ -600,7 +600,7 @@
  * The literal fallback stays. It is what stops a theme that leaves the token
  * undefined from invalidating the declaration and cancelling the highlight.
  */
-.to-backlinks-row.is-lineage .to-backlinks-content mark {
+.to-lineage-row.is-lineage .to-lineage-content mark {
   /* 40% of the base tint, and ink 80% of the way to the theme's normal text.
    * Both numbers are the same sweep: at this tint the chain's ink reaches
    * 3.49:1 at 60% and 4.82:1 at 80%, worst case across five themes in both
@@ -618,7 +618,7 @@
  * rendered-markdown containers, which a footer row is not — so a `<code>` here
  * came out at the row's full size. Monospace at the same px reads LARGER than
  * the prose beside it, which is why the row looked like it changed size at the
- * code span. `.to-backlinks-code` already did this for a code ROW; this is the
+ * code span. `.to-lineage-code` already did this for a code ROW; this is the
  * same rule for a span inside any row.
  */
 /*
@@ -633,11 +633,11 @@
  * On every row, not just a chain: the reference row's tags are Obsidian's own
  * and take the same token.
  */
-.to-backlinks-content a.tag {
+.to-lineage-content a.tag {
   font-size: min(var(--tag-size, 0.875em), 0.875em);
 }
 
-.to-backlinks-content code {
+.to-lineage-content code {
   /* Capped for the reason the tag size is — a theme may define this one in
    * absolute units too, and nothing inside a row may outgrow the row. */
   font-size: min(var(--code-size, 0.875em), 0.875em);
@@ -652,7 +652,7 @@
  * quotation and the embed is part of what the node says. Left unbounded it
  * rendered at natural size, which is the reproduction D18 exists to rule out.
  */
-.to-backlinks-content :is(img, video, audio, iframe, canvas, svg.excalidraw-svg) {
+.to-lineage-content :is(img, video, audio, iframe, canvas, svg.excalidraw-svg) {
   max-height: 1.4em;
   width: auto;
   vertical-align: text-bottom;
@@ -669,7 +669,7 @@
  * height. `overflow: hidden` as well as the bound: the height limit alone does
  * not stop a taller child painting past it.
  */
-.to-backlinks-content .internal-embed {
+.to-lineage-content .internal-embed {
   display: inline-block;
   max-height: 1.4em;
   overflow: hidden;
@@ -701,7 +701,7 @@
  * Only the `cap` half is restated: the `ex` fallback is already the base rule's.
  */
 @supports (top: 1cap) {
-  .to-backlinks .to-backlinks-row > .to-decor-marker-icon {
+  .to-backlinks .to-lineage-row > .to-decor-marker-icon {
     top: calc(var(--to-marker-icon-size, 0.85rem) / 2 - 0.5cap);
   }
 }
@@ -729,7 +729,7 @@
  * Both terms are in `em`, so the mark scales with the row: a chain's text is
  * smaller than the reference it leads to, and its marks follow.
  */
-.to-backlinks-seg-icon {
+.to-lineage-seg-icon {
   display: inline-block;
   vertical-align: baseline;
   line-height: 0;
@@ -742,31 +742,31 @@
 }
 
 @supports (top: 1cap) {
-  .to-backlinks-seg-icon {
+  .to-lineage-seg-icon {
     top: calc(0.4em - 0.5cap);
   }
 }
 
-.to-backlinks-seg-icon > svg {
+.to-lineage-seg-icon > svg {
   width: 100%;
   height: 100%;
 }
 
-.to-backlinks-seg + .to-backlinks-seg {
+.to-lineage-seg + .to-lineage-seg {
   margin-inline-start: 0.7em;
 }
 
 /* An ordered ancestor's number, inline, where every other kind gets an icon.
- * Not the gutter's `.to-backlinks-ordinal` treatment: that one is a fixed slot
+ * Not the gutter's `.to-lineage-ordinal` treatment: that one is a fixed slot
  * with a negative margin, which belongs to a marker column this mark is not in.
  * Here the number simply takes the width it needs, ahead of the name it labels. */
-.to-backlinks-seg-ord {
+.to-lineage-seg-ord {
   margin-inline-end: 0.3em;
   color: var(--to-backlinks-mark);
   font-variant-numeric: tabular-nums;
 }
 
-.to-backlinks-row.is-hit .to-backlinks-content {
+.to-lineage-row.is-hit .to-lineage-content {
   color: var(--text-normal);
 }
 
@@ -784,7 +784,7 @@
  * would reflow the line as the reader typed, which is the one thing a live
  * filter must not do.
  */
-.to-backlinks-content mark.to-match {
+.to-lineage-content mark.to-match {
   border-radius: var(--radius-s);
   background-color: hsla(var(--color-accent-hsl), 0.25);
   color: var(--text-normal);
@@ -792,7 +792,7 @@
   font-weight: inherit;
 }
 
-.to-backlinks-prop-name {
+.to-lineage-prop-name {
   font-family: var(--font-monospace);
   font-size: var(--font-ui-smaller);
   color: var(--text-faint);
@@ -803,7 +803,7 @@
 }
 
 /* An embed is a transclusion, not a mention, and should not be read as one. */
-.to-backlinks-tag {
+.to-lineage-tag {
   font-size: 0.7rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -818,7 +818,7 @@
 /* Each ancestor in a chain is its own link, so it needs its own hover — one
  * underline under the whole row would claim the row goes somewhere it does
  * not. */
-.to-backlinks-seg {
+.to-lineage-seg {
   cursor: pointer;
 }
 
@@ -834,13 +834,13 @@
  * (the rule above governs the trail too, which has no colour of its own), so
  * one destination is visible on both.
  */
-.to-backlinks-seg:hover {
+.to-lineage-seg:hover {
   color: var(--text-normal);
 }
 
 /* The icon belongs to its own segment, so it answers that segment's hover —
  * left at the muted constant it would stay dim under the name it names. */
-.to-backlinks-seg:hover .to-backlinks-seg-icon {
+.to-lineage-seg:hover .to-lineage-seg-icon {
   color: var(--text-normal);
 }
 
@@ -866,7 +866,7 @@
  * hover reveal and its folded rotation; what stays here is where it sits, which
  * is the footer's own column arithmetic. It is a real `button` — see
  * `renderRow` for why the semantics are not shared along with the look. */
-.to-backlinks-fold {
+.to-lineage-fold {
   position: absolute;
   left: calc(
     (var(--to-depth, 0) - 0.5) * var(--to-decor-unit) - var(--to-fold-size) / 2
@@ -883,7 +883,7 @@
   cursor: pointer;
 }
 
-.to-backlinks-fold:hover {
+.to-lineage-fold:hover {
   color: var(--text-normal);
 }
 
@@ -901,7 +901,7 @@
  * inherit and no fold command behind it, so hiding it would leave a keyboard or
  * touch reader with nothing.
  */
-.to-backlinks-fold.to-decor-fold-toggle {
+.to-lineage-fold.to-decor-fold-toggle {
   position: absolute;
   left: calc((var(--to-depth, 0) - 0.5) * var(--to-decor-unit) - var(--to-fold-size) / 2);
   width: var(--to-fold-size);
@@ -912,7 +912,7 @@
 
 /* A row whose markdown holds more than one block keeps them (`unwrapBlocks`
  * only strips a LONE wrapper), and those still arrive with document margins. */
-.to-backlinks-row :is(p, ul, ol) {
+.to-lineage-row :is(p, ul, ol) {
   margin: 0;
   padding: 0;
 }
@@ -947,21 +947,21 @@
  * spilling onto the left edge. Half an icon of inset puts the column clear of
  * the frame, and lands it on the same x as the group head's chevron.
  */
-.to-backlinks-rows {
+.to-lineage-rows {
   padding-left: calc(var(--to-marker-icon-size, 0.85rem) / 2);
 }
 
 /* The cap itself: height only, no visual effect on a group that fits under it.
  * Applying the fade here as well is what put an edge-fade on short groups that
  * had nothing to hide. */
-.to-backlinks-rows.is-capped {
+.to-lineage-rows.is-capped {
   max-height: var(--to-backlinks-group-max);
   overflow: hidden;
 }
 
 /* The fade, and only once the cap is actually hiding something — measured, not
  * assumed. */
-.to-backlinks-rows.is-truncated {
+.to-lineage-rows.is-truncated {
   mask-image: linear-gradient(to bottom, black calc(100% - 3rem), transparent);
 }
 
@@ -973,7 +973,7 @@
  * takes more specificity than one class.
  *
  * Obsidian styles buttons as `.markdown-source-view button` and friends — one
- * class plus one element, which beats a bare `.to-backlinks-fold`. Measured:
+ * class plus one element, which beats a bare `.to-lineage-fold`. Measured:
  * the resting button carried a solid background and an 8px radius while its
  * `:hover` was correctly transparent, because the hover selector had two
  * classes and won while the resting one had one and lost. Descendant-scoping
@@ -981,13 +981,13 @@
  * because Obsidian styles those separately.
  */
 .to-backlinks .to-backlinks-more,
-.to-backlinks .to-backlinks-fold,
+.to-backlinks .to-lineage-fold,
 .to-backlinks .to-backlinks-more:hover,
-.to-backlinks .to-backlinks-fold:hover,
+.to-backlinks .to-lineage-fold:hover,
 .to-backlinks .to-backlinks-more:focus,
-.to-backlinks .to-backlinks-fold:focus,
+.to-backlinks .to-lineage-fold:focus,
 .to-backlinks .to-backlinks-more:focus-visible,
-.to-backlinks .to-backlinks-fold:focus-visible {
+.to-backlinks .to-lineage-fold:focus-visible {
   appearance: none;
   box-shadow: none;
   font: inherit;
@@ -998,13 +998,13 @@
  *
  * `color` belongs in THIS block and not with the geometry below for the same
  * reason the background does: Obsidian sets a button's colour at one class plus
- * one element, so a bare `.to-backlinks-fold` loses. Measured when it did — the
+ * one element, so a bare `.to-lineage-fold` loses. Measured when it did — the
  * chevron came out at `rgb(218,218,218)` beside markers at `rgb(102,102,102)`,
  * which reads as an accent even though nothing accented it. */
-.to-backlinks .to-backlinks-fold,
-.to-backlinks .to-backlinks-fold:hover,
-.to-backlinks .to-backlinks-fold:focus,
-.to-backlinks .to-backlinks-fold:focus-visible {
+.to-backlinks .to-lineage-fold,
+.to-backlinks .to-lineage-fold:hover,
+.to-backlinks .to-lineage-fold:focus,
+.to-backlinks .to-lineage-fold:focus-visible {
   padding: 0;
   border: none;
   border-radius: 0;
@@ -1012,7 +1012,7 @@
   color: var(--to-backlinks-mark);
 }
 
-.to-backlinks .to-backlinks-fold:hover {
+.to-backlinks .to-lineage-fold:hover {
   color: var(--text-normal);
 }
 
@@ -1651,7 +1651,7 @@
 /* The last card dissolves when the list continues past it. Masked rather than
  * overlaid, for the same reason the group fade is: a gradient would have to
  * know the theme's background colour, and a mask fades the content itself. */
-.to-backlinks-group.is-fading {
+.to-lineage-group.is-fading {
   mask-image: linear-gradient(to bottom, black calc(100% - 2rem), transparent);
 }
 
@@ -1700,10 +1700,10 @@
  * either side of it — so turning it on changes what stands between two
  * ancestors and not the rhythm of the chain.
  *
- * `.to-backlinks-seg + .to-backlinks-seg` no longer matches once a separator
+ * `.to-lineage-seg + .to-lineage-seg` no longer matches once a separator
  * sits between them, so that rule stops applying exactly where this one starts.
  */
-.to-backlinks-seg-sep {
+.to-lineage-seg-sep {
   /* The same construction the icons take, for the same reason and so the two
    * land on one line: a chevron centred by `vertical-align: middle` sits on
    * neither the icons' centre nor the text's, and reads as pointing between two
@@ -1722,12 +1722,12 @@
 }
 
 @supports (top: 1cap) {
-  .to-backlinks-seg-sep {
+  .to-lineage-seg-sep {
     top: calc(0.325em - 0.5cap);
   }
 }
 
-.to-backlinks-seg-sep > svg {
+.to-lineage-seg-sep > svg {
   width: 100%;
   height: 100%;
 }
