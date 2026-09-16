@@ -310,3 +310,25 @@ hand-off command for anyone who wants core's operators.
 4. **Whether the palette's "this note" scope and the in-note filter are one feature seen from two
    surfaces**, with the palette's scoped mode simply a list view of C's sparse tree. The survey
    suggests users want both forms (Dynalist's flat toggle); the code should not pay twice.
+
+## Manual pass: the footer's content filter, as shipped (2026-09-16)
+
+`search-hits-and-footer-content-filter` was exercised on a phone, against a real vault rather
+than the test fixture, and the filter behaves as the spec describes. That is the pass; what
+follows is what it did NOT establish, so the next person is not left inferring it did.
+
+**Not exercised.** Two things the design leaves resting on figures rather than use:
+
+- *Typing on a note with many backlinks.* While a term is active every axis-admitted source is
+  read on every keystroke, and the decision not to debounce rests on S5's ~2ms placement — a
+  DESKTOP figure, on a 145-file vault. A phone reading a hub note is the case that would
+  disagree, and it was not put to one. The mitigation is unchanged and still one line: debounce
+  the field. Nothing in the design moves if it turns out to be needed.
+- *An aliased link whose alias does not repeat its target.* A term matching only the target
+  admits the reference and marks nothing, because admission reads the node's inline markdown
+  (where the link is still `[[Target|alias]]`) and the mark walk reads the rendered row (where
+  it says `alias`). Measured on the hub fixture; whether a reader ever meets it in their own
+  notes is still open.
+
+Both are recorded as risks in the change's design. Neither blocks the feature, and neither is
+answered — a later pass, or a report, decides them.
