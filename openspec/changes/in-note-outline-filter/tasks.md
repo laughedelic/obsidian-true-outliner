@@ -9,12 +9,14 @@
 - [ ] 1.1a What a mark decoration draws over source Live Preview hides — a list marker, a line's
       indentation, the target inside an aliased link. Split from 1.1 because it needs marks
       (3.4) rather than the hiding builder, so it probes after the matcher lands, not before
-- [ ] 1.2 Walk `docs/research/zoom-editing-boundary`'s gesture catalogue under a frozen anchor
+- [x] 1.2 Walk `docs/research/zoom-editing-boundary`'s gesture catalogue under a frozen anchor
       set: for each row, record whether mapping the anchors gives the visible set the spec
       expects, and which rows need an anchor added rather than mapped (design D2); record the
       table in the same note. Verified by the table
-- [ ] 1.3 Decide from 1.1 and 1.2 whether the design's D1 and D2 stand; if either changes,
-      update design.md before any implementation task starts
+- [x] 1.3 Decide from 1.1 and 1.2 whether the design's D1 and D2 stand; if either changes,
+      update design.md before any implementation task starts. D1's preamble rule dropped (1.1);
+      D2's added-anchor rule stated from the catalogue rather than asserted, plus the
+      whole-note fallback when the last anchor goes (1.2)
 
 ## 2. The hiding builder
 
@@ -41,9 +43,9 @@
       deleted with its node is dropped, a moved match brings its new ancestors, changing the
       query recomputes, a miss holds the last view. Negative control: re-derive the anchors per
       transaction — what node ids force — and confirm the frozen-set tests fail
-- [ ] 3.1a Add an anchor for a node a transaction CREATES from a visible one (design D2). Split
-      from 3.1: mapping alone leaves it hidden, which `tests/outline-filter-state.test.ts`
-      records, and which transactions produce one is what task 1.2 settles
+- [x] 3.1a Add an anchor for a node a transaction CREATES from a visible one (design D2); verify
+      the catalogue walk's three rows flip and the deleted-subtree row does not. Negative
+      control: drop the whole-line test and confirm a deleted subtree resurrects its follower
 - [ ] 3.2 Teach `zoom-scope.ts`'s visible-bounds resolver to intersect with the filter's spans
       (design D3) so caret placement lands on the nearest visible span; verify unit tests for
       down and up across a gap, filtered and filtered-inside-a-zoom. Negative control: drop the

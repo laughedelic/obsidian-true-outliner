@@ -53,3 +53,44 @@ all fifty gaps, and the render is a prefix of them.
 chrome probe looked for an injected marker element and reported a fully-chromed line as bare. What
 this plugin contributes to a list line is the sizing that puts Obsidian's bullet in our gutter —
 `to-decor-marker-sp` and `--to-marker-gutter` — so that is what a chrome assertion reads.
+
+## The gesture catalogue under a frozen match set
+
+`docs/research/zoom-editing-boundary` catalogued what each editing gesture does to a zoom's single
+visible range. Re-asked of a filter's anchors, because design D2 claimed that mapping them through
+a transaction's changes gives the visible set the spec asks for. For most gestures it does. For
+four it does not, and those four are what the added-anchor rule exists for.
+
+The walk is `tests/outline-filter-gestures.test.ts`, modelled as the changes each gesture
+dispatches plus the caret it leaves — an anchor knows nothing about keystrokes, only about the
+change set and where the caret came to rest.
+
+| Row | Gesture | Mapping alone | Why |
+| --- | --- | --- | --- |
+| X5 | Type into a match | enough | the anchor is before the insertion and does not move |
+| G1 | Paste inside a match | enough | same |
+| B1 | Delete at a match's end, pulling a hidden node in | enough | the anchor's line survives and now carries both texts |
+| — | Edit above a match | enough | the anchor maps down with the insertion |
+| E2 | Delete a match with its subtree | enough | the anchor goes with it, which is what the spec asks |
+| X6 | Enter in the MIDDLE of a match | **not enough** | the anchor stays with the first half; the far half holds none and goes hidden under the caret that made it |
+| X2 | Enter at a match's end | **not enough** | the created node holds no anchor |
+| A1 | Backspace at a match's content start, merging into a hidden node | **not enough** | the break and marker go, the anchor with them, and the reader's text lands in a node the filter has no anchor for — the view empties on a keystroke that only joined two lines |
+| R7 | Mod-Backspace clearing a match | **cannot be rescued** | the marker goes with the text, so the line is blank and no node owns it |
+
+**The rule the first three imply.** A change that touches what the filter is showing, and leaves
+the caret in what it wrote, anchors whatever node the caret landed in. One rule covers all three,
+because in all three the caret is exactly where the reader's text went. It declines when the
+caret's line already carries an anchor, so typing inside a match does not add one per keystroke.
+
+**What the rule must NOT do, and how it is kept from doing it.** A first version fired on any
+deletion whose collapsed position the caret occupied, which resurrected the node following a
+deleted subtree (E2) — a node that never matched. The separating test is whether the deleted range
+took a whole line with it: a Backspace merge deletes a break and a marker and takes none, while a
+deleted subtree takes lines. That check is `removesWholeLine`.
+
+**A dead end the walk exposed, outside the catalogue.** Once mapping drops the last anchor, the
+visible set is empty, and an empty set is a trap: the editor has no line, so no caret can be placed
+in it and nothing the reader types can bring a match back — the rule above needs a visible line to
+fire from. The filter therefore falls back to the whole note when its last anchor goes, which is
+the same state it was in before a query matched. `outline-filter`'s spec says so now; it did not
+before.

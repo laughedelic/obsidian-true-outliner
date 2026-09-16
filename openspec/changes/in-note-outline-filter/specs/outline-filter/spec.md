@@ -102,6 +102,11 @@ document is edited. Editing a visible node so that it no longer contains the que
 visible; inserting the query's text into a hidden node SHALL NOT reveal it; a node created by
 editing a visible node — splitting it, adding a sibling or a child from it — SHALL be visible.
 
+A node that an edit CREATES from a visible one — the far half of a split, a sibling or child added
+from it, or the node a merge leaves carrying the text — SHALL be visible. When the last match is
+edited away entirely, the note SHALL render whole: a filtered view with no visible line takes no
+caret, and nothing typed into it could bring a match back.
+
 The PATH to each match SHALL NOT be fixed: the ancestors that stay visible are those the document
 has at the time it is rendered, so moving a match under a different parent SHALL make that parent
 visible and SHALL let the parent it left become hidden again.
@@ -118,6 +123,21 @@ zoom scope changes, since the scope decides which matches count.
 
 - **WHEN** Enter at the end of a visible node creates a new node
 - **THEN** the new node is visible and takes the caret
+
+#### Scenario: Splitting a match keeps both halves
+
+- **WHEN** Enter is pressed in the middle of a visible match's text
+- **THEN** both halves are visible, and the caret is in the second
+
+#### Scenario: Merging a match into a hidden node keeps the text visible
+
+- **WHEN** Backspace at a visible match's content start merges it into the hidden node above
+- **THEN** that node is visible, carrying the merged text
+
+#### Scenario: Editing away the last match restores the note
+
+- **WHEN** the only visible match is deleted
+- **THEN** every line of the note renders again
 
 #### Scenario: Re-running the query re-decides
 

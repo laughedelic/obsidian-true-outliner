@@ -133,6 +133,71 @@ function mapAnchors(anchors: readonly number[], tr: Transaction): number[] {
   return out;
 }
 
+/**
+ * Did this transaction change a line the filter was showing, and leave the
+ * caret in what it wrote?
+ *
+ * Both halves are load-bearing. The first is what makes this about the reader's
+ * own editing rather than any change at all. The second is what keeps a
+ * transaction that moves no caret — a programmatic change, an external edit —
+ * from anchoring wherever the selection happened to be sitting.
+ */
+function editedVisibleAtCaret(tr: Transaction, spans: readonly LineSpan[]): boolean {
+  const head = tr.newSelection.main.head;
+  let yes = false;
+  tr.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
+    if (yes) return;
+    if (head < fromB || head > toB) return;
+    if (toB === fromB && removesWholeLine(tr.startState.doc, fromA, toA)) return;
+    const from = tr.startState.doc.lineAt(fromA).number - 1;
+    const to = tr.startState.doc.lineAt(toA).number - 1;
+    yes = spans.some((span) => from < span.toLine && to >= span.fromLine);
+  });
+  return yes;
+}
+
+/**
+ * Does this deleted range take a whole line with it?
+ *
+ * What separates a deletion that removes NODES from one that merely joins two
+ * lines. A Backspace at a content start deletes a break and a marker, leaving
+ * the reader's text inside the node above — which the rule should follow. A
+ * deleted subtree takes whole lines, and the caret comes to rest on whatever
+ * follows, which the reader never matched and the rule must not resurrect.
+ */
+function removesWholeLine(doc: Text, from: number, to: number): boolean {
+  const first = doc.lineAt(from);
+  // The first line that could sit ENTIRELY inside the range starts at or after
+  // its start — the one `from` lands in does not, unless it lands on its start.
+  const line = first.from >= from ? first : doc.lineAt(Math.min(first.to + 1, doc.length));
+  return line.from >= from && line.to <= to;
+}
+
+/**
+ * The anchor a transaction ADDS, for a node it made from a visible one.
+ *
+ * Mapping alone does not cover the gestures that produce a node: the far half
+ * of a split, the sibling Enter makes, and the node a Backspace merge leaves
+ * carrying the text — all hold no anchor, so the derivation hides what the
+ * reader is looking at, under the caret that just made it. The catalogue walk
+ * in `tests/outline-filter-gestures.test.ts` is which gestures those are.
+ *
+ * The rule is the caret's: a change that touches what the filter is showing and
+ * leaves the caret in what it wrote keeps whatever node the caret landed in
+ * visible. One rule covers all three, because in all three the caret is exactly
+ * where the reader's text went.
+ *
+ * Skipped when the caret's line already carries an anchor, so typing inside a
+ * match does not add one per keystroke.
+ */
+function addedAnchor(tr: Transaction, mapped: readonly number[]): number | null {
+  const before = unguardedFilterVisibleSpans(tr.startState);
+  if (!before || !editedVisibleAtCaret(tr, before)) return null;
+  const line = tr.newDoc.lineAt(tr.newSelection.main.head);
+  if (mapped.some((anchor) => tr.newDoc.lineAt(anchor).from === line.from)) return null;
+  return anchorIn(line);
+}
+
 const filterField = StateField.define<OutlineFilter | null>({
   create: () => null,
   update(value, tr) {
@@ -141,7 +206,15 @@ const filterField = StateField.define<OutlineFilter | null>({
       if (effect.is(filterQuerySet)) return applyQuery(value, tr.newDoc, effect.value);
     }
     if (!value || !value.anchors || !tr.docChanged) return value;
-    return { ...value, anchors: mapAnchors(value.anchors, tr) };
+    const mapped = mapAnchors(value.anchors, tr);
+    const added = addedAnchor(tr, mapped);
+    const anchors = added === null ? mapped : [...mapped, added];
+    // Editing away the last match leaves nothing to show a filtered view for,
+    // and an editor with no visible line is a trap: no caret can be placed in
+    // it and nothing the reader types can bring a match back. Falling back to
+    // the whole note is the same state as before a query matched, which is what
+    // it now is.
+    return { ...value, anchors: anchors.length > 0 ? anchors : null };
   },
 });
 
