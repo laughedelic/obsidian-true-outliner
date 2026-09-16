@@ -16,12 +16,15 @@ import type { TFile, Vault } from 'obsidian';
 import type { OutlineDoc, OutlineNode } from '../src/model';
 import { SourceTreeCache } from '../src/plugin/source-tree-cache';
 
-/** A file whose mtime the test moves by hand, since nothing here writes one. */
+/**
+ * A file whose mtime the test moves by hand, since nothing here writes one.
+ *
+ * Through `unknown`, as the vault below is: this is a stand-in rather than a
+ * narrowing, and `instanceof TFile` — what a narrowing would use — needs a
+ * runtime class the types-only `obsidian` package does not ship.
+ */
 function fileAt(path: string, mtime: number): TFile {
-  // eslint-disable-next-line obsidianmd/no-tfile-tfolder-cast -- a stand-in, not a
-  // narrowing: `instanceof TFile` needs a runtime class and the `obsidian` package
-  // is types-only, which is why this suite fakes what the cache reads.
-  return { path, stat: { mtime } } as TFile;
+  return { path, stat: { mtime } } as unknown as TFile;
 }
 
 /** A vault that answers with fixed text and counts what was asked of it. */
