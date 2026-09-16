@@ -67,21 +67,41 @@ the shared thing and the content rules are not (`docs/research/surfaces-and-embe
 renderers"). Whether the palette's groups collapse at all is a question the shared group head has
 to be given an answer to; they do not, so it is passed the option saying so.
 
-The rest of what the footer holds goes DOWN rather than across. `renderInline` and `unwrapBlocks`,
-`segmentGlyph`, `separatorGlyph`, `segmentMarker`, and the `markerSlot` / `ordinalMarker` /
-`checkboxGlyph` primitives beneath them describe one segment or one marker, never a list — and
-three of them are what the trail imports from `backlinks-footer.ts` today, for want of a better
-home. They join `lineage-row.ts`, the level that matches them and the one the trail already calls,
-so the trail's import line changes module and nothing else. `lineage-list.ts` calls down for them
-the same way.
+The rest of what the footer holds goes DOWN rather than across, and to two homes rather than one.
 
-The CSS splits the same way. The row rules and the custom properties they rest on move to a scope
-both surfaces set — `to-lineage-list`, in its own part under `styles/` — and `.to-backlinks` keeps
-only what places the footer under a note: the 4rem top margin and the 1.75rem padding, which are
-correct for a section below a document and wrong inside a modal. Wrapping the palette's results in
-the footer's own class, as the prototype's styling implied, would hand it that placement to undo
-and would make every rule later added to `.to-backlinks` a rule someone has to check against the
-palette.
+`segmentGlyph`, `separatorGlyph`, `segmentMarker` and the `markerSlot` / `ordinalMarker` /
+`checkboxGlyph` primitives beneath them describe one segment or one marker, never a list, and they
+draw DOM and nothing else. They join `lineage-row.ts`, the level that matches them and the one the
+trail already calls. That module gains its first runtime import along with them —
+`buildMarkerIcon` from `decorations.ts`, the SVG builder the editor and the footer already share —
+which is a dependency on a drawing function, not on the renderer its header declines to own.
+
+`renderInline` cannot follow. `lineage-row.ts` imports only types today, and its header says why:
+rendering markdown needs Obsidian's renderer and a `Component` to own its lifetime, "and neither
+belongs to a function that draws a row" — which is the whole reason each surface passes its own
+`renderSegment` hook rather than its markdown. `renderInline` takes an `App` and a `Component` and
+calls `MarkdownRenderer.render`, so moving it there would make that sentence false about the module
+it is written in. It goes to `src/plugin/inline-render.ts`, with the private helpers only it uses —
+`unwrapBlocks`, `decodeEntities`, `withoutEmbeds`, `dropMedia` — and the footer, `lineage-list.ts`
+and the trail all import it from there. The trail's three imports split across the two modules
+rather than moving to one.
+
+The CSS splits the same way, and the element classes are renamed with it. A scope class alone
+would not have done the work: most of the footer's part is written as bare `.to-backlinks-*`
+selectors rather than as descendants of `.to-backlinks` — 94 against 60 — so every one of those
+would reach the palette's rows whether or not the rule moved, and the isolation would be asserted
+rather than true. The classes the shared renderer emits become `to-lineage-*` (`to-lineage-content`,
+`to-lineage-seg`, `to-lineage-row` and the rest), their rules move to `styles/15-lineage-list.css`
+under a `to-lineage-list` scope both surfaces set, and what stays behind in
+`styles/20-backlinks-footer.css` is the footer's own: its placement under a note — the 4rem top
+margin and the 1.75rem padding, correct for a section below a document and wrong in a modal — its
+`white-space: normal`, which undoes the `pre-wrap` a CodeMirror block widget inherits and means
+nothing to a modal, its heading and its controls. After the split a `to-backlinks-*` rule cannot
+reach the palette by construction rather than by discipline.
+
+The rename reaches `lineage-row.ts`'s own class strings and the footer's e2e selectors — 46
+distinct `to-backlinks-*` names across 11 e2e files, of which the shared ones move. That is the
+price of the isolation, paid once, in the change that creates the second surface.
 
 Appearance is the footer's too: the rows read `backlinksSegmentIcons` and `backlinksSeparator`
 rather than declaring a second pair, the way `lineage-row.ts` already has the trail read them.
@@ -162,9 +182,19 @@ the background after layout is ready rather than at first open; the design does 
 
 ### D6. Landing on a hit goes through the registry
 
-Open via `workspace.openLinkText(path, '', newLeaf)`; take the active `MarkdownView`; place the
-caret with the public `Editor` API and scroll it into view; then `viewFor(view)` for the
-`EditorView`, and dispatch `zoomTo` only if that state is in outline mode. No private member is
+Take the leaf with `workspace.getLeaf(newLeaf)` and open the file on it with `leaf.openFile(file)`,
+rather than `openLinkText`, which answers `Promise<void>` and hands back neither leaf nor view;
+take the `MarkdownView` off that leaf; place the caret with the public `Editor` API and scroll it
+into view; then `viewFor(view)` for the `EditorView`, and dispatch `zoomTo` only if that state is
+in outline mode.
+
+The registry may not have the view yet. `ViewRegistryPlugin` registers on the first update where
+its DOM is connected, which for a leaf created a moment ago has not happened when `openFile`
+resolves — so a new tab, the case `Mod`-confirm exists for, is exactly the case a single lookup
+misses. The landing waits for it over a few animation frames before giving up and leaving the note
+unzoomed. Bounded, because a view that is never going to register — a note opened in reading view
+— must not leave the caller waiting; and a wait rather than a single try, because "Mod+Enter
+usually does not zoom" is the opposite of what the same key does in a tab already open. No private member is
 touched. The zoom root is the hit when it has children, and its parent when it does not — a
 zoomed single line is the finding recorded in `docs/research/search-surfaces` ("What the prototype
 surfaced") — and the caret stays on the hit either way. A childless top-level hit has no parent
@@ -237,8 +267,8 @@ in both scopes (D7).
   `Promise<void>` and hands back neither. A wrong view is therefore impossible; a view the
   registry has not yet seen is the open question below.
 - [The registry has no entry for a view that has not yet mounted its editor extensions] →
-  fall back to opening unzoomed, and cover the case in e2e by opening a note that is not yet
-  loaded.
+  the bounded wait in D6, then opening unzoomed; covered in e2e by opening a note that is not yet
+  loaded, and in a new tab, which is the case that needs the wait.
 
 ## Open Questions
 
