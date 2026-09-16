@@ -157,7 +157,14 @@ drawn truthfully — it would cover nodes the reader cannot see and hand them to
 so it is refused instead: a gesture that would extend a selection past the last visible line of
 its island leaves the selection as it was and raises a notice, through a new `RejectionReason`
 beside `would-leave-zoom-scope`. Progressive Select All escalates within the island and stops
-there on the same rule. The way to act on the whole document is to clear the filter, which is one
+there on the same rule — its previous rung standing IS the stop.
+
+The refusal lives in `keymap.ts`, beside the gestures rather than in the transaction filter, for
+a reason worth stating: both Shift+Arrow and Mod-A dispatch their selection with no `userEvent`,
+which `classify.ts` reads as programmatic, so the filter's own selection path never sees them.
+The filter carries the same check for every other selection — a drag, a stock extension inside
+one node — and the cue rides `vetoEffect` from both, the way a refused structural operation
+states its reason. The way to act on the whole document is to clear the filter, which is one
 keystroke and leaves the reader looking at what they are about to change.
 
 This is the conservative reading, taken because the question is genuinely open and a refusal can
@@ -166,8 +173,10 @@ SELECTION: an operation on one visible node still acts on the document whole, so
 past a hidden sibling moves it past that sibling, and moving a visible node carries its hidden
 children. Only a range that would span a gap is refused.
 
-The notice fires once per gesture, not once per key repeat — a held Shift+Down at an island's
-edge says it once.
+The notice fires once per gesture, not once per key repeat. A refused gesture dissolves its
+transaction, so the selection does not move and auto-repeat asks the same question every few tens
+of milliseconds; the listener that shows the cue therefore remembers the last reason and the
+selection it was refused from, and stays quiet while both hold within the cue's own lifetime.
 
 The change-escapes resolver is NOT taught about the filter: an edit landing in hidden content is
 allowed (proposal, non-goal), and only the caret is redirected afterwards.

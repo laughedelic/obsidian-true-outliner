@@ -209,6 +209,46 @@ describe('outline filter: many visible spans through the hiding builder', functi
     expect((await h.getCursor()).line).toBe(first);
   });
 
+  it('a selection refuses to reach across a gap, and says so once', async function () {
+    await openProbe();
+    await applyFilterQuery(TOKEN);
+    await browser.pause(150);
+
+    const first = PREAMBLE.length;
+    await h.setCursorSettled(first, 2);
+    const before = await h.getSelection();
+    await h.armNoticeRecorder();
+
+    // Held Shift+Down: the first press would reach the next match across
+    // nineteen hidden lines, and every repeat after it would do the same.
+    await browser.keys(['Shift', 'ArrowDown', 'ArrowDown', 'ArrowDown']);
+    await browser.pause(200);
+    await browser.keys(['Shift']);
+
+    expect(await h.getSelection()).toEqual(before);
+    const notices = (await h.recordedNoticeTexts()).filter((t) => t.includes('filter'));
+    // Said once for the gesture, not once per repeat — a refused press leaves
+    // the selection where it was, so auto-repeat asks the same question again.
+    expect(notices).toHaveLength(1);
+  });
+
+  it('Select All escalates within the visible run and stops there', async function () {
+    await openProbe();
+    await applyFilterQuery(TOKEN);
+    await browser.pause(150);
+    await h.setCursorSettled(PREAMBLE.length, 2);
+
+    // Enough presses to exhaust the ladder several times over.
+    for (let n = 0; n < 5; n++) {
+      await h.pressSelectAll();
+      await browser.pause(60);
+    }
+    const selection = await h.getSelection();
+    // Never past the one line the filter is showing there.
+    expect(selection.anchor.line).toBe(PREAMBLE.length);
+    expect(selection.head.line).toBe(PREAMBLE.length);
+  });
+
   it('leaves the file untouched', async function () {
     await openProbe();
     const before = await h.readVaultFile(NOTE);
