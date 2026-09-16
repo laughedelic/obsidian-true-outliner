@@ -36,6 +36,24 @@ export interface Hit extends ContentRef {
  * mean something, without pasting whole subtrees under every reference. */
 export const DESCENDANT_DEPTH = 1;
 
+/** What a caller can vary about the rows it asks for. */
+export interface BuildRowsOptions {
+  /**
+   * How many levels of a hit's own descendants to emit, defaulting to the
+   * footer's one.
+   *
+   * Zero is the search palette's answer: it shows where a hit IS, so a hit's
+   * children are not its business. Asked for here rather than filtered out of
+   * the result, because the two are not the same rows. The lineage pass puts
+   * the nodes BETWEEN two hits on screen as plain rows, so a hit nested under a
+   * non-matching ancestor is not left indented under nothing — and a filter
+   * that keeps the lineage rows and the hits discards exactly those. Zero also
+   * costs nothing to compute: `emitDescendants` returns at once, so no fold is
+   * created and no hidden count is walked for rows nobody keeps.
+   */
+  readonly descendantDepth?: number;
+}
+
 /** Fields every row kind carries, because every row is a line of the outline
  * and draws the same chrome from them. */
 interface FooterRowBase {
@@ -258,7 +276,9 @@ export function buildRows(
    */
   hitOf: (node: OutlineNode) => Hit | undefined,
   expanded: (node: OutlineNode) => boolean,
+  options: BuildRowsOptions = {},
 ): FooterRow[] {
+  const descendantDepth = options.descendantDepth ?? DESCENDANT_DEPTH;
   const rows: FooterRow[] = [];
 
   for (const ref of properties) {
@@ -361,7 +381,7 @@ export function buildRows(
     // Only a real match brings its own subtree; a path node under one is
     // already being walked by the match above it.
     const source = row.isMatch ? sourceById.get(row.node.id) : undefined;
-    if (source) emitDescendants(source.children, row.depth + 1, DESCENDANT_DEPTH);
+    if (source) emitDescendants(source.children, row.depth + 1, descendantDepth);
   }
 
   /*
@@ -425,7 +445,7 @@ export function buildRows(
       // burying a reference that happens to sit deep under another. The reset
       // applies to what is shown BELOW the node, not to the node itself — a
       // match's own children are shown, so it folds nothing.
-      const childBudget = isMatch ? DESCENDANT_DEPTH : open ? remaining : remaining - 1;
+      const childBudget = isMatch ? descendantDepth : open ? remaining : remaining - 1;
       // What makes a row foldable does not depend on whether it is folded
       // right now: an expanded row is still a row with a subtree.
       const foldable = !isMatch && node.children.length > 0 && remaining === 1;

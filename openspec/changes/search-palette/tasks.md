@@ -36,7 +36,7 @@
       `80-outline-zoom` pass unchanged. Negative control: leave one shared class behind and
       confirm the check in 4.6 names it
 
-- [ ] 2.4 Add the `descendantDepth` option to `buildRows` (design D3), defaulting to the
+- [x] 2.4 Add the `descendantDepth` option to `buildRows` (design D3), defaulting to the
       footer's level; verify `tests/footer-model.test.ts` gains a case where zero emits no
       descendant rows and no fold counts, and one over a hit nested under a non-matching ancestor
       where that ancestor still has a row of its own. Negative control: keep the footer's depth
