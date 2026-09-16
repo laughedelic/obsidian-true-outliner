@@ -190,6 +190,25 @@ describe('outline filter: many visible spans through the hiding builder', functi
     expect(rendered).toContain('  - child 0');
   });
 
+  it('the caret skips the hidden lines between two matches', async function () {
+    await openProbe();
+    await applyFilterQuery(TOKEN);
+    await browser.pause(150);
+
+    // On the first match, then Down: the next line the view draws is the second
+    // match, nineteen hidden lines below it in the document.
+    const first = PREAMBLE.length;
+    await h.setCursorSettled(first, 2);
+    await browser.keys(['ArrowDown']);
+    await browser.pause(100);
+    expect((await h.getCursor()).line).toBe(first + STRIDE);
+
+    // And back up again, to the line it came from rather than into the gap.
+    await browser.keys(['ArrowUp']);
+    await browser.pause(100);
+    expect((await h.getCursor()).line).toBe(first);
+  });
+
   it('leaves the file untouched', async function () {
     await openProbe();
     const before = await h.readVaultFile(NOTE);

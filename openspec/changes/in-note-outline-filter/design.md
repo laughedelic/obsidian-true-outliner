@@ -11,7 +11,9 @@ markdown view) and what did not (confinement is not free). `docs/research/zoom-e
 catalogued editing at the boundary of that one range. The caret is kept inside the scope by two
 resolvers `zoom-state.ts` declares and `zoom-scope.ts` fills once at load
 (`setVisibleBoundsResolver`, `setChangeEscapesResolver`) — single-slot injection points holding
-one function each, not a chain.
+one function each, not a chain. Neither is on the caret's path: they answer the zoom's automatic
+exit. The caret is kept inside the scope by `transaction-filter.ts`, which clamps every selection
+into the cover, and by `keymap.ts`, which owns vertical motion.
 
 The trail is a block widget anchored at the visible range's start, not a CM6 panel.
 `zoom-trail.ts` records why: `showPanel` mounts into `.cm-panels-top`, a sibling of
@@ -131,14 +133,24 @@ Alternative: re-run the query on every change, Workflowy-style. Rejected: a node
 the caret as it is edited is the hazard `docs/research/search-surfaces` names, and Org's rule —
 drop the filter on the first edit — throws away the reader's place for the same reason.
 
-### D3. The caret rule teaches zoom's resolver a set, and a selection never spans a gap
+### D3. The caret rule steps over a hidden run, and a selection never spans a gap
 
-`setVisibleBoundsResolver` holds ONE function, installed at load by `zoom-scope.ts`, so the
-filter does not register a second: that resolver learns to intersect. It answers the zoom's
-bounds as it does today, and when a filter is active narrows the answer to the visible span
-holding the anchor; the placement that clamps into the zoom scope clamps into the nearest visible
-span in the direction of travel. One function rather than a chain, so the two answers cannot
-disagree — and the intersection in D4 puts them in the same span regardless.
+An earlier reading put this in `zoom-state.ts`'s visible-bounds resolver. That resolver answers
+the zoom's auto-exit trigger and nothing else; it is not on the caret's path at all. Two places
+are, and they divide by gesture.
+
+Vertical motion is the plugin's own: `keymap.ts` handles ArrowUp and ArrowDown, stepping raw line
+by raw line and skipping what the view does not draw — a gap line, and a folded run, which it
+jumps by landing on the far side. A filter hides runs of lines the same way a fold does, so the
+walk steps over them the same way, with `nextVisibleLine` in place of `foldHidingLine`. Nothing
+visible in the direction of travel reads as the document edge, because for a filtered view that
+is what it is.
+
+Every other selection arrives through `transaction-filter.ts`, where `escalateSelection` already
+clamps a range into the zoom cover. The filter's correction sits after that clamp and before
+content-space placement: the line has to be one the view draws before it is worth asking where in
+it the caret may sit. There the caret must land somewhere, so `nearestVisibleLine` falls back to
+the other direction at the document's ends, which the motion walk does not want and does not use.
 
 A caret is a point and can be moved, so it is redirected. A SELECTION spanning a gap cannot be
 drawn truthfully — it would cover nodes the reader cannot see and hand them to Copy and Delete —
