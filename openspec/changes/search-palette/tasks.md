@@ -6,8 +6,13 @@
       decide there whether background warming (design D5) is added. The probe goes beside the note
       under `docs/research/prototypes/search-palette/`, as the prototype's own capture did, and not
       in `e2e/specs/`, which `scripts/spec-groups.mjs` globs into the CI matrix — a vault of a few
-      thousand notes is a measurement, not a check to run on every push. Verified by the figures
-      being in the note
+      thousand notes is a measurement, not a check to run on every push — generated with
+      `scripts/gen-backlink-hub.mjs --notes 3000` into the gitignored hub folder, and driven
+      through `scripts/e2e-narrow.mjs`, which resolves a direct `.e2e.ts` path before it falls
+      back to matching by substring. Record retained heap after the sweep beside the two timings:
+      the cache has no eviction and no production caller of `clearTrees()`, so the sweep's
+      retention is a figure of the same standing as its duration (design D4). Verified by the
+      three figures being in the note
 
 ## 2. The shared renderer
 
@@ -31,15 +36,21 @@
 ## 3. The search
 
 - [ ] 3.1 Expose the `SourceTreeCache` the backlink index owns, so the search reads that instance
-      (design D4); verify a unit test shows the same `OutlineDoc` instance is returned to the
-      index's `place()` and to a second caller for an unchanged file
+      (design D4); verify a unit test over a source note that does reference the target — `place()`
+      answers `null` otherwise — shows the same `OutlineDoc` instance reaching the index and a
+      second caller for an unchanged file. Negative control: hand the second caller its own
+      `SourceTreeCache` and confirm the identity assertion fails
 - [ ] 3.2 Create `src/plugin/vault-search.ts`: the progressive, yielding, generation-guarded walk
       over the vault or one file, ordered by modification time before the first tree is resolved,
-      calling back per note with the hit ids from `matchNodes`, and counting past the group cap
-      (design D5); verify unit tests with a fake vault of stubbed files: results arrive per note
-      and in recency order whatever order the files come back in, a bumped generation silences
-      stale callbacks, the tail count is the true remainder. Negative control: drop the generation check and confirm the
-      stale-callback test fails
+      calling back per note with one hit per matching node — the id, the index of the first of the
+      node's own lines `matchRanges` finds the term in, and that occurrence as written, not the
+      query (design D5) — and counting past the group cap; verify unit tests with a fake vault of
+      stubbed files: results arrive per note and in recency order whatever order the files come
+      back in, a hit inside a fence reports the fence's third line rather than its first, a bumped
+      generation ends the walk rather than only silencing it, the tail count is the true
+      remainder. Negative control: drop the generation check and confirm the
+      stale-callback test fails. Second negative control: silence the stale callback but let the
+      walk run on, and confirm the read count for a superseded query does not drop
 
 ## 4. The palette
 
@@ -48,26 +59,33 @@
       verify by opening it from the command and checking the DOM carries the combobox, listbox
       and option roles
 - [ ] 4.2 Wire the query to `vault-search` and the results to the shared renderer with
-      `descendantDepth: 0`, groups as cards, the cap tail, and the two empty states; verify
-      manually against the test vault with the queries from `docs/research/search-surfaces`'s
-      captures
+      `descendantDepth: 0` and `hitOf` answering the search's own hit so a fence, table or callout
+      row shows the matching line, groups as cards, the cap tail once the sweep finishes, and the
+      three query states — below the floor, searching, nothing found; verify manually against the
+      test vault with the queries from `docs/research/search-surfaces`'s captures
 - [ ] 4.3 Implement the keyboard model on the modal's `Scope`: arrows over hits, modified arrows
       over groups, stopping at both ends rather than wrapping, scroll-into-view, selection on
       pointer MOVEMENT rather than on the pointer being over a row, Tab toggling scope and
       re-running the query, and the input-row control doing the same in both scopes (design D7);
       verify manually and in 5.1
-- [ ] 4.4 Implement landing on a hit through the registry (design D6): open, caret, scroll,
+- [ ] 4.4 Implement landing on a hit through the registry (design D6): take the leaf with
+      `getLeaf(newLeaf)` and open the file on it rather than reading back the active view, caret,
+      scroll,
       zoom root chosen by the leaf rule and withheld when a childless hit has no parent, gated on
       outline mode; Shift and the new-tab modifier
       variants; the palette closes. Verify `grep -n "as any\|\.cm\b" src/plugin/search-palette.ts`
       is empty and 5.1 passes
 - [ ] 4.5 Register the "Search outline" command in `src/plugin/main.ts` with a plain `callback` so it is
       available in every view; verify the command is offered with outline mode off
-- [ ] 4.6 Styles: split `styles/20-backlinks-footer.css` so the row rules and their custom
-      properties sit under the shared `to-lineage-list` scope in `styles/15-lineage-list.css`,
-      leaving `.to-backlinks` the footer's placement under a note (design D2); hit-only active
-      state; the chip; the phone container query hiding the hints; verify on the desktop and
-      mobile e2e configs by screenshot
+- [ ] 4.6 Styles: split `styles/20-backlinks-footer.css` so the row rules, the group head's rules
+      (`.to-backlinks-group`, its head, name, folder, count and chevron, and `--to-group-inset`)
+      and the custom properties sit under the shared `to-lineage-list` scope in
+      `styles/15-lineage-list.css`, leaving `.to-backlinks` the footer's placement under a note
+      and its `white-space: normal`, which undoes the CodeMirror `pre-wrap` a block widget
+      inherits and means nothing in a modal (design D2). Then `styles/70-search-palette.css`: the
+      shell, the hit-only active state, the scope control, and the palette's own `container-type`
+      with the query that hides the hints. Verify on the desktop and mobile e2e configs by
+      screenshot
 
 ## 5. End-to-end
 
@@ -80,11 +98,16 @@
       it, on a leaf to its parent, with the caret on the hit; Shift+Enter opens unzoomed; Enter
       outside outline mode opens unzoomed; a childless top-level hit opens unzoomed; a replaced
       query shows only the replacement's results; the next-hit key on the last hit does not wrap;
-      the group cap's tail states the remainder. Negative controls: for the zoom tests, disable
+      a group arriving does not move the active hit; groups arrive most-recently-modified first;
+      the active hit scrolls into view; the palette says nothing about matches until the sweep
+      finishes, and says so after; below the floor it shows the hints; the new-tab modifier leaves
+      the previous tab as it was; a fence hit shows the matching line marked; opening from the
+      graph view offers no scope control; the group cap's tail states the remainder. Negative controls: for the zoom tests, disable
       the `zoomTo` dispatch; for the stale-results test, drop the generation guard; for the cap
       test, stop counting past the cap
-- [ ] 5.2 Run the same spec under the mobile config and add the tap-opens and hints-hidden
-      assertions; verify it passes under `--mobile`
+- [ ] 5.2 Run the same spec under the mobile config and add the tap-opens, hints-hidden and
+      scope-control-tappable assertions; verify it passes under `--mobile`. Negative control:
+      drop the palette's container query and confirm the hints-hidden assertion fails
 - [ ] 5.3 Manual pass in a real vault: broad and narrow queries, both scopes, every landing
       variant, a note not yet opened this session; record findings in
       `docs/research/search-surfaces`
