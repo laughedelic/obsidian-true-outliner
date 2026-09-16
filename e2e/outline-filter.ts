@@ -8,8 +8,6 @@
  * which is what `e2e/helpers.ts` is for.
  */
 
-import type { LineSpan } from '../src/zoom';
-
 /**
  * The text of every line the editor actually renders, in document order.
  *
@@ -120,10 +118,22 @@ export function lineChromeFor(text: string): Promise<{
   }, text);
 }
 
-/** Set the active editor's visible set, or clear it with `null`. */
-export function applyFilterSpans(spans: readonly LineSpan[] | null): Promise<void> {
-  return browser.executeObsidian(({ plugins }, s) => {
+/** Set the active editor's filter query, or clear the filter with `null`. */
+export function applyFilterQuery(query: string | null): Promise<void> {
+  return browser.executeObsidian(({ plugins }, q) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (plugins.trueOutliner as any).applyFilterSpans(s);
-  }, spans);
+    (plugins.trueOutliner as any).applyFilterQuery(q);
+  }, query);
+}
+
+/** What the filter reports about the active editor: the query, and what it hit. */
+export function filterReport(): Promise<{
+  query: string;
+  matched: boolean;
+  count: number;
+} | null> {
+  return browser.executeObsidian(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ({ plugins }) => (plugins.trueOutliner as any).activeFilter(),
+  );
 }

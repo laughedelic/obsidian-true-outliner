@@ -33,13 +33,17 @@
 
 ## 3. The filter state
 
-- [ ] 3.1 Create `src/plugin/outline-filter-state.ts`: the query, the anchors `matchNodes`' ids
+- [x] 3.1 Create `src/plugin/outline-filter-state.ts`: the query, the anchors `matchNodes`' ids
       resolve to at the parse that produced them, their mapping through changes, the derived
-      visible spans with the preamble, the gates (design D1, D2, D7), and effects to set and
-      clear the query; verify unit tests: anchors survive an edit inside a match, an anchor
-      deleted with its node is dropped, a new sibling from a visible node is visible, a moved
-      match brings its new ancestors, changing the query recomputes. Negative control: store node
-      ids instead of anchors and confirm the edit-survival test fails
+      visible spans, and effects to set and clear the query (design D1, D2, D8), with the
+      nested-editor gate split into `outline-filter-scope.ts` so the derivation stays reachable
+      from the unit suite; verify unit tests: anchors survive an edit inside a match, an anchor
+      deleted with its node is dropped, a moved match brings its new ancestors, changing the
+      query recomputes, a miss holds the last view. Negative control: re-derive the anchors per
+      transaction — what node ids force — and confirm the frozen-set tests fail
+- [ ] 3.1a Add an anchor for a node a transaction CREATES from a visible one (design D2). Split
+      from 3.1: mapping alone leaves it hidden, which `tests/outline-filter-state.test.ts`
+      records, and which transactions produce one is what task 1.2 settles
 - [ ] 3.2 Teach `zoom-scope.ts`'s visible-bounds resolver to intersect with the filter's spans
       (design D3) so caret placement lands on the nearest visible span; verify unit tests for
       down and up across a gap, filtered and filtered-inside-a-zoom. Negative control: drop the

@@ -75,7 +75,8 @@ import { decorationsExtension, type MarkerVisibility } from './decorations';
 import { transactionFilterExtension } from './transaction-filter';
 import { viewRegistryExtension } from './view-registry';
 import { zoomStateExtension } from './zoom-state';
-import { outlineFilterStateExtension, setFilterSpans } from './outline-filter-state';
+import { clearFilter, outlineFilterStateExtension, setFilterQuery } from './outline-filter-state';
+import { outlineFilter } from './outline-filter-scope';
 import { guideHoverExtension } from './guide-hover';
 import { isOutlineMode, outlineStateExtension, outlineToggled } from './outline-state';
 import { zoomClickExtension } from './zoom-click';
@@ -86,7 +87,7 @@ import { viewFor } from './view-registry';
 import { deleteLineBoundaryBackward } from '@codemirror/commands';
 import { zoomScope } from './zoom-scope';
 import { zoomCleared, zoomTo } from './zoom-state';
-import { operandEscapes, parentOf, reresolveZoom, resolveZoom, type LineSpan } from '../zoom';
+import { operandEscapes, parentOf, reresolveZoom, resolveZoom } from '../zoom';
 import { toLineRange } from './cm-pos';
 import { nodeStartLine } from '../locate';
 import { parsedDoc } from './parsed-doc';
@@ -1019,17 +1020,27 @@ export default class TrueOutlinerPlugin extends Plugin {
    * source of truth rather than test-only scaffolding.
    */
   /**
-   * Set the active editor's filter to a visible set, or clear it with `null`.
+   * Set the active editor's filter query, or clear the filter with `null`.
    *
    * Public for the same reason `stats` and `activeTabOutlineMode` are: the
-   * harness drives the real state rather than a parallel one. Until task 3.1
-   * gives the panel a query to compute a set from, this is also how the spike
-   * puts many spans through the hiding builder on a real instance.
+   * harness drives the real state rather than a parallel one. The panel (task
+   * 4.1) dispatches through the same two calls.
    */
-  applyFilterSpans(spans: readonly LineSpan[] | null): void {
+  applyFilterQuery(query: string | null): void {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     const cm = view?.file ? viewFor(view) : undefined;
-    if (cm) setFilterSpans(cm, spans);
+    if (!cm) return;
+    if (query === null) clearFilter(cm);
+    else setFilterQuery(cm, query);
+  }
+
+  /** What the filter reports about the active editor, for the same readers. */
+  activeFilter(): { query: string; matched: boolean; count: number } | null {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const cm = view?.file ? viewFor(view) : undefined;
+    const filter = cm ? outlineFilter(cm.state) : null;
+    if (!filter) return null;
+    return { query: filter.query, matched: filter.matched, count: filter.anchors?.length ?? 0 };
   }
 
   activeTabOutlineMode(): boolean | undefined {
