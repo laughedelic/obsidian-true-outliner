@@ -72,14 +72,15 @@
 
 ## 4. The panel and the command
 
-- [ ] 4.1 Create `src/plugin/outline-filter-panel.ts`: the field, the count, the no-matches
+- [x] 4.1 Create `src/plugin/outline-filter-panel.ts`: the field, the count, the no-matches
       message, the close control and Escape handling, mounted through `showPanel` with
       `top: true` (design D5); verify it renders in the markdown view above the title and the
       properties block, holds focus while the content is empty, and that the grammar ignores keys
       typed in it
-- [ ] 4.2 Register "Filter outline" in `main.ts` through `addZoomCommand`'s outline-mode-gated
+- [x] 4.2 Register "Filter outline" in `main.ts` through `addZoomCommand`'s outline-mode-gated
       shape, toggling the panel; verify the command is absent outside outline mode
-- [ ] 4.3 Decide the design's two rendering questions — whether a match's hidden children show a
+- [ ] 4.3 (the `to-match` move and the panel's own part are done; what remains is the pair of
+      rendering judgements and the screenshot pass) Decide the design's two rendering questions — whether a match's hidden children show a
       fold count or nothing, and how the query field shows that it matches nothing — from a
       mockup drawn at real geometry, as `fold-count-mockup.html` was, and record both verdicts in
       the design; then the styles for the panel and those renderings, as a new

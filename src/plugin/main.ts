@@ -78,6 +78,12 @@ import { zoomStateExtension } from './zoom-state';
 import { clearFilter, outlineFilterStateExtension, setFilterQuery } from './outline-filter-state';
 import { outlineFilter } from './outline-filter-scope';
 import { outlineFilterDecorationsExtension } from './outline-filter-decorations';
+import {
+  closeFilterPanel,
+  filterPanelOpen,
+  openFilterPanel,
+  outlineFilterPanelExtension,
+} from './outline-filter-panel';
 import { guideHoverExtension } from './guide-hover';
 import { isOutlineMode, outlineStateExtension, outlineToggled } from './outline-state';
 import { zoomClickExtension } from './zoom-click';
@@ -362,6 +368,14 @@ export default class TrueOutlinerPlugin extends Plugin {
     // of. The predicate is `zoomScope` itself, the same read `act` starts
     // with — cheap and side-effect-free, unlike `act`, which is why it is a
     // second function rather than a dry run of the first.
+    // Toggling, so the one command both opens the panel and puts it away —
+    // `outline-filter`'s spec asks for that rather than a second command whose
+    // only job is closing what the first opened.
+    this.addZoomCommand('filter-outline', 'Filter outline', (view) => {
+      if (filterPanelOpen(view.state)) closeFilterPanel(view);
+      else openFilterPanel(view);
+      return true;
+    });
     this.addZoomCommand(
       'zoom-out',
       'Zoom out one level',
@@ -510,6 +524,7 @@ export default class TrueOutlinerPlugin extends Plugin {
     // After the hiding builder, so a mark is only ever computed for a line the
     // block replacements have already decided to keep.
     this.registerEditorExtension(outlineFilterDecorationsExtension());
+    this.registerEditorExtension(outlineFilterPanelExtension());
     this.registerEditorExtension(zoomTrailExtension(this));
     this.registerEditorExtension(zoomClickExtension());
     this.registerEditorExtension(zoomViewExtension());
