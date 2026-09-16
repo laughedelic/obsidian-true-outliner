@@ -24,7 +24,7 @@
       `src/plugin/chrome-controls.ts`. Repoint `zoom-trail.ts`'s three imports across them.
       Verify `npm run test:e2e:narrow -- 80-outline-zoom` passes unchanged, and that
       `lineage-row.ts` imports neither `obsidian` nor a `Component`
-- [ ] 2.2 Create `src/plugin/lineage-list.ts` and move into it the footer's list level — the group
+- [x] 2.2 Create `src/plugin/lineage-list.ts` and move into it the footer's list level — the group
       head, the row renderer, `markerFor` and the match-marking walk — parameterised by the
       per-surface options in design D2, calling down into `lineage-row.ts` for the rest, and
       returning the row element so a caller can put its own role on it; make the footer call it
