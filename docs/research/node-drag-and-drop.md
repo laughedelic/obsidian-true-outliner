@@ -1,0 +1,201 @@
+# Dragging a node by its mark
+
+`drag-nodes-with-a-drop-preview`'s gate. The affordance-budget question
+([decoration-follow-ups.md](decoration-follow-ups.md), "four gestures, one 14px gutter") asked
+whether node-level gestures belong in their own space, outside the notation, and said the answer
+wanted measuring rather than arguing. This pass measures it, along with the four other things a
+drag gesture has to know before a design can rest on them: whether a real pointer reaches a mark,
+what the mark's press already does, whether a task's checkbox can carry a drag without losing its
+toggle, and where the pointer's events go once the drag leaves the editor.
+
+Every figure below comes from **one pass, one environment**, per the commensurability rule
+`outline-decorations` states for the gutter: Obsidian 1.13.7 (installer 1.5.8) on Linux under
+Xvfb, Chromium 120, default theme, default appearance settings, the `roomy` unit default, driven
+through the e2e harness by a probe that was run and then removed. Nothing here is combined with a
+figure from an earlier investigation; where an earlier note recorded the same quantity, this pass
+re-measured it rather than importing it.
+
+The fixture is one note holding a heading, a paragraph under it, a bulleted item with a nested
+child, a task with a nested child, and an ordered item — every mark class the gutter has to hold.
+
+## 1. The gutter has no unclaimed run left
+
+Measured on a depth-2 list row while the pointer rests on it, which is the state in which the
+fold affordance is actually offered. All figures are viewport px in one frame; the row's own
+column is 439.5 and its text begins at 454.
+
+| Claim on the run | Spans | Width |
+| --- | --- | --- |
+| grandparent guide's press band | 361.5 – 386.17 | 24.67 |
+| parent guide's press band | 393.5 – 418.17 | 24.67 |
+| Obsidian's `.collapse-indicator`, hovered | 419 – 449.8 | 30.8 |
+| the mark itself (`.list-bullet` span) | 440 – 448.91 | 8.91 |
+
+The guide bands are `guideHit`'s own arithmetic — a half unit less 2px to the left of a column, a
+third of a unit to the right — evaluated against the columns the gradient actually painted. The
+fold indicator's box is Obsidian's, read from the element.
+
+**Between the parent guide's band and the fold indicator there are 0.83px.** Nothing else is
+free: the indicator's box runs from just past the guide band to just past the mark's own right
+edge, and the mark's text begins 5px after that. The gutter is not nearly full, it is full.
+
+That settles the affordance-budget question against a handle of its own. A fourth target in this
+run would have to take the fold indicator's place, take the guide band's, or widen the grid for
+every row in the document to buy one column that is empty on most of them. Attaching the drag to
+the mark — which every reference outliner does, and which
+[decoration-follow-ups.md](decoration-follow-ups.md) records none of them splitting — costs no
+column at all.
+
+Two subsidiary figures from the same frame, both of which a preview has to respect:
+
+- The unit is 32px and the marker gutter 14px, so a depth's column is 32px from its parent's and
+  its text begins 14px right of its own column.
+- A mark's box is centred on its column (the marker icon at 401.22–414.81 on column 407.5; a
+  task's checkbox at 432–448 on column 439.5), **except** a list bullet's, whose span begins at
+  the column and runs right. A preview that wants to sit where a mark will sit should take the
+  column from `chrome-line.ts`'s own column expression rather than from any mark's box.
+- Every kind's text begins on one column — 454 for both the bulleted row and the task row —
+  which is the gutter requirement holding, and is why a preview drawn at a column means the same
+  thing whatever kind lands there.
+
+## 2. A real pointer reaches a mark, and its moves reach the editor root
+
+Driven with WebDriver's own pointer (`browser.action('pointer')`) aimed at a bullet's centre,
+against capture-phase counters on the editor's root element — the same element and phase
+`zoom-click.ts` listens on:
+
+| Event | Count | Target |
+| --- | --- | --- |
+| `pointerdown` | 1 | `.list-bullet` |
+| `pointermove` | 7 | the bullet, then `.cm-content` once the pointer leaves it |
+| `pointerup` | 1 | — |
+| `mousedown` / `click` | 0 | — |
+
+So the press lands on the mark rather than on the line behind it, and the moves of a held drag
+keep arriving at the root as the pointer travels. This is narrower than it looks: it says the
+*desktop* harness can drive the whole gesture end to end with a real pointer. The mobile-emulation
+finding `decoration-follow-ups.md` records — a press aimed at a marker's centre in viewport
+coordinates landing on the line behind it — was not retested here and still governs the mobile
+run, which is why `80-outline-zoom.e2e.ts` drives its own presses in the page.
+
+The absent `mousedown` and `click` are finding 3, not a quirk of the instrument.
+
+## 3. The mark's press is already spoken for, at `pointerdown`
+
+The same drag, counting the rendered line elements at each event:
+
+```
+pointermove:11  pointerdown:6  pointermove:6 ×5  pointerup:6
+```
+
+The document has 11 rendered lines before the press and 6 after it: **the press zoomed into the
+bullet, synchronously, before the pointer had moved at all.** The probe's counter runs after the
+plugin's own handler on the same element, so what it read at `pointerdown` is the state that
+handler had already produced. The trail was present when the gesture ended and the caret had moved
+to the zoom root's content start.
+
+This is `zoom-click.ts` behaving exactly as written — it consumes the press, dispatches the zoom,
+and swallows the trailing mouse events, which is why none were counted. It also means a drag
+gesture cannot simply be added beside it. A press on a mark can mean zoom or it can mean pick up,
+and which one it means is not known until the pointer either moves or does not, so the zoom has to
+resolve at release. The cost is that a zoom happens on the way up instead of on the way down; the
+alternative is a second target, which section 1 rules out.
+
+## 4. A task's checkbox can carry a drag without losing its toggle
+
+The one kind `outline-zoom` could not reach with the pointer, because its mark is Obsidian's
+checkbox and the click already toggles the task. Measured both ways against the same fixture:
+
+| Gesture on the checkbox | Result |
+| --- | --- |
+| press, move ~90px away, release | `- [ ] a task` — unchanged |
+| press and release in place | `- [x] a task` — toggled |
+
+**The checkbox's claim is on the click, not on the press.** A gesture that leaves the box before
+releasing produces no click on it, so the browser never runs the input's activation behaviour and
+nothing has to be suppressed for a drag to start there. A task is therefore draggable by its own
+mark like every other kind, with no modifier, no restored plugin marker, and no contest over the
+toggle — which is more than the affordance-budget entry hoped for from any of its options, and it
+arrives without deciding the zoom half of that question, which stays open.
+
+## 5. A drag that leaves the editor loses its moves
+
+The same drag, driven out of the editor's box and across the app chrome to x=12, counted at two
+listeners at once:
+
+| Listener | Moves seen |
+| --- | --- |
+| the editor's root element, capture | 2 |
+| `window`, capture | 6 |
+
+Pointer events follow the element under the pointer, so a listener on the editor root stops
+hearing a drag the moment it leaves. A drag that wants to keep tracking — to autoscroll, to hold
+its preview while the pointer wanders into the sidebar, to notice the release wherever it
+happens — needs the pointer captured, or listeners above the editor for the gesture's duration.
+
+## 6. A mark survives a decoration rebuild
+
+Whether the element a gesture started on is still there after the view re-renders decides whether
+pointer capture can be taken on the mark itself, and whether a preview may be drawn as a
+decoration at all. Measured across a selection-only transaction and then a document change, both
+dispatched while holding a reference to the mark:
+
+| | same node | still connected |
+| --- | --- | --- |
+| `.list-bullet` | yes | yes |
+| `.to-decor-marker-icon` | yes | yes |
+
+So a decoration pass does not replace the marks under it, and a preview that redraws on every
+pointer move does not destroy the element the gesture is anchored to.
+
+**Not measured, and the reason capture should go on the editor root rather than the mark:**
+CodeMirror recycles line elements that scroll out of the viewport. A drag that autoscrolls will
+take its own source line off screen, and nothing here says the mark survives that. The editor root
+is stable by construction and answers the same question section 5 raises, so it is the cheaper
+place for the capture either way.
+
+## 7. Where a drop can land: the seam and its depths
+
+Not a measurement — the model the sections above leave to be chosen, recorded here so the design
+does not re-derive it.
+
+A destination is a parent and an index between its children, and a pointer position names one only
+with help, because a single seam between two rendered rows stands for several destinations at
+once. Below a deeply nested last child, a run can land as that child's sibling, as its parent's,
+as its grandparent's, and so on outward — every one of those is "between these two rows".
+
+The seam's candidates are bounded on both sides by the rows that flank it. Landing shallower than
+the row *below* would make that row a descendant of what was dropped, which is a different
+operation; landing deeper than one level inside the *deepest trailing branch above* names a parent
+that has no such level. So the seam's legal depths are the closed interval from the depth of the
+following row to one past the depth of the preceding row's deepest trailing descendant, and the
+pointer's horizontal position picks one of them. This is what Workflowy, Notion, Dynalist and
+every file-tree drag do, and it is why all of them draw an indicator whose left end moves as the
+pointer moves sideways: the left end *is* the answer to which destination was chosen.
+
+Two of the interval's bounds are ours rather than universal, and both follow from rules already
+stated elsewhere:
+
+- A fold hides its subtree, so the depths inside a folded run are not offered — the deep bound is
+  the deepest *visible* trailing descendant. A drop into a folded node opens the fold, which is
+  `outline-folding`'s existing rule for a change to hidden content, not a new one.
+- A destination is only a candidate when the operation would be accepted there. `insertSubtrees`
+  already rejects a heading payload under a non-heading parent and an atom under a paragraph, so
+  filtering the candidates through the same rule is what keeps a preview from promising a landing
+  that the release will not deliver.
+
+## 8. What stays open
+
+- **Zoom on a task's mark.** Section 4 frees the checkbox's press for a drag, not its click. The
+  affordance-budget entry's task question is untouched.
+- **The mobile gesture.** A touch drag on a mark and a scroll are the same gesture until something
+  discriminates them, and a long press is the usual discriminator. Nothing here measured one, and
+  section 2's harness note says the mobile run cannot drive a coordinate-aimed press at a mark at
+  all — so whatever is built there is a manual pass, as `content-space-caret`'s was.
+- **The cost of a preview per pointer move.** A transaction per move is what a native drag already
+  dispatches, and `guide-hover.ts` already dispatches one per hovered column, so the shape is not
+  new. It was not timed here against the enforcement funnel's budget.
+- **A mark's painted ink versus its box.** Section 1 reports boxes. What a bullet's dot actually
+  covers inside its span was measured once, for the gutter, in
+  [marker-text-gap.md](marker-text-gap.md); this pass did not re-measure it and nothing here
+  depends on it.
