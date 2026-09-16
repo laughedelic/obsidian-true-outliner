@@ -5,88 +5,41 @@
 Every change gets a branch (`feat/`, `fix/`, `chore/`), usually a worktree, and one PR that
 carries both its plan and its implementation.
 
-**Before branching, look for work already in flight.** Any open PR whose base is not `main` is
-part of a stack.
+**Before branching, look for work already in flight** — any open PR whose base is not `main` is
+part of a stack:
 
 ```bash
 gh pr list --state open --json number,headRefName,baseRefName,isDraft
 ```
 
-**Stack only what depends on the layer below.** A stack encodes a dependency order, and it
-charges for that order: every layer above a moved one is rewritten, and the bottom layer cannot
-merge and release without a restack of everything on top. Unrelated work pays that toll for
-nothing, and pays it repeatedly — each layer bumps the version, so `manifest.json`,
-`versions.json` and `package.json` conflict on every single restack. The test is mechanical,
-and settles it before the branch exists:
+**Stack only what depends on the layer below.** A stack encodes a dependency order and charges
+for it: every layer above a moved one is rewritten, and each layer bumps the version, so
+`manifest.json`, `versions.json` and `package.json` conflict on every restack. Unrelated work
+pays that toll for nothing, repeatedly. The test is mechanical, and settles it before the branch
+exists:
 
 ```bash
 git diff --name-only main...<candidate-base>
 ```
 
 Overlapping files, or code that reads what the other branch adds, means stack it. Otherwise
-branch off `main`, where it merges and releases on its own schedule. Prefer short stacks — two
-or three layers that are genuinely one unit of work. Offer the reading; let the user decide.
+branch off `main`, where it merges and releases on its own schedule. Prefer short stacks — two or
+three layers that are genuinely one unit of work. Offer the reading; let the user decide.
 
-Stacks are GitHub's native stacked PRs, driven by the `gh stack` extension
-(`gh extension install github/gh-stack`). A stacked PR targets the branch below it instead of
-`main`, and GitHub retargets it when its parent merges — so the base is set once and never
-maintained by hand.
+**A session working on a layer owns one branch: commit, push, report.** Stack surgery — adopting,
+restacking, parking worktrees, landing a stack — rewrites branches other sessions are sitting on,
+so it happens in one place, from the primary checkout: [`docs/pr-stacks.md`](docs/pr-stacks.md).
 
-| | |
-| --- | --- |
-| `gh stack view --json` | the current branch's stack, if it is in one |
-| `gh stack checkout <pr>` | fetch an existing stack and switch into it |
-| `gh stack init <branch>` | start a stack off the trunk, or adopt existing branches into one |
-| `gh stack add <branch>` | add a layer on top of the current stack |
-| `gh stack submit --auto` | push every layer and open or update its PRs, as drafts |
-| `gh stack rebase` | cascading rebase after the trunk or a lower layer moves |
-| `gh stack sync` | fetch, cascade-rebase and atomically force-push the whole stack |
-| `gh stack merge` | atomic merge of the stack up to a chosen PR |
-
-**A session working on a layer runs none of these.** It owns one branch: commit, push, report.
-Stack surgery happens in one place, from the primary checkout, because these commands rewrite
-branches other sessions are sitting on and take a lock in the shared git directory.
-
-**Never merge another branch into a layer.** After a restack below it, a layer sits on commits
-that no longer exist and git reports it as *diverged from origin by N and M commits*. Merging
-the layer below "to update the base" resolves that and destroys the linear history the stack
-exists to keep — it also survives into `main`, because the whole stack squash-merges. The
-remote is authoritative there:
+A layer reported as *diverged from origin by N and M commits* is sitting on commits that a
+restack below it replaced. The remote is authoritative there, and merging the layer below "to
+update the base" destroys the linear history the stack exists to keep — which survives into
+`main`, because the whole stack squash-merges.
 
 ```bash
 git fetch origin && git reset --hard origin/<branch>   # no unpushed commits
 ```
 
-With unpushed commits, stop and report rather than merging. Rebase a layer with
-`gh stack rebase`, never plain `git rebase`: rebasing one layer by hand leaves every layer
-above it on commits that no longer exist — `gh stack view` reports a branch needing one.
-
-**Worktrees hold branches hostage.** Git refuses to check out or rebase a branch that another
-worktree has checked out (`fatal: '<branch>' is already used by worktree at …`), which is every
-`gh stack` command that moves HEAD — `rebase`, `sync`, `switch`, `up`, `down`, `checkout`.
-`gh stack init` is the exception: it only records the topology, so a stack can be adopted with
-every layer live in its own worktree, and nothing needs setting up before sessions start.
-Detach the other worktrees around the restack instead:
-
-```bash
-node scripts/stack-park.mjs park     # one stack only; refuses while any is dirty
-gh stack sync
-node scripts/stack-park.mjs unpark
-```
-
-It parks the stack the current branch belongs to, and takes a stack number when
-standing on the trunk with more than one recorded. `unpark` refuses in turn if a
-parked worktree has picked up changes or commits meanwhile — those sit on a
-detached HEAD, and restoring over them would strand them.
-
-**Land a stack whole.** `gh stack merge --yes --squash` squash-merges every layer in one
-all-or-nothing operation, so nothing is restacked between merges. Merging the bottom layer
-alone to release it is what a stack of independent work forces, and it costs a restack of every
-layer above — one more reason such work does not belong in a stack.
-
-Only `gh stack submit --auto` opens drafts; its interactive editor defaults to ready for review.
-`--auto` also auto-generates titles, so write the real title and description afterwards with
-`gh pr edit`.
+With unpushed commits, stop and report rather than merging.
 
 ## Change lifecycle
 
@@ -109,98 +62,46 @@ no tag: the release is cut from the squashed merge commit, which no local tag ca
 
 CI is the source of truth for full-suite validation — its matrix runs every group, desktop and
 mobile (`.github/workflows/ci.yml`, groups from `scripts/spec-groups.mjs`). A pushed checkpoint
-already runs the full sweep there; the local loop does not need to reprove that before every
-push.
+already runs that sweep; the local loop does not need to reprove it.
 
-**Default to narrow mode while iterating on one test:**
+**Iterate in narrow mode, one spec file at a time:**
 
 ```bash
 npm run test:e2e:narrow -- <spec> [test-name-grep]
-# e.g.
-npm run test:e2e:narrow -- 77-footer-controls "renders the footer"
 ```
 
 `<spec>` matches a filename in `e2e/specs/` by substring (an ambiguous one lists every match
-instead of guessing); the grep becomes `--mochaOpts.grep`. This still builds the plugin,
-regenerates the backlink hub, and snapshots/restores vault drift like `run-e2e.mjs` does —
-measured at under half a second combined, so skipping them buys nothing. What actually made the
-whole-group loop slow was Obsidian launching once per spec FILE (up to ten in a group); targeting
-one file directly is the entire speedup, taking an iteration from minutes to ~10-30s. `--mobile`
-runs it under the mobile-emulation config.
+instead of guessing), the grep becomes `--mochaOpts.grep`, and `--mobile` runs the
+mobile-emulation config. It builds the plugin and snapshots vault drift exactly as a full run
+does — launching Obsidian once instead of once per spec file is the whole speedup, so there is
+nothing to gain by skipping those steps.
 
-`npm run test:e2e[:mobile]` (`run-e2e.mjs`) still exists for a whole group (`--group <name>`) or
-the whole suite — reserve it for a final check before a checkpoint, not per-edit iteration.
-Outside CI, it prints a one-line reminder toward narrow mode whenever more than a couple of spec
-files are in scope — not a block, just a nudge at the moment the slow path is actually taken.
+`npm run test:e2e[:mobile]` runs a whole group (`--group <name>`) or the whole suite: a final
+check before a checkpoint, not a per-edit loop.
 
-**Every run — narrow, grouped, or full, desktop or mobile — writes
-`.obsidian-cache/e2e-summary.json`**, a small file naming what failed without needing to scroll
-past a whole group's stdout or re-run narrower to find out:
+Every run overwrites `.obsidian-cache/e2e-summary.json` with what failed, so finding out costs no
+scrolling and no narrower re-run:
 
 ```bash
-cat .obsidian-cache/e2e-summary.json | jq '.failures'
+jq '.failures' .obsidian-cache/e2e-summary.json
 ```
 
-It carries `{ specs, passed, failed, skipped, failures: [{ spec, suite, test, error, stack,
-durationMs }] }` and is overwritten (not appended) at the start of each invocation.
-
-**The Obsidian window still pops on macOS/Windows** — narrow mode and `run-e2e.mjs` both launch
-the real desktop app. To run headlessly instead (nothing appears on the host, whatever OS it is):
-
-```bash
-npm run test:e2e:docker [-- --group <name> | <spec> [grep]]
-```
-
-This runs inside a Linux container under Xvfb (`e2e/docker/`) — one container per invocation,
-covering however many specs are in scope (the whole suite by default, or one group), never one
-container per file. `E2E_MAX_INSTANCES` defaults to 2 there (override via env) since the
-container shares the Docker Desktop/OrbStack VM's CPU with the rest of the host, unlike a
-dedicated CI runner. It deliberately does not fan out multiple containers to race CI's
-per-group matrix — CI already gives that; this path exists for a headless run, not a faster one.
-
-**A cloud session runs these suites only once its VM is provisioned.** Obsidian is an Electron
-app: it needs an X server and Chromium's shared libraries, and the cloud image ships neither.
-Both belong in the environment's setup script rather than here — they provision the VM, and the
-environment's filesystem snapshot carries them afterwards, so only a cache rebuild pays for them
-and a session pays nothing. On Ubuntu 24.04 five of those packages carry a `t64` suffix
-(`libgtk-3-0t64`, `libasound2t64`, `libatk1.0-0t64`, `libatk-bridge2.0-0t64`, `libcups2t64`),
-where the unsuffixed names are virtual packages with no installation candidate.
-
-No `xvfb-run` wrapper is needed there, unlike CI: `@wdio/local-runner` starts Xvfb itself when
-`DISPLAY` is unset. It does not install the package, which is the setup script's half of the
-bargain.
-
-The Obsidian download is the one genuinely optional piece. The harness fetches it on demand, so
-nothing breaks without it; pre-downloading it into a path outside the clone
-(`obsidian-launcher download desktop -c /opt/obsidian-cache`, with `OBSIDIAN_CACHE` naming that
-path) moves a few hundred megabytes out of every cold session and into the snapshot, the way
-CI's week-rolled cache key does. An environment shared with repositories that never run these
-suites can leave it out.
-
-Two limits shape what a cloud run is good for. `E2E_MAX_INSTANCES` belongs at 2 against a cloud
-VM's 4 vCPUs, and it is not only a speed knob — `waitBudget` in `e2e/helpers.ts` widens the
-harness timeouts off that value. And cloud sessions top out at Node 22 where CI and the container
-use 26; nothing here declares a floor above 22, but the combination has not been proven. CI stays
-the source of truth for the full sweep, so what a cloud session gains is the narrow loop.
+Narrow mode and `run-e2e.mjs` both launch the real desktop app, so an Obsidian window pops on
+macOS and Windows. `npm run test:e2e:docker [-- --group <name> | <spec> [grep]]` runs the same
+specs headlessly in a Linux container instead (`e2e/docker/`), one container per invocation.
+A cloud session needs its VM provisioned before any of this runs:
+[`docs/cloud-sessions.md`](docs/cloud-sessions.md).
 
 ## Mobile beta builds
 
 Mobile has no vault folder to copy a build into, so a branch reaches a phone as a GitHub
 prerelease that BRAT installs. `.github/workflows/beta.yml` publishes one on every push to a
-branch other than `main`, versioned `<next patch>-beta-<branch slug>.<run number>` — above the
-current release so BRAT prefers it, below the next one so it never outranks a real release, and
-increasing per push so BRAT sees an update. The version is stamped into the built
-`manifest.json` only; committing it would move the file that triggers the release workflow.
+branch other than `main`, and `scripts/beta-cleanup.mjs` drops them again as the branch moves on.
+The version is stamped into the built `manifest.json` only; committing it would move the file
+that triggers the release workflow.
 
-On the phone, BRAT → *Add beta plugin* → `laughedelic/obsidian-true-outliner`, then *Check for
-updates* after each push. BRAT tracking "latest" takes the highest prerelease across every
-branch, so two branches publishing at once serve whichever sorts higher — pin BRAT to a
-specific version, or keep one branch at a time on beta.
-
-Betas clean themselves up (`scripts/beta-cleanup.mjs`): each push drops the branch's earlier
-ones, and a deleted branch — a merge, usually — takes the rest with it, with a weekly sweep
-behind that for anything missed. Only the `-beta-<slug>.<n>` shape is ever deleted, so releases
-and hand-cut release candidates are out of reach.
+BRAT tracking "latest" takes the highest prerelease across every branch, so keep one branch at a
+time on beta, or pin BRAT to a specific version.
 
 ## Conventions
 
@@ -208,65 +109,40 @@ and hand-cut release candidates are out of reach.
   ("as we found above"). Applies to specs, proposals, PR descriptions, `docs/`, and comments.
 - **Comments explain, never advocate.** No measurements, no restating the code, no arguing for a
   choice already made.
-- **No agent attribution trailers** in commit messages or PR descriptions — `.claude/settings.json`
+- **No agent attribution trailers** in commit messages or PR descriptions; `.claude/settings.json`
   enforces this for Claude Code wherever a session runs.
 - **Deferred ideas go to the parking lots** under `docs/research/`, not into new OpenSpec changes.
 - **Read the relevant `docs/research/` notes before touching decorations, selection, or CM6
   extensions.** They exist so a diagnosis is not paid for twice.
 - **A research note is named for its subject, with no numeric prefix**, and takes exactly one row
-  in `docs/research/index.md` — the file and that row are the whole of adding a note. The index
-  merges by union (`.gitattributes`), so branches adding notes in parallel do not conflict over
-  it, and `npm run lint` checks the rows against the directory. Cite a note by its path
-  (`docs/research/open-questions` Q26), never by a number.
-- **A setting is one declaration in its feature's slice** under `src/plugin/settings/` — key, default,
-  options with their labels, the tab's row — plus the getter/setter pair on the plugin that says what
-  a change does, and that pair's row in `WRITERS`. The persisted shape, the defaults, the allow-list
-  and both settings-tab renderings derive from `settings.ts`'s list of slices, which changes when a
-  feature area is added, not when a setting is.
-- **A feature's e2e helpers live beside its specs**, imported by name — `e2e/footer.ts`, `e2e/folding.ts` —
-  and `e2e/helpers.ts` keeps what every spec reaches for: the buffer, the caret, the pointer, the
-  vault, commands, notices, keys. A helper that only one feature's specs call goes in that feature's
-  module, and a feature that has none gets one when it needs one.
-- **A feature's CSS goes in its own part under `styles/`**, not in the editor's. The root
-  `styles.css` is a build output (`scripts/styles.mjs` joins the parts in filename order, which
-  is cascade order), so a new feature adds a part with the next prefix and edits no shared file.
-  Rules two surfaces share — the editor and the footer — stay in `10-editor.css`, as its
-  comments say.
+  in `docs/research/index.md` — the file and that row are the whole of adding a note, and
+  `npm run lint` checks the two agree. Cite a note by its path (`docs/research/open-questions`
+  Q26), never by a number.
+- **A setting is one declaration in its feature's slice** under `src/plugin/settings/` — key,
+  default, options with their labels, the tab's row — plus the getter/setter pair on the plugin
+  that says what a change does, and that pair's row in `WRITERS`. Everything else derives from
+  `settings.ts`'s list of slices, which changes when a feature area is added, not when a setting
+  is.
+- **A feature's e2e helpers live beside its specs**, imported by name — `e2e/footer.ts`,
+  `e2e/folding.ts`. `e2e/helpers.ts` keeps what every spec reaches for: the buffer, the caret, the
+  pointer, the vault, commands, notices, keys.
+- **A feature's CSS goes in its own part under `styles/`**, taking the next filename prefix; the
+  root `styles.css` is a build output, so a new feature edits no shared file. Rules the editor and
+  the footer share stay in `10-editor.css`, as its comments say.
 
 ## Agent files
 
 `.agents/skills/` is the only real copy of the OpenSpec skills; `.claude/skills/` and
 `.github/skills/` hold symlinks into it, because neither Claude Code nor Copilot reads
-`.agents/` itself. All three are tracked, so a fresh clone — a Copilot cloud run included —
-has them. Regenerate with `openspec update`, which rewrites the real tree and leaves the
-symlinks alone; never edit a skill by hand. The generated slash-command files under
-`.claude/commands/` and `.github/prompts/` are gitignored.
+`.agents/` itself. Regenerate with `openspec update`, which rewrites the real tree and leaves the
+symlinks alone, rather than editing a skill by hand.
 
 `scripts/agent-setup.sh` is the one list of what an agent session needs — the project's
-dependencies, the OpenSpec CLI, the `gh-stack` extension. Claude Code runs it from the
-`SessionStart` hook in `.claude/settings.json`, and Copilot's `copilot-setup-steps.yml` runs it
-with `--install`; adding a tool means editing that script and nothing else. Every check is
-idempotent, so an environment that already has a tool falls straight through.
-
-It installs only where installing is free: `--install`, or a cloud session, which sets
-`CLAUDE_CODE_REMOTE`. `npm ci` deletes `node_modules` and a global npm install writes to the
-machine, neither of which a local checkout asked for. Elsewhere it reports instead, on stdout,
-which `SessionStart` turns into the agent's context — so a session missing a tool knows before a
-command fails halfway through a task.
-
-A Claude cloud environment also has a setup script of its own, configured in the environment
-dialog at claude.ai/code rather than here: it provisions a VM that is shared across repositories
-and reused as a filesystem snapshot, so it never sees a clone. Ours installs the same OpenSpec
-CLI and `gh-stack` ahead of time, which keeps a cold session fast; because `scripts/agent-setup.sh`
-fills whatever is missing, the two cannot drift into a broken session. The same dialog's
-environment variables carry the commit identity — `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`,
-`GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL` — so a cloud session's commits are ours without a
-name hardcoded in the repository.
-
-`.claude/settings.json` also sets `attribution`: empty `commit` and `pr` strings, and
-`sessionUrl: false`. That is what enforces "no agent attribution trailers" for Claude Code in
-every environment, cloud included, since the repository's settings are part of the clone while
-`~/.claude/settings.json` stays on the machine.
+dependencies, the OpenSpec CLI, the `gh-stack` extension. The `SessionStart` hook in
+`.claude/settings.json` runs it and `copilot-setup-steps.yml` runs it with `--install`, so adding
+a tool means editing that script and nothing else. It installs only in a throwaway environment
+and reports what is missing everywhere else; a cloud environment's own half of the provisioning
+is [`docs/cloud-sessions.md`](docs/cloud-sessions.md).
 
 `openspec/config.yaml` carries the project context plus the rules and guidance injected into
 OpenSpec's own workflows — put anything OpenSpec can reach there rather than here.
