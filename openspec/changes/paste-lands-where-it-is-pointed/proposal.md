@@ -88,8 +88,20 @@ is needed.
 Independent of the selection work, and of the two search stacks open on `main` — no file
 overlap beyond `docs/research/index.md`, which merges by union.
 
-One interaction to carry. Drag-and-drop, in flight in parallel, lands a dropped subtree through
-this same re-encode step, and `node-edit-enforcement` already words its requirement as "a paste
-or text drop". The rule decided here is the rule a drop needs, and moving the guard into the
-shared step is what makes a drop that replaces a scope's only content take a guarded path. The
-two changes want reconciling before either lands.
+`drag-nodes-with-a-drop-preview` depends on this change and stacks on top of it. Both modify
+`structural-operations`, and the drop consumes the rule decided here — its own proposal says so,
+and its move operation re-encodes "by the SAME rule an insertion at that destination uses". Two
+of its statements are written against the behaviour this change replaces, and are the whole of
+what the restack has to settle:
+
+- Its `A destination the insertion rule declines is rejected` scenario gives "a heading-rooted
+  run under a non-heading parent" as its example. That destination is no longer declined — it
+  converts. The requirement holds; only the example moves, to the atom-below-a-paragraph case
+  that remains the sole rejection.
+- `docs/research/node-drag-and-drop` states that candidate destinations are filtered by what
+  `insertSubtrees` accepts, and names the same two rejections. Under this change the candidate
+  set GROWS: a heading run may be dropped at any list depth, so the drop's depth interval widens
+  rather than narrowing. That suits the preview's existing promise to draw the mark the run will
+  have *after* re-encoding — which, for a heading dropped into a list, is a list marker followed
+  by the heading's own `#` run.
+
