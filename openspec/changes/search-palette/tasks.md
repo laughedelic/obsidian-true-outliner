@@ -45,11 +45,15 @@
 
 ## 3. The search
 
-- [ ] 3.1 Expose the `SourceTreeCache` the backlink index owns, so the search reads that instance
-      (design D4); verify a unit test over a source note that does reference the target — `place()`
-      answers `null` otherwise — shows the same `OutlineDoc` instance reaching the index and a
-      second caller for an unchanged file. Negative control: hand the second caller its own
-      `SourceTreeCache` and confirm the identity assertion fails
+- [x] 3.1 Expose the `SourceTreeCache` the backlink index owns, so the search reads that instance
+      (design D4); verify `tests/source-tree-cache.test.ts` shows one cache handing a second caller
+      the same `OutlineDoc` for an unchanged file, without reading again. The INDEX's half — that
+      `treeCache` hands out the instance it indexes with — is e2e's to cover, not vitest's:
+      `backlink-index.ts` does `file instanceof TFile` and the `obsidian` package is types-only
+      (`main: ""`), so the unit suite cannot load it, the same split `decorate.test.ts` records.
+      Negative control: a second `SourceTreeCache` over the same vault, which reads again and
+      answers with a tree whose node ids are not the first's — ids are per parse, so two caches
+      cost correspondence, not just memory
 - [ ] 3.2 Create `src/plugin/vault-search.ts`: the progressive, yielding, generation-guarded walk
       over the vault or one file, ordered by modification time before the first tree is resolved,
       calling back per note with one hit per matching node — the id, the index of the first of the

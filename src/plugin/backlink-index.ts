@@ -272,6 +272,24 @@ export class BacklinkIndex {
     return this.trees.peek(sourcePath);
   }
 
+  /**
+   * The cache itself, for a second reader that resolves trees of its own.
+   *
+   * The vault search walks every note and needs each one parsed; the index
+   * parses the notes that reference whatever is open. One instance rather than
+   * two, so a note either side has already read is not read and parsed again —
+   * and so the two cannot disagree about what a file currently says, which two
+   * caches keyed on the same `path + mtime` could between one's read and the
+   * other's.
+   *
+   * The instance, not a `get(file)` wrapper: the cache's own contract is the
+   * thing being shared, and a wrapper would have to re-state its invalidation
+   * rules to stay honest about them.
+   */
+  get treeCache(): SourceTreeCache {
+    return this.trees;
+  }
+
   /** Drops parsed trees; the reverse map is untouched. */
   clearTrees(): void {
     this.trees.clear();
