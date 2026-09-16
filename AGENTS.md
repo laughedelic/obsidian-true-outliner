@@ -158,6 +158,31 @@ container shares the Docker Desktop/OrbStack VM's CPU with the rest of the host,
 dedicated CI runner. It deliberately does not fan out multiple containers to race CI's
 per-group matrix — CI already gives that; this path exists for a headless run, not a faster one.
 
+**A cloud session runs these suites only once its VM is provisioned.** Obsidian is an Electron
+app: it needs an X server and Chromium's shared libraries, and the cloud image ships neither.
+Both belong in the environment's setup script rather than here — they provision the VM, and the
+environment's filesystem snapshot carries them afterwards, so only a cache rebuild pays for them
+and a session pays nothing. On Ubuntu 24.04 five of those packages carry a `t64` suffix
+(`libgtk-3-0t64`, `libasound2t64`, `libatk1.0-0t64`, `libatk-bridge2.0-0t64`, `libcups2t64`),
+where the unsuffixed names are virtual packages with no installation candidate.
+
+No `xvfb-run` wrapper is needed there, unlike CI: `@wdio/local-runner` starts Xvfb itself when
+`DISPLAY` is unset. It does not install the package, which is the setup script's half of the
+bargain.
+
+The Obsidian download is the one genuinely optional piece. The harness fetches it on demand, so
+nothing breaks without it; pre-downloading it into a path outside the clone
+(`obsidian-launcher download desktop -c /opt/obsidian-cache`, with `OBSIDIAN_CACHE` naming that
+path) moves a few hundred megabytes out of every cold session and into the snapshot, the way
+CI's week-rolled cache key does. An environment shared with repositories that never run these
+suites can leave it out.
+
+Two limits shape what a cloud run is good for. `E2E_MAX_INSTANCES` belongs at 2 against a cloud
+VM's 4 vCPUs, and it is not only a speed knob — `waitBudget` in `e2e/helpers.ts` widens the
+harness timeouts off that value. And cloud sessions top out at Node 22 where CI and the container
+use 26; nothing here declares a floor above 22, but the combination has not been proven. CI stays
+the source of truth for the full sweep, so what a cloud session gains is the narrow loop.
+
 ## Mobile beta builds
 
 Mobile has no vault folder to copy a build into, so a branch reaches a phone as a GitHub
