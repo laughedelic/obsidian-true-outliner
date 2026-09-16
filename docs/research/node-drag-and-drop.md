@@ -37,7 +37,8 @@ fold indicator's box is Obsidian's, read from the element.
 
 **Between the parent guide's band and the fold indicator there are 0.83px.** Nothing else is
 free: the indicator's box runs from just past the guide band to just past the mark's own right
-edge, and the mark's text begins 5px after that. The gutter is not nearly full, it is full.
+edge, and the row's text begins 5.09px right of that mark's right edge. The gutter is not nearly
+full, it is full.
 
 That settles the affordance-budget question against a handle of its own. A fourth target in this
 run would have to take the fold indicator's place, take the guide band's, or widen the grid for
@@ -49,7 +50,10 @@ column at all.
 Two subsidiary figures from the same frame, both of which a preview has to respect:
 
 - The unit is 32px and the marker gutter 14px, so a depth's column is 32px from its parent's and
-  its text begins 14px right of its own column.
+  its text begins 14px right of its own column. The painted guide positions read 375.5 / 407.5 /
+  439.5 rather than 376 / 408 / 440: a background gradient's position is inset by half the guide's
+  own width, which `guideHit` undoes by rounding against the unit. The columns are the round
+  numbers; the half-pixels are what the paint reports.
 - A mark's box is centred on its column (the marker icon at 401.22–414.81 on column 407.5; a
   task's checkbox at 432–448 on column 439.5), **except** a list bullet's, whose span begins at
   the column and runs right. A preview that wants to sit where a mark will sit should take the
@@ -68,6 +72,7 @@ against capture-phase counters on the editor's root element — the same element
 | --- | --- | --- |
 | `pointerdown` | 1 | `.list-bullet` |
 | `pointermove` | 7 | the bullet, then `.cm-content` once the pointer leaves it |
+| | | (one move to position, then six steps — section 3 drives five and counts six) |
 | `pointerup` | 1 | — |
 | `mousedown` / `click` | 0 | — |
 
@@ -82,7 +87,8 @@ The absent `mousedown` and `click` are finding 3, not a quirk of the instrument.
 
 ## 3. The mark's press is already spoken for, at `pointerdown`
 
-The same drag, counting the rendered line elements at each event:
+A second drag over the same fixture — five steps rather than section 2's six — counting the
+rendered line elements at each event:
 
 ```
 pointermove:11  pointerdown:6  pointermove:6 ×5  pointerup:6
@@ -133,6 +139,29 @@ hearing a drag the moment it leaves. A drag that wants to keep tracking — to a
 its preview while the pointer wanders into the sidebar, to notice the release wherever it
 happens — needs the pointer captured, or listeners above the editor for the gesture's duration.
 
+## 5a. A held button does not survive a separate WebDriver call
+
+The e2e question the rest of the design leans on, since almost everything a drag promises is a
+state that exists only WHILE the button is down. Driven three ways against the same bullet, with
+counters on `window` recording each event's `buttons`:
+
+| driving | what arrived |
+| --- | --- |
+| press in call 1, move in call 2, release in call 3 | `pointerdown:1`, **`pointerup:0`** — both inside call 1; the move then arrives at `buttons=0` |
+| press in call 1, Escape in call 2 | the same auto-release, so the key lands after the gesture already ended |
+| press, move and release in ONE call | `pointerdown:1` → `pointermove:1` → `pointerup:0`, as a real drag |
+
+**WebDriver releases a held button when its `performActions` call ends.** The button state exists
+only within one call, which is the same limitation `e2e/helpers.ts` already records for a held
+modifier across calls, reaching a second input this time.
+
+What follows for the suite is not that mid-drag state is unverifiable, but that it cannot be read
+by stopping mid-drag. A recorder installed in the page before the gesture — sampling the resolved
+destination and the preview's own state on each `pointermove` — turns every mid-drag assertion
+into a reading taken after a single uninterrupted `perform()`. Escape mid-drag is drivable the
+same way, as a key source and a pointer source ticking together inside one call, with the
+recording again standing in for the assertion that cannot be made in between.
+
 ## 6. A mark survives a decoration rebuild
 
 Whether the element a gesture started on is still there after the view re-renders decides whether
@@ -167,7 +196,9 @@ as its grandparent's, and so on outward — every one of those is "between these
 The seam's candidates are bounded on both sides by the rows that flank it. Landing shallower than
 the row *below* would make that row a descendant of what was dropped, which is a different
 operation; landing deeper than one level inside the *deepest trailing branch above* names a parent
-that has no such level. So the seam's legal depths are the closed interval from the depth of the
+that has no such level. "One level inside the row above" needs one qualification: a row that
+cannot hold children at all — an atom, which the algebra treats as a leaf — offers no level
+inside it, so the deep bound is the deepest trailing descendant that CAN take children. So the seam's legal depths are the closed interval from the depth of the
 following row to one past the depth of the preceding row's deepest trailing descendant, and the
 pointer's horizontal position picks one of them. This is what Workflowy, Notion, Dynalist and
 every file-tree drag do, and it is why all of them draw an indicator whose left end moves as the
@@ -182,7 +213,8 @@ stated elsewhere:
 - A destination is only a candidate when the operation would be accepted there. Asking the
   operation, rather than restating its conditions, is what keeps a preview from promising a
   landing the release will not deliver — and the next section is why that distinction is not
-  pedantry.
+  pedantry. With one measured caveat, recorded in 7a: the shared re-encode step is not yet a
+  COMPLETE oracle, so asking it is necessary and not sufficient.
 
 ## 7a. What the paste layer changes underneath this
 
@@ -204,8 +236,17 @@ survive, and they are unalike:
 | `insertion-not-expressible` | an atom among the payload's own ROOTS, landing in a paragraph's children — an atom deeper in the payload is fine |
 | `at-h6-bound` | the payload's DEEPEST heading, re-levelled to the destination, landing past `h6` |
 
-The second is the one that matters for a pointer gesture: it depends on the destination's own
-heading depth, so on ONE seam a heading payload can be legal at the shallower columns and refused
+**The guard does not yet cover an atom PARENT.** Measured against this branch's `ops.ts`:
+`reencodeBlocksForDestination` accepts a payload under a `code` parent, a `table` parent and a
+`quote` parent, because its expressibility arm tests the payload for atoms and the parent only for
+`paragraph`. An atom is a leaf — `indent` refuses one as a target with
+`not-expressible-under-target`, and the structural-operations spec calls atoms leaves outright — so
+a destination inside one is not a destination. Until that guard sits beside the others, "ask the
+operation" is necessary and not sufficient, and the seam's deep bound has to exclude a parent that
+cannot hold children on its own account.
+
+The second refusal is the one that matters most for a pointer gesture: it depends on the
+destination's own heading depth, so on ONE seam a heading payload can be legal at the shallower columns and refused
 at the deeper ones. Legality varies along the horizontal axis, which is exactly the axis a drag
 invented to let the pointer choose. A candidate set built from a copy of the old kind-based
 conditions would offer those deeper columns and fail on release.
@@ -233,6 +274,9 @@ still leaves the reader surprised.
 - **The cost of a preview per pointer move.** A transaction per move is what a native drag already
   dispatches, and `guide-hover.ts` already dispatches one per hovered column, so the shape is not
   new. It was not timed here against the enforcement funnel's budget.
+- **Where the atom-parent guard belongs.** 7a measures the hole; whether it closes by moving the
+  guard into the shared re-encode step, the way the paste layer moved the others, or by the
+  candidate rule excluding a childless parent on its own, is not settled here.
 - **How much of an absorbed region a preview should mark.** Section 7a establishes that a heading
   drop re-parents the rows below it and that the reader should see so. Whether that is the whole
   absorbed span, its first row, or a count is a design question the mockup does not yet draw.

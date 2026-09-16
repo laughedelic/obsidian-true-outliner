@@ -6,6 +6,11 @@ The algebra SHALL offer an operation that moves a forest of whole subtrees to a 
 a parent and a position among its children — and returns a single result, in the same total and
 typed form every other operation returns.
 
+The destination SHALL be expressible as a parent and an index, including the index zero of a
+parent that has no children at all. An insertion stated only against an anchor SIBLING cannot name
+that destination, and it is the commonest reparenting destination there is: "make this the first
+child of that". The operation SHALL NOT be built on a private variant kept elsewhere for the case.
+
 The operation SHALL be the one place the move is expressed. A caller SHALL NOT compose it out of a
 removal followed by an insertion: both halves carry gap ownership and ordered-run renumbering, the
 destination's anchor moves when the run is removed from above it, and a second call site that
@@ -51,6 +56,16 @@ A move whose destination is the run's CURRENT place SHALL produce no document ch
 - **WHEN** an ordered item is moved out of one ordered run and into the middle of another
 - **THEN** both runs are numbered consecutively afterwards, and the moved item takes its new run's
   numbering rather than carrying its old number
+
+#### Scenario: A childless parent is a destination
+- **WHEN** a run is moved to be the first child of a node that has no children
+- **THEN** the move is accepted and the run lands there, re-encoded for that scope
+
+#### Scenario: A leaf is not a destination
+- **WHEN** the named parent is an atom — a code fence, a table or another leaf the algebra does
+  not give children
+- **THEN** the operation is rejected and the document is unchanged, by the same guard every other
+  insertion path runs, rather than by a condition restated at this call site
 
 #### Scenario: A destination inside the run is rejected
 - **WHEN** the named destination lies inside one of the subtrees being moved
