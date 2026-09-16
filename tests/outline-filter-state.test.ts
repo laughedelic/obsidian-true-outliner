@@ -94,9 +94,10 @@ describe('outline filter state: what editing does to a frozen match set', () => 
     const from = text.indexOf('- target');
     const to = text.indexOf('  - two');
     const edited = state.update({ changes: { from, to, insert: '' } }).state;
-    // Nothing matched is left, so nothing is kept — not even the path that led
-    // to what was deleted.
-    expect(visibleLines(edited)).toEqual([]);
+    // Nothing matched is left, so the filter has nothing to show and the note
+    // renders whole — an editor with no visible line takes no caret and no
+    // keystroke can bring a match back to it.
+    expect(visibleLines(edited)).toBeNull();
   });
 
   it('a moved match brings its new ancestors', () => {

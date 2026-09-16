@@ -100,11 +100,19 @@ An anchor whose node is edited away maps to wherever the edit put it and keeps t
 an anchor deleted with its node is dropped.
 
 Mapping alone does not make a NEW node visible. A node created beside a match contains no anchor,
-so the derivation would hide it under the caret that just made it. The rule is therefore explicit
-rather than incidental: a transaction that splits a visible node, or creates a sibling or child
-from one, adds an anchor for the node it created. The spike's second half (task 1.2) walks
-`docs/research/zoom-editing-boundary`'s gesture catalogue under a frozen anchor set and records,
-row by row, which gestures that rule has to cover and which map cleanly.
+so the derivation would hide it under the caret that just made it. The catalogue walk (task 1.2,
+recorded in `docs/research/outline-filter-spike`) found three gestures where that bites — a split,
+an Enter at a match's end, and a Backspace merge into a hidden node — and one rule covering all
+three, because in all three the caret is exactly where the reader's text went: a change that
+touches what the filter is showing, and leaves the caret in what it wrote, anchors the node the
+caret landed in. It declines when the caret's line already carries an anchor, so typing inside a
+match does not add one per keystroke, and it declines when the deletion took a whole line — which
+is what separates a merge from a deleted subtree, whose follower must not be resurrected.
+
+Mod-Backspace clearing a match is the row no rule rescues: the marker goes with the text, so the
+line is blank and no node owns it. When that empties the anchor set the filter falls back to the
+whole note, because a filtered view with no visible line takes no caret and nothing typed into it
+could bring a match back — the added-anchor rule itself needs a visible line to fire from.
 
 What stays derived rather than frozen is the ancestor half: the MATCHES are fixed, and the path
 to each one is recomputed from the current parse, so indenting a visible match under a different
