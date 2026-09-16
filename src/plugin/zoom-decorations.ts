@@ -24,7 +24,7 @@ import { RangeSetBuilder, StateField, type EditorState, type Extension } from '@
 import { Decoration, EditorView, type DecorationSet } from '@codemirror/view';
 import { zoomScope } from './zoom-scope';
 import { coverSpan, hiddenOffsetRanges, intersectSpans } from './zoom-offsets';
-import { filterVisibleSpans } from './outline-filter-state';
+import { filterVisibleSpans } from './outline-filter-scope';
 import type { LineSpan } from '../zoom';
 
 /**
