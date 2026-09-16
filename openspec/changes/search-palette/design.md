@@ -160,8 +160,14 @@ that nothing keeps.
 the backlink index and keyed on path plus mtime. The vault search reads that same instance —
 `get(file)` as it stands — rather than holding a second, so a note parsed for the footer is not
 parsed again for the palette and vice versa. The index exposes the instance it owns; nothing about
-the cache itself changes. A second cache — what the prototype did — doubles memory for every note
-both surfaces touch.
+the cache itself changes.
+
+A second cache — what the prototype did — costs more than the memory it doubles. Node ids are
+allocated per PARSE, from a counter that never restarts, so two caches over one unchanged file
+hold trees whose ids do not correspond: the palette's id for a hit would mean nothing in the
+footer's tree of that same note, and landing on a hit resolves an id against a tree
+(`nodeStartLine`). One instance is what keeps an id worth passing between the two surfaces at
+all.
 
 What one cache does not do is bound what the sweep leaves behind. `entries` is a plain `Map` with
 `forget(path)` and `clear()` and no eviction, and `clearTrees()` has no caller outside the footer's
