@@ -13,9 +13,19 @@
  * when activated. Each surface owns those — the footer opens the source note at
  * that ancestor, zoom re-roots the view on it — and pretending they are the same
  * action would be a worse abstraction than two call sites.
+ *
+ * The marks a segment and a row carry live here too, below the row that draws
+ * them: a segment's marker, its inline glyph, an ordered item's number, a task's
+ * checkbox and the gutter slot they sit in. Rendering a segment's markdown does
+ * NOT — that needs Obsidian's renderer and a `Component` to own its lifetime,
+ * which is the reason `renderSegment` is a hook, and it lives in
+ * `inline-render.ts` where the surfaces build that hook from it.
  */
 
 import type { NodeKind } from '../model';
+import { buildMarkerIcon } from './decorations';
+import { MARKER_LEFT_SHIFT_EXPR } from './chrome-line';
+import { glyph } from './glyph';
 import type { LineageSegment } from './footer-model';
 import type { LineageSeparator, SegmentIcons } from './settings/footer';
 
@@ -173,5 +183,99 @@ export function renderLineageContent(
       event.preventDefault();
       event.stopPropagation();
     });
+  });
+}
+
+/**
+ * A lineage segment's mark, by the same rule `markerFor` applies to a node row:
+ * a task's checkbox and an ordered item's number replace the bullet, because
+ * they are state the reader is looking for rather than presentation (D18).
+ *
+ * `fallbackKind` covers a chain with no elements, which the model does not
+ * produce but the type permits.
+ */
+export function segmentMarker(segment: LineageSegment | undefined, fallbackKind: NodeKind): HTMLElement {
+  if (!segment) return markerSlot(buildMarkerIcon(fallbackKind));
+  if (segment.task !== undefined) return markerSlot(checkboxGlyph(segment.task));
+  if (segment.ordinal) return ordinalMarker(segment.ordinal);
+  return markerSlot(buildMarkerIcon(segment.kind));
+}
+
+/** The same choice as `segmentMarker`, as a bare glyph for an INLINE segment
+ * icon — which sits in the text run and needs no gutter slot around it. An
+ * ordered segment never reaches here: its number is drawn as text instead,
+ * since no fixed-width icon box holds `10.`. */
+export function segmentGlyph(segment: LineageSegment): Element {
+  if (segment.task !== undefined) return checkboxGlyph(segment.task);
+  return buildMarkerIcon(segment.kind);
+}
+
+/**
+ * An ordered item's number, in the marker's place.
+ *
+ * Inline rather than absolute, and sized so its LEFT edge lands on the block
+ * icon's — which is the rule the editor's own ordered markers follow, and for
+ * the reason recorded there: a fixed left edge reads as a column, where centring
+ * each number on its own width leaves `10.` and `100.` ragged and eats the room
+ * the fold chevron needs. A number too wide for the slot grows right and pushes
+ * its own text out, exactly as it does in the editor.
+ */
+export function ordinalMarker(label: string): HTMLElement {
+  return createSpan({ cls: 'to-backlinks-ordinal', text: label });
+}
+
+/** A task's state, drawn where its bullet would be. Not interactive: the footer
+ * is read-only (D2), and a checkbox that looks clickable and is not is worse
+ * than one that does not. */
+export function checkboxGlyph(done: boolean): SVGSVGElement {
+  const box = 'M2.8 2.8h10.4v10.4h-10.4z';
+  return done
+    ? glyph(16, [box, 'M5 8.2l2.4 2.4 4-4.8'], {
+        fill: 'none',
+        stroke: 'currentColor',
+        'stroke-width': '1.6',
+        'stroke-linecap': 'round',
+        'stroke-linejoin': 'round',
+      })
+    : glyph(16, [box], {
+        fill: 'none',
+        stroke: 'currentColor',
+        'stroke-width': '1.6',
+        'stroke-linejoin': 'round',
+      });
+}
+
+/**
+ * A row's marker, built exactly the way the editor builds a plain line's: an
+ * inline `.to-decor-marker-icon` span carrying the shared left shift, sitting
+ * at the start of the row's own text.
+ *
+ * Same class, same shift expression, same inline-flow mechanism — so the icon
+ * lands on `depth * unit`, the column its guide is drawn on, and it aligns to
+ * the row text's own baseline rather than to the row box (the reason the editor
+ * chose inline flow over absolute positioning: a heading's box carries
+ * asymmetric spacing that would pull the icon visibly high).
+ */
+export function markerSlot(icon: Element): HTMLElement {
+  const el = createSpan({ cls: 'to-decor-marker-icon' });
+  el.setCssProps({ '--to-marker-left': MARKER_LEFT_SHIFT_EXPR });
+  // `el` was created on the line above and is not mounted until the caller
+  // attaches the row it belongs to.
+  // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
+  el.appendChild(icon);
+  return el;
+}
+
+/** What stands between two ancestors when the separator setting asks for one.
+ * Exported: zoom's own trail (`zoom-trail.ts`) builds a lineage row through the
+ * same shared primitive and reuses this glyph rather than drawing a second
+ * chevron. */
+export function separatorGlyph(): SVGSVGElement {
+  return glyph(24, ['M9 5l7 7-7 7'], {
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': '2',
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
   });
 }
