@@ -18,7 +18,7 @@ import { showPanel, type EditorView, type Panel } from '@codemirror/view';
 import { StateEffect, StateField, type EditorState, type Extension } from '@codemirror/state';
 import { setIcon } from 'obsidian';
 import { clearFilter, filterCleared, setFilterQuery } from './outline-filter-state';
-import { outlineFilter } from './outline-filter-scope';
+import { outlineFilter, shownMatchCount } from './outline-filter-scope';
 
 export const PANEL_CLASS = 'to-filter-panel';
 /** The field, while the query in it matches nothing (D8). */
@@ -73,7 +73,7 @@ function buildPanel(view: EditorView): Panel {
     input.toggleClass(MISSED_CLASS, filter !== null && !filter.matched);
     if (!filter || filter.query.trim().length === 0) status.textContent = '';
     else if (!filter.matched) status.textContent = 'no matches';
-    else status.textContent = filter.anchors ? countLabel(filter.anchors.length) : '';
+    else status.textContent = filter.anchors ? countLabel(shownMatchCount(view.state)) : '';
   };
   sync();
 

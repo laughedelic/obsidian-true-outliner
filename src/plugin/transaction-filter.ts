@@ -42,7 +42,7 @@ import { REJECTION_MESSAGES } from './messages';
 import { isOutlineMode } from './outline-state';
 import { parsedDoc } from './parsed-doc';
 import { zoomScope } from './zoom-scope';
-import { filterVisibleSpans } from './outline-filter-scope';
+import { shownSpans } from './outline-filter-scope';
 import { crossesHiddenLines, nearestVisibleLine } from './outline-filter-state';
 import type { LineSpan } from '../zoom';
 import { escapesZoom } from './zoom-enforce';
@@ -312,7 +312,7 @@ export function transactionFilterExtension(
 
     if (cls === 'selection-only') {
       // The scope of the state the selection is landing in, not the one it left.
-      const visible = filterVisibleSpans(tr.startState) ?? undefined;
+      const visible = shownSpans(tr.startState) ?? undefined;
       const escalated = escalateSelection(
         outlineDoc,
         tr.startState.doc,

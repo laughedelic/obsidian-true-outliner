@@ -349,3 +349,171 @@ describe('outline filter: the panel and its command', function () {
     expect(await renderedLines()).toContain('- item 1');
   });
 });
+
+/**
+ * A small note for the behavioural half: a match with a path above it, a
+ * sibling subtree to hide, and a second section so a zoom has something to
+ * exclude. The thousand-line fixture above is for the hiding builder; these
+ * cases are about what the filter decides, which reads better at this size.
+ */
+const SMALL = 'Scratch/filter-small.md';
+const SMALL_DOC = [
+  '# Top',
+  '',
+  '## Mid',
+  '',
+  '- alpha',
+  '  - alpha kid',
+  '- zqtarget',
+  '  - target kid',
+  '',
+  '## Other',
+  '',
+  '- zqtarget too',
+  '',
+].join('\n');
+
+async function openSmall(): Promise<void> {
+  await h.createNote(SMALL, SMALL_DOC);
+  await h.openNote(SMALL);
+  await h.setOutlineMode(true);
+  await h.setCursorSettled(0, 1);
+}
+
+describe('outline filter: what the query decides, in a real editor', function () {
+  before(async function () {
+    await obsidianPage.resetVault();
+    await h.resetPluginState();
+    await h.pinPositionIndicatorsOff();
+  });
+
+  afterEach(async function () {
+    await applyFilterQuery(null);
+    await h.runCommand('zoom-clear');
+    await h.dismissNotices();
+  });
+
+  it('a deep match keeps its path and hides every sibling', async function () {
+    await openSmall();
+    await applyFilterQuery('zqtarget');
+    await browser.pause(200);
+    // Both matches, each with the heading path that leads to it, and neither
+    // `- alpha` nor any child.
+    expect(await renderedLines()).toEqual([
+      '# Top',
+      '## Mid',
+      '- zqtarget',
+      '## Other',
+      '- zqtarget too',
+    ]);
+  });
+
+  it('editing the query out of a match keeps it visible', async function () {
+    await openSmall();
+    await applyFilterQuery('zqtarget');
+    await browser.pause(200);
+    await h.setCursorSettled(6, 10);
+    await browser.keys(['Backspace', 'Backspace']);
+    await browser.pause(200);
+    expect(await renderedLines()).toContain('- zqtarg');
+  });
+
+  it('Enter at the end of a visible match makes a visible node', async function () {
+    await openSmall();
+    await applyFilterQuery('zqtarget');
+    await browser.pause(200);
+    await h.setCursorSettled(6, 10);
+    await browser.keys(['End', 'Enter']);
+    await h.setBuffer(await h.getBuffer());
+    await browser.pause(200);
+    const cursor = await h.getCursor();
+    // Whatever the new node is, the caret is on a line the view draws.
+    expect(await renderedLines()).toContain((await h.getBuffer()).split('\n')[cursor.line]);
+  });
+
+  it('re-running the query re-decides from the document as it then is', async function () {
+    await openSmall();
+    await applyFilterQuery('zqtarget');
+    await browser.pause(200);
+    await h.setCursorSettled(6, 10);
+    await browser.keys(['Backspace', 'Backspace']);
+    await browser.pause(150);
+    expect(await renderedLines()).toContain('- zqtarg');
+
+    await applyFilterQuery('zqtargetx');
+    await applyFilterQuery('zqtarget');
+    await browser.pause(200);
+    expect(await renderedLines()).not.toContain('- zqtarg');
+  });
+});
+
+describe('outline filter: composed with a zoom', function () {
+  before(async function () {
+    await obsidianPage.resetVault();
+    await h.resetPluginState();
+    await h.pinPositionIndicatorsOff();
+  });
+
+  afterEach(async function () {
+    await applyFilterQuery(null);
+    await h.runCommand('zoom-clear');
+    await h.dismissNotices();
+  });
+
+  it('a filter inside a zoom shows only the matches within the scope', async function () {
+    await openSmall();
+    // Zoom to `## Mid`, whose subtree holds one of the two matches.
+    await h.setCursorSettled(2, 3);
+    await h.runCommand('zoom-in');
+    await browser.pause(200);
+
+    await applyFilterQuery('zqtarget');
+    await browser.pause(200);
+    const rendered = await renderedLines();
+    expect(rendered).toContain('- zqtarget');
+    expect(rendered).not.toContain('- zqtarget too');
+    expect(rendered).not.toContain('## Other');
+  });
+
+  it('zooming while filtered keeps the filter', async function () {
+    await openSmall();
+    await applyFilterQuery('zqtarget');
+    await browser.pause(200);
+    await h.setCursorSettled(2, 3);
+    await h.runCommand('zoom-in');
+    await browser.pause(200);
+
+    const rendered = await renderedLines();
+    expect(rendered).toContain('- zqtarget');
+    expect(rendered).not.toContain('- alpha');
+    expect(rendered).not.toContain('- zqtarget too');
+  });
+
+  it('clearing the filter leaves the zoom as it was', async function () {
+    await openSmall();
+    await h.setCursorSettled(2, 3);
+    await h.runCommand('zoom-in');
+    await applyFilterQuery('zqtarget');
+    await browser.pause(200);
+    await applyFilterQuery(null);
+    await browser.pause(200);
+
+    const rendered = await renderedLines();
+    // The scope renders whole, and nothing outside it comes back.
+    expect(rendered).toContain('- alpha');
+    expect(rendered).not.toContain('## Other');
+  });
+
+  it('zooming out brings back the matches the scope excluded', async function () {
+    await openSmall();
+    await h.setCursorSettled(2, 3);
+    await h.runCommand('zoom-in');
+    await applyFilterQuery('zqtarget');
+    await browser.pause(200);
+    expect(await renderedLines()).not.toContain('- zqtarget too');
+
+    await h.runCommand('zoom-clear');
+    await browser.pause(200);
+    expect(await renderedLines()).toContain('- zqtarget too');
+  });
+});
