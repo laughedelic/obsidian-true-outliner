@@ -1,9 +1,8 @@
 # Stack surgery
 
-Reference for the operations that move a stack. A session working on one layer runs none of
-them — it owns one branch: commit, push, report. These commands rewrite branches other sessions
-are sitting on and take a lock in the shared git directory, so they run in one place, from the
-primary checkout.
+Reference for the operations that move a stack. They rewrite branches other sessions are sitting
+on and take a lock in the shared git directory, so they run from the primary checkout rather than
+from a session working on a layer.
 
 Stacks are GitHub's native stacked PRs, driven by the `gh stack` extension
 (`gh extension install github/gh-stack`). A stacked PR targets the branch below it instead of
@@ -46,11 +45,13 @@ the trunk with more than one recorded. `unpark` refuses in turn if a parked work
 up changes or commits meanwhile — those sit on a detached HEAD, and restoring over them would
 strand them.
 
+## Opening the PRs
+
+Only `gh stack submit --auto` opens drafts; the interactive editor defaults to ready for review.
+`--auto` also auto-generates titles, so the real title and description follow with `gh pr edit`.
+
 ## Landing
 
 `gh stack merge --yes --squash` squash-merges every layer in one all-or-nothing operation, so
 nothing is restacked between merges. Merging the bottom layer alone to release it costs a restack
 of every layer above — one more reason independent work does not belong in a stack.
-
-Only `gh stack submit --auto` opens drafts; the interactive editor defaults to ready for review.
-`--auto` also auto-generates titles, so the real title and description follow with `gh pr edit`.

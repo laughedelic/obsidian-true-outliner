@@ -36,6 +36,8 @@ apt-get install -y --no-install-recommends \
 # Bakes the Obsidian app and installer into the snapshot, outside any clone.
 npm install -g obsidian-launcher || true
 obsidian-launcher download desktop -c /opt/obsidian-cache || true
+# The harness writes into this cache at run time, as whatever user the session is.
+chmod -R a+rwX /opt/obsidian-cache || true
 ```
 
 A setup script that exits non-zero fails the session, hence the `|| true` throughout, and one
@@ -60,9 +62,19 @@ out of a shared repository while still making a cloud session's commits ours.
 
 ## Running the suites
 
-`npm run test:e2e:narrow -- <spec>` works as-is once the VM carries the packages above. No
-`xvfb-run` wrapper is needed, unlike CI: `@wdio/local-runner` starts Xvfb itself when `DISPLAY`
-is unset, though it installs nothing.
+`@wdio/local-runner` does bring up a display of its own when `DISPLAY` is unset, but it does so by
+shelling out to `xvfb-run --auto-servernum` — the wrapper whose readiness handshake hung
+indefinitely in our Linux container, with Xvfb up and the wrapped command never launched
+(`e2e/docker/start-xvfb-and-run.sh`). Rather than re-litigate that on a cloud VM, reuse the
+starter that already avoids it: plain POSIX sh, assuming nothing about a container.
+
+```bash
+sh e2e/docker/start-xvfb-and-run.sh npm run test:e2e:narrow -- <spec>
+```
+
+It polls for the X socket, exports `DISPLAY`, then hands over — which also makes the launcher's
+own auto-management a no-op, since that only acts when `DISPLAY` is unset. It installs nothing,
+which is what the packages above are for.
 
 Two limits shape what a cloud run is good for. `E2E_MAX_INSTANCES` belongs at 2 against the VM's
 4 vCPUs, and it is not only a speed knob — `waitBudget` in `e2e/helpers.ts` widens the harness

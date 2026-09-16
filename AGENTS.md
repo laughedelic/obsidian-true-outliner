@@ -12,11 +12,9 @@ part of a stack:
 gh pr list --state open --json number,headRefName,baseRefName,isDraft
 ```
 
-**Stack only what depends on the layer below.** A stack encodes a dependency order and charges
-for it: every layer above a moved one is rewritten, and each layer bumps the version, so
-`manifest.json`, `versions.json` and `package.json` conflict on every restack. Unrelated work
-pays that toll for nothing, repeatedly. The test is mechanical, and settles it before the branch
-exists:
+**Stack only what depends on the layer below.** Every layer above a moved one is rewritten, and
+each layer bumps the version, so `manifest.json`, `versions.json` and `package.json` conflict on
+every restack. The test is mechanical, and settles it before the branch exists:
 
 ```bash
 git diff --name-only main...<candidate-base>
@@ -26,14 +24,17 @@ Overlapping files, or code that reads what the other branch adds, means stack it
 branch off `main`, where it merges and releases on its own schedule. Prefer short stacks — two or
 three layers that are genuinely one unit of work. Offer the reading; let the user decide.
 
-**A session working on a layer owns one branch: commit, push, report.** Stack surgery — adopting,
-restacking, parking worktrees, landing a stack — rewrites branches other sessions are sitting on,
-so it happens in one place, from the primary checkout: [`docs/pr-stacks.md`](docs/pr-stacks.md).
+**Stack surgery runs from the primary checkout** — adopting a stack, opening and updating its PRs
+with `gh stack submit`, restacking after the trunk moves, parking worktrees, landing the stack
+whole: [`docs/pr-stacks.md`](docs/pr-stacks.md) carries all of it. It rewrites branches other
+sessions are sitting on, so a session working on a layer leaves it alone and owns one branch:
+commit, push, report.
 
 A layer reported as *diverged from origin by N and M commits* is sitting on commits that a
-restack below it replaced. The remote is authoritative there, and merging the layer below "to
-update the base" destroys the linear history the stack exists to keep — which survives into
-`main`, because the whole stack squash-merges.
+restack below it replaced. The remote is authoritative there: reset to it, and leave moving the
+layer itself to `gh stack rebase` from the primary checkout. Merging the layer below "to update
+the base" resolves the divergence and destroys the linear history the stack exists to keep —
+which survives into `main`, because the whole stack squash-merges.
 
 ```bash
 git fetch origin && git reset --hard origin/<branch>   # no unpushed commits
@@ -79,8 +80,7 @@ nothing to gain by skipping those steps.
 `npm run test:e2e[:mobile]` runs a whole group (`--group <name>`) or the whole suite: a final
 check before a checkpoint, not a per-edit loop.
 
-Every run overwrites `.obsidian-cache/e2e-summary.json` with what failed, so finding out costs no
-scrolling and no narrower re-run:
+Every run overwrites `.obsidian-cache/e2e-summary.json` with what failed:
 
 ```bash
 jq '.failures' .obsidian-cache/e2e-summary.json
@@ -100,8 +100,9 @@ branch other than `main`, and `scripts/beta-cleanup.mjs` drops them again as the
 The version is stamped into the built `manifest.json` only; committing it would move the file
 that triggers the release workflow.
 
-BRAT tracking "latest" takes the highest prerelease across every branch, so keep one branch at a
-time on beta, or pin BRAT to a specific version.
+On the phone, BRAT → *Add beta plugin* → `laughedelic/obsidian-true-outliner`, then *Check for
+updates* after each push. BRAT tracking "latest" takes the highest prerelease across every
+branch, so keep one branch at a time on beta, or pin BRAT to a specific version.
 
 ## Conventions
 
@@ -124,8 +125,7 @@ time on beta, or pin BRAT to a specific version.
   `settings.ts`'s list of slices, which changes when a feature area is added, not when a setting
   is.
 - **A feature's e2e helpers live beside its specs**, imported by name — `e2e/footer.ts`,
-  `e2e/folding.ts`. `e2e/helpers.ts` keeps what every spec reaches for: the buffer, the caret, the
-  pointer, the vault, commands, notices, keys.
+  `e2e/folding.ts`. `e2e/helpers.ts` keeps only what every spec reaches for.
 - **A feature's CSS goes in its own part under `styles/`**, taking the next filename prefix; the
   root `styles.css` is a build output, so a new feature edits no shared file. Rules the editor and
   the footer share stay in `10-editor.css`, as its comments say.
