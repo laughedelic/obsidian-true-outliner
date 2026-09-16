@@ -16,17 +16,25 @@
 
 ## 2. The shared renderer
 
-- [ ] 2.1 Move the segment-level helpers down into `src/plugin/lineage-row.ts` (design D2):
-      `renderInline`, `unwrapBlocks`, `segmentGlyph`, `separatorGlyph`, `segmentMarker` and the
-      `markerSlot` / `ordinalMarker` / `checkboxGlyph` primitives beneath them; repoint
-      `zoom-trail.ts`'s three imports at it. Verify `npm run test:e2e:narrow -- 80-outline-zoom`
-      passes unchanged
+- [ ] 2.1 Split the segment level out of `backlinks-footer.ts` into its two homes (design D2):
+      `segmentGlyph`, `separatorGlyph`, `segmentMarker` and the `markerSlot` / `ordinalMarker` /
+      `checkboxGlyph` primitives to `src/plugin/lineage-row.ts`; `renderInline` with
+      `unwrapBlocks`, `decodeEntities`, `withoutEmbeds` and `dropMedia` to a new
+      `src/plugin/inline-render.ts`. Repoint `zoom-trail.ts`'s three imports across the two.
+      Verify `npm run test:e2e:narrow -- 80-outline-zoom` passes unchanged, and that
+      `lineage-row.ts` imports neither `obsidian` nor a `Component`
 - [ ] 2.2 Create `src/plugin/lineage-list.ts` and move into it the footer's list level — the group
       head, the row renderer, `markerFor` and the match-marking walk — parameterised by the
       per-surface options in design D2, calling down into `lineage-row.ts` for the rest; make the
       footer call it. Verify `npm run test:e2e:narrow -- 73-footer-render`,
       `74-footer-chrome-pass` and `79-footer-appearance` pass unchanged
-- [ ] 2.3 Add the `descendantDepth` option to `buildRows` (design D3), defaulting to the
+- [ ] 2.3 Rename the classes the shared renderer emits from `to-backlinks-*` to `to-lineage-*`
+      (design D2) — `lineage-row.ts`'s own strings, `lineage-list.ts`'s rows and group head, their
+      rules, and the e2e selectors that read them. Verify the whole `backlinks` group and
+      `80-outline-zoom` pass unchanged. Negative control: leave one shared class behind and
+      confirm the check in 4.6 names it
+
+- [ ] 2.4 Add the `descendantDepth` option to `buildRows` (design D3), defaulting to the
       footer's level; verify `tests/footer-model.test.ts` gains a case where zero emits no
       descendant rows and no fold counts, and one over a hit nested under a non-matching ancestor
       where that ancestor still has a row of its own. Negative control: keep the footer's depth
@@ -69,20 +77,24 @@
       re-running the query, and the input-row control doing the same in both scopes (design D7);
       verify manually and in 5.1
 - [ ] 4.4 Implement landing on a hit through the registry (design D6): take the leaf with
-      `getLeaf(newLeaf)` and open the file on it rather than reading back the active view, caret,
-      scroll,
+      `getLeaf(newLeaf)` and open the file on it rather than reading back the active view, wait a
+      bounded number of frames for the registry to carry that view before giving up on the zoom,
+      caret, scroll,
       zoom root chosen by the leaf rule and withheld when a childless hit has no parent, gated on
       outline mode; Shift and the new-tab modifier
       variants; the palette closes. Verify `grep -n "as any\|\.cm\b" src/plugin/search-palette.ts`
-      is empty and 5.1 passes
+      is empty and 5.1 passes. Negative control: take the registry lookup once instead of waiting
+      and confirm the new-tab zoom test fails
 - [ ] 4.5 Register the "Search outline" command in `src/plugin/main.ts` with a plain `callback` so it is
       available in every view; verify the command is offered with outline mode off
-- [ ] 4.6 Styles: split `styles/20-backlinks-footer.css` so the row rules, the group head's rules
-      (`.to-backlinks-group`, its head, name, folder, count and chevron, and `--to-group-inset`)
-      and the custom properties sit under the shared `to-lineage-list` scope in
-      `styles/15-lineage-list.css`, leaving `.to-backlinks` the footer's placement under a note
-      and its `white-space: normal`, which undoes the CodeMirror `pre-wrap` a block widget
-      inherits and means nothing in a modal (design D2). Then `styles/70-search-palette.css`: the
+- [ ] 4.6 Styles: move the renamed row rules, the group head's rules (the group, its head, name,
+      folder, count and chevron, and `--to-group-inset`) and the custom properties into
+      `styles/15-lineage-list.css` under the shared `to-lineage-list` scope, leaving
+      `styles/20-backlinks-footer.css` the footer's own — its placement under a note, its
+      `white-space: normal`, which undoes the CodeMirror `pre-wrap` a block widget inherits and
+      means nothing in a modal, its heading and its controls (design D2). Add the check that keeps
+      it true: no `to-lineage-*` selector in the footer's part, and no `to-backlinks-*` selector in
+      the shared one, as a case in `tests/styles.test.ts` beside the brace check. Then `styles/70-search-palette.css`: the
       shell, the hit-only active state, the scope control, and the palette's own `container-type`
       with the query that hides the hints. Verify on the desktop and mobile e2e configs by
       screenshot
@@ -101,7 +113,8 @@
       a group arriving does not move the active hit; groups arrive most-recently-modified first;
       the active hit scrolls into view; the palette says nothing about matches until the sweep
       finishes, and says so after; below the floor it shows the hints; the new-tab modifier leaves
-      the previous tab as it was; a fence hit shows the matching line marked; opening from the
+      the previous tab as it was and zooms in the tab it opens, on a note not yet loaded; a fence
+      hit shows the matching line marked; opening from the
       graph view offers no scope control; the group cap's tail states the remainder. Negative controls: for the zoom tests, disable
       the `zoomTo` dispatch; for the stale-results test, drop the generation guard; for the cap
       test, stop counting past the cap

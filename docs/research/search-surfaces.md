@@ -297,7 +297,9 @@ two are one surface with two data sources. Not planned further here.
 **Later layers**, in no committed order, parked here rather than in new changes: fuzziness with
 quoted exact terms and `-` exclusion; an ancestor operator (`A > B`); ranking; unfolding a hit's
 children in the palette; RemNote's Tab-to-descend into a hit's subtree; the `obsidian://search`
-hand-off command for anyone who wants core's operators.
+hand-off command for anyone who wants core's operators; suppressing a lineage segment that repeats
+the note's own name, which the footer does today and the palette inherits — a rule for the shared
+renderer, wherever it is taken up, rather than for one surface.
 
 ## Open questions
 
