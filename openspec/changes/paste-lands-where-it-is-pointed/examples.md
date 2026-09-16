@@ -302,9 +302,55 @@ h1: # One
       paragraph: more
 ```
 
-The enclosing heading's next sibling is shallower than any level the payload can be re-levelled
-to, so it ends the inserted section. The exception is the root of a note with no headings, where
+The payload re-levels from the destination's own heading SIBLINGS, so it lands level with them
+and the next one ends its section. The exception is the root of a note with no headings, where
 there is no scope end and the whole remainder is absorbed — design D3's recorded risk.
+
+### C3a — Why the bound is read off the SIBLINGS, not the parent
+
+This frame is the one an independent review round produced, against the argument C3 first made:
+that the enclosing heading's next sibling is shallower than anything the payload can re-level to.
+That holds only where the scope's own headings do not skip a level.
+
+```
+# One
+
+### Three
+
+prose|
+
+### Four
+
+more
+```
+
+Pasting `## Notes` / `body` after `### Three` — **with the level taken from the parent**, which is
+what the code did until the review:
+
+```tree
+h1: # One
+  h3: ### Three
+    paragraph: prose
+  h2: ## Notes              <- h1 + 1, shallower than the siblings it landed among
+    paragraph: body
+    h3: ### Four            <- absorbed
+      paragraph: more
+```
+
+With the level taken from the destination's heading siblings, which is what it does now:
+
+```tree
+h1: # One
+  h3: ### Three
+    paragraph: prose
+  h3: ### Notes             <- level with `### Three` and `### Four`
+    paragraph: body
+  h3: ### Four              <- outside the pasted section
+    paragraph: more
+```
+
+The content regime already took its encoding from its neighbours rather than its parent. The
+heading regime had no reason to differ, and differing is what made the bound false.
 
 ### C4 — When the next sibling is a heading, nothing is absorbed *(unchanged)*
 
