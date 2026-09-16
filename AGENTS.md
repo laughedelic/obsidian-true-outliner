@@ -183,7 +183,8 @@ and hand-cut release candidates are out of reach.
   ("as we found above"). Applies to specs, proposals, PR descriptions, `docs/`, and comments.
 - **Comments explain, never advocate.** No measurements, no restating the code, no arguing for a
   choice already made.
-- **No agent attribution trailers** in commit messages or PR descriptions.
+- **No agent attribution trailers** in commit messages or PR descriptions — `.claude/settings.json`
+  enforces this for Claude Code wherever a session runs.
 - **Deferred ideas go to the parking lots** under `docs/research/`, not into new OpenSpec changes.
 - **Read the relevant `docs/research/` notes before touching decorations, selection, or CM6
   extensions.** They exist so a diagnosis is not paid for twice.
@@ -216,9 +217,31 @@ has them. Regenerate with `openspec update`, which rewrites the real tree and le
 symlinks alone; never edit a skill by hand. The generated slash-command files under
 `.claude/commands/` and `.github/prompts/` are gitignored.
 
-`.claude/hooks/session-start.sh` prepares a remote container — the commit identity, so a cloud
-session's commits are ours rather than the agent's, and `npm install`. It is a no-op outside a
-remote session (`CLAUDE_CODE_REMOTE`), where the global identity already applies.
+`scripts/agent-setup.sh` is the one list of what an agent session needs — the project's
+dependencies, the OpenSpec CLI, the `gh-stack` extension. Claude Code runs it from the
+`SessionStart` hook in `.claude/settings.json`, and Copilot's `copilot-setup-steps.yml` runs it
+with `--install`; adding a tool means editing that script and nothing else. Every check is
+idempotent, so an environment that already has a tool falls straight through.
+
+It installs only where installing is free: `--install`, or a cloud session, which sets
+`CLAUDE_CODE_REMOTE`. `npm ci` deletes `node_modules` and a global npm install writes to the
+machine, neither of which a local checkout asked for. Elsewhere it reports instead, on stdout,
+which `SessionStart` turns into the agent's context — so a session missing a tool knows before a
+command fails halfway through a task.
+
+A Claude cloud environment also has a setup script of its own, configured in the environment
+dialog at claude.ai/code rather than here: it provisions a VM that is shared across repositories
+and reused as a filesystem snapshot, so it never sees a clone. Ours installs the same OpenSpec
+CLI and `gh-stack` ahead of time, which keeps a cold session fast; because `scripts/agent-setup.sh`
+fills whatever is missing, the two cannot drift into a broken session. The same dialog's
+environment variables carry the commit identity — `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`,
+`GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL` — so a cloud session's commits are ours without a
+name hardcoded in the repository.
+
+`.claude/settings.json` also sets `attribution`: empty `commit` and `pr` strings, and
+`sessionUrl: false`. That is what enforces "no agent attribution trailers" for Claude Code in
+every environment, cloud included, since the repository's settings are part of the clone while
+`~/.claude/settings.json` stays on the machine.
 
 `openspec/config.yaml` carries the project context plus the rules and guidance injected into
 OpenSpec's own workflows — put anything OpenSpec can reach there rather than here.

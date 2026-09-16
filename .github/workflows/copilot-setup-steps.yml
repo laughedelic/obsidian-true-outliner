@@ -11,9 +11,11 @@ on:
   push:
     paths:
       - .github/workflows/copilot-setup-steps.yml
+      - scripts/agent-setup.sh
   pull_request:
     paths:
       - .github/workflows/copilot-setup-steps.yml
+      - scripts/agent-setup.sh
 
 jobs:
   # The job MUST be called `copilot-setup-steps` for Copilot coding agent to pick it up.
@@ -36,11 +38,11 @@ jobs:
           node-version: "26"
           cache: npm
 
-      - name: Install project dependencies
-        run: npm ci
-
-      - name: Install OpenSpec CLI
-        run: npm install -g @fission-ai/openspec
-
-      - name: Verify OpenSpec CLI
-        run: openspec --version
+      # The same bootstrap the SessionStart hook runs, so a Copilot run and a
+      # Claude session agree on what a session needs without two lists to keep
+      # in step. `gh extension install` reaches the GitHub API, which a workflow
+      # only reaches with a token.
+      - name: Install agent tooling and project dependencies
+        run: bash scripts/agent-setup.sh --install
+        env:
+          GH_TOKEN: ${{ github.token }}
