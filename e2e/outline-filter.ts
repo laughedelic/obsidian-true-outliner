@@ -137,3 +137,59 @@ export function filterReport(): Promise<{
     ({ plugins }) => (plugins.trueOutliner as any).activeFilter(),
   );
 }
+
+/** Is the filter panel mounted, and what does it say? */
+export function panelState(): Promise<{
+  open: boolean;
+  query: string;
+  status: string;
+  missed: boolean;
+  focused: boolean;
+} | null> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    const panel = view?.containerEl.querySelector('.to-filter-panel') as HTMLElement | null;
+    if (!panel) return { open: false, query: '', status: '', missed: false, focused: false };
+    const input = panel.querySelector('.to-filter-input') as HTMLInputElement | null;
+    return {
+      open: true,
+      query: input?.value ?? '',
+      status: panel.querySelector('.to-filter-status')?.textContent ?? '',
+      missed: !!input?.classList.contains('is-missed'),
+      focused: document.activeElement === input,
+    };
+  });
+}
+
+/** Type into the panel's field the way a reader does, one input event. */
+export function typeInPanel(text: string): Promise<void> {
+  return browser.executeObsidian(({ app, obsidian }, value) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    const input = view?.containerEl.querySelector('.to-filter-input') as HTMLInputElement | null;
+    if (!input) throw new Error('no filter panel');
+    input.value = value;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }, text);
+}
+
+/** Press the panel's own close control. */
+export function clickPanelClose(): Promise<void> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    const close = view?.containerEl.querySelector('.to-filter-close') as HTMLElement | null;
+    close?.click();
+  });
+}
+
+/** The text of every match mark the editor is drawing. */
+export function markedTexts(): Promise<string[]> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    if (!view) throw new Error('no active markdown view');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cm = (view.editor as any).cm;
+    return Array.from(cm.contentDOM.querySelectorAll('mark.to-match')).map(
+      (el) => (el as HTMLElement).textContent ?? '',
+    );
+  });
+}

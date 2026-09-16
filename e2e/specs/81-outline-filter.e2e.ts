@@ -25,9 +25,13 @@ import * as h from '../helpers.js';
 import {
   applyFilterQuery,
   chromeVisible,
+  clickPanelClose,
   filterReport,
   lineChromeFor,
+  markedTexts,
+  panelState,
   renderedLines,
+  typeInPanel,
 } from '../outline-filter.js';
 
 const NOTE = 'Scratch/filter-probe.md';
@@ -257,5 +261,91 @@ describe('outline filter: many visible spans through the hiding builder', functi
     await applyFilterQuery(null);
     await h.saveActiveFile();
     expect(await h.readVaultFile(NOTE)).toEqual(before);
+  });
+});
+
+describe('outline filter: the panel and its command', function () {
+  before(async function () {
+    await obsidianPage.resetVault();
+    await h.resetPluginState();
+    await h.pinPositionIndicatorsOff();
+  });
+
+  afterEach(async function () {
+    await applyFilterQuery(null);
+    await h.dismissNotices();
+  });
+
+  it('the command is absent outside outline mode', async function () {
+    await h.createNote(NOTE, DOC.join('\n'));
+    await h.openNote(NOTE);
+    await h.setOutlineMode(false);
+    expect(await h.commandAvailable('filter-outline')).toBe(false);
+    await h.setOutlineMode(true);
+    expect(await h.commandAvailable('filter-outline')).toBe(true);
+  });
+
+  it('opens with the field focused and nothing filtered yet', async function () {
+    await openProbe();
+    await h.runCommand('filter-outline');
+    await browser.pause(200);
+    expect(await panelState()).toMatchObject({ open: true, query: '', status: '', focused: true });
+    // Nothing typed, so nothing hidden.
+    expect(await renderedLines()).toContain('- item 1');
+  });
+
+  it('typing filters the note and the panel counts what it found', async function () {
+    await openProbe();
+    await h.runCommand('filter-outline');
+    await browser.pause(150);
+    await typeInPanel(TOKEN);
+    await browser.pause(200);
+
+    expect(await panelState()).toMatchObject({ query: TOKEN, status: `${ISLANDS} matches` });
+    expect(await renderedLines()).not.toContain('- item 1');
+    expect((await markedTexts()).every((text) => text === TOKEN)).toBe(true);
+  });
+
+  it('the field says so when the query stops matching, and the view holds', async function () {
+    await openProbe();
+    await h.runCommand('filter-outline');
+    await browser.pause(150);
+    await typeInPanel(TOKEN);
+    await browser.pause(200);
+    const held = await renderedLines();
+
+    await typeInPanel(`${TOKEN}x`);
+    await browser.pause(200);
+    expect(await panelState()).toMatchObject({ missed: true, status: 'no matches' });
+    expect(await renderedLines()).toEqual(held);
+    // The marks stay the standing query's, since the view is its answer.
+    expect((await markedTexts()).every((text) => text === TOKEN)).toBe(true);
+  });
+
+  it('the command toggles the panel shut, restoring the note', async function () {
+    await openProbe();
+    await h.runCommand('filter-outline');
+    await browser.pause(150);
+    await typeInPanel(TOKEN);
+    await browser.pause(200);
+
+    await h.runCommand('filter-outline');
+    await browser.pause(200);
+    expect((await panelState())?.open).toBe(false);
+    expect(await renderedLines()).toContain('- item 1');
+    expect(await markedTexts()).toEqual([]);
+  });
+
+  it('the close control puts it away too', async function () {
+    await openProbe();
+    await h.runCommand('filter-outline');
+    await browser.pause(150);
+    await typeInPanel(TOKEN);
+    await browser.pause(200);
+
+    await clickPanelClose();
+    await browser.pause(200);
+    expect((await panelState())?.open).toBe(false);
+    expect(await renderedLines()).toContain('- item 1');
   });
 });
