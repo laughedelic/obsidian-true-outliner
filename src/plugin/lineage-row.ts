@@ -25,7 +25,7 @@
 import type { NodeKind } from '../model';
 import { buildMarkerIcon } from './decorations';
 import { MARKER_LEFT_SHIFT_EXPR } from './chrome-line';
-import { glyph } from './glyph';
+import { glyph } from './chrome-controls';
 import type { LineageSegment } from './footer-model';
 import type { LineageSeparator, SegmentIcons } from './settings/footer';
 

@@ -14,6 +14,7 @@
  */
 
 import { MarkdownRenderer, type App, type Component } from 'obsidian';
+import { matchRanges } from '../search';
 import type { RowRender } from './footer-model';
 
 /**
@@ -192,5 +193,59 @@ function trimEdgeWhitespace(el: HTMLElement): void {
   const first = el.firstChild;
   if (first?.nodeType === Node.TEXT_NODE) {
     first.textContent = (first.textContent ?? '').replace(/^\s+/, '');
+  }
+}
+
+/** The class the term's own marks carry, so a stylesheet rule can tell them
+ * from an author's `==highlight==`, which renders as a bare `<mark>`. */
+export const MATCH_MARK_CLASS = 'to-match';
+
+/**
+ * Every occurrence of `query` in a rendered row, wrapped in a `<mark>`.
+ *
+ * On the RENDERED element, never on the markdown that produced it. A row's
+ * content is Obsidian's output — links, code spans, formatting — and rewriting
+ * the source string to insert a tag would break whatever the term happened to
+ * land inside: a term matching part of a link target would cut the link in two.
+ * Walking text nodes reaches exactly the characters a reader can see and
+ * nothing else, so the row's links, its layout and its text all survive.
+ *
+ * Text nodes are collected before any is replaced. Splitting one while the
+ * walker is still traversing inserts the new nodes into what it is walking, and
+ * the walker then marks the fragment it has just produced.
+ */
+export function markMatches(el: HTMLElement, query: string): void {
+  const term = query.trim();
+  if (term.length === 0) return;
+
+  const walker = el.doc.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  const texts: Text[] = [];
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) texts.push(node as Text);
+
+  for (const text of texts) {
+    const value = text.data;
+    // WHERE the term occurs is `search.ts`'s answer, by the same rule that
+    // admitted the row. This function only cuts the text node up around it.
+    const ranges = matchRanges(value, term);
+    if (ranges.length === 0) continue;
+    // Assembled in a DocumentFragment — detached until `replaceWith` puts it
+    // where the text node was, so nothing is appended into mounted DOM here and
+    // the guard's CM6 feedback loop cannot apply. The one mounted mutation is
+    // the replacement itself, which swaps a node for its own split-up self.
+    const frag = createFragment();
+    let last = 0;
+    for (const { from, to } of ranges) {
+      // eslint-disable-next-line no-restricted-syntax -- detached fragment
+      frag.append(value.slice(last, from));
+      // The MATCHED text, not the query: the two differ in case, and showing
+      // the reader their own typing in place of the note's words would be a
+      // rewrite rather than a highlight.
+      // eslint-disable-next-line no-restricted-syntax -- detached fragment
+      frag.append(createEl('mark', { cls: MATCH_MARK_CLASS, text: value.slice(from, to) }));
+      last = to;
+    }
+    // eslint-disable-next-line no-restricted-syntax -- detached fragment
+    frag.append(value.slice(last));
+    text.replaceWith(frag);
   }
 }

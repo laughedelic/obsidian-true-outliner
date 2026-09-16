@@ -16,17 +16,19 @@
 
 ## 2. The shared renderer
 
-- [ ] 2.1 Split the segment level out of `backlinks-footer.ts` into its two homes (design D2):
+- [x] 2.1 Split the segment level out of `backlinks-footer.ts` into its homes (design D2):
       `segmentGlyph`, `separatorGlyph`, `segmentMarker` and the `markerSlot` / `ordinalMarker` /
       `checkboxGlyph` primitives to `src/plugin/lineage-row.ts`; `renderInline` with
-      `unwrapBlocks`, `decodeEntities`, `withoutEmbeds` and `dropMedia` to a new
-      `src/plugin/inline-render.ts`. Repoint `zoom-trail.ts`'s three imports across the two.
+      `unwrapBlocks`, `decodeEntities`, `withoutEmbeds`, `dropMedia` and the match-marking walk to
+      a new `src/plugin/inline-render.ts`; `glyph()` and the disclosure to a new
+      `src/plugin/chrome-controls.ts`. Repoint `zoom-trail.ts`'s three imports across them.
       Verify `npm run test:e2e:narrow -- 80-outline-zoom` passes unchanged, and that
       `lineage-row.ts` imports neither `obsidian` nor a `Component`
 - [ ] 2.2 Create `src/plugin/lineage-list.ts` and move into it the footer's list level — the group
       head, the row renderer, `markerFor` and the match-marking walk — parameterised by the
-      per-surface options in design D2, calling down into `lineage-row.ts` for the rest; make the
-      footer call it. Verify `npm run test:e2e:narrow -- 73-footer-render`,
+      per-surface options in design D2, calling down into `lineage-row.ts` for the rest, and
+      returning the row element so a caller can put its own role on it; make the footer call it
+      through one `listOptions()`. Verify `npm run test:e2e:narrow -- 73-footer-render`,
       `74-footer-chrome-pass` and `79-footer-appearance` pass unchanged
 - [ ] 2.3 Rename the classes the shared renderer emits from `to-backlinks-*` to `to-lineage-*`
       (design D2) — `lineage-row.ts`'s own strings, `lineage-list.ts`'s rows and group head, their

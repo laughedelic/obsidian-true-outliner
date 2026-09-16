@@ -55,9 +55,16 @@ trail both render through; what it deliberately left with each surface is the ro
 chrome, and what a segment does when activated. This change takes the level above it.
 
 `src/plugin/lineage-list.ts` receives what the prototype duplicated from the footer and is about
-a LIST of rows: the group head, `renderRow` for the three row types, `markerFor`, and the
-match-marking walk from `search-hits-and-footer-content-filter`. Its callers are the footer and
-the palette; the trail is not one, because it draws a single chain rather than a list of rows.
+a LIST of rows: the group head, `renderRow` for the three row types, and `markerFor`. Its callers
+are the footer and the palette; the trail is not one, because it draws a single chain rather than
+a list of rows.
+
+The match-marking walk from `search-hits-and-footer-content-filter` is not among them, though an
+earlier reading put it here. Every one of its three call sites marks the element `renderInline`
+has just filled, on the line after the call — it is a pass over rendered inline content, not
+anything a list knows about — so `markMatches` and `MATCH_MARK_CLASS` go to `inline-render.ts`
+beside the renderer they always follow.
+
 What differs per surface is passed as options, and there are more of them than the three the
 shape suggests: `FooterController.renderRow` reaches for the guide settings, the `App`, the owning
 `Component`, the active term, the expanded-rows state, the re-render that a fold toggle triggers
@@ -76,15 +83,25 @@ trail already calls. That module gains its first runtime import along with them 
 `buildMarkerIcon` from `decorations.ts`, the SVG builder the editor and the footer already share —
 which is a dependency on a drawing function, not on the renderer its header declines to own.
 
-`renderInline` cannot follow. `lineage-row.ts` imports only types today, and its header says why:
-rendering markdown needs Obsidian's renderer and a `Component` to own its lifetime, "and neither
-belongs to a function that draws a row" — which is the whole reason each surface passes its own
-`renderSegment` hook rather than its markdown. `renderInline` takes an `App` and a `Component` and
+Two shared pieces are left over, and they are one control rather than two: the disclosure a group
+head draws, which is a chevron plus the role, the label and the `aria-expanded` that make it
+operable. The footer draws one on its own heading and the list draws one on every group head, so
+neither module can own it; it goes to `src/plugin/chrome-controls.ts` with `glyph()`, the SVG
+builder both reach for and fifteen footer-only glyphs reach for too.
+
+`renderInline` cannot follow the marks down. `lineage-row.ts` imports only types today, and its
+header says why: rendering markdown needs Obsidian's renderer and a `Component` to own its
+lifetime, "and neither belongs to a function that draws a row" — which is the whole reason each
+surface passes its own `renderSegment` hook rather than its markdown. `renderInline` takes an `App` and a `Component` and
 calls `MarkdownRenderer.render`, so moving it there would make that sentence false about the module
 it is written in. It goes to `src/plugin/inline-render.ts`, with the private helpers only it uses —
 `unwrapBlocks`, `decodeEntities`, `withoutEmbeds`, `dropMedia` — and the footer, `lineage-list.ts`
 and the trail all import it from there. The trail's three imports split across the two modules
 rather than moving to one.
+
+`renderRow` hands its element back rather than returning nothing, so a caller can put its own role
+on the row it has just drawn: the footer's rows are links to a source note and take `role="link"`
+from the list itself, while the palette's are options in a listbox it drives.
 
 The CSS splits the same way, and the element classes are renamed with it. A scope class alone
 would not have done the work: most of the footer's part is written as bare `.to-backlinks-*`
