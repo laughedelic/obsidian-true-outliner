@@ -32,7 +32,9 @@ import { accept, diffLines, reject } from './result';
 import { encodingKindAtDestination, listAttachesTo } from './rules';
 import {
   childBaseCol,
+  headingAsListItem,
   headingWithLevel,
+  MAX_HEADING_LEVEL,
   leadingWhitespace,
   markerWidth,
   markerWidthOf,
@@ -1940,11 +1942,8 @@ export function mergeNodes(doc: OutlineDoc, firstId: number): OpResult<OpOutput>
  * Splices a parsed sequence of whole subtrees into the tree immediately
  * before/after `anchorId`, re-encoded (kind and indentation) for the
  * anchor's own sibling scope per the same mapping algebra `indent`/`outdent`
- * use. Rejects sequences inexpressible at that scope: a heading anywhere in
- * the sequence when the scope isn't root/heading-section level (headings
- * are positional/global — parse.ts never nests one under a list or
- * paragraph), or an atom when the scope is a paragraph's children (atoms
- * cannot nest under a paragraph, mirroring `indent`'s own rule).
+ * use. A payload the scope cannot express is rejected by
+ * `reencodeBlocksForDestination`, which owns both the rule and the guard.
  */
 /**
  * Re-indents a whole subtree for a new destination by swapping its OWN
@@ -1995,6 +1994,87 @@ export function reindentSubtreeVerbatim(node: OutlineNode, indentText: string): 
 }
 
 /**
+ * The heading level a payload's root takes at this destination, or
+ * `undefined` where a heading cannot be written at all — below a list item or
+ * a paragraph, which `parse.ts` never nests one under.
+ *
+ * Root scope names level 1; a heading's children name one past their parent.
+ * A level past `MAX_HEADING_LEVEL` is the heading regime running out, and the
+ * caller reads it the same way it reads `undefined`.
+ */
+function destinationHeadingLevel(parent: OutlineNode | 'root'): number | undefined {
+  if (parent === 'root') return 1;
+  if (parent.kind === 'heading') return (parent.level ?? 1) + 1;
+  return undefined;
+}
+
+/**
+ * A payload re-encoded for a LIST scope, every node in it, at the depth its
+ * position in the payload gives it.
+ *
+ * Every node that HAS CHILDREN becomes a list item. That is forced by the
+ * mapping rather than chosen: below a list item a paragraph has no expressible
+ * children at any indentation, because the attachment rule is applied at
+ * section level only (`parse.ts`). Converting the root alone and re-indenting
+ * the rest — what the no-conversion path does — drops a level of the payload's
+ * own hierarchy, which is the guarantee this whole step exists to keep.
+ *
+ * A heading becomes a list item carrying its `#` run as text. A childless
+ * paragraph or list item keeps its kind, and its own marker with it, so an
+ * ordered payload does not silently become bullets. Atoms move as units.
+ *
+ * `rootKind` is the context-determined encoding for the payload's own roots;
+ * descendants take their kind from the payload instead, since their
+ * surroundings travel with them.
+ */
+function reencodeIntoListScope(
+  node: OutlineNode,
+  indentText: string,
+  rootKind?: 'paragraph' | 'list-item',
+): OutlineNode {
+  const hasChildren = node.children.length > 0;
+  let encoded: OutlineNode;
+  if (node.kind === 'heading') {
+    encoded = headingAsListItem(node, indentText);
+  } else if (isAtom(node)) {
+    encoded = reencodeForDestination(node, undefined, indentText);
+  } else {
+    const own = node.kind === 'list-item' ? 'list-item' : 'paragraph';
+    const wanted = hasChildren ? 'list-item' : (rootKind ?? own);
+    encoded = reencodeForDestination(node, wanted === own ? undefined : wanted, indentText);
+  }
+  // The child column is the item's own content column, as `childBaseCol` reads
+  // it — padding AFTER the indentation, never before, so a space never
+  // disappears into a tab stop.
+  const childIndent =
+    encoded.kind === 'list-item' ? indentText + ' '.repeat(markerWidth(encoded)) : indentText;
+  return { ...encoded, children: node.children.map((c) => reencodeIntoListScope(c, childIndent)) };
+}
+
+/**
+ * A heading-rooted payload re-levelled for a heading-bearing destination: the
+ * root takes `newLevel` and every heading beneath it shifts by the same delta,
+ * so the payload's own level relationships — skips included — survive.
+ *
+ * Non-heading descendants are carried verbatim. A heading's children sit at
+ * column zero in both the source scope and this one, so there is nothing to
+ * re-indent, and re-indenting a heading is what destroyed one: past three
+ * columns the line stops being a heading at all.
+ *
+ * The caller has already established that every level this produces exists.
+ */
+function reencodeHeadingSubtree(node: OutlineNode, delta: number): OutlineNode {
+  if (node.kind !== 'heading') return node;
+  const levelled = headingWithLevel(node, Math.max(1, (node.level ?? 1) + delta));
+  return {
+    ...levelled,
+    children: node.children.map((child) =>
+      child.kind === 'heading' ? reencodeHeadingSubtree(child, delta) : child,
+    ),
+  };
+}
+
+/**
  * The shared re-encode step `insertSubtrees` and enforce.ts's own
  * no-surviving-anchor fallback (a paste replacing the only content in some
  * scope, D16) both need: given the destination scope's context (parent plus
@@ -2003,6 +2083,12 @@ export function reindentSubtreeVerbatim(node: OutlineNode, indentText: string): 
  * so the two call sites can never drift apart on the rule (the exact
  * failure D16 was: a second, ad hoc call site that forgot to re-indent at
  * all).
+ *
+ * The EXPRESSIBILITY GUARD lives here too, beside the rule it guards, rather
+ * than one layer up in `insertSubtrees`. Measured: it used to sit there, and
+ * the D16 fallback — which calls this function directly — therefore ran no
+ * guard at all, re-indenting a heading until it stopped being one. A path
+ * cannot reach the re-encode without the guard now.
  */
 export function reencodeBlocksForDestination(
   doc: OutlineDoc,
@@ -2011,7 +2097,29 @@ export function reencodeBlocksForDestination(
   followingSiblings: readonly OutlineNode[],
   parsedBlocks: readonly OutlineNode[],
   fallbackIndentUnit?: string,
-): readonly OutlineNode[] {
+): OpResult<readonly OutlineNode[]> {
+  // An atom below a paragraph is the one payload neither regime expresses: a
+  // paragraph's children attach as a LIST, and an atom is not one. Mirrors
+  // `indent`'s own rule. Everything else now has an encoding — a heading among
+  // list items converts rather than failing.
+  if (parent !== 'root' && parent.kind === 'paragraph' && parsedBlocks.some((b) => isAtom(b))) {
+    return reject('insertion-not-expressible');
+  }
+  // The heading regime running out, on the same terms `indent` refuses it: the
+  // DEEPEST heading in the payload is what decides, not its root. Neither
+  // available alternative keeps the payload's own tree — clamping puts two of
+  // its levels on one, and converting to content at section level hands the
+  // run to the attachment rule, which reparents it under whatever paragraph
+  // precedes it. The unifying principle's other branch is the honest answer
+  // when no encoding exists.
+  const destLevel = destinationHeadingLevel(parent);
+  if (destLevel !== undefined) {
+    for (const block of parsedBlocks) {
+      if (block.kind !== 'heading') continue;
+      const deepest = maxHeadingLevel(block) + (destLevel - (block.level ?? 1));
+      if (deepest > MAX_HEADING_LEVEL) return reject('at-h6-bound');
+    }
+  }
   // Both sides, for the reason `encodingKindAtDestination` below already uses
   // both: a payload landing BEFORE a tab-indented sibling has no preceding one
   // to copy from, and the inferred unit can leave that sibling deeper than the
@@ -2027,17 +2135,28 @@ export function reencodeBlocksForDestination(
     precedingSiblings,
     followingSiblings,
   });
-  return parsedBlocks.map((block) => {
-    const isContentBlock = block.kind === 'paragraph' || block.kind === 'list-item';
-    if (!isContentBlock || newContentKind === block.kind) {
-      // No kind conversion needed: a verbatim whole-subtree re-indent keeps
-      // every descendant's original indent unit intact (see
-      // reindentSubtreeVerbatim's own comment for why this differs from
-      // reencodeForDestination's numeric-delta approach here).
-      return reindentSubtreeVerbatim(block, indentText);
-    }
-    return reencodeForDestination(block, newContentKind, indentText);
-  });
+  const headingLevel = destLevel;
+  return accept(
+    parsedBlocks.map((block) => {
+      if (block.kind === 'heading') {
+        // A heading only ever reaches here at the payload's top level: no
+        // parse nests one under a paragraph or a list item, so the recursion
+        // each arm runs owns every other heading in the payload.
+        return headingLevel === undefined
+          ? reencodeIntoListScope(block, indentText, newContentKind)
+          : reencodeHeadingSubtree(block, headingLevel - (block.level ?? 1));
+      }
+      const isContentBlock = block.kind === 'paragraph' || block.kind === 'list-item';
+      if (!isContentBlock || newContentKind === block.kind) {
+        // No kind conversion needed: a verbatim whole-subtree re-indent keeps
+        // every descendant's original indent unit intact (see
+        // reindentSubtreeVerbatim's own comment for why this differs from
+        // reencodeForDestination's numeric-delta approach here).
+        return reindentSubtreeVerbatim(block, indentText);
+      }
+      return reencodeForDestination(block, newContentKind, indentText);
+    }),
+  );
 }
 
 export function insertSubtrees(
@@ -2055,19 +2174,11 @@ export function insertSubtrees(
   const parent = parentPath.length === 0 ? 'root' : nodeAt(doc, parentPath)!;
   const siblings = childrenAt(doc, parentPath);
 
-  const containsHeading = (node: OutlineNode): boolean =>
-    node.kind === 'heading' || node.children.some(containsHeading);
-  if (parsedBlocks.some(containsHeading) && parent !== 'root' && parent.kind !== 'heading') {
-    return reject('insertion-not-expressible');
-  }
-  if (parsedBlocks.some((b) => isAtom(b)) && parent !== 'root' && parent.kind === 'paragraph') {
-    return reject('insertion-not-expressible');
-  }
 
   const insertIndex = position === 'before' ? anchorIndex : anchorIndex + 1;
   const precedingSiblings = siblings.slice(0, insertIndex);
   const followingSiblings = siblings.slice(insertIndex);
-  const reencoded = reencodeBlocksForDestination(
+  const reencodedResult = reencodeBlocksForDestination(
     doc,
     parent,
     precedingSiblings,
@@ -2075,6 +2186,8 @@ export function insertSubtrees(
     parsedBlocks,
     fallbackIndentUnit,
   );
+  if (!reencodedResult.ok) return reencodedResult;
+  const reencoded = reencodedResult.value;
 
   // Gap ownership (design.md D2, mirroring splitNode's own gap-repair):
   // the anchor's trailing gap represents its separation from whatever

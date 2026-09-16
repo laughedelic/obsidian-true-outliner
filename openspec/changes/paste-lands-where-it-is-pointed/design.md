@@ -74,11 +74,31 @@ the rank rides along as text and comes back.
 
 The `#` run is carried VERBATIM rather than re-levelled. A list item has no heading level for a
 delta to be relative to, and carrying it unchanged is exactly what makes the return trip restore
-what was copied. It also retires the `h6` clamp for this direction: inside a list the run is
-text, so a payload deeper than six levels has nothing to clamp against.
+what was copied. It also means the `h6` bound does not reach this direction at all: inside a
+list the run is text, and text has no bound.
 
 The paragraph descendants do convert for real — there is no marker to carry paragraph-ness, and
 paragraph/list-item conversion is already what the context-determined rule does everywhere else.
+
+### D2a. Where the heading regime runs out, the paste is refused
+
+Added during implementation, which measured the two alternatives and found both worse than the
+refusal the project's unifying principle already prescribes.
+
+A heading payload whose DEEPEST heading would need a level past `h6` has no encoding that keeps
+its own tree. Clamping puts two of the payload's levels onto one. Converting it to content
+instead only works below a list item: at section level a converted run meets the attachment
+rule, which reparents it under whatever paragraph precedes it — measured, a payload's second
+level landed as a child of its own first level's paragraph rather than beside it.
+
+So the rule is the unifying principle's other branch: the minimal encoding of the new tree, or a
+rejection. `indent` already refuses this exact shape with `at-h6-bound`, reading the SUBTREE's
+deepest heading rather than its root, and the paste now refuses it on the same terms with the
+same reason. A destination whose own level is already `h6` is the same case: its children have
+no heading level left.
+
+This costs nothing the other arms wanted. Below a list item a heading converts and carries its
+run as text (D2), where no level exists to exceed.
 
 ### D3. Absorption is accepted at a heading level, and stated
 

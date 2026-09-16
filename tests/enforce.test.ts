@@ -882,3 +882,96 @@ describe('computeVerdictForRanges: multi-range deletion of mixed-depth covers (t
     expect(verdict.kind).not.toBe('veto');
   });
 });
+
+// ------------------------------------------- paste-lands-where-it-is-pointed
+
+/** One paste, through BOTH gates the editor puts it through. `to` equal to
+ * `from` is a caret paste; a wider range is a type-over, which reaches the two
+ * insert paths a caret never does. */
+function pasteThroughBothGates(
+  md: string,
+  from: { line: number; ch: number },
+  to: { line: number; ch: number },
+  payload: string,
+): Verdict {
+  const doc = parse(md);
+  const facts: TransactionFacts = {
+    userEvent: 'input.paste',
+    isComposition: false,
+    changedLineSpans: [
+      {
+        fromLine: from.line,
+        toLine: to.line,
+        insertedText: payload,
+        fromCh: from.ch,
+        toCh: to.ch,
+        rangeEnd: to,
+      },
+    ],
+    cursorBefore: from,
+  };
+  const edit: EditFact = { from, to, insert: payload, cursorBefore: from };
+  return computeVerdict(classify(facts, doc), doc, edit);
+}
+
+const SECTION_PAYLOAD = '## Notes\n\nSome prose.\n\n- alpha\n  - beta\n';
+const ATOM_PAYLOAD = '```\ncode\n```\n\n- gamma\n';
+
+describe('the insertion path does not change the answer', () => {
+  // Negative control for this whole block: before the guard moved into the
+  // shared re-encode step, one payload at one destination got three different
+  // answers — a native pass at a caret, a veto over a selection with a
+  // survivor, and an unguarded rewrite over a selection consuming the scope.
+
+  it('a heading payload converts on all three paths, to the same text', () => {
+    const caret = pasteThroughBothGates('- one\n  - a\n  - b\n', pos(1, 5), pos(1, 5), SECTION_PAYLOAD);
+    const typeOverWithSurvivor = pasteThroughBothGates(
+      '- one\n  - a\n  - b\n', pos(1, 4), pos(1, 5), SECTION_PAYLOAD,
+    );
+    const typeOverWholeScope = pasteThroughBothGates('- one\n  - a\n', pos(1, 4), pos(1, 5), SECTION_PAYLOAD);
+
+    for (const verdict of [caret, typeOverWithSurvivor, typeOverWholeScope]) {
+      expect(verdict.kind).toBe('rewrite');
+    }
+    // Every path lands the same converted subtree, at the same depth.
+    for (const verdict of [caret, typeOverWithSurvivor, typeOverWholeScope]) {
+      if (verdict.kind !== 'rewrite') continue;
+      expect(encode(verdict.after)).toContain('  - ## Notes');
+      expect(encode(verdict.after)).toContain('    - Some prose.');
+    }
+  });
+
+  it('an atom below a paragraph is refused on all three paths', () => {
+    const caret = pasteThroughBothGates('Intro.\n\n- a\n- b\n', pos(2, 3), pos(2, 3), ATOM_PAYLOAD);
+    const typeOverWithSurvivor = pasteThroughBothGates('Intro.\n\n- a\n- b\n', pos(2, 2), pos(2, 3), ATOM_PAYLOAD);
+    const typeOverWholeScope = pasteThroughBothGates('Intro.\n\n- a\n', pos(2, 2), pos(2, 3), ATOM_PAYLOAD);
+
+    for (const verdict of [caret, typeOverWithSurvivor, typeOverWholeScope]) {
+      expect(verdict.kind).toBe('veto');
+      if (verdict.kind === 'veto') expect(verdict.reason).toBe('insertion-not-expressible');
+    }
+  });
+});
+
+describe('an inexpressible paste is refused, never passed through', () => {
+  it('a caret paste vetoes rather than leaving the buffer corrupted', () => {
+    // Negative control: the old `return PASS` here let Obsidian concatenate
+    // the payload's first line onto the anchor's and drop the rest at its
+    // source indentation — not the "editable text" the default assumed.
+    const verdict = pasteThroughBothGates('Intro.\n\n- a\n- b\n', pos(2, 3), pos(2, 3), ATOM_PAYLOAD);
+    expect(verdict.kind).toBe('veto');
+  });
+
+  it('nothing the heading arm converts reaches the veto, at any depth', () => {
+    const shapes = [
+      ['- one\n  - a\n', pos(1, 5)],
+      ['- one\n  - a\n    - b\n', pos(2, 7)],
+      ['- one\n\t- a\n', pos(1, 5)],
+      ['# H\n\npara\n\n- a\n  - b\n', pos(5, 7)],
+    ] as const;
+    for (const [md, at] of shapes) {
+      const verdict = pasteThroughBothGates(md, at, at, SECTION_PAYLOAD);
+      expect(verdict.kind).toBe('rewrite');
+    }
+  });
+});

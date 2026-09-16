@@ -363,7 +363,7 @@ at root, five levels from where the caret was.
 ### D2 — Intended
 
 The payload's root re-levels to the destination's depth and every heading in it shifts by the
-same delta, clamped at `h6`:
+same delta:
 
 ```
 # One

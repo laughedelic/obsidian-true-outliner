@@ -202,6 +202,11 @@ export function reencodeForDestination(
   return shiftSubtree(node, delta);
 }
 
+/** Markdown's heading depth runs out here: there is no `h7`, so a payload
+ * that would need one encodes as content instead of clamping two of its own
+ * levels onto one. */
+export const MAX_HEADING_LEVEL = 6;
+
 const ATX_RE = /^( {0,3})(#{1,6})([ \t]*)(.*)$/;
 
 /**
@@ -220,6 +225,40 @@ export function headingWithLevel(node: OutlineNode, level: number): OutlineNode 
     lines = [text === '' ? marker : `${marker} ${text}`];
   }
   const result: OutlineNode = { ...node, level, lines };
+  delete (result as { setext?: unknown }).setext;
+  return result;
+}
+
+/**
+ * A heading's own line as a list item's TEXT, `#` run included.
+ *
+ * `- ## Notes` is a list item CONTAINING an h2 in CommonMark rather than an
+ * item whose text happens to start with hashes, which is why Obsidian renders
+ * it with heading styling and why `contentColumnCh` already counts the run as
+ * chrome. Carrying it is what lets the rank survive a move into a list and
+ * come back on the way out.
+ *
+ * Setext is rewritten to ATX first: an underline occupies a second line, and a
+ * list item's marker line has nowhere to put one.
+ */
+export function headingContentLine(node: OutlineNode): string {
+  const atx = node.setext ? headingWithLevel(node, node.level ?? 1) : node;
+  return (atx.lines[0] ?? '').trim();
+}
+
+/**
+ * A heading encoded as a list item at `indentText` — its own line only; the
+ * caller owns the subtree, whose depth is now carried by indentation rather
+ * than by the `#` count.
+ */
+export function headingAsListItem(node: OutlineNode, indentText: string): OutlineNode {
+  const result: OutlineNode = {
+    ...node,
+    kind: 'list-item',
+    listStyle: { type: 'bullet', marker: '-' },
+    lines: [`${indentText}- ${headingContentLine(node)}`],
+  };
+  delete (result as { level?: unknown }).level;
   delete (result as { setext?: unknown }).setext;
   return result;
 }

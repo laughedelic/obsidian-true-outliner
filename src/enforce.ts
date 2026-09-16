@@ -288,7 +288,9 @@ function insertAsOnlyChildren(
   fallbackIndentUnit: string | undefined,
 ): OpResult<OpOutput> {
   const parent = parentPath.length === 0 ? 'root' : nodeAt(doc, parentPath)!;
-  const reencoded = reencodeBlocksForDestination(doc, parent, [], [], parsedBlocks, fallbackIndentUnit);
+  const result = reencodeBlocksForDestination(doc, parent, [], [], parsedBlocks, fallbackIndentUnit);
+  if (!result.ok) return result;
+  const reencoded = result.value;
   const rebuild = (nodes: readonly OutlineNode[], depth: number): readonly OutlineNode[] => {
     if (depth === parentPath.length) return reencoded;
     const index = parentPath[depth]!;
@@ -453,10 +455,16 @@ function computeDeletionVerdict(
  * AFTER that node — UNLESS that node is an empty placeholder (a freshly-
  * split/created list item with no content and no children, D14), in which
  * case the paste REPLACES it rather than leaving it stranded next to the
- * pasted content. Conservative on failure: an inexpressible sequence (or
- * ambiguous shape) stays native rather than surprising the user with a
- * veto — "a wrong pass is editable text; a wrong rewrite is surprising
- * relocation."
+ * pasted content.
+ *
+ * An inexpressible sequence is VETOED, with the cue naming the reason. This
+ * path used to pass it through on the conservative default — "a wrong pass is
+ * editable text; a wrong rewrite is surprising relocation" — which measurement
+ * does not bear out here: what lands natively is the payload's first line
+ * concatenated onto the anchor's, with the remainder at its source
+ * indentation. That is not editable text, `structural-operations` already
+ * requires such a sequence to be "rejected rather than inserted in corrupted
+ * form", and the type-over path has always vetoed it. One answer on all three.
  */
 function computePasteVerdict(
   doc: OutlineDoc,
@@ -476,7 +484,7 @@ function computePasteVerdict(
   }
 
   const inserted = insertSubtrees(doc, node.id, parsedBlocks, 'after', fallbackIndentUnit);
-  if (!inserted.ok) return PASS;
+  if (!inserted.ok) return vetoFrom(inserted);
   const runEnd = endOfInsertedRun(inserted.value.doc, inserted.value.anchor, parsedBlocks.length);
   const { caret } = planCaret(
     { kind: 'exact' },

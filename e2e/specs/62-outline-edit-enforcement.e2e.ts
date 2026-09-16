@@ -789,6 +789,79 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     expect(await h.getBuffer()).toBe(before);
   });
 
+
+  // ---- paste-lands-where-it-is-pointed ------------------------------------
+  //
+  // The frames these drive are `examples.md` in that change; the measurement
+  // behind them is docs/research/paste-across-encoding-regimes.
+
+  it('a heading section pasted below a list item converts, whole, keeping its own depths (B2)', async function () {
+    await outlineNote('- one\n  - two\n');
+    await h.setCursor(1, '  - two'.length);
+    await h.pasteText('## Notes\n\nSome prose.\n\n- alpha\n  - beta\n');
+    // Four levels in, four levels out, at the depth the caret named. The `#`
+    // run rides into the item's text, which CommonMark reads as a list item
+    // containing an h2.
+    expect(await h.getBuffer()).toBe(
+      '- one\n  - two\n  - ## Notes\n\n    - Some prose.\n\n      - alpha\n        - beta\n',
+    );
+    const snap = await h.getStats();
+    expect(snap.verdictCounts.rewrite).toBeGreaterThan(0);
+  });
+
+  it('a heading section pasted among a heading\'s children re-levels to that depth (D2)', async function () {
+    await outlineNote('# One\n\n## Two\n\n### Three\n\nprose\n');
+    await h.setCursor(6, 'prose'.length);
+    await h.pasteText('## Notes\n\nSome prose.\n');
+    // Not the level it was written with: the caret named this depth.
+    expect(await h.getBuffer()).toContain('#### Notes');
+    expect(await h.getBuffer()).not.toContain('\n## Notes');
+  });
+
+  it('a heading section pasted at a caret no longer lands as raw text (B1)', async function () {
+    await outlineNote('- one\n  - two\n    - three\n');
+    await h.setCursor(2, '    - three'.length);
+    await h.pasteText('## Notes\n\nbody\n');
+    const buf = await h.getBuffer();
+    // The native fall-through concatenated the payload's first line onto the
+    // anchor's; nothing in the buffer may show that join.
+    expect(buf).not.toContain('three## Notes');
+    expect(buf).toContain('    - ## Notes');
+  });
+
+  it('a payload the scope cannot express is vetoed with the cue, not pasted raw', async function () {
+    const md = 'Intro.\n\n- alpha\n- beta\n';
+    await outlineNote(md);
+    await h.setCursor(2, '- alpha'.length);
+    await h.pasteText('```\ncode\n```\n\n- gamma\n');
+    await h.waitForNotice(REJECTION_MESSAGES['insertion-not-expressible']);
+    expect(await h.getBuffer()).toBe(md);
+    // The counter, not just the buffer: an unchanged buffer is equally what a
+    // silently dropped transaction produces.
+    const snap = await h.getStats();
+    expect(snap.verdictCounts.veto).toBeGreaterThan(0);
+  });
+
+  it('undo restores the pre-paste buffer byte-identically, in one step, for a CONVERTED paste', async function () {
+    const md = '- one\n  - two\n';
+    await outlineNote(md);
+    await h.setCursor(1, '  - two'.length);
+    await h.pasteText('## Notes\n\nSome prose.\n');
+    expect(await h.getBuffer()).not.toBe(md);
+    await h.keys.undo();
+    expect(await h.getBuffer()).toBe(md);
+  });
+
+  it('undo restores the pre-paste buffer byte-identically, in one step, for an ABSORBING paste', async function () {
+    const md = '# Project\n\n- one\n- two\n- three\n';
+    await outlineNote(md);
+    await h.setCursor(3, '- two'.length);
+    await h.pasteText('## Notes\n\nSome prose.\n');
+    expect(await h.getBuffer()).not.toBe(md);
+    await h.keys.undo();
+    expect(await h.getBuffer()).toBe(md);
+  });
+
   it('automation-gap retry: HTML5 drag-drop into a rendered position remains infeasible in this harness (native limitation, carried as a manual scenario)', async function () {
     // Renewed attempt per node-edit-enforcement's "Enforcement is
     // observable and hard-to-automate paths are still verified"

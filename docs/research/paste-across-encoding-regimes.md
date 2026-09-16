@@ -194,7 +194,8 @@ P0, P2 and P4 are defects with no policy in them: a guard belongs in the shared 
 one layer up, a rejection on a paste should not become a raw insertion, and a heading that is
 being rewritten anyway should be rewritten as ATX. P3 has one obvious reading — a heading payload
 re-levels so its root sits at the destination's depth, every heading in it shifting by the same
-delta, clamped at h6.
+delta; where the deepest heading in the payload would pass h6 the paste is refused, which
+implementation settled — see the addendum below.
 
 P1 and the destination P2 leaves behind are the real question, and it is one question, not two:
 **what does a heading-rooted payload mean somewhere a heading cannot mean what it says?**
@@ -236,8 +237,8 @@ matches an optional `#{1,6}` run after an optional list marker, so the content c
 What it buys is reversibility. Measured: outdenting the converted item back to a heading scope
 strips the marker, and `## Notes` re-parses as a real `h2` with its children intact. The rank
 survives the round trip, so the lossiness that made this arm expensive to choose largely
-disappears. It also retires the `h6` clamp for this direction — inside a list the run is text,
-with nothing to clamp against.
+disappears. The `h6` bound does not reach this direction at all — inside a list the run is
+text, and text has no bound.
 
 Paragraph-ness is the part genuinely lost: there is no marker to carry it. Paragraph/list-item
 conversion is what the context-determined rule already does everywhere else.
@@ -287,3 +288,23 @@ content takes the same unguarded path a type-over does.
 beneath it — is the attachment rule at work. If Q34 ever revises that rule, the reverse direction
 stops being settled and comes back here. The list arm above leans on it twice over: it is why a
 paragraph below a list item has no children, and so why the conversion must reach every node.
+
+## Addendum (implementation): where the heading regime runs out
+
+The decision above left one case to implementation, and implementation found the obvious answer
+wrong twice before the codebase's own answer turned up.
+
+A heading payload whose deepest heading would need a level past `h6` has no encoding that keeps
+its tree. **Clamping** — the first reading — puts two of the payload's levels onto one.
+**Converting to content**, which works below a list item, was measured at section level and does
+not: a payload of `# Top` with a `body` paragraph and a `## Mid` sibling came out with `- ## Mid`
+landing as a CHILD of `body`, because a list following a paragraph is that paragraph's children.
+The conversion arm is safe exactly where it is used — below a list item or a paragraph, where the
+attachment rule does not reach — and unsafe where the heading arm would have needed it.
+
+`indent` already refuses this shape, with `at-h6-bound`, reading the subtree's deepest heading
+rather than its root (`ops.ts`). The paste now refuses it identically. That is the unifying
+principle's other branch, and it costs nothing the rest of the change wanted.
+
+A destination already at `h6` is the same case by the same arithmetic: its children have no
+heading level left.

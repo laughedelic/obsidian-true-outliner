@@ -16,6 +16,12 @@ encoding from the same function, with one arm per kind of destination:
 - In a LIST scope it SHALL become a list item, carrying its own `#` run verbatim into that
   item's text.
 
+Where the re-levelling would need a level markdown does not have — judged on the payload's
+DEEPEST heading, not its root — the insertion SHALL be rejected with `at-h6-bound`, the reason
+and the reading `indent` already uses for the same shape. Neither alternative keeps the
+payload's own tree: clamping puts two of its levels onto one, and converting to content at
+section level hands the run to the attachment rule.
+
 #### Scenario: Indent then outdent restores a paragraph
 - **WHEN** a top-level paragraph is indented under a paragraph and then outdented back
 - **THEN** it is re-encoded as a paragraph (nearest sibling at the destination is a
@@ -36,6 +42,12 @@ encoding from the same function, with one arm per kind of destination:
 - **WHEN** a heading-rooted subtree is inserted among a heading's children
 - **THEN** it remains a heading, at the level the destination's depth requires, with every
   heading in the payload shifted by the same delta
+
+#### Scenario: A payload deeper than the destination has room for is refused
+- **WHEN** a heading-rooted subtree whose own deepest heading would land past `h6` is inserted
+  into a heading-bearing scope
+- **THEN** the insertion is rejected with `at-h6-bound` and the document is unchanged — even
+  where the payload's ROOT alone would have fitted
 
 ## ADDED Requirements
 
