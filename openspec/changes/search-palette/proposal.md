@@ -24,16 +24,15 @@ footer's renderer, nothing private.
   opened from, and a chip in the input row says which is active.
 - **A keyboard model over hits, not items.** One hit is active; arrow keys move between hits
   across group boundaries; a modified arrow jumps between groups; focus never leaves the input.
-  Hovering or tapping a hit selects it.
+  Moving the pointer over a hit selects it; tapping one opens it.
 - **Selecting a hit lands on it.** The note opens with the caret at the hit's node, scrolled into
   view, zoomed to it when that tab is in outline mode. Shift opens the whole note unzoomed; the
   platform's modifier opens a new tab. The palette closes.
 - **Results paint progressively and are bounded.** Groups appear as notes resolve; a cap bounds
   the number of groups and the tail states how many notes are not shown; a changed query
   discards what an older one had not yet painted.
-- **The footer's row renderer becomes a shared module** that the footer, the palette, and the
-  zoom trail's lineage segments all call, so a row is drawn by one function on every surface.
-  No visible change to the footer.
+- **The footer's row renderer becomes a shared module** that the footer and the palette both
+  call, so a row is drawn by one function on both surfaces. No visible change to the footer.
 - **The palette uses the matcher and the hit model from `search-hits-and-footer-content-filter`**,
   so a query means the same thing in the footer and the palette.
 
@@ -71,7 +70,7 @@ requirements keep holding, on the shared module.
 - **Modified**: `src/plugin/backlinks-footer.ts` (calls the shared list renderer),
   `src/plugin/footer-model.ts` (a descendant-depth option, so the palette can ask for none),
   `src/plugin/backlink-index.ts` (exposes the `SourceTreeCache` it owns, so the index and the
-  search share one), `main.ts` (the command).
+  search share one), `src/plugin/main.ts` (the command).
 - **Measurement before design is final**: the cold whole-vault read inside Obsidian on a large
   vault, recorded in `docs/research/search-surfaces` (open question 1).
 

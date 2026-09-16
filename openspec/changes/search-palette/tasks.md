@@ -3,8 +3,11 @@
 - [ ] 1.1 Measure the cold whole-vault tree resolution inside Obsidian: an e2e probe on a
       generated vault of a few thousand notes timing the first sweep through the shared tree cache
       and the second; record both figures in `docs/research/search-surfaces` (open question 1) and
-      decide there whether background warming (design D5) is added. Verified by the figures being
-      in the note
+      decide there whether background warming (design D5) is added. The probe goes beside the note
+      under `docs/research/prototypes/search-palette/`, as the prototype's own capture did, and not
+      in `e2e/specs/`, which `scripts/spec-groups.mjs` globs into the CI matrix — a vault of a few
+      thousand notes is a measurement, not a check to run on every push. Verified by the figures
+      being in the note
 
 ## 2. The shared renderer
 
@@ -13,12 +16,15 @@
       walk, parameterised by the per-surface options in design D2; make the footer call it.
       Verify `npm run test:e2e:narrow -- 73-footer-render`, `74-footer-chrome-pass` and
       `79-footer-appearance` pass unchanged
-- [ ] 2.2 Leave the trail on `lineage-row.ts`, which the move does not touch; verify
-      `npm run test:e2e:narrow -- 80-outline-zoom` passes unchanged
+- [ ] 2.2 Repoint the trail's imports of `renderInline` and the segment glyphs, which it takes
+      from `backlinks-footer.ts` today and the move relocates; its row rendering stays on
+      `lineage-row.ts`. Verify `npm run test:e2e:narrow -- 80-outline-zoom` passes unchanged
 - [ ] 2.3 Add the `descendantDepth` option to `buildRows` (design D3), defaulting to the
       footer's level; verify `tests/footer-model.test.ts` gains a case where zero emits no
-      descendant rows and no fold counts. Negative control: filter descendants out after the
-      fact and confirm the fold-count assertion fails
+      descendant rows and no fold counts, and one over a hit nested under a non-matching ancestor
+      where that ancestor still has a row of its own. Negative control: keep the footer's depth
+      and filter to hits and lineage rows instead, and confirm the nested-hit case fails on the
+      missing ancestor row
 
 ## 3. The search
 
@@ -26,10 +32,11 @@
       (design D4); verify a unit test shows the same `OutlineDoc` instance is returned to the
       index's `place()` and to a second caller for an unchanged file
 - [ ] 3.2 Create `src/plugin/vault-search.ts`: the progressive, yielding, generation-guarded walk
-      over the vault or one file, calling back per note with the hit ids from `matchNodes`, and
-      counting past the group cap (design D5); verify unit tests with a fake vault of stubbed
-      files: results arrive per note, a bumped generation silences stale callbacks, the tail
-      count is the true remainder. Negative control: drop the generation check and confirm the
+      over the vault or one file, ordered by modification time before the first tree is resolved,
+      calling back per note with the hit ids from `matchNodes`, and counting past the group cap
+      (design D5); verify unit tests with a fake vault of stubbed files: results arrive per note
+      and in recency order whatever order the files come back in, a bumped generation silences
+      stale callbacks, the tail count is the true remainder. Negative control: drop the generation check and confirm the
       stale-callback test fails
 
 ## 4. The palette
@@ -49,7 +56,7 @@
       zoom root chosen by the leaf rule, gated on outline mode; Shift and the new-tab modifier
       variants; the palette closes. Verify `grep -n "as any\|\.cm\b" src/plugin/search-palette.ts`
       is empty and 5.1 passes
-- [ ] 4.5 Register the "Search outline" command in `main.ts` with a plain `callback` so it is
+- [ ] 4.5 Register the "Search outline" command in `src/plugin/main.ts` with a plain `callback` so it is
       available in every view; verify the command is offered with outline mode off
 - [ ] 4.6 Styles: the palette's result scope inherits the footer's row rules; hit-only active
       state; the chip; the phone container query hiding the hints; verify on the desktop and
@@ -63,8 +70,8 @@
       the match is marked; arrows cross a group boundary and the group jump lands on a group's
       first hit; Tab narrows to the current note and back; Enter on a hit with children zooms to
       it, on a leaf to its parent, with the caret on the hit; Shift+Enter opens unzoomed; Enter
-      outside outline mode opens unzoomed; a replaced query shows only the replacement's results;
-      the group cap's tail states the remainder. Negative controls: for the zoom tests, disable
+      outside outline mode opens unzoomed; a childless top-level hit opens unzoomed; a replaced
+      query shows only the replacement's results; the group cap's tail states the remainder. Negative controls: for the zoom tests, disable
       the `zoomTo` dispatch; for the stale-results test, drop the generation guard; for the cap
       test, stop counting past the cap
 - [ ] 5.2 Run the same spec under the mobile config and add the tap-opens and hints-hidden
