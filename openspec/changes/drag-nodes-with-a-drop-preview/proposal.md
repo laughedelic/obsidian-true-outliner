@@ -43,6 +43,11 @@ has to be undone.
   *after* re-encoding drawn at that column, and the destination parent accented so it is named
   rather than counted. The preview is computed by the same resolution the release performs, so the
   two cannot disagree.
+- **The preview also says what the drop will take with it.** A dropped heading opens a section
+  that runs to the next heading of its level or shallower, so it absorbs the anchor's following
+  siblings — stated behaviour in the layer below (`paste-lands-where-it-is-pointed`). A preview
+  that showed only the landing place would be accurate and still leave the reader surprised, so
+  the region that changes parent is marked too.
 - **The picked-up run renders as lifted** while the drag is in flight, and the document does not
   move until the release. Escape, or a release outside any legal destination, cancels with nothing
   written.
@@ -80,8 +85,12 @@ has to be undone.
 - `tests/ops.test.ts` and `tests/closure.test.ts` for the operation; a new e2e spec with its
   helpers beside it, driven by a real pointer — which the measurement pass confirms reaches a mark
   on desktop.
-- Interacts with `paste-heading-section-reencoding`, which decides what a cross-regime payload
-  becomes. This change consumes that rule wherever it lands and does not decide it.
+- Stacked on `paste-lands-where-it-is-pointed` (#122), which rewrites what an insertion at a
+  destination does. This change consumes that rule and does not restate it: the move re-encodes by
+  the same call an insertion makes, and the drag's candidate filter asks that call rather than
+  keeping a copy of its conditions. What the layer below changes for this one — a grown candidate
+  set, a refusal that now depends on the destination's DEPTH rather than its kind, and the
+  absorption above — is recorded in docs/research/node-drag-and-drop section 7a.
 
 ## Non-goals
 

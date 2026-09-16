@@ -38,6 +38,29 @@ SHALL NOT change the weight of what it accents, which is the rule guide accents 
 - **WHEN** a destination parent is accented
 - **THEN** its guide and marker render at the same weight as before, differing only in colour
 
+### Requirement: An absorbed region is marked as part of the preview
+
+Where a drop would absorb content that is not part of the run (`node-dragging`), this layer SHALL
+mark the absorbed rows, distinguishably from both the lifted run and the destination's own accent —
+three states in one view, each answering a different question, so they SHALL NOT share a treatment.
+
+The marking SHALL cover exactly the rows the absorption reaches and SHALL end where it ends. It
+SHALL NOT move or re-indent those rows: nothing has happened to them yet, and a preview that
+re-lays them out has to put them back on a cancel.
+
+#### Scenario: The absorbed rows are marked to where absorption ends
+- **WHEN** a heading drop would take three following siblings into its section, and a fourth row
+  ends the absorption
+- **THEN** exactly those three rows are marked and the fourth is not
+
+#### Scenario: Three preview states stay distinguishable
+- **WHEN** a drag shows a lifted run, an accented destination parent and an absorbed region at once
+- **THEN** the three render distinguishably from one another
+
+#### Scenario: Marked rows do not move
+- **WHEN** rows are marked as absorbed
+- **THEN** their rendered positions and indentation are unchanged from before the drag
+
 ### Requirement: A run in flight renders as lifted, in place
 
 While a drag is in flight, the rows of every subtree in the operand SHALL render as lifted —

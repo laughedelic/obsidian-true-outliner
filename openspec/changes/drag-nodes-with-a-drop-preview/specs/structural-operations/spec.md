@@ -35,6 +35,13 @@ A move whose destination is the run's CURRENT place SHALL produce no document ch
 - **THEN** it arrives encoded as that scope's content, by the same rule an insertion there would
   apply, with its internal nesting unchanged
 
+#### Scenario: A moved heading absorbs what follows it, as an inserted one does
+- **WHEN** a heading-rooted run is moved among siblings that are followed by more content at the
+  same depth
+- **THEN** that content re-parses as part of the moved heading's section, bounded by the
+  destination scope's end — the same result the insertion rule already states, reached by a move
+  rather than by a paste
+
 #### Scenario: Gaps are repaired on both sides
 - **WHEN** a run is moved out from between two siblings and into a destination between two others
 - **THEN** the place it left is separated as its remaining neighbours require, and the place it
@@ -50,10 +57,16 @@ A move whose destination is the run's CURRENT place SHALL produce no document ch
 - **THEN** the operation is rejected and the document is unchanged
 
 #### Scenario: A destination the insertion rule declines is rejected
-- **WHEN** the named destination is a scope that cannot express the run — a heading-rooted run
-  under a non-heading parent
+- **WHEN** the named destination is one the insertion rule refuses — a run whose own roots include
+  an atom, moved into a paragraph's children
 - **THEN** the operation is rejected, with the same reason the insertion would have given, and the
   document is unchanged
+
+#### Scenario: A destination too deep for the run's own headings is rejected
+- **WHEN** a heading-rooted run is moved into a heading-bearing scope deep enough that the run's
+  DEEPEST heading would re-level past the last level markdown has
+- **THEN** the operation is rejected with the same reason the insertion gives, and the document is
+  unchanged — including where the run's ROOT alone would have fitted
 
 #### Scenario: A move to the current place changes nothing
 - **WHEN** a run is moved to the destination it already occupies
