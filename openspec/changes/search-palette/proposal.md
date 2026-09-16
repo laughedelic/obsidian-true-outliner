@@ -23,7 +23,8 @@ footer's renderer, nothing private.
 - **Two scopes in one box.** The vault by default; a key toggles to the note the palette was
   opened from, and a chip in the input row says which is active.
 - **A keyboard model over hits, not items.** One hit is active; arrow keys move between hits
-  across group boundaries; a modified arrow jumps between groups; focus never leaves the input.
+  across group boundaries and stop at each end of the list; a modified arrow jumps between
+  groups; focus never leaves the input.
   Moving the pointer over a hit selects it; tapping one opens it.
 - **Selecting a hit lands on it.** The note opens with the caret at the hit's node, scrolled into
   view, zoomed to it when that tab is in outline mode. Shift opens the whole note unzoomed; the
@@ -66,11 +67,15 @@ requirements keep holding, on the shared module.
   route), `src/plugin/lineage-list.ts` (the group head and the rows, extracted from the footer,
   one level above the `lineage-row.ts` that `lineage-text-rendering` already shares),
   `src/plugin/vault-search.ts` (the progressive vault-wide search over the shared tree cache),
-  a `search-palette` spec, `e2e/specs/45-search-palette.e2e.ts`, `styles/70-search-palette.css`.
+  a `search-palette` spec, `e2e/specs/45-search-palette.e2e.ts`, `styles/70-search-palette.css`,
+  `styles/15-lineage-list.css` (the row rules both surfaces share, out of the footer's part).
 - **Modified**: `src/plugin/backlinks-footer.ts` (calls the shared list renderer),
-  `src/plugin/footer-model.ts` (a descendant-depth option, so the palette can ask for none),
-  `src/plugin/backlink-index.ts` (exposes the `SourceTreeCache` it owns, so the index and the
-  search share one), `src/plugin/main.ts` (the command).
+  `src/plugin/lineage-row.ts` (takes the segment-level helpers the trail already imports from the
+  footer), `src/plugin/zoom-trail.ts` (those imports change module), `src/plugin/footer-model.ts`
+  (a descendant-depth option, so the palette can ask for none), `src/plugin/backlink-index.ts`
+  (exposes the `SourceTreeCache` it owns, so the index and the search share one),
+  `styles/20-backlinks-footer.css` (keeps the footer's placement, gives up the row rules),
+  `src/plugin/main.ts` (the command).
 - **Measurement before design is final**: the cold whole-vault read inside Obsidian on a large
   vault, recorded in `docs/research/search-surfaces` (open question 1).
 
