@@ -65,6 +65,8 @@ import { nodeAtLine, nodeStartLine } from "../locate";
 import { linePosToOffset, offsetToLinePos, toLineRange } from "./cm-pos";
 import { parsedDoc } from "./parsed-doc";
 import { zoomScope } from "./zoom-scope";
+import { filterVisibleSpans } from "./outline-filter-scope";
+import { nextVisibleLine } from "./outline-filter-state";
 import { foldedEntryAt } from "./fold-service";
 import { unfoldEffectsFor } from "./fold-ops";
 import { isNestedEditor } from "./nested-editor";
@@ -862,6 +864,7 @@ function makeVerticalHandler(forward: boolean) {
     let line = startLine;
     let node = nodeAtLine(outlineDoc, startLine);
     if (!node) return false; // preamble
+    const visible = filterVisibleSpans(view.state);
     for (let guard = 0; guard < doc.lines + 1; guard++) {
       let nextLine = forward ? line + 1 : line - 1;
       // A folded node is one node to step over. The walk starts from the raw
@@ -873,6 +876,21 @@ function makeVerticalHandler(forward: boolean) {
       // node and every Up from beneath one. The walk resumes on the far side.
       const hidden = foldHidingLine(view.state, nextLine);
       if (hidden) nextLine = forward ? hidden.lastLine + 1 : hidden.headLine;
+      // A filter hides runs of lines the way a fold does, so the walk steps
+      // over them the same way. `outline-filter`'s caret rule is this: the
+      // caret lands on the nearest line the view actually draws. Nothing
+      // visible in this direction reads as the document edge below, because
+      // for a filtered view that is what it is.
+      if (visible) {
+        const next = nextVisibleLine(visible, nextLine, forward ? 1 : -1);
+        if (next === null) {
+          dispatchAt(
+            forward ? nodeContentEnd(outlineDoc, node) : nodeContentStart(outlineDoc, node),
+          );
+          return true;
+        }
+        nextLine = next;
+      }
       if (nextLine < 0 || nextLine >= doc.lines) {
         // Document edge reached mid-walk: land on this node's own content
         // boundary rather than leaving the caret on its gap.

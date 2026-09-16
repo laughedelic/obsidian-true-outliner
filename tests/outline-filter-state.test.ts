@@ -4,6 +4,7 @@ import { outlineStateExtension } from '../src/plugin/outline-state';
 import {
   filterQuerySet,
   filterCleared,
+  nearestVisibleLine,
   outlineFilterStateExtension,
   unguardedFilterVisibleSpans as filterVisibleSpans,
   unguardedOutlineFilter as outlineFilter,
@@ -157,5 +158,53 @@ describe('outline filter state: a node created beside a match', () => {
     const at = state.doc.toString().indexOf('- target') + '- target'.length;
     const edited = state.update({ changes: { from: at, insert: '\n- fresh' } }).state;
     expect(visibleLines(edited)).not.toContain('- fresh');
+  });
+});
+
+describe('outline filter state: the nearest visible line', () => {
+  // Three islands with gaps between and around them: lines 2, 5-6 and 9.
+  const SPANS = [
+    { fromLine: 2, toLine: 3 },
+    { fromLine: 5, toLine: 7 },
+    { fromLine: 9, toLine: 10 },
+  ];
+
+  it('leaves a caret that is already on a visible line', () => {
+    expect(nearestVisibleLine(SPANS, 2, 1)).toBe(2);
+    expect(nearestVisibleLine(SPANS, 6, -1)).toBe(6);
+  });
+
+  it('moving DOWN across a gap lands below it', () => {
+    // Line 3 and 4 are hidden; the next thing the view draws is line 5.
+    expect(nearestVisibleLine(SPANS, 3, 1)).toBe(5);
+    expect(nearestVisibleLine(SPANS, 4, 1)).toBe(5);
+    expect(nearestVisibleLine(SPANS, 8, 1)).toBe(9);
+  });
+
+  it('moving UP across a gap lands above it', () => {
+    // The LAST line of the island above, not its first: moving up from below a
+    // gap should arrive at the nearest thing, which is that island's end.
+    expect(nearestVisibleLine(SPANS, 8, -1)).toBe(6);
+    expect(nearestVisibleLine(SPANS, 4, -1)).toBe(2);
+  });
+
+  it('falls back to the other direction at the ends of the document', () => {
+    // Nothing visible above line 2, so Up from line 1 goes down instead — a
+    // caret has to go somewhere, and the filter is still drawing lines.
+    expect(nearestVisibleLine(SPANS, 1, -1)).toBe(2);
+    expect(nearestVisibleLine(SPANS, 12, 1)).toBe(9);
+  });
+
+  it('has no answer when the filter is showing nothing', () => {
+    expect(nearestVisibleLine([], 4, 1)).toBeNull();
+  });
+
+  it('answers within one island when a zoom has narrowed the set', () => {
+    // The intersection with a zoom cover is just a smaller span list, so the
+    // rule needs nothing of its own for the composed case — it sees what the
+    // builder sees.
+    const zoomed = [{ fromLine: 5, toLine: 7 }];
+    expect(nearestVisibleLine(zoomed, 2, 1)).toBe(5);
+    expect(nearestVisibleLine(zoomed, 9, -1)).toBe(6);
   });
 });

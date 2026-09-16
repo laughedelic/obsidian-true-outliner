@@ -42,6 +42,9 @@ import { REJECTION_MESSAGES } from './messages';
 import { isOutlineMode } from './outline-state';
 import { parsedDoc } from './parsed-doc';
 import { zoomScope } from './zoom-scope';
+import { filterVisibleSpans } from './outline-filter-scope';
+import { nearestVisibleLine } from './outline-filter-state';
+import type { LineSpan } from '../zoom';
 import { escapesZoom } from './zoom-enforce';
 import { isNestedTransaction } from './nested-editor';
 import type { TransactionStats } from './stats';
@@ -131,6 +134,7 @@ function escalateSelection(
   doc: Text,
   tr: Transaction,
   scope: Cover | undefined,
+  visible: readonly LineSpan[] | undefined,
 ): EditorSelection | undefined {
   const before = tr.newSelection.ranges.map((range) => toLineRange(doc, range));
   // `outline-zoom` D7 names this the ONE site that truncates. It is safe here
@@ -141,7 +145,19 @@ function escalateSelection(
   const escalated = escalateRanges(outlineDoc, before).map((range) =>
     scope ? clampRange(scope, range) : range,
   );
-  const after = escalated.map((range) => {
+  // A filter hides lines the zoom cover still contains, so its own correction
+  // comes after the cover clamp and before content-space placement: the line
+  // has to be one the view draws before asking where in it the caret may sit.
+  const from = doc.lineAt(tr.startState.selection.main.head).number - 1;
+  const onVisible = escalated.map((range) => {
+    if (!visible) return range;
+    if (range.anchor.line !== range.head.line || range.anchor.ch !== range.head.ch) return range;
+    const line = nearestVisibleLine(visible, range.head.line, range.head.line >= from ? 1 : -1);
+    if (line === null || line === range.head.line) return range;
+    const at = { line, ch: 0 };
+    return { anchor: at, head: at };
+  });
+  const after = onVisible.map((range) => {
     if (range.anchor.line !== range.head.line || range.anchor.ch !== range.head.ch) return range;
     const resolved = resolvePlacement(outlineDoc, range.anchor);
     return resolved === range.anchor ? range : { anchor: resolved, head: resolved };
@@ -282,6 +298,7 @@ export function transactionFilterExtension(
         tr.startState.doc,
         tr,
         zoomScope(tr.startState)?.cover,
+        filterVisibleSpans(tr.startState) ?? undefined,
       );
       if (escalated) result = [tr, { selection: escalated }];
     } else if (cls === 'programmatic' && userEvent === undefined && changedLineSpans.length === 0) {

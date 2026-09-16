@@ -46,10 +46,12 @@
 - [x] 3.1a Add an anchor for a node a transaction CREATES from a visible one (design D2); verify
       the catalogue walk's three rows flip and the deleted-subtree row does not. Negative
       control: drop the whole-line test and confirm a deleted subtree resurrects its follower
-- [ ] 3.2 Teach `zoom-scope.ts`'s visible-bounds resolver to intersect with the filter's spans
-      (design D3) so caret placement lands on the nearest visible span; verify unit tests for
-      down and up across a gap, filtered and filtered-inside-a-zoom. Negative control: drop the
-      intersection and confirm the down-arrow test fails
+- [x] 3.2 Step the caret over a hidden run (design D3): `keymap.ts`'s vertical walk skips one the
+      way it already skips a fold, and `transaction-filter.ts`'s selection clamp lands any other
+      caret on the nearest visible line; verify unit tests for down and up across a gap, at the
+      document's ends, and with a zoom having narrowed the set, plus an e2e case that Down from a
+      match lands on the next one and Up returns. Negative control: drop the skip and confirm the
+      down-arrow e2e fails
 - [ ] 3.3 Refuse a selection that would span a gap (design D3): a rejection reason in
       `src/result.ts` with its cue in `messages.ts`, raised once per gesture, with progressive
       Select All stopping at the visible run; verify unit tests that the selection is unchanged

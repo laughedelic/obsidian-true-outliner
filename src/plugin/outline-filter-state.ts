@@ -260,6 +260,48 @@ function mergeLines(sorted: readonly number[]): LineSpan[] {
   return spans;
 }
 
+/**
+ * The first line the filter shows at or beyond `line`, going `direction`.
+ *
+ * `null` means there is nothing that way — which a vertical motion reads as the
+ * document edge, since the filter has hidden everything between the caret and
+ * it. A caret that has to land SOMEWHERE wants `nearestVisibleLine` instead.
+ */
+export function nextVisibleLine(
+  spans: readonly LineSpan[],
+  line: number,
+  direction: 1 | -1,
+): number | null {
+  if (spans.some((span) => line >= span.fromLine && line < span.toLine)) return line;
+  if (direction === 1) {
+    const below = spans.find((span) => span.fromLine > line);
+    return below ? below.fromLine : null;
+  }
+  const above = [...spans].reverse().find((span) => span.toLine <= line);
+  return above ? above.toLine - 1 : null;
+}
+
+/**
+ * The nearest line the filter is showing, searching `direction` first.
+ *
+ * `outline-filter`'s caret rule: a gesture whose result would put the caret on
+ * a hidden line puts it on the nearest visible one, in the direction of the
+ * movement. Searching the direction of travel first is what makes Down past a
+ * run of hidden nodes land below them rather than bouncing back above.
+ *
+ * Unlike `nextVisibleLine` this falls back to the other direction at either end
+ * of the document, because its callers have a caret that has to go somewhere
+ * and the filter is still drawing lines for it to go to.
+ */
+export function nearestVisibleLine(
+  spans: readonly LineSpan[],
+  line: number,
+  direction: 1 | -1,
+): number | null {
+  if (spans.length === 0) return null;
+  return nextVisibleLine(spans, line, direction) ?? nextVisibleLine(spans, line, -direction as 1 | -1);
+}
+
 /** One derivation per `EditorState`, shared by every consumer — `zoomScope`'s
  * shape and for its reason: several extensions ask on every transaction. */
 const spanCache = new WeakMap<EditorState, { spans: readonly LineSpan[] | null }>();
