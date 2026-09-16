@@ -59,12 +59,12 @@
       that a held Shift+Down leaves the selection unchanged and says so once, and that Select All
       stops at the visible run. Negative control: allow the extension and confirm both fail —
       Select All reaches the document's last line rather than staying on the run
-- [ ] 3.4 Mark decorations from the field, cut with `matchRanges` and declared
+- [x] 3.4 Mark decorations from the field, cut with `matchRanges` and declared
       `{ tagName: 'mark', class: 'to-match' }` (design D6); verify unit tests over the decoration
       RANGES, which need no DOM — `docs/research/open-questions` Q37 defers a DOM environment for
       the unit suite — that a mark follows an edit, vanishes when the text no longer contains the
       query while the node stays visible, and does not move when a query matches nothing
-- [ ] 3.5 Leave the anchors alone when a query matches nothing, so the view and its marks stay
+- [x] 3.5 Leave the anchors alone when a query matches nothing, so the view and its marks stay
       the last matching query's, and flag the query as unmatched (design D8); verify unit tests
       that a miss changes neither the visible spans nor the marks, that removing the missing
       character restores the earlier set, and that a miss with nothing yet to keep renders the
