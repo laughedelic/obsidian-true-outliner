@@ -77,6 +77,7 @@ import { viewRegistryExtension } from './view-registry';
 import { zoomStateExtension } from './zoom-state';
 import { clearFilter, outlineFilterStateExtension, setFilterQuery } from './outline-filter-state';
 import { outlineFilter } from './outline-filter-scope';
+import { outlineFilterDecorationsExtension } from './outline-filter-decorations';
 import { guideHoverExtension } from './guide-hover';
 import { isOutlineMode, outlineStateExtension, outlineToggled } from './outline-state';
 import { zoomClickExtension } from './zoom-click';
@@ -513,6 +514,9 @@ export default class TrueOutlinerPlugin extends Plugin {
     // sources, and keeping them adjacent and last makes any interaction with
     // the established layers attributable to them.
     this.registerEditorExtension(zoomDecorationsExtension());
+    // After the hiding builder, so a mark is only ever computed for a line the
+    // block replacements have already decided to keep.
+    this.registerEditorExtension(outlineFilterDecorationsExtension());
     this.registerEditorExtension(zoomTrailExtension(this));
     this.registerEditorExtension(zoomClickExtension());
     this.registerEditorExtension(zoomViewExtension());

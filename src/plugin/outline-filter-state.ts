@@ -35,7 +35,7 @@ import {
 import type { EditorView } from '@codemirror/view';
 import type { OutlineDoc, OutlineNode } from '../model';
 import { forEachNodeWithLine } from '../locate';
-import { matchNodes } from '../search';
+import { matchNodes, matchRanges } from '../search';
 import type { LineSpan } from '../zoom';
 import { parsedDoc } from './parsed-doc';
 import { isOutlineMode } from './outline-state';
@@ -57,6 +57,14 @@ export const MIN_QUERY = 2;
 export interface OutlineFilter {
   /** What the reader has typed, trimmed or not — the field shows it verbatim. */
   readonly query: string;
+  /**
+   * The query the anchors answer, which is not always the one in the field.
+   *
+   * A miss keeps the last matching view (D8), and that view is marked as that
+   * query's answer rather than as the current one — the marks report what is on
+   * screen, and what is on screen is the earlier query's result.
+   */
+  readonly answered: string;
   /**
    * The frozen match set, or null when nothing has matched yet.
    *
@@ -110,11 +118,18 @@ function anchorsFor(doc: OutlineDoc, text: Text, query: string): number[] {
  * an answer to one.
  */
 function applyQuery(previous: OutlineFilter | null, text: Text, query: string): OutlineFilter {
-  if (query.trim().length < MIN_QUERY) return { query, anchors: null, matched: true };
+  if (query.trim().length < MIN_QUERY) return { query, answered: '', anchors: null, matched: true };
   const { doc } = parsedDoc(text);
   const anchors = anchorsFor(doc, text, query);
-  if (anchors.length === 0) return { query, anchors: previous?.anchors ?? null, matched: false };
-  return { query, anchors, matched: true };
+  if (anchors.length === 0) {
+    return {
+      query,
+      answered: previous?.answered ?? '',
+      anchors: previous?.anchors ?? null,
+      matched: false,
+    };
+  }
+  return { query, answered: query, anchors, matched: true };
 }
 
 /**
@@ -323,6 +338,37 @@ export function crossesHiddenLines(
     if (!spans.some((span) => line >= span.fromLine && line < span.toLine)) return true;
   }
   return false;
+}
+
+/**
+ * Where to mark, as offset ranges over the whole document.
+ *
+ * Cut with `matchRanges`, so what counts as an occurrence is the one rule
+ * `matchesText` answers yes or no with rather than a second implementation that
+ * agrees with it until someone changes the grammar.
+ *
+ * Per visible LINE, not per node. A node's own lines are what `matchNodes`
+ * joins to decide membership, so a query containing a line break can make a
+ * node a match and leave nothing here to mark — narrow, and the honest
+ * alternative would be marking across a break, which is not one run of text on
+ * screen.
+ */
+export function markRanges(
+  spans: readonly LineSpan[],
+  text: Text,
+  query: string,
+): { from: number; to: number }[] {
+  if (query.trim().length === 0) return [];
+  const out: { from: number; to: number }[] = [];
+  for (const span of spans) {
+    for (let n = span.fromLine; n < Math.min(span.toLine, text.lines); n++) {
+      const line = text.line(n + 1);
+      for (const range of matchRanges(line.text, query)) {
+        out.push({ from: line.from + range.from, to: line.from + range.to });
+      }
+    }
+  }
+  return out;
 }
 
 /** One derivation per `EditorState`, shared by every consumer — `zoomScope`'s

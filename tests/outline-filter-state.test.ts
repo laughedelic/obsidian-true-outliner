@@ -4,6 +4,7 @@ import { outlineStateExtension } from '../src/plugin/outline-state';
 import {
   crossesHiddenLines,
   filterQuerySet,
+  markRanges,
   filterCleared,
   nearestVisibleLine,
   outlineFilterStateExtension,
@@ -234,5 +235,68 @@ describe('outline filter state: a selection that would reach across a gap', () =
 
   it('reads the same in either direction, since a selection has two ends', () => {
     expect(crossesHiddenLines(SPANS, 9, 2)).toBe(crossesHiddenLines(SPANS, 2, 9));
+  });
+});
+
+describe('outline filter state: where the marks go', () => {
+  /** The text each mark covers, which is what a reader sees marked. */
+  function marked(state: EditorState): string[] {
+    const spans = filterVisibleSpans(state);
+    const filter = outlineFilter(state);
+    if (!spans || !filter?.answered) return [];
+    return markRanges(spans, state.doc, filter.answered).map((r) =>
+      state.doc.sliceString(r.from, r.to),
+    );
+  }
+
+  it('marks every occurrence in a visible node', () => {
+    const doc = ['- one target two target', '  - child', ''].join('\n');
+    const state = stateWith(doc, 'target');
+    // Twice on the match's own line, and the child is hidden with nothing of
+    // its own to mark. A child holding the query would be a match itself and
+    // visible, which is the spec's rule rather than an exception to it.
+    expect(marked(state)).toEqual(['target', 'target']);
+  });
+
+  it('marks nothing in a node the filter is hiding', () => {
+    const state = stateWith(DOC, 'target');
+    const at = state.doc.toString().indexOf('- alpha') + '- alpha'.length;
+    const edited = state.update({ changes: { from: at, insert: ' target' } }).state;
+    // The hidden node now contains the query and is still not marked, because
+    // it is still not shown.
+    expect(marked(edited)).toEqual(['target']);
+  });
+
+  it('a mark follows an edit inside its own node', () => {
+    const state = stateWith(DOC, 'target');
+    const at = state.doc.toString().indexOf('- target') + 2;
+    const edited = state.update({ changes: { from: at, insert: 'xx ' } }).state;
+    const ranges = markRanges(
+      filterVisibleSpans(edited)!,
+      edited.doc,
+      outlineFilter(edited)!.answered,
+    );
+    expect(edited.doc.sliceString(ranges[0]!.from, ranges[0]!.to)).toBe('target');
+  });
+
+  it('a mark goes when the text stops containing the query, though the node stays', () => {
+    const state = stateWith(DOC, 'target');
+    const from = state.doc.toString().indexOf('target');
+    const edited = state.update({ changes: { from, to: from + 'target'.length, insert: 'gone' } })
+      .state;
+    expect(visibleLines(edited)).toContain('- gone');
+    expect(marked(edited)).toEqual([]);
+  });
+
+  it('keeps the earlier query\'s marks while the current one matches nothing', () => {
+    // The view is that query's answer (D8), so its marks are that query's too —
+    // not the one in the field, which marks nothing anywhere.
+    const matched = stateWith(DOC, 'target');
+    const missed = matched.update({ effects: filterQuerySet.of('targetx') }).state;
+    expect(marked(missed)).toEqual(['target']);
+  });
+
+  it('marks nothing when no filter is active', () => {
+    expect(marked(stateWith(DOC))).toEqual([]);
   });
 });
