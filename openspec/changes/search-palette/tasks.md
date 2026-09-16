@@ -30,7 +30,7 @@
       returning the row element so a caller can put its own role on it; make the footer call it
       through one `listOptions()`. Verify `npm run test:e2e:narrow -- 73-footer-render`,
       `74-footer-chrome-pass` and `79-footer-appearance` pass unchanged
-- [ ] 2.3 Rename the classes the shared renderer emits from `to-backlinks-*` to `to-lineage-*`
+- [x] 2.3 Rename the classes the shared renderer emits from `to-backlinks-*` to `to-lineage-*`
       (design D2) — `lineage-row.ts`'s own strings, `lineage-list.ts`'s rows and group head, their
       rules, and the e2e selectors that read them. Verify the whole `backlinks` group and
       `80-outline-zoom` pass unchanged. Negative control: leave one shared class behind and

@@ -1836,7 +1836,7 @@ describe('node dragging: the marks that are not its own', () => {
     const TARGET = 'Backlinks/Reference target.md';
     await openFooter(TARGET);
     const before = await h.getBuffer();
-    const icon = await pointOf('.to-backlinks-row .to-decor-marker-icon', 0);
+    const icon = await pointOf('.to-lineage-row .to-decor-marker-icon', 0);
     const box = await editorBox();
     // Aimed INTO the content, so the moves reach the recorder while the button
     // is still down.

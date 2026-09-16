@@ -545,7 +545,7 @@ class FooterController {
 
     for (const group of result.groups) {
       const { name, folder } = splitPath(group.path);
-      const card = root.createDiv({ cls: 'to-backlinks-group' });
+      const card = root.createDiv({ cls: 'to-lineage-group' });
       const collapsed = state.collapsedGroups.has(group.path);
       renderGroupHead(card, {
         name,
@@ -561,13 +561,13 @@ class FooterController {
       });
       if (collapsed) continue;
 
-      const body = card.createDiv({ cls: 'to-backlinks-rows' });
+      const body = card.createDiv({ cls: 'to-lineage-rows' });
       // Capped by HEIGHT rather than by row count: what makes a group hard to
       // skim is how much of the screen it takes, and ten short rows take less
       // than three long ones. The threshold is a custom property so a setting
       // can drive it without this code knowing (docs/research/structured-backlinks, D10).
       body.toggleClass('is-capped', !state.expandedGroups.has(group.path));
-      body.createDiv({ cls: 'to-backlinks-resolving', text: 'resolving…' });
+      body.createDiv({ cls: 'to-lineage-resolving', text: 'resolving…' });
       bodies.push({ path: group.path, body, card });
     }
 
@@ -592,7 +592,7 @@ class FooterController {
     const { shortfall } = result;
     if (shortfall.notes <= 0) return;
 
-    const cards = root.querySelectorAll('.to-backlinks-group');
+    const cards = root.querySelectorAll('.to-lineage-group');
     cards.item(cards.length - 1)?.addClass('is-fading');
 
     const tail = root.createDiv({ cls: 'to-backlinks-tail' });
@@ -965,7 +965,7 @@ class FooterController {
     const title = head.createDiv({ cls: 'to-backlinks-head-title' });
     if (foldable) makeDisclosure(title, !collapsed, 'Structured backlinks');
     if (foldable) {
-      const chevron = title.createSpan({ cls: 'to-backlinks-chevron' });
+      const chevron = title.createSpan({ cls: 'to-chevron' });
       // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
       chevron.appendChild(chevronGlyph(!collapsed));
     }

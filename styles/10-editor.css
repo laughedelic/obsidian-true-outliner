@@ -203,7 +203,7 @@ body.is-mobile {
  * custom properties (`chrome-line.ts`), so they take the same layout from the
  * same declarations rather than from a parallel set that drifts. */
 .markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-block,
-.to-backlinks-row.to-decor-block {
+.to-lineage-row.to-decor-block {
   position: relative;
   padding-left: calc(var(--to-depth, 0) * var(--to-decor-unit) + var(--to-marker-gutter, 0px)) !important;
   /* Headings/paragraphs whose raw line starts with 1-3 literal spaces (not
@@ -765,12 +765,12 @@ body.is-mobile {
  * four widget kinds, before switching to it.
  */
 .markdown-source-view.mod-cm6 .cm-content > .to-decor-guides,
-.to-backlinks-row.to-decor-guides {
+.to-lineage-row.to-decor-guides {
   position: relative;
 }
 
 .markdown-source-view.mod-cm6 .cm-content > .to-decor-guides::after,
-.to-backlinks-row.to-decor-guides::after {
+.to-lineage-row.to-decor-guides::after {
   content: '';
   position: absolute;
   top: 0;

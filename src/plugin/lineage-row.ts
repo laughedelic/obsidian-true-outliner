@@ -113,12 +113,12 @@ export function renderLineageContent(
     // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
     el.appendChild(options.marker(segments[0], options.fallback));
   }
-  const content = el.createSpan({ cls: 'to-backlinks-content' });
+  const content = el.createSpan({ cls: 'to-lineage-content' });
   segments.forEach((segment, i) => {
     // Between two ancestors, so outside both — a separator that sat inside a
     // segment would share that ancestor's target and activate it.
     if (i > 0 && options.separator === 'chevron') {
-      const sep = content.createSpan({ cls: 'to-backlinks-seg-sep' });
+      const sep = content.createSpan({ cls: 'to-lineage-seg-sep' });
       sep.setAttribute('aria-hidden', 'true');
       // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
       sep.appendChild(options.separatorGlyph());
@@ -126,7 +126,7 @@ export function renderLineageContent(
     // Each ancestor is its own target. One handler on the row could only reach
     // the chain as a whole, which is not what "a lineage element navigates to
     // that ancestor" promises — a chain is several ancestors on one line.
-    const seg = content.createSpan({ cls: 'to-backlinks-seg' });
+    const seg = content.createSpan({ cls: 'to-lineage-seg' });
     // Every ancestor names its own kind. The FIRST one's marker is the row's,
     // already drawn in the gutter above, so only the rest need one here — and it
     // goes inside the segment, not between two of them, so it shares that
@@ -139,9 +139,9 @@ export function renderLineageContent(
         // than notation added to it: without it the row reads "Item" where the
         // note reads "10. Item". No gutter slot: this one sits in the text run,
         // where the number needs its own width.
-        seg.createSpan({ cls: 'to-backlinks-seg-ord', text: segment.ordinal });
+        seg.createSpan({ cls: 'to-lineage-seg-ord', text: segment.ordinal });
       } else if (options.icons === 'all') {
-        const icon = seg.createSpan({ cls: 'to-backlinks-seg-icon' });
+        const icon = seg.createSpan({ cls: 'to-lineage-seg-icon' });
         // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
         icon.appendChild(options.glyph(segment));
       }
@@ -227,7 +227,7 @@ export function segmentGlyph(segment: LineageSegment, style: HeadingMarkerStyle)
  * its own text out, exactly as it does in the editor.
  */
 export function ordinalMarker(label: string): HTMLElement {
-  return createSpan({ cls: 'to-backlinks-ordinal', text: label });
+  return createSpan({ cls: 'to-lineage-ordinal', text: label });
 }
 
 /** A task's state, drawn where its bullet would be. Not interactive: the footer

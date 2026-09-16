@@ -174,7 +174,7 @@ class ZoomTrailWidget extends WidgetType {
     const scope = zoomScope(view.state);
     if (!scope) return el;
 
-    const row = el.createDiv({ cls: 'to-backlinks-row' });
+    const row = el.createDiv({ cls: 'to-lineage-row' });
     row.dataset.kind = 'lineage';
     // The same chrome a footer lineage row takes, at depth 0 and with no guides:
     // the trail is one row about one chain, so there is no depth for a stripe to

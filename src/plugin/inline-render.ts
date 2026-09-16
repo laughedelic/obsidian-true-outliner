@@ -88,7 +88,7 @@ export async function renderInline(
     return;
   }
   if (content.render === 'code') {
-    el.createEl('code', { cls: 'to-backlinks-code', text: content.markdown });
+    el.createEl('code', { cls: 'to-lineage-code', text: content.markdown });
     return;
   }
   // An embed is taken out of the SOURCE where a chain is being drawn, not only
