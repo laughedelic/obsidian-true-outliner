@@ -149,10 +149,18 @@ flip it. Recorded as the alternative to revisit if readers ask.
 
 ### D7. Scope is the note the palette opened from
 
-Captured at open time as `workspace.getActiveFile()`; absent when there is none, in which case the
-toggle is inert. Tab is the toggle key because both prior-art palettes that offer the hop use it
-(`docs/research/search-surfaces`, survey: Omnisearch, RemNote) and a modal has no other use for
-it.
+Captured at open time as `workspace.getActiveFile()`; absent when there is none, in which case
+neither the key nor the control is offered. Tab is the toggle key because both prior-art palettes
+that offer the hop use it (`docs/research/search-surfaces`, survey: Omnisearch, RemNote) and a
+modal has no other use for it.
+
+The control stands in for that key where there is no key. It is in the input row in both scopes,
+with two appearances: while the vault is active it reads "This note" and carries the key's own
+glyph, an offer rather than a label; once narrowed it becomes the chip naming the note, with the
+way back on it. Showing it only when narrowed — the prototype's shape, and what an earlier draft
+of this spec said — leaves a phone with nothing to tap in the scope it opens in, which is to say
+no way to reach the narrowed scope at all. Labelling the default instead ("Vault") fills the row
+to report that nothing has changed.
 
 ### D8. Keys through the modal's `Scope`, roles on the DOM
 
@@ -175,9 +183,10 @@ measurement says so.
 
 ### D10. Phone
 
-Obsidian renders a `Modal` full-screen on a phone; the palette keeps that. Hits open on tap,
-the instructions row is hidden by the existing phone container query, and the scope toggle is a
-tappable chip since there is no Tab key to press.
+Obsidian renders a `Modal` full-screen on a phone; the palette keeps that. Hits open on tap and
+the instructions row is hidden by the existing phone container query — which is the second reason
+the scope control carries the key's glyph rather than relying on the hints to name it, and the
+first reason it is present in both scopes (D7).
 
 ## Risks / Trade-offs
 
