@@ -21,7 +21,8 @@ footer's renderer, nothing private.
   footer's context rules do not apply to it. Groups are ordered by the note's modification time,
   hits within a group in document order.
 - **Two scopes in one box.** The vault by default; a key toggles to the note the palette was
-  opened from, and a chip in the input row says which is active.
+  opened from, and one control in the input row carries the same hop for a pointer: it offers the
+  note's scope and names the key while the vault is active, and names the note once narrowed.
 - **A keyboard model over hits, not items.** One hit is active; arrow keys move between hits
   across group boundaries and stop at each end of the list; a modified arrow jumps between
   groups; focus never leaves the input.
@@ -83,4 +84,13 @@ requirements keep holding, on the shared module.
 
 Stacked on `search-hits-and-footer-content-filter`: it reads that change's matcher and hit
 model, and rewrites the footer file that change also edits. The two are one unit of work. The
-in-note filter and the sidebar view come after, off `main`.
+sidebar view comes after, off `main`.
+
+`in-note-outline-filter` is off `main` too, and near enough to touch the same two files without
+depending on this change or being depended on by it — a stack would charge both for an order
+neither needs. Two seams to settle between them rather than resolve twice:
+`styles/20-backlinks-footer.css`'s match-mark rule, which that change moves into
+`styles/10-editor.css` as a rule two surfaces share while this one moves the row rules around it
+into `styles/15-lineage-list.css` under a new scope class; and `src/plugin/main.ts`, where both
+add a command and an import. Whichever lands first sets the shape; the second reads it before
+touching either file.

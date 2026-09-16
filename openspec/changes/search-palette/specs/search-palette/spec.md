@@ -84,12 +84,16 @@ SHALL appear in document order.
 
 ### Requirement: Two scopes, switched in place
 
-The palette SHALL search every markdown note in the vault by default. A key and a visible
-control SHALL toggle the scope to the note the palette was opened from, and back. The active
-scope SHALL be shown in the input row whenever it is the narrowed one. Switching scope SHALL
-re-run the current query; the query text SHALL be kept.
+The palette SHALL search every markdown note in the vault by default. A key and a control in the
+input row SHALL toggle the scope to the note the palette was opened from, and back.
 
-When the palette is opened with no note active, the narrowed scope SHALL NOT be offered.
+The control SHALL be present in both scopes, since on a phone it is the only way to switch: in the
+vault scope it SHALL offer the narrowed scope and name the key that reaches it, and once narrowed
+it SHALL name the note and offer the way back. Switching scope SHALL re-run the current query; the
+query text SHALL be kept.
+
+When the palette is opened with no note active, the narrowed scope SHALL NOT be offered and the
+control SHALL NOT be shown.
 
 #### Scenario: Narrowing to the current note
 
@@ -100,12 +104,19 @@ When the palette is opened with no note active, the narrowed scope SHALL NOT be 
 #### Scenario: Widening again
 
 - **WHEN** the scope is narrowed and the scope key is pressed again
-- **THEN** hits from every note are shown and the input row no longer names a note
+- **THEN** hits from every note are shown and the control offers the narrowed scope once more
+  rather than naming a note
+
+#### Scenario: The control is reachable without a key
+
+- **WHEN** the palette is open in the vault scope
+- **THEN** the input row carries a control that narrows the scope when it is activated, with no
+  key pressed
 
 #### Scenario: No note to narrow to
 
 - **WHEN** the palette was opened from a non-markdown view and the scope key is pressed
-- **THEN** the scope stays the vault
+- **THEN** the scope stays the vault, and no scope control is shown
 
 ### Requirement: The keyboard moves between hits, and focus stays in the query
 
