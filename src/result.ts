@@ -20,7 +20,8 @@ export type RejectionReason =
   | 'merge-not-expressible'
   | 'insertion-not-expressible'
   | 'cannot-unwrap'
-  | 'would-leave-zoom-scope';
+  | 'would-leave-zoom-scope'
+  | 'would-cross-a-filter-gap';
 
 export interface Rejection {
   readonly reason: RejectionReason;

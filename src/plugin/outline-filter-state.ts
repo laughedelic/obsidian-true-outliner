@@ -302,6 +302,29 @@ export function nearestVisibleLine(
   return nextVisibleLine(spans, line, direction) ?? nextVisibleLine(spans, line, -direction as 1 | -1);
 }
 
+/**
+ * Does a line range reach across something the filter is hiding?
+ *
+ * The test behind `outline-filter`'s selection rule. A caret is a point and can
+ * be moved to a visible line; a RANGE spanning a gap cannot be drawn truthfully,
+ * because it covers nodes the reader cannot see and hands them to Copy and
+ * Delete. So a gesture that would produce one is refused rather than corrected.
+ *
+ * Inclusive of both ends, which is how a selection's line range is stated.
+ */
+export function crossesHiddenLines(
+  spans: readonly LineSpan[],
+  fromLine: number,
+  toLine: number,
+): boolean {
+  const first = Math.min(fromLine, toLine);
+  const last = Math.max(fromLine, toLine);
+  for (let line = first; line <= last; line++) {
+    if (!spans.some((span) => line >= span.fromLine && line < span.toLine)) return true;
+  }
+  return false;
+}
+
 /** One derivation per `EditorState`, shared by every consumer — `zoomScope`'s
  * shape and for its reason: several extensions ask on every transaction. */
 const spanCache = new WeakMap<EditorState, { spans: readonly LineSpan[] | null }>();

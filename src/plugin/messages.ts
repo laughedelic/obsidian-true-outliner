@@ -23,4 +23,5 @@ export const REJECTION_MESSAGES: Record<RejectionReason, string> = {
   'insertion-not-expressible': "Markdown can't express that content here.",
   'cannot-unwrap': 'Only an empty list item can be unwrapped.',
   'would-leave-zoom-scope': "That would move it outside the zoomed view.",
+  'would-cross-a-filter-gap': 'Selecting stops at the filter — clear it to reach the rest.',
 };

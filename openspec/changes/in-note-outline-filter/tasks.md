@@ -52,11 +52,13 @@
       document's ends, and with a zoom having narrowed the set, plus an e2e case that Down from a
       match lands on the next one and Up returns. Negative control: drop the skip and confirm the
       down-arrow e2e fails
-- [ ] 3.3 Refuse a selection that would span a gap (design D3): a rejection reason in
-      `src/result.ts` with its cue in `messages.ts`, raised once per gesture, with progressive
-      Select All stopping at the visible run; verify unit tests that the selection is unchanged
-      and that a held key raises one notice, not many. Negative control: allow the extension and
-      confirm the unchanged-selection test fails
+- [x] 3.3 Refuse a selection that would span a gap (design D3): `would-cross-a-filter-gap` in
+      `src/result.ts` with its cue in `messages.ts`, guarded in `keymap.ts` beside the two
+      gestures that dispatch a selection programmatically and in `transaction-filter.ts` for
+      every other one, raised once per gesture; verify unit tests for the crossing rule and e2e
+      that a held Shift+Down leaves the selection unchanged and says so once, and that Select All
+      stops at the visible run. Negative control: allow the extension and confirm both fail —
+      Select All reaches the document's last line rather than staying on the run
 - [ ] 3.4 Mark decorations from the field, cut with `matchRanges` and declared
       `{ tagName: 'mark', class: 'to-match' }` (design D6); verify unit tests over the decoration
       RANGES, which need no DOM — `docs/research/open-questions` Q37 defers a DOM environment for

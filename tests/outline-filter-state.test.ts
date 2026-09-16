@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { EditorState, type Extension } from '@codemirror/state';
 import { outlineStateExtension } from '../src/plugin/outline-state';
 import {
+  crossesHiddenLines,
   filterQuerySet,
   filterCleared,
   nearestVisibleLine,
@@ -206,5 +207,32 @@ describe('outline filter state: the nearest visible line', () => {
     const zoomed = [{ fromLine: 5, toLine: 7 }];
     expect(nearestVisibleLine(zoomed, 2, 1)).toBe(5);
     expect(nearestVisibleLine(zoomed, 9, -1)).toBe(6);
+  });
+});
+
+describe('outline filter state: a selection that would reach across a gap', () => {
+  // Islands at 2, 5-6 and 9; everything else hidden.
+  const SPANS = [
+    { fromLine: 2, toLine: 3 },
+    { fromLine: 5, toLine: 7 },
+    { fromLine: 9, toLine: 10 },
+  ];
+
+  it('a range inside one island does not cross', () => {
+    expect(crossesHiddenLines(SPANS, 5, 6)).toBe(false);
+    expect(crossesHiddenLines(SPANS, 2, 2)).toBe(false);
+  });
+
+  it('a range reaching the next island crosses the gap between them', () => {
+    expect(crossesHiddenLines(SPANS, 2, 5)).toBe(true);
+    expect(crossesHiddenLines(SPANS, 6, 9)).toBe(true);
+  });
+
+  it('a range ending on a hidden line crosses, even without reaching an island', () => {
+    expect(crossesHiddenLines(SPANS, 6, 7)).toBe(true);
+  });
+
+  it('reads the same in either direction, since a selection has two ends', () => {
+    expect(crossesHiddenLines(SPANS, 9, 2)).toBe(crossesHiddenLines(SPANS, 2, 9));
   });
 });

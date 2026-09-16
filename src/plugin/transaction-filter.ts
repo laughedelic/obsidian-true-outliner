@@ -43,7 +43,7 @@ import { isOutlineMode } from './outline-state';
 import { parsedDoc } from './parsed-doc';
 import { zoomScope } from './zoom-scope';
 import { filterVisibleSpans } from './outline-filter-scope';
-import { nearestVisibleLine } from './outline-filter-state';
+import { crossesHiddenLines, nearestVisibleLine } from './outline-filter-state';
 import type { LineSpan } from '../zoom';
 import { escapesZoom } from './zoom-enforce';
 import { isNestedTransaction } from './nested-editor';
@@ -56,6 +56,25 @@ export interface ClassificationSource {
 /** Carries a veto's rejection reason to the update listener (design.md D6):
  * the filter attaches it, never shows the cue itself. */
 export const vetoEffect = StateEffect.define<RejectionReason>();
+
+/**
+ * Would this selection cover a line the filter is hiding?
+ *
+ * Only a real range is asked: a caret is a point, and `escalateSelection` has
+ * already moved it onto a visible line by the time this runs.
+ */
+function crossesGap(
+  visible: readonly LineSpan[],
+  doc: Text,
+  selection: EditorSelection,
+): boolean {
+  return selection.ranges.some((range) => {
+    if (range.empty) return false;
+    const from = doc.lineAt(range.from).number - 1;
+    const to = doc.lineAt(range.to).number - 1;
+    return crossesHiddenLines(visible, from, to);
+  });
+}
 
 /** Old-document (`tr.startState.doc`) line spans touched by this
  * transaction's changes — inclusive on both ends (classify.ts's
@@ -293,14 +312,24 @@ export function transactionFilterExtension(
 
     if (cls === 'selection-only') {
       // The scope of the state the selection is landing in, not the one it left.
+      const visible = filterVisibleSpans(tr.startState) ?? undefined;
       const escalated = escalateSelection(
         outlineDoc,
         tr.startState.doc,
         tr,
         zoomScope(tr.startState)?.cover,
-        filterVisibleSpans(tr.startState) ?? undefined,
+        visible,
       );
-      if (escalated) result = [tr, { selection: escalated }];
+      // A range that would reach across a gap is refused rather than corrected
+      // (`outline-filter` D3), and refusing means dissolving the transaction so
+      // the selection stays exactly as it was. Judged against what the gesture
+      // WOULD leave — the escalated selection when there is one, since a
+      // progressive Select All grows inside the filter and has to stop at the
+      // run rather than at whatever CM6 handed in.
+      const would = escalated ?? tr.newSelection;
+      if (visible && crossesGap(visible, tr.startState.doc, would)) {
+        result = { effects: vetoEffect.of('would-cross-a-filter-gap') };
+      } else if (escalated) result = [tr, { selection: escalated }];
     } else if (cls === 'programmatic' && userEvent === undefined && changedLineSpans.length === 0) {
       // A foreign, unannotated cursor move (see resolveForeignCursors).
       const placed = resolveForeignCursors(outlineDoc, tr.startState.doc, tr);
@@ -348,12 +377,38 @@ export function transactionFilterExtension(
     return result;
   });
 
+  /**
+   * The last refusal shown, per view, so a held key says it once.
+   *
+   * A refused gesture dissolves its transaction, so the selection does not
+   * move — and auto-repeat then sends the same refusal every few tens of
+   * milliseconds. Keyed on the reason AND the selection it was refused from, so
+   * a genuinely different refusal, or the same one after the caret has moved,
+   * still speaks. The window is the cue's own lifetime: once it has gone, a
+   * deliberate second press is worth answering again.
+   */
+  const lastCue = new WeakMap<EditorView, { reason: RejectionReason; at: number; sel: string }>();
+  const CUE_MS = 1500;
+
   const vetoCue = EditorView.updateListener.of((update) => {
     for (const tr of update.transactions) {
       for (const effect of tr.effects) {
-        if (effect.is(vetoEffect)) {
-          new Notice(REJECTION_MESSAGES[effect.value] ?? effect.value, 1500);
+        if (!effect.is(vetoEffect)) continue;
+        const sel = update.view.state.selection.ranges
+          .map((r) => `${r.anchor}:${r.head}`)
+          .join(',');
+        const previous = lastCue.get(update.view);
+        const now = performance.now();
+        if (
+          previous &&
+          previous.reason === effect.value &&
+          previous.sel === sel &&
+          now - previous.at < CUE_MS
+        ) {
+          continue;
         }
+        lastCue.set(update.view, { reason: effect.value, at: now, sel });
+        new Notice(REJECTION_MESSAGES[effect.value] ?? effect.value, CUE_MS);
       }
     }
   });
