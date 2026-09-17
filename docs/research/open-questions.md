@@ -2492,6 +2492,9 @@ belongs to. The walk that cuts a text node around those ranges is asserted in
 
 ## Q38. A block start deeper than three columns parses as a paragraph ❓ OPEN (2026-09-17, `source-indentation-collapses` manual pass)
 
+Tracked as issue #136; the two neighbouring findings at the end of this entry are #137 (a table
+inside a list item) and #138 (a top-level four-space line, whose decision lives in Q35).
+
 Reported from the manual pass on issue #117: a quote written under a list item with a TAB
 "breaks and renders as a paragraph", with its `>` marker left on the top-level guide.
 

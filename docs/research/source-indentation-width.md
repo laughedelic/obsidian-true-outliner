@@ -163,6 +163,20 @@ Recorded rather than closed. Making the run non-addressable is a change to the c
 contract — `content-space-caret`'s boundary rule, one capability over — and every shape that spec
 pins is a list item, whose run this change does not touch.
 
+## Obsidian's own indent aid, off a list
+
+The manual pass also reported stray line segments through the content. They are Obsidian's own
+indentation aid, which it draws from four columns of leading whitespace and again from eight, on
+any line — not only on a list line, where `lists-on-the-outline-grid` had already suppressed it.
+The columns it uses are the file's, not the tree's, and on a line whose run this layer collapses
+the span the aid hangs off has no width left, so the segment starts inside the text it was meant
+to sit left of.
+
+Measured on `- alpha` / `` / `⇥child paragraph` / `` / `␣␣␣␣␣␣␣␣eight spaces deep`:
+`--indentation-guide-width` resolved to 1px on both indented lines with outline mode on, against
+0px on the list line beside them. The suppression now names every line the mode decorates, which
+is the rule `10-editor.css` already carried, scoped where it should have been.
+
 ## What was left alone
 
 - **List items.** Their run is sized, not collapsed (`--to-list-hang`), and their geometry is

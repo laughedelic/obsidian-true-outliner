@@ -433,9 +433,10 @@ marker or text SHALL move when a guide stops or starts being drawn, whether beca
 changed, the caret moved, or an edit made the document's root no longer single.
 
 The plugin SHALL own this rendering rather than share it: in outline mode it SHALL suppress
-Obsidian's own indent guide on every list line, whatever this layer itself draws there. A native
-guide is positioned by native list nesting, and outline mode does not use those columns — a list
-level renders at `depth × unit` like every other kind — so a native guide lands beside this grid
+Obsidian's own indent guide on every line it decorates, list or not, whatever this layer itself
+draws there. A native guide is positioned by the SOURCE indentation — by native list nesting on a
+list line, and from four columns of leading whitespace on any other — and outline mode does not
+use those columns: every level renders at `depth × unit`, so a native guide lands beside this grid
 rather than on it, and showing one is showing a ladder that does not match the content. Drawing
 no guides of our own is therefore not a reason to show Obsidian's; suppression SHALL NOT vary
 with the visibility setting, line by line, or with the caret. Guides SHALL render continuously
@@ -529,6 +530,11 @@ be the same either way.
 - **WHEN** the visibility setting is `none`, with Obsidian's own indentation-guide setting on
 - **THEN** no guide renders on any line in the editor, no line's geometry changes, and no native
   indent guide renders on a list line either
+
+#### Scenario: No native guide off a list either
+- **WHEN** a note holds a line indented four or more columns outside any list, with Obsidian's own
+  indentation-guide setting on
+- **THEN** no native indent guide renders on it in outline mode
 
 #### Scenario: The levels inside the current node
 - **WHEN** the visibility setting names the levels inside the current node

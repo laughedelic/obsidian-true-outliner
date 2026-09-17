@@ -247,7 +247,7 @@ body.is-mobile {
   ) !important;
 }
 
-/* Obsidian's own indent guide, gone on every outline-mode list line —
+/* Obsidian's own indent guide, gone on every outline-mode line —
  * unconditionally, whatever this layer draws there.
  *
  * Not merely to avoid doubling up. A native guide sits on the column native
@@ -257,6 +257,13 @@ body.is-mobile {
  * rather than on it. Showing one is showing a ladder that does not match the
  * content — which is worse than showing none, and worse than showing ours.
  *
+ * The same holds off a list, which the rule missed while it named list lines
+ * only: Obsidian draws the aid from four columns of indentation, and again from
+ * eight, on any line at all. Those columns are the file's, not the tree's, and
+ * on a line whose run this layer collapses the span they hang off has no width
+ * left — so what remained was a segment starting inside the text it was meant
+ * to sit left of. Reported from the manual pass on issue #117.
+ *
  * So this does not follow the visibility setting. Turning our guides off means
  * no guides, not Obsidian's instead; and a suppression that varied per line or
  * with the caret would make a misaligned line blink in and out under the
@@ -264,7 +271,9 @@ body.is-mobile {
  * they exist only while the user's own "Show indentation guides" setting is on
  * — which stays the user's to set, and governs everywhere outline mode is
  * not. */
-.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-list {
+.markdown-source-view.mod-cm6
+  .cm-content
+  > .cm-line:is(.to-decor-list, .to-decor-block, .to-decor-atom) {
   --indentation-guide-width: 0px;
   --indentation-guide-width-active: 0px;
 }
