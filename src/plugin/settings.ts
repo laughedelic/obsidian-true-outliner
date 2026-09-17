@@ -110,6 +110,9 @@ export function normalizePluginData(raw: unknown): PluginData {
 export interface SettingDefinition {
   readonly name: string;
   readonly desc: string;
+  /** Carried from the declaration so the tab can draw a chip; this module stays
+   * pure and builds no DOM, so the fragment is the tab's to make. */
+  readonly experimental?: boolean;
   readonly control:
     | { readonly type: "toggle"; readonly key: SettingRowKey; readonly defaultValue: boolean }
     | {

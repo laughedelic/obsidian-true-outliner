@@ -24,8 +24,12 @@ document keeps every byte, every gap keeps its owner, and no operation behaves d
   a provisional position carries a full per-line fact, which a gap line by definition does not.
   The two sets are disjoint — measured in `docs/research/gap-line-hiding`.
 - **The mechanism is a line decoration, not a block replacement.** The zoom hides lines by
-  replacing them (`zoom-hiding-mechanism`); that mechanism is wrong here, for three measured
-  reasons recorded in the new note, and the design records why.
+  replacing them (`zoom-hiding-mechanism`); the design records the four costs either way, including
+  the one that reopened the decision — the editor's height map counts an undrawn collapsed row at
+  full height, so the scrollbar settles as the reader scrolls. That is accepted, on an opt-in
+  setting, rather than paid down with a second decoration source.
+- **The setting is marked EXPERIMENTAL on its own row**, as a chip drawn from the declaration
+  rather than wording inside the description, and its description names what the reader gives up.
 
 ## Non-goals
 
@@ -46,8 +50,9 @@ document keeps every byte, every gap keeps its owner, and no operation behaves d
 ### Modified Capabilities
 
 - `outline-decorations`: the guide layer's existing rule that blank separator lines render
-  guides gains a companion — which rows the layer draws at all, and the one row it never
-  collapses.
+  guides gains a companion — which rows the layer draws at all, the one row it never collapses,
+  and what the collapse is allowed to cost the editor's own scroll metrics. It also gains the
+  rule that a setting still being judged says so on its own row.
 
 ## Impact
 
@@ -56,6 +61,8 @@ document keeps every byte, every gap keeps its owner, and no operation behaves d
 - `src/plugin/decorations.ts`: `DecorationSource`, the render cache key, and `gapLineDecoration`
   — which now also emits for a gap line carrying no guide, since a top-level gap has none and
   still has to be collapsed.
-- `styles/70-gap-lines.css`: one rule, one new part.
+- `styles/70-gap-lines.css` and `styles/80-settings.css`: one rule each, two new parts.
+- `src/plugin/settings/declare.ts` and `src/plugin/settings.ts`: the `experimental` flag the chip
+  is drawn from.
 - `tests/decorate.test.ts` and a new e2e case; `docs/research/gap-line-hiding` records the
   measurement this rests on.

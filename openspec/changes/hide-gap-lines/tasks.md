@@ -52,10 +52,14 @@
 - [x] 4.6 E2E case: a node cover's selection background over a node whose trailing gap is
       collapsed — the fourth mechanism that ends on a gap line, reasoned about in task 1.3 but
       not measured there. Negative control — the cover's own class failing to land on the gap row
-- [ ] 4.7 Decide D1 against the height-map figures: accept the scrollbar settling, or move to a
-      block replacement kept disjoint from the fold cover, the node cover and the zoom's ranges,
-      and stopped short of the document end so the footer's anchor stays outside it. Blocked on
-      the author
+- [x] 4.7 Decide D1 against the height-map figures. DECIDED: the CSS collapse stands and the
+      settling is accepted — judged against the real thing it is not a defect a reader trips
+      over, and the block replacement buys an exact scrollbar for a second decoration source on
+      an opt-in setting. Recorded in design D1 and the research note
+- [x] 4.8 Mark the setting EXPERIMENTAL with a chip on its row, not prose in the description:
+      `SettingRow.experimental`, a description fragment the tab builds, one stylesheet part.
+      Negative control — a declaration losing the flag drops the chip, which
+      `tests/plugin.test.ts` pins and the e2e case measures in a real settings tab
 
 ## 5. Land
 

@@ -1261,6 +1261,16 @@ describe('the settings tab, derived from the declarations', () => {
     }
   });
 
+  it('carries the experimental flag through, and only where it is declared', () => {
+    // The tab draws the chip from this flag, so a declaration losing it loses
+    // the chip silently. Pinned as a list for the same reason the rows above
+    // are: the set of experimental settings is a decision, not an accident.
+    const flagged = settingDefinitions()
+      .filter((d) => d.experimental)
+      .map((d) => d.control.key);
+    expect(flagged).toEqual(['hideGapLines']);
+  });
+
   it('keeps the two values persisted without a row out of the tab', () => {
     const keys = settingDefinitions().map((d) => d.control.key);
     expect(keys).not.toContain('coexistenceWarned');

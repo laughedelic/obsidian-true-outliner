@@ -148,7 +148,8 @@ const HIDE_GAP_LINES = toggle({
   default: false,
   row: {
     name: "Hide the blank lines between nodes",
-    desc: "Markdown separates most blocks with a blank line, which an outline reads as an empty row between every paragraph and every loose list item. This collapses those rows so the outline steps one node at a time. The blank lines are still in the file and still belong to the node above them — nothing is deleted, and the note is byte-identical whichever way this is set. The row a fresh Enter leaves the cursor on stays visible.",
+    experimental: true,
+    desc: "Markdown separates most blocks with a blank line, which an outline reads as an empty row between every paragraph and every loose list item. This collapses those rows so the outline steps one node at a time. The blank lines stay in the file and still belong to the node above them — nothing is deleted, and the note is byte-identical whichever way this is set, so turning it off brings every row back. The row a fresh Enter leaves the cursor on stays visible. Three things it costs: a run of several blank lines looks the same as a single one; a blank line between list items is what makes a list “loose”, so the reading view can space a list differently from the outline; and on a long note the scrollbar settles as you scroll, because the editor only learns a collapsed row's height once it has drawn it.",
   },
 });
 

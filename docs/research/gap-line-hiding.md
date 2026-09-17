@@ -217,10 +217,21 @@ The three costs in "What the outline gives up" are not defects to fix later — 
 the setting means, and the third is a note for its description. Where a reader wants the outline to
 keep telling them how their file is punctuated, the answer is to leave the setting off.
 
-The height map is a different matter and is open. A CSS collapse cannot be made exact: there is no
-way to tell CodeMirror a line's height short of replacing it, so the choice is between a scrollbar
-that settles as the reader scrolls and a block replacement that must be kept disjoint from the fold
-cover, the node cover and the zoom's own ranges, and must stop short of the document end to leave
-the footer's anchor outside it. Both are real; neither is free. What this note can say is that D1
-chose the first without knowing it was choosing, and that the figures above are what the decision
-should be taken against.
+The height map was the open question and is now settled: **the CSS collapse stands and the settling
+is accepted.** A CSS collapse cannot be made exact — there is no way to tell CodeMirror a line's
+height short of replacing it — so the choice was between a scrollbar that settles as the reader
+scrolls and a block replacement kept disjoint from the fold cover, the node cover and the zoom's own
+ranges, stopped short of the document end to leave the footer's anchor outside it. Tried against the
+real thing, the settling is not a defect a reader trips over, and the alternative is a second
+decoration source maintained on every state in exchange for an exact scrollbar on a setting that is
+off by default.
+
+So all four costs are the same kind of thing: a preference's price, named rather than paid down. The
+setting carries an EXPERIMENTAL chip and states three of them in its own description — the run of
+blanks, the loose/tight distinction, and the settling scrollbar — so a reader turning it on has
+agreed to them. The fourth, two siblings reading as one wrapped node, is left to the marker layer it
+depends on.
+
+What this note records for anyone who reopens the question: D1 chose the line decoration without
+knowing it was choosing, and the figures above are what the choice is now made against. If the
+setting ever stops being opt-in, the trade changes with it.

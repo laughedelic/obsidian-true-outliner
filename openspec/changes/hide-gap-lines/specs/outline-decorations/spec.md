@@ -41,6 +41,15 @@ A gap line is where a fold cover, a node cover's selection background and a zoom
 hidden range each end, and the backlinks footer anchors at the document end past the last of them;
 all four SHALL keep working unchanged with the setting on.
 
+**The editor's reported document height MAY be approximate while rows are collapsed, and this is
+allowed rather than overlooked.** A collapsed row's height is known to the editor only once it has
+been drawn, so rows outside the rendered viewport count as full height and the scrollbar settles as
+the reader scrolls. Exact scroll metrics SHALL NOT be required of this setting. What SHALL hold is
+that every position resolves correctly at every point during that settling: a click SHALL land on
+the line under it, and caret motion SHALL behave as `content-space-caret` requires, whether or not
+the rows below have been measured yet.
+
+
 #### Scenario: Separator rows collapse and content rows do not move
 - **WHEN** the setting is turned on over a note of headings, paragraphs and list items separated
   by blank lines
@@ -73,3 +82,27 @@ all four SHALL keep working unchanged with the setting on.
   enabled and a node folded
 - **THEN** the footer renders and the fold cover is intact, because no line break has been
   replaced
+
+
+### Requirement: A setting still being judged says so on its own row
+A setting whose behaviour is still being judged in real use SHALL be marked as experimental on its
+own row in the settings tab, as a distinct visual element rather than as wording inside its
+description. The marking SHALL come from the setting's DECLARATION, so that it cannot drift from the
+setting it labels, and SHALL reach the settings search along with the description.
+
+Every render path the tab offers SHALL draw it from one shared derivation, so no path can fall
+behind another.
+
+A setting so marked SHALL additionally state, in its own description, what it costs the reader who
+turns it on — in terms of what they will see, not of how it is built.
+
+#### Scenario: The experimental setting's row carries a chip
+- **WHEN** the plugin's settings tab is opened
+- **THEN** exactly the settings declared experimental carry a chip reading "Experimental", each on
+  its own row, and the word is searchable
+
+#### Scenario: Collapsing gap lines is marked experimental
+- **WHEN** the setting that collapses blank separator rows is shown
+- **THEN** its row carries the chip, and its description names the costs a reader meets: a run of
+  blank lines reading as one, the loose/tight distinction between list items disappearing, and the
+  scrollbar settling on a long note

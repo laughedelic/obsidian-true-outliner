@@ -1484,6 +1484,31 @@ const WRITERS: {
   markerHighlight: (p, v) => p.setMarkerHighlight(v),
 };
 
+/**
+ * A setting's description as the tab renders it: the text itself, or a fragment
+ * whose first child is an EXPERIMENTAL chip.
+ *
+ * A fragment rather than a prefix in the string, because `SettingDefinitionBase`
+ * takes `string | DocumentFragment` for `desc` and nothing at all for a badge or
+ * a class — so this is the one place a chip can be drawn without the tab
+ * re-rendering itself. Obsidian indexes a fragment by `textContent`, so the word
+ * stays searchable.
+ *
+ * Shared by both render paths for the reason `getSettingDefinitions` records:
+ * two builders would agree only until someone changed one of them.
+ */
+const EXPERIMENTAL_CHIP_CLASS = 'to-setting-chip';
+
+function describeSetting(desc: string, experimental?: boolean): string | DocumentFragment {
+  if (!experimental) return desc;
+  const fragment = createFragment();
+  const chip = fragment.createSpan({ cls: EXPERIMENTAL_CHIP_CLASS, text: 'Experimental' });
+  chip.setAttr('aria-label', 'This setting is experimental');
+  fragment.appendText(' ');
+  fragment.appendText(desc);
+  return fragment;
+}
+
 class TrueOutlinerSettingTab extends PluginSettingTab {
   constructor(
     app: App,
@@ -1503,7 +1528,11 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
    * behind the other.
    */
   override getSettingDefinitions(): SettingDefinitionItem[] {
-    return settingDefinitions();
+    return settingDefinitions().map(({ name, desc, experimental, control }) => ({
+      name,
+      desc: describeSetting(desc, experimental),
+      control,
+    }));
   }
 
   /** This plugin doesn't use the conventional `this.plugin.settings` shape
@@ -1526,8 +1555,10 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
   /** Pre-1.13 fallback only — see getSettingDefinitions() above. */
   override display(): void {
     this.containerEl.empty();
-    for (const { name, desc, control } of settingDefinitions()) {
-      const setting = new Setting(this.containerEl).setName(name).setDesc(desc);
+    for (const { name, desc, experimental, control } of settingDefinitions()) {
+      const setting = new Setting(this.containerEl)
+        .setName(name)
+        .setDesc(describeSetting(desc, experimental));
       if (control.type === 'toggle') {
         setting.addToggle((toggle) =>
           toggle

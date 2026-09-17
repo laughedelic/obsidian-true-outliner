@@ -250,6 +250,36 @@ describe('hiding gap lines', function () {
     await f.clearFolds();
   });
 
+  it('draws an experimental chip on its own settings row', async function () {
+    // The setting is opt-in and still being judged in real use, so the row says
+    // so as a chip rather than as the first word of its description. Obsidian's
+    // setting definitions carry no badge field, so this is a fragment the tab
+    // builds — worth measuring rather than assuming it survives the render.
+    const chip = await browser.executeObsidian(({ app }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const setting = (app as any).setting;
+      setting.open();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tab = setting.pluginTabs.find((t: any) => t.id === 'true-outliner');
+      setting.openTabById('true-outliner');
+      const chips = Array.from(
+        tab.containerEl.querySelectorAll('.to-setting-chip'),
+      ) as HTMLElement[];
+      const result = {
+        count: chips.length,
+        text: chips[0]?.textContent ?? null,
+        // The row it labels, so the chip cannot be on the wrong setting.
+        row: chips[0]?.closest('.setting-item')?.querySelector('.setting-item-name')
+          ?.textContent ?? null,
+      };
+      setting.close();
+      return result;
+    });
+    expect(chip.count).toBe(1);
+    expect(chip.text).toBe('Experimental');
+    expect(chip.row).toContain('blank lines between nodes');
+  });
+
   it('composes with a node cover, whose background ends on a gap line', async function () {
     // The fourth mechanism that ends on a gap line. The cover's class comes
     // from a separate decoration provider, so what is measured here is that
