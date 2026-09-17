@@ -489,6 +489,10 @@ function syntheticFact(node: OutlineNode, depth: number): LineDecorationFact {
     lineNumber: 0,
     depth,
     isFirstLine: true,
+    // The footer renders through Obsidian's READING-mode renderer, which draws
+    // an item's marker whatever follows it — the Live Preview rule this field
+    // states on the editor surface does not apply here, and no footer chrome
+    // reads it.
     hasNativeMarker: node.kind === 'list-item',
     isAtom: ATOM_KINDS.has(node.kind),
     isListItem: node.kind === 'list-item',

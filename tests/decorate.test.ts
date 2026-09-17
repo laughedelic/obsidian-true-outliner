@@ -136,6 +136,28 @@ describe('decorate: first line / native marker flags', () => {
     expect(byLine.get(6)?.isFirstLine).toBe(true); // "## Heading"
   });
 
+  it('clears hasNativeMarker on a marker Live Preview draws no glyph for', () => {
+    // The mode Live Preview runs needs whitespace after a marker before it
+    // emits a list token, so a marker at END OF LINE gets no native bullet or
+    // number — while `parse` reads that line as an empty item. Stating the fact
+    // from the node's kind alone claimed a glyph that was not drawn, and the
+    // raw marker showed in the column reserved for it
+    // (docs/research/marker-without-trailing-space).
+    const byLine = (md: string) =>
+      new Map(decorate(parse(md)).map((f) => [f.lineNumber, f]));
+
+    expect(byLine('-\n').get(0)?.isListItem).toBe(true);
+    expect(byLine('-\n').get(0)?.hasNativeMarker).toBe(false);
+    expect(byLine('1.\n').get(0)?.hasNativeMarker).toBe(false);
+    // Whitespace of any width restores it, trailing whitespace included: the
+    // mode asks for one character, not for content.
+    expect(byLine('- \n').get(0)?.hasNativeMarker).toBe(true);
+    expect(byLine('-\tx\n').get(0)?.hasNativeMarker).toBe(true);
+    expect(byLine('-  wide\n').get(0)?.hasNativeMarker).toBe(true);
+    // The item's own continuation is unaffected — it never carried a marker.
+    expect(byLine('-\n  text\n').get(1)?.hasNativeMarker).toBe(false);
+  });
+
   it('flags hasNativeMarker only for list-item first lines', () => {
     const md = 'Para one\n\n- list item\n  continuation\n\n## Heading\n\n```\ncode\n```\n';
     const doc = parse(md);

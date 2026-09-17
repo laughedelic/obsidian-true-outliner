@@ -256,8 +256,11 @@ export function lineChrome(
     // on its native bullet/number/checkbox, so its leading whitespace stops one
     // gutter short of its text; a CONTINUATION line has no marker and belongs
     // under the item's TEXT, so its whitespace takes the whole hang.
-    vars.push(['--to-list-marker-cols', fact.hasNativeMarker ? MARKER_GUTTER_CSS : '0px']);
-    if (fact.hasNativeMarker && SPACED_MARKER_RE.test(lineText)) {
+    // `isFirstLine`, not `hasNativeMarker`: the question here is whether the
+    // line carries a MARKER at all, and a marker Obsidian declined to draw
+    // still occupies its columns — `decorations.ts` supplies the glyph.
+    vars.push(['--to-list-marker-cols', fact.isFirstLine ? MARKER_GUTTER_CSS : '0px']);
+    if (fact.isFirstLine && SPACED_MARKER_RE.test(lineText)) {
       classes.push(SPACED_MARKER_CLASS);
     }
   } else {

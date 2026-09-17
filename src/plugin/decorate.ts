@@ -42,9 +42,17 @@ export interface LineDecorationFact {
   /** True only for a node's own first line — carries the hang + marker. */
   readonly isFirstLine: boolean;
   /**
-   * True for list-item first lines: they already have a native marker
-   * glyph (bullet/number) that Experiment 1 leaves fully untouched — kept
-   * for callers that need to identify it, not consumed by decorations.ts.
+   * True where Obsidian's own Live Preview draws the marker glyph
+   * (bullet/number) that Experiment 1 leaves untouched.
+   *
+   * Not the same question as "is this a list item's first line", which
+   * `isListItem && isFirstLine` answers and which is what the gutter and
+   * sizing rules want. The mode Live Preview runs gates every list token on a
+   * marker followed by whitespace, so a marker at END OF LINE gets no token
+   * and no glyph, while our parser reads that line as an empty item
+   * (`docs/research/marker-without-trailing-space`). Stating it from
+   * `isListItem` alone asserted a glyph that was not there, and the raw `-`
+   * showed in a column reserved for it.
    */
   readonly hasNativeMarker: boolean;
   /**
@@ -93,6 +101,18 @@ export interface LineDecorationFact {
 }
 
 /**
+ * The shape Live Preview's own mode requires before it emits a list token, and
+ * with it the native bullet or number: a marker with whitespace after it.
+ * Mirrored from `listRE` in the CodeMirror markdown mode Obsidian ships
+ * (measured, `docs/research/marker-without-trailing-space`) rather than read
+ * off the DOM — Obsidian's rule is a pure function of the line's text, and
+ * these facts are pure. `[ \t]` where the mode writes `\s`: on a single line
+ * the two admit the same characters, and this is the vocabulary the parser's
+ * own marker rules use.
+ */
+const NATIVE_MARKER_RE = /^[ \t]*(?:[-+*]|\d{1,9}[.)])[ \t]/;
+
+/**
  * Walks the parsed tree in document order (a node's own lines, then its
  * children — the same layout `nodeAtLine`/`startLine` assume: trailingGap
  * lines sit between a node's own lines and its children, and carry no fact
@@ -113,7 +133,7 @@ export function decorate(doc: OutlineDoc): LineDecorationFact[] {
         lineNumber: current + i,
         depth,
         isFirstLine: i === 0,
-        hasNativeMarker: isListItem && i === 0,
+        hasNativeMarker: isListItem && i === 0 && NATIVE_MARKER_RE.test(node.lines[0] ?? ''),
         isAtom: atom,
         isListItem,
         supplementalDepth: isListItem ? rootDepth! : 0,

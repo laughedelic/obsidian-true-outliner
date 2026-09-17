@@ -2021,7 +2021,7 @@ function computeOrderedDigits(state: EditorState): DecorationSet {
   for (const fact of facts) {
     // Exactly "list-item first line" — a continuation line repeats no marker,
     // and no other kind has one of this shape.
-    if (!fact.hasNativeMarker) continue;
+    if (!fact.isListItem || !fact.isFirstLine) continue;
     if (fact.lineNumber >= totalLines) continue; // stale fact past a shrunk doc
     const line = state.doc.line(fact.lineNumber + 1); // CM6 lines are 1-indexed
     const match = ORDERED_DIGITS_RE.exec(line.text);
@@ -2073,6 +2073,73 @@ class FoldTogglePlugin implements PluginValue {
   private compute(): DecorationSet {
     if (isNestedEditor(this.view)) return Decoration.none;
     return computeFoldToggles(this.view.state);
+  }
+}
+
+/**
+ * The bullet Obsidian declines to draw.
+ *
+ * Live Preview gates every list token on a marker with whitespace after it, so
+ * a line holding nothing but `-` gets no `formatting-list` token and no
+ * `.list-bullet` element, and the raw dash shows — while our tree, CommonMark
+ * and Obsidian's own READING mode all read that line as an empty item
+ * (`docs/research/marker-without-trailing-space`). The node was drawn with an
+ * outline's indentation, guide and fold arrow around a marker that looked like
+ * text.
+ *
+ * Supplied as `.list-bullet` over the marker's one character, which is the
+ * shape and the span Obsidian uses itself: its own rule hides the glyph
+ * (`color: transparent`) and draws the dot on `::after`, so the line renders as
+ * the item it is, and every rule that already targets that class — the current
+ * and ancestor accents, the folded state, the hover — reaches this one without
+ * a second selector. `SUPPLIED_BULLET_CLASS` rides along so styles.css can tell
+ * the two apart if it ever needs to; nothing scopes on it today.
+ *
+ * Only a BULLET is supplied. An ordered marker's digits are its glyph and they
+ * are ordinary text on the line whether or not a token was emitted, so there is
+ * nothing missing to draw.
+ */
+export const SUPPLIED_BULLET_CLASS = 'to-decor-supplied-bullet';
+
+/** The marker's own character, with its offset — bullets only. */
+const BULLET_MARKER_RE = /^([ \t]*)([-+*])/;
+
+function computeSuppliedBullets(state: EditorState): DecorationSet {
+  if (!isOutlineMode(state)) return Decoration.none;
+
+  const totalLines = state.doc.lines;
+  const builder = new RangeSetBuilder<Decoration>();
+  const { facts } = factsFor(state);
+  for (const fact of facts) {
+    if (!fact.isListItem || !fact.isFirstLine || fact.hasNativeMarker) continue;
+    if (fact.lineNumber >= totalLines) continue; // stale fact past a shrunk doc
+    const line = state.doc.line(fact.lineNumber + 1); // CM6 lines are 1-indexed
+    const match = BULLET_MARKER_RE.exec(line.text);
+    if (!match) continue;
+    const from = line.from + match[1]!.length;
+    builder.add(
+      from,
+      from + match[2]!.length,
+      Decoration.mark({ class: `list-bullet ${SUPPLIED_BULLET_CLASS}` }),
+    );
+  }
+  return builder.finish();
+}
+
+class SuppliedBulletPlugin implements PluginValue {
+  decorations: DecorationSet;
+
+  constructor(private readonly view: EditorView) {
+    this.decorations = this.compute();
+  }
+
+  update(): void {
+    this.decorations = this.compute();
+  }
+
+  private compute(): DecorationSet {
+    if (isNestedEditor(this.view)) return Decoration.none;
+    return computeSuppliedBullets(this.view.state);
   }
 }
 
@@ -2147,7 +2214,7 @@ function computeSurplusMarkerSpace(state: EditorState): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const { facts } = factsFor(state);
   for (const fact of facts) {
-    if (!fact.hasNativeMarker) continue;
+    if (!fact.isListItem || !fact.isFirstLine) continue;
     if (fact.lineNumber >= totalLines) continue; // stale fact past a shrunk doc
     const line = state.doc.line(fact.lineNumber + 1); // CM6 lines are 1-indexed
     for (const run of surplusRuns(line.text)) {
@@ -3606,6 +3673,12 @@ export function decorationsExtension(modes: DecorationSource): Extension {
     // `Decoration.line` would otherwise have to be ordered against it by hand
     // in one `RangeSetBuilder`.
     ViewPlugin.define((view) => new OrderedDigitsPlugin(view, modes), {
+      decorations: (v) => v.decorations,
+    }),
+    // The bullet Live Preview declines to draw on a marker with nothing after
+    // it (`computeSuppliedBullets`). Its own plugin for the reason the digits
+    // have one.
+    ViewPlugin.define((view) => new SuppliedBulletPlugin(view), {
       decorations: (v) => v.decorations,
     }),
     // The surplus of a marker's whitespace run, marked so it can be seen
