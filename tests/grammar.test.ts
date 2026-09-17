@@ -711,18 +711,24 @@ describe('grammar planner: a structural key acts on the node a position is insid
     expect(withoutLine(after, (l) => l.trim() === '')).toBe('- top\n- foo\n  bar\n- next\n');
     // And the caret stays on the place at its new content column, the same as
     // the indent above. The place line is `\t  `, three characters, so column 3
-    // is its content column and the furthest column a caret on it can take —
-    // the reading that had outdent dropping the caret onto `  bar` measured
-    // column 4, which is not a position on that line.
+    // is its content column; the reading that had outdent dropping the caret
+    // onto `  bar` measured column 4, which is not a position on that line.
+    // INTERIOR is what makes this hold — a place at the node's END keeps the
+    // behaviour that reading described, pinned below.
     expect(caretAfter(open, { line: 2, ch: 3 }, 'outdent')).toEqual({ line: 2, ch: 2 });
   });
 
-  it('a place keeps the caret at its content column, whatever that column is', () => {
+  it('an INTERIOR place keeps the caret at its content column, whatever that column is', () => {
     // One shape per key is what let a column off the end of a place line read
-    // as a defect of outdent's, so the claim is pinned across the widths a
-    // place's content column takes: tabs and spaces, a second level, a marker
-    // that renumbers across a digit boundary as the operation moves it, a task
-    // marker, and a paragraph place whose column is 0 before the key runs.
+    // as a defect of outdent's, so the claim is pinned across the widths an
+    // interior place's content column takes: a second level, an ordered marker
+    // wider than a bullet, a two-digit one, a task marker, and a paragraph
+    // place whose column is 0 before the key runs. None of these renumbers —
+    // the width comes from the markers the document already has. Each cursor is
+    // the place's content column, which is the only
+    // column a caret on a place reaches: `contentBoundaryCh` puts a
+    // whitespace-only line's boundary at its end, and `content-space-caret`
+    // redirects every user gesture that would land short of it.
     const cases: Array<
       [string, GrammarKey, { line: number; ch: number }, { line: number; ch: number }]
     > = [
@@ -741,6 +747,28 @@ describe('grammar planner: a structural key acts on the node a position is insid
     for (const [text, key, cursor, expected] of cases) {
       expect(caretAfter(text, cursor, key)).toEqual(expected);
     }
+  });
+
+  it('a TRAILING place loses the caret, and keeps its old width', () => {
+    // The gap issue #119 named, in the shape that actually reaches it. A place
+    // at the END of a node's lines — Shift+Enter at the end of its last line,
+    // the ordinary way to open a continuation — does not bisect it, so
+    // `positionBisectsANode` declines to resolve it and the operation acts on
+    // the raw parse, where the place is a trailing gap. The caret falls back to
+    // the moved node's content start and the place keeps the width it had, so
+    // typing there makes a child of the node rather than continuing it.
+    //
+    // The exclusion is deliberate and stated where it lives; this consequence
+    // of it is not, and closing it is a change of its own. Asserted as measured
+    // so that change has to move these lines on purpose, and recorded in
+    // docs/research/decoration-follow-ups.
+    const outdented = '- top\n  - foo\n    \n';
+    expect(press(outdented, { line: 2, ch: 4 }, 'outdent')).toBe('- top\n- foo\n    \n');
+    expect(caretAfter(outdented, { line: 2, ch: 4 }, 'outdent')).toEqual({ line: 1, ch: 2 });
+
+    const indented = '- a\n- foo\n  \n';
+    expect(press(indented, { line: 2, ch: 2 }, 'indent')).toBe('- a\n  - foo\n  \n');
+    expect(caretAfter(indented, { line: 2, ch: 2 }, 'indent')).toEqual({ line: 1, ch: 4 });
   });
 
   it('move-down does not walk half a paragraph past the other half', () => {

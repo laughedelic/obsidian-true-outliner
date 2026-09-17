@@ -399,29 +399,66 @@ which is what `structural-history-integration`'s own "does NOT survive undo/redo
 already contemplates. That field would serve the abandon path too, so it is worth doing once
 rather than twice — and it is a change of its own, not a patch to this one.
 
-### Outdent leaves the caret on the place — the entry that said otherwise measured off the line
+### A structural key leaves the caret off a TRAILING place, and leaves the place its old width
 
-**Closed**, with no defect to close. The entry is kept as a correction rather than removed,
-because the reading it replaces was specific enough to be believed and is easy to re-derive.
+Supersedes "Outdent leaves the caret off the place it just moved", whose diagnosis was wrong in
+both halves and is corrected below, because the entry was specific enough to be believed.
 
-It recorded Shift+Tab on `- top` / `⇥- foo` / `⇥␣␣` (place) / `⇥␣␣bar` leaving the caret at line
-3 column 0, and attributed that to outdent's line-level edit mapping a column at the end of the
-place's line with assoc=1 onto the start of the line below. The pre-op column it measured from
-was 4. `⇥␣␣` is three characters, so column 4 is not a position on the place's line at all, and
-no editor produces one: `keymap.ts` builds the column as an offset minus its own line's start.
+**The gap.** A place at the END of a node's lines — Shift+Enter at the end of its last line, the
+ordinary way to open a continuation — is not a bisection, so `positionBisectsANode` declines to
+resolve it and a structural key acts on the raw parse, where the place is a trailing gap. Two
+things follow, and both are visible in two keypresses:
 
-Re-measured at every column a caret can take, and across the widths a place's content column
-takes — tabs and spaces, a second level, a marker renumbering across a digit boundary as the
-operation moves it, a task marker, a paragraph place — Tab and Shift+Tab both leave the caret on
-the place at its new content column. Pinned in `tests/grammar.test.ts` ("a place keeps the caret
-at its content column, whatever that column is").
+| Gesture | After Shift+Enter | After the structural key |
+|---|---|---|
+| `- top` / `␣␣- foo`, Shift+Tab | place `␣␣␣␣` at 2:4 | `- top` / `- foo` / `␣␣␣␣`, caret 1:2 |
+| `- a` / `- foo`, Tab | place `␣␣` at 2:2 | `- a` / `␣␣- foo` / `␣␣`, caret 1:4 |
 
-What the off-the-line column did reach was a real disagreement between two halves of one keypress.
+`caret-policy` refuses the trailing gap as a caret target, so the caret falls back to the moved
+node's content start — off the line the user was about to type into. And the place keeps the width
+it had while the node's content column moves, so typing there now makes a CHILD of the node rather
+than continuing it: exactly what `resolvedOutline`'s own doc comment names as the reason the
+interior case reads the resolved tree. Reproduced with and without a following continuation line,
+with a following sibling, under a heading, and on a two-digit ordered marker.
+
+The exclusion itself is deliberate and says why (`positionBisectsANode`: `indent` re-emits a
+node's lines, so resolving the document's own final blank line would write trailing whitespace at
+the end of the file). The caret and width consequences are not stated anywhere — not in
+`outline-keyboard-grammar`'s "Provisional positions", which covers only the interior case, and not
+in `caret-placement-policy`, which has no provisional-position scenario at all. Closing it means
+separating a place from a blank line the document merely ends with, which `grammar.ts` can already
+do — it is handed `placeLine` from `provisional-cleanup`'s record — while `resolvedOutline` cannot,
+since it derives from the document alone. That is the same asymmetry D5 already accepts, and it is
+a change of its own rather than a patch. Asserted as measured in `tests/grammar.test.ts` ("a
+TRAILING place loses the caret, and keeps its old width") so a fix has to move it on purpose.
+
+**The correction.** The superseded entry recorded Shift+Tab on `- top` / `⇥- foo` / `⇥␣␣` (place) /
+`⇥␣␣bar` leaving the caret at line 3 column 0, and attributed it to outdent's line-level edit
+mapping a column at the end of the place's line with assoc=1 onto the start of the line below. The
+pre-op column it measured from was 4. `⇥␣␣` is three characters, so column 4 is not a position on
+that line, and `keymap.ts` builds a column as an offset minus its own line's start. At column 3
+that shape — an INTERIOR place — keeps the caret on the place at its new content column, as Tab
+does, across the widths an interior place's content column takes. So the asymmetry the entry
+reported between the two keys is not there either: both keys are right on an interior place and
+both are wrong on a trailing one.
+
+What the off-the-line column did reach was a disagreement between two halves of one keypress.
 `materializeProbe` clamps the column into its line before resolving the tree the place stands for,
 while `dispatch.ts`'s flat `{line, ch}` → offset arithmetic read the same column as the start of
-the line below, so the caret was mapped off a line the resolution had been asked about. The
-conversion clamps now, and `tests/minimal-change-history.test.ts` ("holds a column inside its own
-line") holds the two together.
+the line below. The conversion clamps now, and `tests/minimal-change-history.test.ts` ("holds a
+column inside its own line") holds the two together. Three other conversions of the same shape —
+`cm-pos.ts`'s `linePosToOffset`, `grammar.ts`'s `offsetInNewText`, `transaction-filter.ts`'s
+`offsetInLines` — do not clamp, and agree with this one only while every position they are handed
+is in range.
+
+### The palette path does not resolve a place at all
+
+Found alongside the entry above. `main.ts`'s `runOp` passes no `placeLine`, so the same document
+and caret diverge by entry point: Shift+Tab from the keymap on `- top` / `␣␣- foo` / `␣␣␣␣` (an
+interior place) / `␣␣␣␣bar` gives `- top` / `- foo` / `␣␣` / `␣␣bar` with the caret on the place,
+while the command palette and any custom hotkey give `- top` / `- foo` / `␣␣␣␣` / `␣␣bar` with the
+caret at 1:2. Keyboard and palette agreeing is what `selection-structural-ops` exists to hold, so
+this belongs with whatever change closes the entry above rather than on its own.
 
 ### A caret parked on a blank line the user authored reads it as a bisection
 

@@ -632,8 +632,14 @@ export function editsToChanges(lines: readonly string[], edits: readonly Edit[])
  * the tree a provisional position stands for from the caret's line and column,
  * then maps that same caret forward through the edit. By flat arithmetic alone
  * a column past the line's end names the start of the line BELOW it, which is
- * not the line the resolution was asked about. A caret's column belongs to its
- * own line, and the editor hands us no other kind.
+ * not the line the resolution was asked about.
+ *
+ * No caller produces such a column today — the CM6 keymap builds one as an
+ * offset minus its own line's start, and every change position `editsToChanges`
+ * emits is in range — so the clamp is defence for a caller written later, and
+ * the three conversions of the same shape elsewhere (`cm-pos.ts`'s
+ * `linePosToOffset`, `grammar.ts`'s `offsetInNewText`,
+ * `transaction-filter.ts`'s `offsetInLines`) do not have it.
  *
  * Past the last line there is no line to clamp against and the column stands —
  * the same position the arithmetic gave before.
