@@ -139,6 +139,19 @@ const MARKER_VISIBILITY = choice({
   },
 });
 
+/** Collapse the blank separator lines between nodes, so every node's row sits
+ * directly under the one before it. Paint only: the blank lines stay in the
+ * file, stay owned by the node above them, and nothing the outline can do to
+ * them changes. */
+const HIDE_GAP_LINES = toggle({
+  key: "hideGapLines",
+  default: false,
+  row: {
+    name: "Hide the blank lines between nodes",
+    desc: "Markdown separates most blocks with a blank line, which an outline reads as an empty row between every paragraph and every loose list item. This collapses those rows so the outline steps one node at a time. The blank lines are still in the file and still belong to the node above them — nothing is deleted, and the note is byte-identical whichever way this is set. The row a fresh Enter leaves the cursor on stays visible.",
+  },
+});
+
 const GUIDE_HIGHLIGHT = choice({
   key: "guideHighlight",
   default: "full",
@@ -173,6 +186,7 @@ export const APPEARANCE_SETTINGS = [
   GUIDE_HIDE_SINGLE_ROOT,
   GUIDE_INTENSITY,
   MARKER_VISIBILITY,
+  HIDE_GAP_LINES,
   GUIDE_HIGHLIGHT,
   MARKER_HIGHLIGHT,
 ] as const;

@@ -781,6 +781,16 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.forceRedraw();
   }
 
+  get hideGapLines(): boolean {
+    return this.data.hideGapLines;
+  }
+
+  async setHideGapLines(value: boolean): Promise<void> {
+    this.data.hideGapLines = value;
+    await this.saveData(this.data);
+    this.forceRedraw();
+  }
+
   get guideHighlight(): GuideHighlight {
     return this.data.guideHighlight;
   }
@@ -1469,6 +1479,7 @@ const WRITERS: {
   guideHideSingleRoot: (p, v) => p.setGuideHideSingleRoot(v),
   guideIntensity: (p, v) => p.setGuideIntensity(v),
   markerVisibility: (p, v) => p.setMarkerVisibility(v),
+  hideGapLines: (p, v) => p.setHideGapLines(v),
   guideHighlight: (p, v) => p.setGuideHighlight(v),
   markerHighlight: (p, v) => p.setMarkerHighlight(v),
 };

@@ -821,6 +821,10 @@ export interface DecorationSource {
   readonly guideVisibility: GuideVisibility;
   /** Drop the outermost guide while the document has exactly one root. */
   readonly guideHideSingleRoot: boolean;
+  /** Collapse the blank separator rows between nodes. A paint-only setting in
+   * the same sense as `guideHideSingleRoot`: it changes what a gap line's own
+   * decoration carries and touches nothing else, least of all the document. */
+  readonly hideGapLines: boolean;
 }
 
 const EMPTY_POSITION_TRAIL: PositionTrail = {
@@ -1403,6 +1407,7 @@ function renderInputs(state: EditorState, modes: DecorationSource): RenderInputs
     modes.markerHighlight,
     modes.guideVisibility,
     modes.guideHideSingleRoot,
+    modes.hideGapLines,
   ].join('|');
   const cached = renderInputsCache.get(state);
   if (cached && cached.key === key) return cached.inputs;
@@ -1472,16 +1477,41 @@ function lineDecoration(lineText: string, fact: LineDecorationFact, render: Line
   return Decoration.line({ class: cls, attributes: { style: chromeStyle(chrome) } });
 }
 
+/**
+ * The class a collapsed gap line carries (`hideGapLines`). The row keeps its
+ * box and its guide background; the stylesheet takes its height to zero.
+ *
+ * A LINE decoration and not a block replacement, which is the other way to make
+ * lines disappear and is what the zoom uses. Three reasons, all of them
+ * measured rather than argued: a replacement that spans a line break may not
+ * come from a view plugin, which is where every decoration in this module comes
+ * from; a replacement whose range reaches `doc.length` swallows the backlinks
+ * footer's anchor (docs/research/zoom-hiding-mechanism); and a gap line is
+ * exactly where a fold cover and a zoom's own trailing range already end, so a
+ * second block replacement would have to be kept disjoint from both. A class on
+ * a row this module already decorates is disjoint from all of it by
+ * construction.
+ */
+export const HIDDEN_GAP_CLASS = 'to-decor-gap-hidden';
+
 // A blank trailingGap line carrying a guide (see computeLineGuides's doc
 // comment) has no decorate() fact at all — no depth, no kind, nothing to
 // indent — so it gets a minimal decoration with just the guide class/style,
 // not the full lineDecoration() treatment. A trail accent can land on such a
 // line too (a path segment passing through the gap between two blocks), and
 // the record's background already carries it.
-function gapLineDecoration(guides: string): Decoration {
+//
+// With `hideGapLines` on, a gap line that carries NO guide gets a decoration
+// too — at the top level there is no guide to draw, and the row still has to be
+// collapsed. That is why `guides` is optional here: the two halves of this
+// decoration are independent, and either one alone is a reason to emit it.
+function gapLineDecoration(guides: string | undefined, hidden: boolean): Decoration {
+  const classes: string[] = [];
+  if (guides !== undefined) classes.push('to-decor-guides');
+  if (hidden) classes.push(HIDDEN_GAP_CLASS);
   return Decoration.line({
-    class: 'to-decor-guides',
-    attributes: { style: `--to-guides: ${guides}` },
+    class: classes.join(' '),
+    ...(guides === undefined ? {} : { attributes: { style: `--to-guides: ${guides}` } }),
   });
 }
 
@@ -1502,8 +1532,12 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
     if (!render.fact) {
       // A line with no fact is a gap line — the walks are in sync, so the
       // other case is defensive only — and draws its guides or nothing.
-      if (render.gap && render.guides !== undefined) {
-        builder.add(line.from, line.from, gapLineDecoration(render.guides));
+      if (render.gap && (render.guides !== undefined || modes.hideGapLines)) {
+        builder.add(
+          line.from,
+          line.from,
+          gapLineDecoration(render.guides, modes.hideGapLines),
+        );
       }
       continue;
     }

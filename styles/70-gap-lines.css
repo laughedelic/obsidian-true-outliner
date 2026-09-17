@@ -1,0 +1,31 @@
+/*
+ * Collapsed gap lines (`hideGapLines`, decorations.ts's `HIDDEN_GAP_CLASS`).
+ *
+ * Markdown separates most blocks with a blank line, and an outline reads that
+ * blank line as an empty row between two nodes. The setting takes those rows
+ * out of the layout so the outline steps one node at a time.
+ *
+ * The row is collapsed, not removed: the element stays in the document, keeps
+ * its position in CodeMirror's own line order, and the document keeps every
+ * byte it had. What changes is its height. That is the whole mechanism, and it
+ * is why nothing downstream has to know about the setting — a fold cover, a
+ * zoom's hiding ranges and a node cover's own background all still find the
+ * line they expect where they expect it.
+ *
+ * `overflow: hidden` is load-bearing rather than defensive: the guide overlay
+ * this row may also carry is an absolutely positioned `::after`, which a
+ * zero-height box does not clip on its own. Its height comes from the box's,
+ * so the overlay paints nothing here, and the rows above and below are now
+ * adjacent — the guide stays continuous because there is no longer a row
+ * between them to break it.
+ *
+ * `min-height` is set alongside `height` because Obsidian gives a line a
+ * minimum of its own, which `height` alone does not defeat.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-gap-hidden {
+  height: 0;
+  min-height: 0;
+  padding-block: 0;
+  margin-block: 0;
+  overflow: hidden;
+}

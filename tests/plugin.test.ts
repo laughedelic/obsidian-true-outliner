@@ -65,6 +65,7 @@ describe('persisted plugin data', () => {
       guideVisibility: 'subtree' as const,
       guideHideSingleRoot: true,
       guideIntensity: 'strong' as const,
+      hideGapLines: true,
     };
     expect(normalizePluginData(onDisk)).toEqual(onDisk);
   });
@@ -1249,6 +1250,7 @@ describe('the settings tab, derived from the declarations', () => {
       ['guideHideSingleRoot', 'toggle', null],
       ['guideIntensity', 'dropdown', ['subtle', 'normal', 'strong']],
       ['markerVisibility', 'dropdown', ['all', 'with-children', 'headings-and-paragraphs']],
+      ['hideGapLines', 'toggle', null],
       ['guideHighlight', 'dropdown', ['off', 'full', 'lineage']],
       ['markerHighlight', 'dropdown', ['off', 'current', 'lineage']],
     ]);
