@@ -4,6 +4,7 @@ import Clip from './Clip.vue';
 import Shot from './Shot.vue';
 import OutlineDemo from '../components/OutlineDemo.vue';
 import Landing from '../components/Landing.vue';
+import DemoGallery from '../components/DemoGallery.vue';
 import './media.css';
 import './custom.css';
 
@@ -18,5 +19,6 @@ export default {
     app.component('Shot', Shot);
     app.component('OutlineDemo', OutlineDemo);
     app.component('Landing', Landing);
+    app.component('DemoGallery', DemoGallery);
   },
 } satisfies Theme;

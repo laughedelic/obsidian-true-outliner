@@ -1,212 +1,186 @@
 <script setup lang="ts">
 import { withBase } from 'vitepress';
-import OutlineDemo from './OutlineDemo.vue';
+import DemoGallery from './DemoGallery.vue';
 import Clip from '../theme/Clip.vue';
 import Shot from '../theme/Shot.vue';
-import { KITCHEN, TOUR } from '../../demo/samples';
+
+const logseqFile = `- ## Kitchen renovation
+  id:: 6624a82c-3b11-4d44-9d3f-d9c7e8f0a1b3
+  collapsed:: true
+	- Plan
+	  id:: 6624a82c-9a22-4e55-be40-eaf8d9015c2a
+		- demolition weekend
+		  id:: 6624a82c-7c33-4f66-cf51-f0a9eb126d3b
+		- electrics and plumbing
+		  id:: 6624a82c-5d44-4077-d062-01baf1237e4c
+	- Materials
+	  collapsed:: false
+		- tile: reclaimed terracotta`;
+
+const ourFile = `# Kitchen renovation
+
+## Plan
+
+1. demolition weekend
+2. electrics and plumbing
+
+## Materials
+
+- tile: reclaimed terracotta
+- handles: undecided
+	- brass ages well`;
 </script>
 
 <template>
   <div class="lp">
     <section class="lp-hero">
       <p class="lp-eyebrow">An Obsidian plugin · early preview</p>
-      <h1 class="lp-title">Edit the structure of a note, not just its text.</h1>
+      <h1 class="lp-title">A true outliner.<br />Your notes stay markdown.</h1>
       <p class="lp-lede">
-        True Outliner reads the tree that is already in your markdown, headings, paragraphs and lists alike, and lets you
-        move, split, select and zoom it as nodes. The file on disk stays plain markdown, byte for byte.
+        True Outliner turns any Obsidian note into a tree of nodes you move, split, select, fold and zoom by the
+        node, the way Workflowy and Logseq work, in the plain markdown files you already have. Nothing is written to a
+        file but the markdown it already says.
       </p>
       <div class="lp-actions">
         <a class="lp-btn lp-btn-primary" :href="withBase('/guide/installation')">Install with BRAT</a>
         <a class="lp-btn" :href="withBase('/guide/')">Read the guide</a>
       </div>
-      <OutlineDemo
-        :doc="KITCHEN"
-        :script="TOUR"
-        autoplay
-        loop
-        source
-        :delay="1000"
-        title="Kitchen renovation.md"
-        hint="Live: this is the plugin's own editor code, running here. Try <kbd>Tab</kbd>, <kbd>⇧Tab</kbd>, <kbd>Enter</kbd>, <kbd>⇧↓</kbd>, <kbd>⌘A</kbd>, or click a marker."
-        class="lp-hero-demo"
-      />
+      <DemoGallery class="lp-gallery" />
     </section>
 
-    <section class="lp-why">
-      <div class="lp-why-text">
-        <h2>Why an outliner needs a tree</h2>
-        <p>
-          Workflowy, Roam, Logseq and Tana share one idea: the document is a tree of nodes, and every gesture, whether
-          typing, selecting, deleting, moving or pasting, respects node boundaries. That is what makes them feel solid.
-        </p>
-        <p>
-          Obsidian's lists are lines of text. Outliner plugins add keybindings on top, so a move works only when the
-          caret is in the right place, and a careless selection still cuts a subtree in half.
-        </p>
-        <p>
-          True Outliner brings the tree to Obsidian without leaving markdown behind. Every note already has block
-          structure; the plugin reads it, draws it, and makes every operation work on it. Nothing is converted and
-          nothing is written to the file that the structure does not already say.
-        </p>
-        <p class="lp-links">
-          <a :href="withBase('/guide/')">The full story</a>
-          <a :href="withBase('/guide/how-notes-become-outlines')">How a note becomes an outline</a>
-          <a :href="withBase('/guide/compared')">Compared to other outliners</a>
-        </p>
+    <section class="lp-chapter">
+      <p class="lp-eyebrow">01 · The bet</p>
+      <h2>Two things people think they have to choose between.</h2>
+      <div class="lp-two">
+        <div>
+          <h3>A true outliner</h3>
+          <p>
+            Workflowy, Roam, Logseq and Tana share one invariant: the document is a tree of nodes, and every gesture,
+            typing, selecting, deleting, moving, pasting, respects node boundaries. A subtree moves whole. A selection
+            covers nodes. That is what makes them feel solid, and it is why people put up with everything else about
+            them.
+          </p>
+        </div>
+        <div>
+          <h3>File over app</h3>
+          <p>
+            Obsidian's promise is that the notes are plain files that outlive any tool, including Obsidian. No
+            database, no export step, no format anyone has to migrate off. The outliners that tried to keep that
+            promise paid for it: Logseq writes identifiers and fold state into the files to keep its tree, and the
+            Obsidian plugins that add outliner keys work on flat text and know nothing about headings or paragraphs.
+          </p>
+        </div>
       </div>
-      <ul class="lp-why-facts">
-        <li><strong>Any note.</strong> Headings, paragraphs, list items, code, tables and callouts are all nodes of one tree.</li>
-        <li><strong>Operations on nodes.</strong> A node carries its children; a selection covers whole nodes.</li>
-        <li><strong>Clean files.</strong> No IDs, no fold markers, no metadata. Parse and re-encode is byte-identical.</li>
-        <li><strong>Public APIs only.</strong> Built on Obsidian's documented editor and plugin APIs.</li>
+      <p class="lp-thesis">
+        The bet is that the tree is already in the markdown. Every note has block structure: headings nest by level,
+        list items nest by indentation, a paragraph owns the list under it. Read that structure, draw it, and make every
+        operation work on it, and the file needs nothing added. True Outliner is that reading. It is another view of
+        the same notes, not a new kind of note.
+      </p>
+      <ul class="lp-facts">
+        <li><strong>Any note.</strong> Headings, paragraphs, list items, code, tables and callouts are all nodes of one tree. Nothing to convert.</li>
+        <li><strong>Every operation on the tree.</strong> A node carries its children; a selection covers whole nodes; a fold follows its node.</li>
+        <li><strong>Byte for byte.</strong> Parse a note, write it back: identical. A structural edit changes the lines it moved and nothing else.</li>
+        <li><strong>Public APIs only.</strong> Obsidian's documented editor and plugin APIs, desktop and mobile, any theme.</li>
       </ul>
     </section>
 
-    <section class="lp-features">
-      <h2 class="lp-features-title">What it does</h2>
-      <p class="lp-features-note">The clips and screenshots below are captured from Obsidian with the plugin running; only the editor at the top of the page runs in the browser.</p>
-
-      <article class="lp-row">
+    <section class="lp-chapter">
+      <p class="lp-eyebrow">02 · Any note is an outline</p>
+      <h2>One grid for every kind of block.</h2>
+      <div class="lp-row">
         <div class="lp-row-text">
-          <h3>Any note is an outline</h3>
           <p>
-            Every block sits on one indentation grid, stepping right per level whatever its kind. Guide lines run from a
-            parent down past its children, a marker in the gutter names each block's kind, and the caret's place in
-            the tree is highlighted as it moves.
+            In outline mode every block steps right per level, whatever its kind. Guide lines run from a parent down
+            past its children, a marker in the gutter names each block, and the caret's place in the tree is
+            highlighted as it moves. Switch outline mode off and the note is stock Obsidian.
           </p>
-          <p class="lp-more"><a :href="withBase('/guide/appearance')">Appearance</a></p>
-        </div>
-        <Shot name="guides-markers" alt="A note with headings, paragraphs and nested lists on one grid, with guide lines and a marker per block" />
-      </article>
-
-      <article class="lp-row lp-row-flip">
-        <div class="lp-row-text">
-          <h3>Move whole subtrees</h3>
           <p>
-            Tab and Shift+Tab move a node with everything under it, wherever the caret is in it. Headings change level
-            and their section follows; everything else changes parent. A moved node takes the encoding of its new
-            neighbours, so a paragraph indented under a paragraph becomes an item and an item pulled out among
-            paragraphs becomes a paragraph. Mod+Shift+Arrow swaps a node with its sibling.
-          </p>
-          <p class="lp-more"><a :href="withBase('/guide/structural-editing')">Structural editing</a></p>
-        </div>
-        <div class="lp-stack">
-          <Clip name="indent-outdent" caption="Shift+Tab, Tab, Tab on a nested item." />
-          <Clip name="move-node" caption="Mod+Shift+Up moves a node past its siblings." />
-        </div>
-      </article>
-
-      <article class="lp-row">
-        <div class="lp-row-text">
-          <h3>Split, continue, join</h3>
-          <p>
-            Enter splits a node where the caret is and the remainder becomes a sibling or a first child, ordered lists
-            renumber, and a task box carries over unchecked. Enter on an empty item walks back out of the nesting.
-            Shift+Enter continues the node on a new line, or drafts the next heading. Backspace at a node's first
-            character joins it onto the content above, across a blank line, in one keystroke.
-          </p>
-          <p class="lp-more"><a :href="withBase('/guide/structural-editing#enter')">Enter and Shift+Enter</a></p>
-        </div>
-        <div class="lp-stack">
-          <Clip name="enter-split" caption="Enter mid-item, Enter at the end, then typing." />
-          <Clip name="merge-backspace" caption="Backspace at a paragraph's first character joins it upward." />
-        </div>
-      </article>
-
-      <article class="lp-row lp-row-flip">
-        <div class="lp-row-text">
-          <h3>Select by node</h3>
-          <p>
-            Shift+Arrow grows a selection one node at a time. Mod+A climbs a ladder: the node's text, its subtree, the
-            list, the section, the note. A selection dragged across a boundary snaps outward to whole nodes and is drawn
-            as a block, and Delete, Cut, Tab and the move commands act on everything it covers.
-          </p>
-          <p class="lp-more"><a :href="withBase('/guide/selection-and-caret')">Selection and the caret</a></p>
-        </div>
-        <div class="lp-stack">
-          <Clip name="select-nodes" caption="Shift+Down, then Mod+A three times." />
-          <Clip name="escalation" caption="A drag across two items snaps to both." />
-        </div>
-      </article>
-
-      <article class="lp-row">
-        <div class="lp-row-text">
-          <h3>Zoom into anything</h3>
-          <p>
-            Click a marker to show one node and its subtree as if it were the whole note. A breadcrumb trail above says
-            where the view is and takes it back out. Editing is confined to what is visible, and the outline's depth
-            restarts at the zoomed node, so a deeply nested item reads like a top-level one.
-          </p>
-          <p class="lp-more"><a :href="withBase('/guide/zoom')">Zoom</a></p>
-        </div>
-        <Clip name="zoom-in-out" caption="A click on a marker, editing inside, and zooming back out." />
-      </article>
-
-      <article class="lp-row lp-row-flip">
-        <div class="lp-row-text">
-          <h3>Backlinks in their own tree</h3>
-          <p>
-            Below every note, each reference to it from elsewhere in the vault is shown in the tree of the note it
-            came from: the ancestors above it, the node itself, one level of children. Grouped by note, sortable,
-            filterable by kind, folder and tag, and one click from the source. Built on Obsidian's own link index, with
-            nothing written to any note.
-          </p>
-          <p class="lp-more"><a :href="withBase('/guide/backlinks')">Structured backlinks</a></p>
-        </div>
-        <Shot name="backlinks-footer" alt="The structured backlinks footer below a note, listing references grouped by note, each shown with its ancestors" caption="References grouped by note, each in the tree it came from." />
-      </article>
-
-      <article class="lp-row">
-        <div class="lp-row-text">
-          <h3>The file stays markdown</h3>
-          <p>
-            Switch outline mode off and the note is stock Obsidian. Nothing was ever written to the file that Obsidian
-            would not have written itself: no identifiers, no fold state, no forced bullets. A structural edit changes
-            the lines it moved and nothing else, and indentation follows the note's own style. The note keeps working
-            with every other plugin, tool and sync method.
+            Two readings of markdown make this work and are worth knowing: a list right after a paragraph belongs to
+            that paragraph, and one blank line decides whether indented text is a continuation or a child. The guide
+            page on the mapping explains both in a minute.
           </p>
           <p class="lp-more"><a :href="withBase('/guide/how-notes-become-outlines')">How a note becomes an outline</a></p>
         </div>
-        <Clip name="outline-toggle" caption="Outline mode off, then on: the same file both times." />
-      </article>
-
-      <article class="lp-row lp-row-flip">
-        <div class="lp-row-text">
-          <h3>Any theme, desktop and phone</h3>
-          <p>
-            The outline takes its colours from the theme in use and runs on Obsidian for iOS and Android with the same
-            gestures. Every part of it can be retuned from the settings or overridden from a CSS snippet.
-          </p>
-          <p class="lp-more"><a :href="withBase('/guide/mobile')">Mobile</a> · <a :href="withBase('/reference/css-variables')">CSS variables</a></p>
-        </div>
-        <Shot name="mobile-outline" alt="A note in outline mode on a phone" width="320" class="lp-shot-phone" />
-      </article>
+        <Shot name="guides-markers" alt="A note with headings, paragraphs and nested lists on one grid, with guide lines and a marker per block" />
+      </div>
     </section>
 
-    <section class="lp-compare">
-      <div class="lp-compare-text">
-        <h2>Next to the others</h2>
-        <p>
-          Roam, Tana and Orca Note keep the notes in a database; Logseq keeps them in markdown and writes identifiers
-          and fold state into the files to manage. Obsidian's outliner plugins add keys to flat text and do not know
-          about headings or paragraphs. True Outliner keeps the tree, keeps the files clean, and treats every block as
-          a node.
-        </p>
-        <p class="lp-more"><a :href="withBase('/guide/compared')">The full comparison</a></p>
+    <section class="lp-chapter">
+      <p class="lp-eyebrow">03 · Markdown stays markdown</p>
+      <h2>The markdown you see is the markdown you wrote.</h2>
+      <p class="lp-thesis">
+        No identifiers, no fold state, no forced bullets, no metadata block. What the outliner needs to remember,
+        such as which nodes are folded, lives in plugin data. The note is what it would have been without the plugin.
+      </p>
+      <div class="lp-two lp-files">
+        <figure>
+          <figcaption>Logseq · pages/kitchen.md</figcaption>
+          <pre class="lp-code lp-code-bad">{{ logseqFile }}</pre>
+        </figure>
+        <figure>
+          <figcaption>Obsidian + True Outliner · Kitchen renovation.md</figcaption>
+          <pre class="lp-code">{{ ourFile }}</pre>
+        </figure>
       </div>
-      <table class="lp-table">
-        <thead>
-          <tr><th></th><th>Outliner plugin</th><th>Logseq</th><th>True Outliner</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>Notes stay plain markdown</td><td>✓</td><td>with <code>id::</code> lines</td><td>✓</td></tr>
-          <tr><td>Headings and paragraphs are nodes</td><td>–</td><td>–</td><td>✓</td></tr>
-          <tr><td>Selection snaps to nodes</td><td>–</td><td>✓</td><td>✓</td></tr>
-          <tr><td>Zoom into any block</td><td>lists, separate plugin</td><td>✓</td><td>✓</td></tr>
-          <tr><td>Backlinks with structure</td><td>–</td><td>✓</td><td>✓ read-only</td></tr>
-          <tr><td>Drag and drop</td><td>✓</td><td>✓</td><td>not yet</td></tr>
-        </tbody>
-      </table>
+      <div class="lp-three">
+        <div><strong>Diff-friendly.</strong> A move is the lines that moved. Sync and version control see an edit, not a rewrite.</div>
+        <div><strong>Plugin-friendly.</strong> Every other plugin, and every other app, reads the same note. Dataview, templates, publish, all unchanged.</div>
+        <div><strong>Leave-friendly.</strong> Turn it off, or uninstall it, and there is nothing to clean up. The notes were never anything else.</div>
+      </div>
+      <Clip name="outline-toggle" caption="Outline mode off, then on: the same file both times." class="lp-clip" />
+    </section>
+
+    <section class="lp-chapter">
+      <p class="lp-eyebrow">04 · Backlinks with structure</p>
+      <h2>Every reference, in the tree it came from.</h2>
+      <div class="lp-row lp-row-flip">
+        <div class="lp-row-text">
+          <p>
+            Obsidian's backlinks show a line of context. Below every note in outline mode, True Outliner shows each
+            reference with its ancestors above it, the node itself and one level of children, grouped by note,
+            sortable, filterable by kind, folder and tag, and one click from the source. It is the bidirectional
+            outlining that Roam and Logseq are known for, built on Obsidian's own link index, with nothing written to
+            any note.
+          </p>
+          <p class="lp-more"><a :href="withBase('/guide/backlinks')">Structured backlinks</a></p>
+        </div>
+        <Shot name="backlinks-footer" alt="The structured backlinks footer below a note, listing references grouped by note, each shown with its ancestors" />
+      </div>
+    </section>
+
+    <section class="lp-chapter">
+      <p class="lp-eyebrow">05 · Next to the others</p>
+      <h2>We like their ideas. We do not want their trade-offs.</h2>
+      <p class="lp-thesis">
+        Roam, Tana and Notion keep the notes in a database. Logseq keeps them in markdown and writes into the files to
+        manage them. Obsidian's outliner plugins add keys to flat text. Each got something right, and the comparison
+        pages say what, app by app. The short version is the table.
+      </p>
+      <div class="lp-table-wrap">
+        <table class="lp-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Obsidian + True Outliner</th>
+              <th>Obsidian + Outliner plugin</th>
+              <th>Logseq</th>
+              <th>Workflowy / Roam / Tana</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Notes are plain markdown files</td><td>✓</td><td>✓</td><td>with <code>id::</code> and <code>collapsed::</code> lines</td><td>database</td></tr>
+            <tr><td>Nothing written into files for the outliner</td><td>✓</td><td>✓</td><td>–</td><td>n/a</td></tr>
+            <tr><td>Headings and paragraphs are nodes</td><td>✓</td><td>lists only</td><td>everything is a bullet</td><td>everything is a bullet</td></tr>
+            <tr><td>Subtree moves, wherever the caret is</td><td>✓</td><td>partial</td><td>✓</td><td>✓</td></tr>
+            <tr><td>Selection snaps to nodes</td><td>✓</td><td>–</td><td>✓</td><td>✓</td></tr>
+            <tr><td>Zoom, fold, backlinks with structure</td><td>✓</td><td>zoom via a second plugin</td><td>✓</td><td>✓</td></tr>
+            <tr><td>Drag and drop, block references</td><td>not yet</td><td>drag and drop</td><td>✓</td><td>✓</td></tr>
+            <tr><td>Works with every other Obsidian plugin</td><td>✓</td><td>✓</td><td>–</td><td>–</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="lp-more"><a :href="withBase('/compare/')">The comparisons, app by app</a></p>
     </section>
 
     <section class="lp-install">
@@ -214,7 +188,8 @@ import { KITCHEN, TOUR } from '../../demo/samples';
         <h2>Install</h2>
         <p>
           Not yet in the community plugin directory. Install it through BRAT from the repository, or by hand from the
-          <a href="https://github.com/laughedelic/obsidian-true-outliner/releases/latest">latest release</a>.
+          <a href="https://github.com/laughedelic/obsidian-true-outliner/releases/latest">latest release</a>. There is
+          nothing to migrate: it is the vault you have.
         </p>
       </div>
       <ol class="lp-steps">
@@ -266,6 +241,15 @@ import { KITCHEN, TOUR } from '../../demo/samples';
   border-radius: 4px;
   padding: 0.1em 0.35em;
 }
+.lp kbd {
+  font-family: var(--vp-font-family-mono);
+  font-size: 11.5px;
+  border: 1px solid var(--vp-c-divider);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0.05em 0.4em;
+  background: var(--vp-c-bg);
+}
 
 .lp-eyebrow {
   font-family: var(--lp-display);
@@ -280,12 +264,12 @@ import { KITCHEN, TOUR } from '../../demo/samples';
   font-size: clamp(2rem, 4.6vw, 3.4rem);
   font-weight: 800;
   line-height: 1.08;
-  max-width: 20ch;
+  max-width: 22ch;
 }
 .lp-lede {
   font-size: clamp(1.05rem, 1.6vw, 1.25rem);
   color: var(--vp-c-text-2);
-  max-width: 62ch;
+  max-width: 64ch;
   margin-top: 1.1rem;
 }
 .lp-actions {
@@ -318,69 +302,65 @@ import { KITCHEN, TOUR } from '../../demo/samples';
 .lp a.lp-btn-primary:hover {
   background: var(--vp-c-brand-2);
 }
-.lp-hero-demo.to-demo-frame {
-  margin: 0;
-}
-.lp-hero-demo .to-demo-body {
-  min-height: 26rem;
-}
 
-.lp-why {
-  display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-  gap: 3rem;
-  align-items: start;
+.lp-chapter {
   margin-top: 5rem;
   padding-top: 3rem;
   border-top: 1px solid var(--vp-c-divider);
 }
-.lp-why h2,
-.lp-features-title,
-.lp-compare h2,
-.lp-install h2 {
-  font-size: 1.75rem;
+.lp-chapter h2 {
+  font-size: clamp(1.5rem, 2.6vw, 2.1rem);
   font-weight: 800;
-  margin-bottom: 0.5rem;
+  max-width: 26ch;
+  margin-bottom: 1rem;
 }
-.lp-why-text p {
-  max-width: 62ch;
+.lp-chapter h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 0.3rem;
 }
-.lp-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1.25rem;
-  margin-top: 1rem !important;
-  font-weight: 600;
+.lp-thesis {
+  font-size: 1.1rem;
+  max-width: 68ch;
+  margin: 0.75rem 0 1.5rem;
 }
-.lp-why-facts {
+.lp-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2.5rem;
+  margin: 1.5rem 0;
+}
+.lp-two p {
+  color: var(--vp-c-text-2);
+  max-width: 52ch;
+}
+.lp-facts {
   list-style: none;
-  margin: 0.4rem 0 0;
+  margin: 1.5rem 0 0;
   padding: 0;
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   gap: 0.9rem;
 }
-.lp-why-facts li {
+.lp-facts li {
   padding: 0.9rem 1.1rem;
   border: 1px solid var(--vp-c-divider);
   border-radius: 10px;
   background: var(--vp-c-bg-soft);
   line-height: 1.5;
   color: var(--vp-c-text-2);
+  font-size: 15px;
 }
-.lp-why-facts strong {
+.lp-facts strong {
   color: var(--vp-c-text-1);
 }
 
-.lp-features {
-  margin-top: 5rem;
-}
 .lp-row {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
   gap: 2.5rem;
   align-items: center;
-  padding: 2.5rem 0;
-  border-top: 1px solid var(--vp-c-divider);
+  margin-top: 1rem;
 }
 .lp-row-flip {
   grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
@@ -388,30 +368,15 @@ import { KITCHEN, TOUR } from '../../demo/samples';
 .lp-row-flip .lp-row-text {
   order: 2;
 }
-.lp-row h3 {
-  font-size: 1.35rem;
-  font-weight: 700;
-  margin-bottom: 0.4rem;
-}
 .lp-row-text p {
   color: var(--vp-c-text-2);
-  max-width: 48ch;
+  max-width: 50ch;
 }
 .lp-more {
   font-weight: 600;
 }
 .lp-more a::after {
   content: ' →';
-}
-.lp-row .to-demo-frame {
-  margin: 0;
-}
-.lp-row .to-demo-body {
-  min-height: 20rem;
-}
-.lp-stack {
-  display: grid;
-  gap: 1rem;
 }
 .lp .media {
   margin: 0;
@@ -430,32 +395,62 @@ import { KITCHEN, TOUR } from '../../demo/samples';
   font-size: 13px;
   color: var(--vp-c-text-2);
 }
-.lp .lp-shot-phone {
-  justify-self: center;
-}
-.lp-features-note {
-  color: var(--vp-c-text-2);
-  max-width: 62ch;
-  margin-bottom: 1rem;
+.lp-clip {
+  max-width: 720px;
+  margin-top: 2rem !important;
 }
 
-.lp-compare {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-  gap: 3rem;
-  align-items: start;
-  margin-top: 4rem;
-  padding-top: 3rem;
-  border-top: 1px solid var(--vp-c-divider);
+.lp-files figure {
+  margin: 0;
+  min-width: 0;
 }
-.lp-compare-text p {
+.lp-files figcaption {
+  font-family: var(--vp-font-family-mono);
+  font-size: 12px;
   color: var(--vp-c-text-2);
-  max-width: 50ch;
+  margin-bottom: 0.4rem;
+}
+.lp-code {
+  margin: 0;
+  padding: 1rem 1.1rem;
+  font-family: var(--vp-font-family-mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre;
+  overflow-x: auto;
+  tab-size: 4;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 10px;
+  background: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-1);
+}
+.lp-code-bad {
+  color: var(--vp-c-text-3);
+}
+.lp-three {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.25rem;
+  margin: 1.5rem 0 0;
+  font-size: 15px;
+  color: var(--vp-c-text-2);
+  line-height: 1.55;
+}
+.lp-three strong {
+  color: var(--vp-c-text-1);
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.lp-table-wrap {
+  overflow-x: auto;
+  margin: 1rem 0;
 }
 .lp-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 14.5px;
+  min-width: 720px;
 }
 .lp-table th,
 .lp-table td {
@@ -471,11 +466,13 @@ import { KITCHEN, TOUR } from '../../demo/samples';
   text-transform: uppercase;
   color: var(--vp-c-text-2);
 }
-.lp-table td:last-child {
+.lp-table th:nth-child(2),
+.lp-table td:nth-child(2) {
   font-weight: 600;
   color: var(--vp-c-text-1);
+  background: var(--vp-c-brand-soft);
 }
-.lp-table td:not(:first-child) {
+.lp-table td:not(:first-child):not(:nth-child(2)) {
   color: var(--vp-c-text-2);
 }
 
@@ -489,6 +486,11 @@ import { KITCHEN, TOUR } from '../../demo/samples';
   gap: 2rem 3rem;
   align-items: start;
 }
+.lp-install h2 {
+  font-size: 1.75rem;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+}
 .lp-install .lp-actions {
   grid-column: 1 / -1;
   margin: 0;
@@ -500,19 +502,15 @@ import { KITCHEN, TOUR } from '../../demo/samples';
 }
 
 @media (max-width: 860px) {
-  .lp-why,
+  .lp-two,
   .lp-row,
   .lp-row-flip,
-  .lp-compare,
   .lp-install {
     grid-template-columns: 1fr;
     gap: 1.5rem;
   }
   .lp-row-flip .lp-row-text {
     order: 0;
-  }
-  .lp-hero-demo .to-demo-body {
-    min-height: 20rem;
   }
 }
 </style>
