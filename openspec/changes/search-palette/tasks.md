@@ -107,7 +107,7 @@
 
 ## 5. End-to-end
 
-- [ ] 5.1 Add `e2e/specs/45-search-palette.e2e.ts`, with its own helpers beside it as
+- [x] 5.1 Add `e2e/specs/45-search-palette.e2e.ts`, with its own helpers beside it as
       `e2e/search-palette.ts`, covering: the command opens the palette outside outline mode; a
       query renders grouped hits under lineage with no children; the vault scope carries a scope
       control that narrows without a key; two hits share their ancestor;

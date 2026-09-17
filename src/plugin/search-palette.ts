@@ -25,7 +25,8 @@ import type { SourceTreeCache } from './source-tree-cache';
 import { VaultSearch, type NoteHits } from './vault-search';
 import { viewFor } from './view-registry';
 import { isOutlineMode } from './outline-state';
-import { zoomTo } from './zoom-state';
+import { zoomCleared, zoomTo } from './zoom-state';
+import { zoomScope } from './zoom-scope';
 import type { HeadingMarkerStyle } from './marker-shapes';
 import type { LineageSeparator, SegmentIcons } from './settings/footer';
 
@@ -465,13 +466,19 @@ export class SearchPalette extends Modal {
     if (line < 0) return;
     view.editor.setCursor({ line, ch: 0 });
     view.editor.scrollIntoView({ from: { line, ch: 0 }, to: { line, ch: 0 } }, true);
-    if (unzoomed) return;
 
     const cm = await this.registeredView(view);
     if (!cm || !isOutlineMode(cm.state)) return;
 
-    const rootLine = zoomRootLine(slot.group.doc, slot.nodeId);
-    if (rootLine < 0) return;
+    // Withholding a zoom is not the same as leaving whatever zoom was already
+    // there. A reader who was zoomed into one part of a note and searched their
+    // way to another would otherwise land inside the old scope — with the caret
+    // on a line that scope hides, which is the one place the caret may not be.
+    const rootLine = unzoomed ? -1 : zoomRootLine(slot.group.doc, slot.nodeId);
+    if (rootLine < 0) {
+      if (zoomScope(cm.state)) cm.dispatch({ effects: zoomCleared.of(null) });
+      return;
+    }
     cm.dispatch({ effects: zoomTo.of(cm.state.doc.line(rootLine + 1).from) });
   }
 
