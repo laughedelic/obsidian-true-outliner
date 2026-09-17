@@ -66,6 +66,8 @@ interface ChromePiece {
 
 interface TableGeometry {
   client: { w: number; h: number };
+  /** The table's own width, which is what the add buttons anchor to. */
+  tableW: number;
   /** Clearance between the scrollport's leading edge and the marker's column. */
   portLeadingVsMarker: number | null;
   region: { w: number; h: number };
@@ -141,6 +143,7 @@ async function tableGeometry(): Promise<TableGeometry> {
       }
       return {
         client: { w: wrapper.clientWidth, h: wrapper.clientHeight },
+        tableW: round(tr.width),
         portLeadingVsMarker: marker
           ? round(port.left - marker.getBoundingClientRect().right)
           : null,
@@ -430,6 +433,30 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
     await browser.pause(120);
     const scrolled = await tableGeometry();
     expect(scrolled.portLeadingVsMarker).toBeGreaterThanOrEqual(0);
+
+    // The add buttons anchor to the TABLE, not to the pane. Obsidian places
+    // them with a percentage, which resolves against a scroll container's
+    // visible padding box — so on a wide table the add-column button used to
+    // sit a pane's width into the content (a button in the middle of a
+    // column, moving to a different one when the pane resized) and the
+    // add-row strip spanned the scrollport rather than the table. Both now
+    // read `--to-table-width`. Asserted as a relationship to the table's own
+    // width, and at both ends of the scroll, since the defect was invisible
+    // at rest. Negative control: restore the percentages and the button's
+    // offset reads the scrollport's width instead of the table's.
+    for (const at of [0, scrolled.region.w] as const) {
+      await browser.executeObsidian(({ app, obsidian }, left: number) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+        const cm = (view.editor as any).cm;
+        const outer = cm.contentDOM.querySelector('.cm-embed-block.cm-table-widget') as HTMLElement;
+        const wrapper = outer.querySelector('.table-wrapper') as HTMLElement;
+        wrapper.scrollLeft = left;
+      }, at);
+      await browser.pause(120);
+      const g = await tableGeometry();
+      expect(g.chrome[':scope > .table-col-btn']!.dx).toBeCloseTo(g.tableW, 0);
+      expect(g.chrome[':scope > .table-row-btn']!.w).toBeCloseTo(g.tableW, 0);
+    }
 
     // And the wrapper's own scrollLeft is genuinely functional (not inert,
     // as it was when overflow was forced visible on the wrong element).

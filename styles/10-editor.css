@@ -981,21 +981,27 @@ body.is-mobile {
  * stays clipped, as it is without any of this. The block-start side keeps
  * its reservation: that axis never scrolls, so nothing can move into it.
  *
- * The buttons then have to come back inside the scrollport, and a far-edge
- * inset cannot do it. A percentage inset resolves against the VISIBLE padding
- * box, not the scrollable content, so on a wide table every inset form lands
- * the button near the content's left end, where scrolling carries it off —
- * Obsidian's own `inset-inline-start: 100%` included, which is why a wide
- * table's add-column button is out of reach whenever this wrapper is the
- * scroller. Obsidian's insets are therefore left alone and each button is
- * pulled in by its own width with a transform, which keeps it beside the
- * table where native puts it. Their cross-axis offset and length are
- * corrected for the reservation on that axis: both resolve against the
- * padding box, which the reservation has grown.
+ * The two buttons then need an anchor, and a percentage cannot be it. A
+ * percentage inset resolves against the VISIBLE padding box, not the
+ * scrollable content, so Obsidian's own `inset-inline-start: 100%` stops
+ * meaning "the table's right edge" the moment this wrapper is the scroller
+ * and starts meaning "however wide the pane is" — a length with no relation
+ * to the table, which is why the add-column button lands inside a column and
+ * moves to a different one when the pane is resized. So the inline axis reads
+ * `--to-table-width`, the table's own measured width, published per render by
+ * decorations.ts; the fallback is the native percentage, which is what applies
+ * before the first measurement. The add-row strip takes the same width for the
+ * same reason — its own `100%` spans the scrollport rather than the table —
+ * and keeps its transform, since the block axis never scrolls and its
+ * percentage there tracks the table.
  *
- * The transforms are physical because this box is: `.table-wrapper` computes
- * `direction: ltr` even in a right-to-left note, where the editor's own
- * content box does not.
+ * Their cross-axis offset and length are corrected for the reservation on
+ * that axis: both resolve against the padding box, which the reservation has
+ * grown.
+ *
+ * The remaining transform is physical because this box is: `.table-wrapper`
+ * computes `direction: ltr` even in a right-to-left note, where the editor's
+ * own content box does not.
  *
  * `overflow` states both axes because `overflow-x` alone does not leave the
  * other one alone — one axis `auto` beside `visible` computes `visible` to
@@ -1038,7 +1044,7 @@ body.is-mobile {
   > .cm-table-widget:is(.to-decor-guides, .to-decor-marker, .to-decor-node-selected):not(.is-loading)
   .table-wrapper
   > .table-col-btn {
-  transform: translateX(-100%);
+  inset-inline-start: var(--to-table-width, 100%) !important;
   top: var(--table-drag-handle-size) !important;
   height: calc(100% - 2 * var(--table-drag-handle-size)) !important;
 }
@@ -1049,7 +1055,7 @@ body.is-mobile {
   .table-wrapper
   > .table-row-btn {
   transform: translateY(-100%);
-  width: calc(100% - var(--table-drag-handle-size)) !important;
+  width: var(--to-table-width, calc(100% - var(--table-drag-handle-size))) !important;
 }
 
 /*

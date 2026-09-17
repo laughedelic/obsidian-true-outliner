@@ -76,31 +76,45 @@ and because a future overhang should reappear as nothing rather than as a scroll
 the fix needs it. Nothing in this change's coverage can fail without it, and task 2.3 is written
 to say so rather than to claim a control it does not have.
 
-### D3. Pull the two add buttons in with a transform, leaving their insets alone
+### D3. Anchor the two add buttons to the table's measured width
 
-The transforms are physical (`translateX`, `translateY`) because the box they act on is: with
-Obsidian's own right-to-left setting on, `.cm-content` computes `direction: rtl` while
+Obsidian places both buttons with a percentage, and a percentage resolves against the VISIBLE
+padding box, not the scrollable content. The moment `.table-wrapper` is the scroller,
+`inset-inline-start: 100%` stops meaning "the table's right edge" and starts meaning "however wide
+the pane is": on a wide table the add-column button lands inside a column and moves to a different
+one when the pane is resized, and the add-row strip spans the scrollport rather than the table.
+That is the second thing real use found, and the note records that it predates this change — any
+arrangement where the anchor box is also the scroller has it.
+
+No CSS length names the table's right edge in content coordinates, so it is measured.
+`decorations.ts` publishes `--to-table-width` on the widget's element from the table's own rect, in
+the render pass that already measures the chevron alignment and the accent stops, and the two rules
+read it: the add-column button's `inset-inline-start`, the add-row strip's `width`. Each keeps a
+fallback — Obsidian's percentage, and for the strip the percentage corrected for the reservation —
+which is what applies before the first measurement. On a table that fits, the measured width and
+the native percentage are the same length, so a fitting table's chrome does not move. The rect
+rather than `offsetWidth`, because a table's width is fractional and the buttons sit flush against
+it.
+
+A measured value is state. It is republished on every render, which is when a column's width can
+have changed, so it is stale only between a width change and the next render, where the cost is a
+few pixels of placement rather than a wrong control. The note records two alternatives that need
+no state — make the wrapper a flex row so the buttons take a static position beside the table, or
+move a widget's marker and guide out of the widget so Obsidian's own box keeps its own scroll —
+and both rearrange someone else's layout to reach the same placement.
+
+The add-row strip keeps a physical `translateY(-100%)`, and physical is right because the box is:
+with Obsidian's own right-to-left setting on, `.cm-content` computes `direction: rtl` while
 `.table-wrapper` stays `ltr`, so both buttons keep the physical sides an LTR note gives them,
-measured with the reservation and without it. An earlier draft of this decision re-anchored the
-buttons by logical insets and claimed RTL as the reason; real use then showed the inset form
-scrolls the button out of reach on a wide table, and the RTL case turns out to be unaffected
-either way.
+measured with the reservation and without it. An earlier draft of this decision gave RTL as the
+reason to prefer a transform over an inset; RTL turns out to be unaffected either way, and what
+decides the inline axis is the anchor.
 
-Obsidian's own insets are left alone, and each button is pulled inside by its own width with a
-transform instead. An inset cannot do this job: a percentage resolves against the VISIBLE padding
-box, not the scrollable content, so on a wide table every inset form — Obsidian's own included —
-lands the button near the content's left end, where scrolling carries it off. That is the second
-thing real use found, and the note records that it predates this change: any arrangement where
-the anchor box is also the scroller has it. A transform moves the box without touching where it
-is anchored, which keeps a fitting table's buttons exactly where stock puts them.
-
-Each button also needs its cross-axis length pulled back by the reservation on that axis, and the
-add-column button its cross-axis offset pushed in by one: `height: 100%`, `width: 100%` and
-`top: 0` all resolve against the padding box, which the reservation has grown — by two
-reservations in the block axis, by one in the inline axis, since the inline-start side has none.
-The add-row strip's own `inset-inline-start: 0` needs nothing for the same reason. Measured: with
-the transforms and those corrections, every piece of chrome keeps its stock size and its stock
-offset from the table.
+The block axis still needs correcting for the reservation: the add-column button's `top: 0` and
+`height: 100%` resolve against the padding box, which the reservation has grown by two
+reservations there. The add-row strip's own `inset-inline-start: 0` needs nothing, since the
+inline-start side carries no reservation. Measured: with the anchor and that correction, every
+piece of chrome keeps its stock size and its stock offset from the table.
 
 The declarations keep the `!important` the rule they replace already carries on every one of its
 own. Ours out-specifies Obsidian's `.table-wrapper` and chrome rules on class count, so the flag is

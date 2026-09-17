@@ -13,8 +13,9 @@ position.
 
 Obsidian's own table-edit chrome — the add-row and add-column buttons and the row and column
 drag handles — SHALL keep the size and the position relative to the table that stock Obsidian
-gives it. On a table that fits its line, all four SHALL remain reachable. The row drag handle,
-which sits on the side the previous requirement reserves for the marker, MAY be clipped.
+gives it, at any table width and at any scroll position. On a table that fits its line, all four
+SHALL remain reachable. The row drag handle, which sits on the side the previous requirement
+reserves for the marker, MAY be clipped.
 
 #### Scenario: Blockquote native bar and guide render together
 - **WHEN** a blockquote line also carries an active guide
@@ -51,6 +52,11 @@ which sits on the side the previous requirement reserves for the marker, MAY be 
 - **WHEN** a table narrower than its line carries outline chrome
 - **THEN** the add-row button, the add-column button and the column drag handle are inside the
   table's own scrollport rather than clipped or scrolled away from
+
+#### Scenario: A wide table's add buttons follow the table, not the pane
+- **WHEN** a table wider than its line is scrolled to either end
+- **THEN** the add-column button sits at the table's own trailing edge and the add-row button spans
+  the table's own width, at every scroll position and whatever the pane's width
 
 #### Scenario: A scrolled wide table does not render under its own marker
 - **WHEN** a table wider than its line is scrolled to its far edge

@@ -23,11 +23,13 @@ states `overflow-x` alone, and one axis `auto` beside `visible` computes the oth
 - **Both overflow axes are stated**, rather than one stated and the other promoted. Measured, this
   changes nothing once the reservation is in place; it is written to say on the box what Obsidian
   says on its own, and the note records that no assertion can fail without it.
-- **The two add buttons are pulled inside the reservation by a transform**, at their stock size
-  and their stock offset from the table, so nothing in the widget moves on screen. A transform
-  rather than an inset: a percentage inset resolves against the visible padding box, so every
-  inset form scrolls the button out of reach on a wide table — which the note records as
-  predating this change rather than following from it.
+- **The two add buttons are anchored to the table's own measured width**, at their stock size and
+  their stock offset from the table, so nothing in the widget moves on screen. A measured length
+  rather than Obsidian's percentage: a percentage resolves against the visible padding box, which
+  for a scroll container is the pane rather than the table, so every percentage form puts a wide
+  table's add-column button inside a column and moves it to a different one when the pane is
+  resized. The note records that defect as predating this change; the measured anchor is what
+  fixes it.
 - **The column drag handle comes back** with no rule of its own, because it tracks the table while
   the reservation moves the scrollport's edge out past it. The row drag handle does not: it sits on
   the inline-start side, which gets no reservation, because a leading one is a strip that a
@@ -68,9 +70,6 @@ None.
   provides, but its two failure directions are not comparable: stale one way costs an unneeded
   scrollbar, stale the other puts the whole note into sideways scroll, and the note measures the
   window in which a pane drag holds it there.
-- **Where the add-column button sits on a genuinely wide table.** It is pinned to the scrollport's
-  inline edge rather than the table's far right today, and stays there; the reservation moves it
-  by the width the removed scrollbar was taking.
 - **The outer widget's `overflow: visible` override and the `contain: none` override.** Both stay
   exactly as they are; this change touches only what happens inside them.
 - **Wide-table ergonomics in general** — a nested scroll surface inside an outline is awkward and

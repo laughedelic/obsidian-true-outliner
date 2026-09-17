@@ -5,14 +5,14 @@
       and widened `max-width` on a `:not(.is-loading)` widget, on the same gate the rule already
       carries (D4). Verify against the figures in [docs/research/table-scroll-region](../../../docs/research/table-scroll-region.md): a fitting
       table's scroll region 0/0, no scrollbars, widget height back to its stock value
-- [x] 1.2 Add the two add-button rules (D3) on the same gate — each pulled inside the reservation
-      by a transform, with its cross-axis offset and length corrected for the reservation on that
-      axis. Verify that each button's size and its offset from the table match the
+- [x] 1.2 Add the two add-button rules (D3) on the same gate — each anchored to the table rather
+      than to the scrollport, with its cross-axis offset and length corrected for the reservation
+      on that axis. Verify that each button's size and its offset from the table match the
       outline-mode-off values in the note's reservation table
 - [x] 1.3 Rewrite the rule's doc comment: the four pieces of chrome and what each is anchored to,
-      why the tight box could not hold them, why the reservation stops at three sides, why a
-      transform places the buttons where an inset cannot, and what the `auto hidden` pairing is
-      and is not doing. Leave the account of why the scroll moved to the wrapper at all
+      why the tight box could not hold them, why the reservation stops at three sides, why the
+      buttons' inline anchor is a measured length and not a percentage, and what the `auto hidden`
+      pairing is and is not doing. Leave the account of why the scroll moved to the wrapper at all
       (Experiment 2b finding 4) in place above it
 
 ## 2. E2E coverage
@@ -52,8 +52,18 @@
       sides — and the clearance reads −8.8 px, the overlap that was reported
 - [x] 3.0.1 Establish whether a wide table's unreachable add-column button follows from this
       change or predates it, by measuring the rule as it stands on `main` in the same state.
-      Record the mechanism and the three ways out in the note; do not widen this change with any
-      of them
+      Record the mechanism and the three ways out in the note
+- [x] 3.1 Take the first of those three (D3): publish `--to-table-width` on the widget's element
+      from the table's own rect, in `decorations.ts`'s widget sweep beside the chevron and the
+      accent stops, cleared when the widget is not a table and by `clearWidgetPatch`; then let the
+      add-column button's `inset-inline-start` and the add-row strip's `width` read it, each
+      keeping its percentage as the fallback. Verify both buttons report the table's own width at
+      both ends of the scroll. Negative control: restore the percentages and the offset reads the
+      scrollport's width
+- [x] 3.2 Leave the measured width out of `53-decoration-dom-baseline`'s recorded DOM, alongside
+      the chevron alignment and the accent stops, and say so in its module comment: the value is
+      measured rather than decided, fractional, and font-dependent. Negative control: record it
+      and the baseline fails with a per-platform pixel value
 
 ## 4. Manual pass
 

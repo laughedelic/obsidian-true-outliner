@@ -193,13 +193,10 @@ scrollport's width (558 px) rather than the table's (3523 px).
 Natively the button sits at the table's right edge (offset 0), because natively the anchor box is
 the tight wrapper INSIDE a scrolling outer element.
 
-What this change can do there, it does: on a table that fits, both buttons keep their native
-placement to the pixel, and a real pointer hover reveals the add-column button and lands on it.
-What it cannot do is give a wide table back an affordance that the Experiment 2b arrangement took
-away before this change existed.
-
-Three ways out, none of them a stylesheet, since the anchor a stylesheet can name is either the
-scrollport or nothing:
+On a table that fits, both buttons keep their native placement to the pixel, and a real pointer
+hover reveals the add-column button and lands on it. A wide table needs an anchor no stylesheet
+can name, since the length a percentage resolves against there is either the scrollport or nothing.
+Three ways out:
 
 - **Publish the table's own width** from the pass that already measures the chevron and the accent
   stops, and let both buttons' insets read it. The anchor becomes the table's right edge in content
@@ -211,6 +208,21 @@ scrollport or nothing:
   the widget's own layout, and unmeasured.
 - **Draw a widget's marker and guide outside the widget**, so Obsidian's own box keeps its own
   scroll and none of this arises ([decoration-follow-ups.md](decoration-follow-ups.md)).
+
+The first is what this change carries. `--to-table-width` is published on the widget's element in
+the render pass that already measures the chevron and the accent stops, from the table's own rect,
+and both buttons read it — the add-column button's `inset-inline-start` and the add-row strip's
+`width`, each falling back to Obsidian's percentage while no measurement is published. The
+add-column button's transform goes with it: what it corrected for was the percentage anchor.
+
+Measured on the wide fixture, both buttons report the table's own 3522.72 px — the button flush at
+the table's right edge, the strip spanning the table — at scroll 0 and at full scroll alike. The
+percentage form reads 558 px in the same place, the scrollport. On a table that fits, the published
+width and the native percentage are the same length, so nothing moves there.
+
+The value is measured, not decided, so `53-decoration-dom-baseline` leaves it out of its recorded
+DOM alongside the chevron and the accent stops: a table's width is fractional (134.59375 px on the
+atoms fixture) and follows the font, which differs between CI and macOS.
 
 An uncovered handle is a grabbable one, checked rather than assumed. Hit-tested at the centre of
 its own visible part, the row drag handle answers as itself in every state — but without the
