@@ -2262,61 +2262,38 @@ class SurplusMarkerSpacePlugin implements PluginValue {
 }
 
 /**
- * A line's own source indentation, taken out of the rendering entirely.
- *
- * REPLACED rather than marked and collapsed. A zero-width box keeps the
- * characters in the DOM, and every position among them then renders at the same
- * x — measured on the manual pass, where the caret sat on top of the line's
- * first letter and moved back and forth across it under repeated arrow presses,
- * or, with the box clipping instead, vanished outright. A replacement leaves no
- * position inside to stand on: CM6 draws the caret at the replacement's own
- * edge, which is the line's column.
- *
- * NOT atomic (`EditorView.atomicRanges`), which would make a run one step for
- * the caret: CM6 consults that facet for deletion as well as motion and the two
- * cannot be scoped apart, so Backspace at a run's text start would take the
- * whole run — measured, six spaces at once, a block leaving its parent in one
- * press. Editing keeps its own semantics; what it costs the caret is recorded
- * in `docs/research/decoration-follow-ups`.
+ * Set on a line whose own source indentation this layer pays for out of the
+ * depth rules, carrying that indentation's width in `--to-indent-own`.
  */
-const SOURCE_INDENT_REPLACEMENT = Decoration.replace({});
-
-/**
- * Set on a line whose whole leading run this layer accounts for: the mark's own
- * characters, plus — when the rest of the run is spaces — a stated width for
- * that surplus in `--to-indent-surplus`. Obsidian's wrapper may then be
- * collapsed entire, since nothing inside it is left to render.
- *
- * Absent when the surplus holds a TAB, whose rendered width is a tab stop
- * rather than a count of advances and so cannot be stated: there the wrapper
- * stands, with the quantisation residue `docs/research/source-indentation-width`
- * records.
- */
-export const SOURCE_INDENT_WHOLE_CLASS = 'to-decor-indent-whole';
+export const SOURCE_INDENT_SIZED_CLASS = 'to-decor-indent-sized';
 
 /** The leading whitespace of a line, in characters. */
 const LEADING_RUN_RE = /^[ \t]*/;
 
 /**
- * A line's own SOURCE INDENTATION, marked so it renders at no width.
+ * A line's own source indentation, PAID FOR rather than hidden.
  *
- * The depth rules state where a line begins, and the whitespace the file wrote
- * to express that same depth then renders on top of that as characters — a
- * second visual column for one tree level, and one whose width depends on
- * whether the file used a tab or spaces. `docs/research/source-indentation-width`
- * carries what each shape measured.
+ * The run stays exactly what it is: real characters, at the width of the
+ * characters they are, navigable and editable one at a time. What changes is
+ * the depth contribution, which is reduced by that same width — so the line's
+ * text still lands on its depth's column, and the second column the run used to
+ * add is gone because the two now share one.
  *
- * `indentCh` (decorate.ts) is the run to collapse: the node's own indentation,
- * reported only where it restates a depth the rules already state, and capped
- * at the node's first line so a line indented deeper keeps the surplus.
+ * Every earlier version of this took the width off the run instead, and every
+ * one of them cost the caret: collapsed and clipping, it vanished; collapsed and
+ * overflowing, it sat on top of the line's first word; replaced, it stood still
+ * for a press per character. A run that keeps its own width has none of those
+ * questions to answer — stock motion, stock selection, stock deletion.
  *
- * Marked rather than selected in CSS, because there is nothing dependable to
- * select: which element holds the run depends on the shape and on the reader's
- * own "Show indentation guides" setting. A mark covers exactly the characters,
- * whatever Obsidian made of them, and collapses even where CM6 splits it across
- * those spans — which is why the width is zero rather than stated. Obsidian's
- * own span states a width of its own, so `70-source-indent.css` collapses that
- * too, on the lines `SOURCE_INDENT_WHOLE_CLASS` marks as safe.
+ * Two numbers, one published and one implied. `--to-indent-own` is the node's
+ * own indentation, stated from `--to-space-advance` (a space has no CSS unit;
+ * `MarginCompensation` measures it live), and the depth rules subtract it. What
+ * a line carries BEYOND its node renders as itself and pushes the text right,
+ * which is what a deeper line means.
+ *
+ * Obsidian's own quantiser is the one thing overridden: it sizes the run from
+ * `--list-indent` rather than from the characters, so `70-source-indent.css`
+ * puts its spans back to the width of what they hold.
  */
 function computeSourceIndent(state: EditorState): DecorationSet {
   if (!isOutlineMode(state)) return Decoration.none;
@@ -2329,36 +2306,30 @@ function computeSourceIndent(state: EditorState): DecorationSet {
     if (fact.lineNumber >= totalLines) continue; // stale fact past a shrunk doc
     const line = state.doc.line(fact.lineNumber + 1); // CM6 lines are 1-indexed
     const run = LEADING_RUN_RE.exec(line.text)![0];
-    const surplus = run.slice(fact.indentCh);
-    // A surplus holding a TAB has no width this layer can state, so the line is
-    // left entirely alone rather than half-accounted: its run renders as stock.
-    if (surplus.includes('\t')) continue;
-    // A provisional position's fact is derived from the MATERIALIZED text
-    // rather than from this line, so the clamp is load-bearing rather than
-    // defensive: the probe's line is one character longer than the real one.
-    const to = Math.min(line.from + run.length, line.to);
-    if (to <= line.from) continue;
-    // The line decoration first: `RangeSetBuilder` wants ascending sides at the
-    // same position, and a line's own side is below a replacement's.
+    // A TAB renders to a tab stop rather than to a count of advances, so its
+    // width is not this layer's to state — and a subtraction that guessed it
+    // would move the line's text off the column by whatever it guessed wrong.
+    // Such a line is left as stock renders it.
+    if (run.includes('\t')) continue;
+    const own = Math.min(fact.indentCh, run.length);
+    if (own === 0) continue;
     builder.add(
       line.from,
       line.from,
       Decoration.line({
-        class: SOURCE_INDENT_WHOLE_CLASS,
+        class: SOURCE_INDENT_SIZED_CLASS,
         attributes: {
-          style: `--to-indent-surplus: calc(${surplus.length} * var(--to-space-advance, 0.26em))`,
+          style: `--to-indent-own: calc(${own} * var(--to-space-advance, 0.26em))`,
         },
       }),
     );
-    builder.add(line.from, to, SOURCE_INDENT_REPLACEMENT);
   }
   return builder.finish();
 }
 
-/** The source-indentation mark's own plugin, for the reason the digits and the
- * surplus run each have one: CM6 merges decoration sets from separate sources,
- * and a `Decoration.mark` at a line's start would otherwise have to be ordered
- * by hand against the `Decoration.line` already there. */
+/** The source-indentation layer's own plugin, for the reason the digits and the
+ * surplus run each have one: CM6 merges decoration sets from separate sources
+ * rather than making one builder order them by hand. */
 class SourceIndentPlugin implements PluginValue {
   decorations: DecorationSet;
 

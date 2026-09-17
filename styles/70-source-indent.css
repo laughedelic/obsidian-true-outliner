@@ -1,82 +1,48 @@
 /*
- * What Obsidian made of a run this layer REPLACED, and the width that run is
- * owed.
+ * A line's own source indentation, PAID FOR out of the depth rules
+ * (`SOURCE_INDENT_SIZED_CLASS`, decorations.ts).
  *
- * `decorations.ts` takes a line's own source indentation out of the rendering
- * altogether (`SOURCE_INDENT_REPLACEMENT`), so the characters are gone from the
- * DOM and the depth rules in `10-editor.css` are the whole of the line's
- * position. Which lines that reaches is decorations.ts's decision, not this
- * file's.
+ * The run keeps its own width — real characters, navigable and editable one at
+ * a time — and `10-editor.css` subtracts that width from the line's depth
+ * contribution instead. The two then share one column rather than each adding
+ * its own, which is the whole of issue #117. What a line carries BEYOND its
+ * node's own indentation is untouched and pushes its text right, which is what
+ * a deeper line means.
  *
- * Not the discipline break it appears to be: the line's own box is where the
- * additive rules put it, and what this removes is the width of characters
- * Markdown itself reads as structure — reading mode renders none of them. A
- * list item's run is SIZED instead (`--to-list-hang`), because it carries the
- * item's native marker.
+ * `docs/research/source-indentation-width` carries the versions that took the
+ * width off the RUN instead, and what each cost the caret.
  */
 
 /*
- * The span Obsidian made of the same run, collapsed with it.
+ * Obsidian's quantiser, overridden so the run measures what it holds.
  *
- * Replacing the characters is not always enough: Obsidian wraps a leading run in a span
- * whose width is stated, and that width outlives the characters it was made
- * from. The figures, and the four spans this
- * rule names, are in `docs/research/source-indentation-width`.
+ * It sizes a leading run from `--list-indent` rather than from the characters:
+ * measured, 26.17px for two spaces, 36px for a tab, and a `border-box`
+ * `.cm-indent-spacing` carrying its width as `padding-left`. The subtraction
+ * above states the characters' own width, so the rendering has to agree with it
+ * — otherwise the line's text lands off the column by whatever the quantiser
+ * added.
  *
- * Obsidian sizes these from the document rather than from the DOM, so they keep
- * their stated widths even with the characters replaced away — measured, a
- * replaced run still rendered 62px of `.cm-indent`. EVERY such span on the line,
- * since Obsidian splits a run across several and the whole run is replaced.
- * These classes wrap leading indentation and nothing else, and a list-item line
- * carries neither this class nor a replacement.
+ * `width: auto` rather than a stated one: what these spans hold IS the run, so
+ * their natural width is the number the subtraction uses.
  */
 .markdown-source-view.mod-cm6
   .cm-content
-  > .cm-line.to-decor-indent-whole
+  > .cm-line.to-decor-indent-sized
   :is(.cm-hmd-list-indent, .cm-indent, .cm-indent-spacing) {
-  display: inline-block;
-  width: 0 !important;
+  width: auto !important;
   min-width: 0 !important;
-  /* The width is not always stated as a width: `.cm-indent-spacing` carries the
-   * run as `padding-left` on a `border-box` element, where a zero width leaves
-   * the padding standing. */
   padding: 0 !important;
   margin: 0 !important;
-  white-space: pre;
-  vertical-align: top;
-}
-
-/*
- * The surplus of the run — what a line carries BEYOND its node's own
- * indentation, on the lines where the wrapper above was collapsed entire.
- *
- * Stated from `--to-space-advance`, the space width `MarginCompensation`
- * measures live, since a space's advance has no CSS unit of its own
- * (`docs/research/decoration-lessons`). The count comes from the decoration,
- * which knows how many characters of the run belong to the node and how many
- * are past it.
- *
- * A block line adds it to the depth padding it already carries
- * (`10-editor.css`); an atom takes its depth as MARGIN, so the padding here is
- * free, and lands inside the box where the surplus belongs. Measured before
- * this rule: code indented four spaces inside a two-space fence rendered its
- * run 48.36px wide where four spaces measure about 33.7px, because Obsidian had
- * quantised the whole run including the fence's own.
- */
-.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-atom.to-decor-indent-whole {
-  padding-left: var(--to-indent-surplus, 0px);
 }
 
 /*
  * A code line's own internal padding, which Obsidian gives a fence at the top
  * level and withholds from one written inside a list — measured, 16px against
- * 0. Before this layer collapsed the run, the fence's own source indentation
- * stood in for it; collapsed, the code sat flush against its own tinted box.
- *
- * `--size-4-4` is the value Obsidian's own rule resolves to for a top-level
- * fence, so an indented block takes the padding its unindented neighbour has
- * rather than one this layer invents.
+ * 0. `--size-4-4` is what its own rule resolves to for a top-level fence, so an
+ * indented block takes the padding its unindented neighbour has rather than one
+ * this layer invents.
  */
 .markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-atom.HyperMD-codeblock {
-  padding-inline-start: calc(var(--size-4-4) + var(--to-indent-surplus, 0px));
+  padding-inline-start: var(--size-4-4);
 }

@@ -205,9 +205,16 @@ body.is-mobile {
 .markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-block,
 .to-backlinks-row.to-decor-block {
   position: relative;
-  padding-left: calc(
-    var(--to-depth, 0) * var(--to-decor-unit) + var(--to-marker-gutter, 0px) +
-      var(--to-indent-surplus, 0px)
+  /* Less the line's own source indentation, which renders as itself
+   * (`70-source-indent.css`): the run and the depth share one column instead of
+   * each adding one. `max()` floors it, since a run wider than the depth
+   * contribution has nothing left to take. */
+  padding-left: max(
+    0px,
+    calc(
+      var(--to-depth, 0) * var(--to-decor-unit) + var(--to-marker-gutter, 0px) -
+        var(--to-indent-own, 0px)
+    )
   ) !important;
   /* Headings/paragraphs whose raw line starts with 1-3 literal spaces (not
    * enough to reclassify as an indented code block) get a native HyperMD
@@ -242,8 +249,12 @@ body.is-mobile {
  * that box, so atoms need margin-left instead. */
 .markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-atom {
   position: relative;
-  margin-left: calc(
-    var(--to-depth, 0) * var(--to-decor-unit) + var(--to-marker-gutter, 0px)
+  margin-left: max(
+    0px,
+    calc(
+      var(--to-depth, 0) * var(--to-decor-unit) + var(--to-marker-gutter, 0px) -
+        var(--to-indent-own, 0px)
+    )
   ) !important;
 }
 
