@@ -16,6 +16,7 @@ export default defineConfig({
     nav: [
       { text: 'Guide', link: '/guide/', activeMatch: '^/guide/' },
       { text: 'Reference', link: '/reference/settings', activeMatch: '^/reference/' },
+      { text: 'Compared', link: '/compare/', activeMatch: '^/compare/' },
       { text: 'Releases', link: 'https://github.com/laughedelic/obsidian-true-outliner/releases' },
     ],
     sidebar: {
@@ -35,7 +36,25 @@ export default defineConfig({
             { text: 'Zoom', link: '/guide/zoom' },
             { text: 'Structured backlinks', link: '/guide/backlinks' },
             { text: 'Mobile', link: '/guide/mobile' },
-            { text: 'Compared to other outliners', link: '/guide/compared' },
+          ],
+        },
+        {
+          text: 'Compared to',
+          items: [
+            { text: 'Where we stand', link: '/compare/' },
+            { text: "Obsidian's outliner plugins", link: '/compare/obsidian-plugins' },
+            { text: 'Logseq', link: '/compare/logseq' },
+            { text: 'Workflowy and Dynalist', link: '/compare/workflowy' },
+            { text: 'Roam Research', link: '/compare/roam' },
+            { text: 'Tana', link: '/compare/tana' },
+            { text: 'outl', link: '/compare/outl' },
+            { text: 'Orca Note', link: '/compare/orca-note' },
+            { text: 'Thymer', link: '/compare/thymer' },
+            { text: 'Notion', link: '/compare/notion' },
+            { text: 'Capacities', link: '/compare/capacities' },
+            { text: 'Anytype', link: '/compare/anytype' },
+            { text: 'Reflect', link: '/compare/reflect' },
+            { text: 'Org-mode', link: '/compare/org-mode' },
           ],
         },
         {
