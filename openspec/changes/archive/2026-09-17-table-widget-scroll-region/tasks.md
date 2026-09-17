@@ -67,26 +67,26 @@
 
 ## 4. Manual pass
 
-- [ ] 4.1 Install to the test vault (`npm run vault:install`) and check `Notes/Edge Case Zoo` in
+- [x] 4.1 Install to the test vault (`npm run vault:install`) and check `Notes/Edge Case Zoo` in
       outline mode: the reported table scrolls on neither axis, and the note's other atoms are
       unchanged
-- [ ] 4.2 On a genuinely wide table, drag the horizontal scrollbar and trackpad-scroll it: the
+- [x] 4.2 On a genuinely wide table, drag the horizontal scrollbar and trackpad-scroll it: the
       table scrolls, the note does not, and the guide and the marker stay put — the manual check
       that caught the Experiment 2b regression this rule came from
-- [ ] 4.3 Hover a table's rows and columns: both drag handles appear and drag, and both add
+- [x] 4.3 Hover a table's rows and columns: both drag handles appear and drag, and both add
       buttons add a row and a column. Click each of the four bands around the table and confirm
       what focuses or selects, since the band's owner changes with this rule (Risks). Check one
       table in each bundled theme
 - [x] 4.4 Check a table with Obsidian's right-to-left setting on, confirming the buttons keep the
       sides they have in an LTR note. Measured: `.cm-content` computes `direction: rtl` while
-      `.table-wrapper` stays `ltr`, so direction moves nothing here and D3's physical transforms
-      are safe
+      `.table-wrapper` stays `ltr`, so direction moves nothing here and D3's physical placement
+      is safe
 
 ## 5. Land
 
 - [x] 5.1 `npm run lint`, `npm test`, `npm run build`, `npm run build:e2e`
-- [ ] 5.2 Sync the delta spec into `openspec/specs/outline-decorations/spec.md`, then
+- [x] 5.2 Sync the delta spec into `openspec/specs/outline-decorations/spec.md`, then
       `openspec validate --specs --strict`
-- [ ] 5.3 `npm version patch`, and confirm `test-vault` carries no drift
+- [x] 5.3 `npm version patch`, and confirm `test-vault` carries no drift
       (`node scripts/check-vault-drift.mjs`)
-- [ ] 5.4 `openspec validate table-widget-scroll-region --strict`
+- [x] 5.4 `openspec validate table-widget-scroll-region --strict`
