@@ -143,6 +143,16 @@ height returns to stock, the guide and the marker are unaffected, `scrollLeft` o
 still takes 300, and the document's own scroller stays at its client width — 668/668 — instead of
 scrolling sideways.
 
+An uncovered handle is a grabbable one, checked rather than assumed. Hit-tested at the centre of
+its own visible part, the row drag handle answers as itself in every state — but without the
+reservation that visible part is 1 px of its 14, the rest scrolled off where nothing can reach it,
+so "present" and "usable" come apart. With the reservation it is 14 px, and the column handle's
+whole 65.8 px is visible rather than clipped to a sliver. One qualification: our own marker icon's
+box overlaps the row handle's outer 5.8 px, in outline mode with the reservation or without it, so
+the handle's usable target there is the remaining 8 px. The marker is unchanged by this change and
+the overlap is not new; it is recorded because the left band's hit target is the marker's, which is
+what a reader measuring that band will find.
+
 The one existing assertion the reservation could have flipped holds. `51-guides-gradient` pins
 `outer.scrollWidth === outer.clientWidth` exactly, and the reservation takes the slack between the
 wrapper's border box and the outer's padding box from 16 px a side to zero: measured, the wrapper
@@ -170,6 +180,12 @@ active, a 22 px handle reads `opacity: 1` and sits 21 px outside the scrollport 
 it with the reservation, at an unchanged offset from the table. Clicking the native add-column
 button rewrites the row the same way with the reservation as without it, desktop and mobile —
 `| a | b |` → `| a   | b   |     |`.
+
+Direction turns out not to be a variable. With Obsidian's own right-to-left setting on,
+`.cm-content` computes `direction: rtl` while `.table-wrapper` stays `ltr`, so both buttons keep
+the physical sides an LTR note gives them — measured identically with the reservation and without
+it. The logical spelling is worth keeping because it is the spelling Obsidian's own rules use, not
+because an RTL note moves anything here.
 
 Stating the second overflow axis changes nothing measurable once the reservation is in place:
 with `overflow-x: auto` alone the axis still computes to `auto`, and both fixtures report the same

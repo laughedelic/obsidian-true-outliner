@@ -954,11 +954,88 @@ body.is-mobile {
   overflow: visible !important;
 }
 
-.markdown-source-view.mod-cm6 .cm-content > .cm-table-widget.to-decor-guides .table-wrapper,
-.markdown-source-view.mod-cm6 .cm-content > .cm-table-widget.to-decor-marker .table-wrapper,
-.markdown-source-view.mod-cm6 .cm-content > .cm-table-widget.to-decor-node-selected .table-wrapper {
-  overflow-x: auto !important;
-  max-width: 100% !important;
+/*
+ * The scroll the paragraph above moved onto `.table-wrapper` needs room for
+ * Obsidian's table-edit chrome, which the widget's OWN padding is the
+ * reservation for (`padding: var(--table-drag-handle-size)`, its own rule).
+ *
+ * Four pieces sit flush outside the table's four edges, and they divide by
+ * what they are anchored to. `.table-col-btn` and `.table-row-btn` are
+ * children of the wrapper, placed at a `100%` inset of its padding box —
+ * which `width: fit-content` keeps tight to the table. The row and column
+ * drag handles hang off their own `th`/`td` instead, so they track the table.
+ *
+ * A scroll container's scrollable overflow region is the union of its padding
+ * box with its descendants' boxes, so a chrome-tight scroll container takes
+ * all four pieces in: the buttons become scroll range on each axis, and the
+ * handles fall on the negative side, which a scroll container cannot reach,
+ * and are clipped. Hence the reservation here — the widget's own padding,
+ * restated on the box that scrolls, and handed straight back with a negative
+ * margin so the widget's box does not grow. `max-width` widens by twice the
+ * reservation to keep the visible width a wide table had without it.
+ *
+ * The buttons then need re-anchoring into that reservation, and a far-edge
+ * inset alone does not do it: Obsidian gives each one a near inset AND an
+ * explicit size, and an over-constrained box drops the far-edge inset
+ * silently — nothing in the stylesheet says which one landed, only the
+ * computed insets do. So each button's near inset is released to `auto` in
+ * the same block. Their cross-axis offset and length are corrected for the
+ * same reason the reservation exists: both resolve against the padding box.
+ *
+ * `overflow` states both axes because `overflow-x` alone does not leave the
+ * other one alone — one axis `auto` beside `visible` computes `visible` to
+ * `auto`. With the reservation in place the vertical axis has nothing to
+ * scroll either way, so the pair is what the box means rather than what
+ * closes the defect; it also matches what Obsidian states on the outer
+ * element. The reservation is gated on `:not(.is-loading)`, a state in which
+ * Obsidian zeroes the padding this is measured against; the overflow above is
+ * not, so no state leaves a wide table unclipped.
+ *
+ * `:is()` over three spelled-out selector lists: its specificity is its most
+ * specific argument, so each rule counts the same as the one it replaced, and
+ * the gate stays one list instead of four that can drift apart. The gate is
+ * the outer element's own (`contain: none`/`overflow: visible`, above): the
+ * wrapper may only scroll while the outer does not.
+ *
+ * Figures, the four candidates that failed, and the residuals:
+ * docs/research/table-scroll-region.
+ */
+.markdown-source-view.mod-cm6
+  .cm-content
+  > .cm-table-widget:is(.to-decor-guides, .to-decor-marker, .to-decor-node-selected)
+  .table-wrapper {
+  overflow: auto hidden !important;
+}
+
+.markdown-source-view.mod-cm6
+  .cm-content
+  > .cm-table-widget:is(.to-decor-guides, .to-decor-marker, .to-decor-node-selected):not(.is-loading)
+  .table-wrapper {
+  padding: var(--table-drag-handle-size) !important;
+  margin: calc(-1 * var(--table-drag-handle-size)) !important;
+  max-width: calc(100% + 2 * var(--table-drag-handle-size)) !important;
+}
+
+.markdown-source-view.mod-cm6
+  .cm-content
+  > .cm-table-widget:is(.to-decor-guides, .to-decor-marker, .to-decor-node-selected):not(.is-loading)
+  .table-wrapper
+  > .table-col-btn {
+  inset-inline-start: auto !important;
+  inset-inline-end: 0 !important;
+  top: var(--table-drag-handle-size) !important;
+  height: calc(100% - 2 * var(--table-drag-handle-size)) !important;
+}
+
+.markdown-source-view.mod-cm6
+  .cm-content
+  > .cm-table-widget:is(.to-decor-guides, .to-decor-marker, .to-decor-node-selected):not(.is-loading)
+  .table-wrapper
+  > .table-row-btn {
+  inset-block-start: auto !important;
+  inset-block-end: 0 !important;
+  inset-inline-start: var(--table-drag-handle-size) !important;
+  width: calc(100% - 2 * var(--table-drag-handle-size)) !important;
 }
 
 /*

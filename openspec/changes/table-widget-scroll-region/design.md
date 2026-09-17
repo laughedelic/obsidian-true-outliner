@@ -72,9 +72,16 @@ to say so rather than to claim a control it does not have.
 ### D3. Re-anchor the two add buttons by their logical insets, not by a transform
 
 Both land in the same place and both measured identically. Logical insets (`inset-inline-end`,
-`inset-block-end`) are the direction-independent way to say "the far edge", which matters for an
-RTL note, where the add-column button is physically on the left. A transform would have to know
-which side that is.
+`inset-block-end`) say "the far edge" in the same spelling Obsidian's own rules use, so ours
+cannot resolve against a different edge than the declarations it is correcting. A transform would
+have to name a physical side and hold that naming in step with theirs.
+
+The direction question turns out to be moot rather than decisive, and measurement is what says so:
+with Obsidian's own right-to-left setting on, `.cm-content` computes `direction: rtl` while
+`.table-wrapper` stays `ltr`, so both buttons keep the physical sides they have in an LTR note,
+with the reservation and without it. An earlier draft of this decision claimed RTL as the reason
+for the logical spelling; the reason is agreement with native, and the RTL case is simply
+unaffected.
 
 Setting the far-edge inset is not enough on its own. Obsidian gives each button an explicit size
 as well as a near inset (`inset-inline-start: 100%` on the add-column button, `top: 100%` on the
