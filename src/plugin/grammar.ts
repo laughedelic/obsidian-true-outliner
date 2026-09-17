@@ -7,7 +7,7 @@
 
 import type { OutlineDoc } from '../model';
 import { isAtom } from '../model';
-import { parse } from '../parse';
+import { indentWidth, parse, parseListMarker } from '../parse';
 import {
   contentColumnCh,
   deleteSubtreeGroups,
@@ -25,6 +25,7 @@ import {
 import type { OpOutput } from '../ops';
 import type { OpResult } from '../result';
 import { applyEdits, diffLines } from '../result';
+import { contentBoundaryCh } from '../caret';
 import { nodeAtLine, nodeStartLine } from '../locate';
 import { resolvedOutline } from './decorate';
 import { coveredForestOf } from '../escalate';
@@ -126,7 +127,28 @@ function offsetInNewText(newLines: readonly string[], pos: EditorPos): number {
   return offset + pos.ch;
 }
 
-const LIST_CONT_RE = /^([ \t]*)([-+*]|\d{1,9}[.)])([ \t]+)/;
+/**
+ * The whitespace a list item's continuation line begins with: the item's own
+ * indentation verbatim, padded with spaces out to the CONTENT COLUMN the
+ * parser reads for that item.
+ *
+ * Asking `parseListMarker` rather than matching a second marker regex here is
+ * what keeps the two from disagreeing about a marker at end-of-line. A bare
+ * `-` parses as an item whose content column is 2 (`list-marker-content-column`:
+ * a marker with nothing after it takes the one space a child would need), and
+ * a continuation written at column 0 instead would re-parse as a TOP-LEVEL
+ * paragraph — a position standing for no node at all.
+ *
+ * The indentation is kept verbatim and only the marker's width is replaced by
+ * spaces: the content column counts tab stops, which a tab-led item's own lead
+ * already occupies.
+ */
+function continuationPrefix(line: string): string {
+  const marker = parseListMarker(line);
+  if (!marker) return '';
+  const indentText = /^[ \t]*/.exec(line)?.[0] ?? '';
+  return indentText + ' '.repeat(Math.max(0, marker.contentCol - indentWidth(indentText)));
+}
 
 /** Offset → `{line, ch}` within an already-built lines array. */
 function posInLines(lines: readonly string[], offset: number): EditorPos {
@@ -756,11 +778,15 @@ export function planKey(
       }
 
       const lineText = lines[cursor.line] ?? '';
+      const indentCh = /^[ \t]*/.exec(lineText)?.[0].length ?? 0;
       // Clamp out of chrome, the same rule Enter applies: a break inside a
-      // marker or a node's indentation would split the chrome itself.
-      const boundary = onFirstLine
-        ? contentColumnCh(lineText)
-        : (/^[ \t]*/.exec(lineText)?.[0].length ?? 0);
+      // marker or a node's indentation would split the chrome itself. An
+      // item's first line takes the CARET's boundary, which treats a marker at
+      // end-of-line as one — `contentColumnCh` requires whitespace after the
+      // marker and reads 0 for a bare `-`, which put the break before it.
+      // Every other line, and every other kind, breaks past its indentation.
+      const boundary =
+        onFirstLine && node.kind === 'list-item' ? contentBoundaryCh(node, lineText) : indentCh;
       const at: EditorPos = {
         line: cursor.line,
         ch: Math.min(Math.max(cursor.ch, boundary), lineText.length),
@@ -773,12 +799,7 @@ export function planKey(
       // survived only by CommonMark's lazy-continuation rule.
       const prefix =
         node.kind === 'list-item' && onFirstLine
-          ? (() => {
-              const match = LIST_CONT_RE.exec(node.lines[0] ?? '');
-              return match
-                ? `${match[1]}${' '.repeat(match[2]!.length + match[3]!.length)}`
-                : '';
-            })()
+          ? continuationPrefix(node.lines[0] ?? '')
           : (/^[ \t]*/.exec(lineText)?.[0] ?? '');
       // A DISTINCT event, not the generic `input` this used to carry. It IS in
       // `classify.ts`'s plugin-own list — it was excluded at first, on the

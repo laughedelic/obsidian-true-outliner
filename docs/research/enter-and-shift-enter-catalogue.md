@@ -500,12 +500,13 @@ is in its own tasks.md Findings — six of seven consumers were acting on the bi
 list bisection hides the defect a paragraph bisection exposes, because a list attaches the tail as
 a CHILD (carried along by any subtree operation) where a paragraph leaves it a SIBLING.
 
-**S12** at the end of a line whose marker has no trailing space ❌ — left open. `-` parses as an
-item with content column 2, but `LIST_CONT_RE` in `grammar.ts` requires whitespace after the
-marker, so Shift+Enter writes a column-0 line. Typing there makes a TOP-LEVEL paragraph, so the
-position belongs to no node and nothing downstream can repair it. Found by the differential
-property test in `tests/decorate.test.ts`, which pins it; recorded in
-[docs/research/decoration-follow-ups.md](decoration-follow-ups.md).
+**S12** at the end of a line whose marker has no trailing space ✅ — fixed. `-` parses as an item
+with content column 2, while `LIST_CONT_RE` in `grammar.ts` required whitespace after the marker
+and so found no item at all: Shift+Enter wrote a column-0 line, and typing there made a TOP-LEVEL
+paragraph, so the position belonged to no node and nothing downstream could repair it. Found by
+the differential property test in `tests/decorate.test.ts`. The continuation prefix now comes from
+`parseListMarker` — the same rule the parser reads the content column with — and the break's own
+clamp from `caret.ts`'s `contentBoundaryCh`, which already treated a marker at end-of-line as one.
 
 ### C3. Atoms, gaps, preamble ✅ — declined.
 

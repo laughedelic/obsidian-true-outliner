@@ -218,6 +218,51 @@ describe('grammar planner: Shift+Enter (continue)', () => {
     expect([...walkNodes(parse(text))].length).toBe(1); // still one paragraph node
   });
 
+  it('an item whose marker has no trailing space continues at the column the parser reads', () => {
+    // `-` alone parses as an item whose content column is 2 — a marker with
+    // nothing after it takes the one space a child would need
+    // (`list-marker-content-column`). The prefix used to come from a second
+    // marker regex that required whitespace after the marker, so it found no
+    // item and wrote the continuation at column 0, where typing made a
+    // TOP-LEVEL paragraph instead of the item's own second line.
+    const src = '-\n';
+    const outcome = plan(src, { line: 0, ch: 1 }, 'continue');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
+    const { text } = applyPlan(src, outcome.plan);
+    expect(text).toBe('-\n  \n');
+    // Typed on, that line is the item's own second line rather than a
+    // top-level paragraph.
+    const nodes = [...walkNodes(parse('-\n  typed\n'))];
+    expect(nodes.length).toBe(1);
+    expect(nodes[0]!.lines).toEqual(['-', '  typed']);
+  });
+
+  it('a tab-led item keeps its own lead and pads only the marker', () => {
+    // The content column counts tab stops, so the indentation survives
+    // verbatim and only the marker's width becomes spaces.
+    const src = '- top\n\t- kid\n';
+    const outcome = plan(src, { line: 1, ch: 7 }, 'continue');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
+    expect(applyPlan(src, outcome.plan).text).toBe('- top\n\t- kid\n\t  \n');
+  });
+
+  it('a wide marker run continues at the content column, not one space past it', () => {
+    const src = '10)  wide\n';
+    const outcome = plan(src, { line: 0, ch: 9 }, 'continue');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
+    expect(applyPlan(src, outcome.plan).text).toBe('10)  wide\n     \n');
+  });
+
+  it('a break never lands before a marker that has nothing after it', () => {
+    // The clamp's own shape: on `-` the content boundary is the end of the
+    // line, so a cursor at column 0 still breaks AFTER the marker rather than
+    // pushing the item down a line and leaving a blank one above it.
+    const src = '-\n';
+    const outcome = plan(src, { line: 0, ch: 0 }, 'continue');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
+    expect(applyPlan(src, outcome.plan).text).toBe('-\n  \n');
+  });
+
   it('declines inside atoms', () => {
     expect(plan('```\ncode\n```\n', { line: 1, ch: 0 }, 'continue')).toBeNull();
   });

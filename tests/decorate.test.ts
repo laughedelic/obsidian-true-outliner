@@ -1880,11 +1880,8 @@ describe('the overlay reproduces the facts the keypress displaced (design D1/D2)
     if (open === null) return;
     const position = line + 1;
     // The invariant is about a position that JOINS the node it was opened
-    // inside. Where the grammar writes one that does not — an item whose marker
-    // has no trailing space gets no continuation indent, so `-` / `⇥tab lead`
-    // opens a column-0 line that parses as a top-level paragraph — there is no
-    // tree in which the node is whole, and no overlay can repair it. Measured
-    // and recorded as a follow-up; see the test below.
+    // inside. A position that starts a node of its own instead is a different
+    // question, and one the gate below answers on its own terms.
     // Read INLINE rather than through `positionBisectsANode`: calling the
     // implementation's own gate here would make this property vacuous the moment
     // that gate is broken, which is exactly when it needs to fail.
@@ -1958,18 +1955,23 @@ describe('the overlay reproduces the facts the keypress displaced (design D1/D2)
     }
   });
 
-  it('a position the grammar writes OUTSIDE its node is not one this can repair', () => {
-    // `-` has no space after its marker, so `LIST_CONT_RE` does not match it and
-    // Shift+Enter writes an empty line rather than the item's content column —
-    // while `parse` reads `-` as an item whose content column is 2. Typing on
-    // that position makes a TOP-LEVEL paragraph, so the position stands for no
-    // continuation and the gate stays shut. The node below it stays displaced.
-    // A buffer defect, out of this change's scope (proposal.md — Non-Goals) and
-    // recorded in docs/research/decoration-follow-ups.
+  it('opens a position INSIDE an item whose marker has no trailing space', () => {
+    // `-` parses as an item whose content column is 2, and the continuation
+    // prefix is read from that same rule. It used to come from a second marker
+    // regex that required whitespace after the marker and so found no item at
+    // all, which wrote the position at column 0: typing there made a TOP-LEVEL
+    // paragraph, so the position stood for no continuation of anything and no
+    // overlay could repair it.
     const md = ['-', '\ttab lead', ''].join('\n');
     const open = openPositionAt(md, 0)!;
-    expect(open).toBe(['-', '', '\ttab lead', ''].join('\n'));
-    expect(positionBisectsANode(decorate(parse(materializeProbe(open, 1)!)), 1)).toBe(false);
+    expect(open).toBe(['-', '  ', '\ttab lead', ''].join('\n'));
+    // The position is the item's own second line rather than a node of its
+    // own, so the gate that repairs a bisected node now opens on it — where
+    // before it correctly declined, there being no tree in which the node was
+    // whole.
+    const probe = materializeProbe(open, 1)!;
+    expect(decorate(parse(probe)).find((f) => f.lineNumber === 1)?.isFirstLine).toBe(false);
+    expect(positionBisectsANode(decorate(parse(probe)), 1)).toBe(true);
   });
 
   it('holds over generated documents', () => {
