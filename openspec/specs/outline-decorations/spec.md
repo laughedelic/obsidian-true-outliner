@@ -1749,7 +1749,6 @@ the rows below have been measured yet.
 - **THEN** the footer renders and the fold cover is intact, because no line break has been
   replaced
 
-
 ### Requirement: A setting still being judged says so on its own row
 A setting whose behaviour is still being judged in real use SHALL be marked as experimental on its
 own row in the settings tab, as a distinct visual element rather than as wording inside its

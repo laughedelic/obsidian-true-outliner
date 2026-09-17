@@ -8,8 +8,9 @@
  *
  * Drawn in the theme's own warning colour at the theme's own small size, so it
  * sits right in a light theme and a dark one and never competes with the
- * setting's name. `--background-modifier-border` is the fallback for a theme
- * that defines no warning colour.
+ * setting's name. A theme defining no warning colour still gets a legible chip:
+ * the border falls back to `--background-modifier-border` and the text to
+ * `--text-muted`.
  */
 .to-setting-chip {
   display: inline-block;
