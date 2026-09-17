@@ -68,21 +68,21 @@
 
 ## 4. The palette
 
-- [ ] 4.1 Create `src/plugin/search-palette.ts`: the `Modal` subclass with the prompt shell,
+- [x] 4.1 Create `src/plugin/search-palette.ts`: the `Modal` subclass with the prompt shell,
       the query field, the scope chip, the results container and the hints row (design D1, D8);
       verify by opening it from the command and checking the DOM carries the combobox, listbox
       and option roles
-- [ ] 4.2 Wire the query to `vault-search` and the results to the shared renderer with
+- [x] 4.2 Wire the query to `vault-search` and the results to the shared renderer with
       `descendantDepth: 0` and `hitOf` answering the search's own hit so a fence, table or callout
       row shows the matching line, groups as cards, the cap tail once the sweep finishes, and the
       three query states — below the floor, searching, nothing found; verify manually against the
       test vault with the queries from `docs/research/search-surfaces`'s captures
-- [ ] 4.3 Implement the keyboard model on the modal's `Scope`: arrows over hits, modified arrows
+- [x] 4.3 Implement the keyboard model on the modal's `Scope`: arrows over hits, modified arrows
       over groups, stopping at both ends rather than wrapping, scroll-into-view, selection on
       pointer MOVEMENT rather than on the pointer being over a row, Tab toggling scope and
       re-running the query, and the input-row control doing the same in both scopes (design D7);
       verify manually and in 5.1
-- [ ] 4.4 Implement landing on a hit through the registry (design D6): take the leaf with
+- [x] 4.4 Implement landing on a hit through the registry (design D6): take the leaf with
       `getLeaf(newLeaf)` and open the file on it rather than reading back the active view, wait a
       bounded number of frames for the registry to carry that view before giving up on the zoom,
       caret, scroll,
@@ -91,9 +91,9 @@
       variants; the palette closes. Verify `grep -n "as any\|\.cm\b" src/plugin/search-palette.ts`
       is empty and 5.1 passes. Negative control: take the registry lookup once instead of waiting
       and confirm the new-tab zoom test fails
-- [ ] 4.5 Register the "Search outline" command in `src/plugin/main.ts` with a plain `callback` so it is
+- [x] 4.5 Register the "Search outline" command in `src/plugin/main.ts` with a plain `callback` so it is
       available in every view; verify the command is offered with outline mode off
-- [ ] 4.6 Styles: move the renamed row rules, the group head's rules (the group, its head, name,
+- [x] 4.6 Styles: move the renamed row rules, the group head's rules (the group, its head, name,
       folder, count and chevron, and `--to-group-inset`) and the custom properties into
       `styles/15-lineage-list.css` under the shared `to-lineage-list` scope, leaving
       `styles/20-backlinks-footer.css` the footer's own — its placement under a note, its
