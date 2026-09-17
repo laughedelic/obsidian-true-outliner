@@ -92,6 +92,22 @@ rendering now reads the outline the position stands for. The entry itself stands
 the deliberate shape — text the user themselves indented under an item, blank-separated — which
 is a real document rather than a place, and still renders with both indentations.
 
+### A collapsed source-indentation run holds caret positions that share one x
+
+Left by `source-indentation-collapses` (issue #117), which renders a non-list child's own
+leading whitespace at no width. The characters stay in the document and stay addressable —
+`contentBoundaryCh` returns 0 for every non-list kind (`caret.ts`, D7) — so Home, the arrows and
+a click can all land inside a run that now paints nothing, and `coordsAtPos` returns the same x
+for every position in it. Home on `  child paragraph` under an item appears not to move the
+caret, and typing there writes at column 0, which takes the paragraph out of its item.
+
+Not closed with the change, because the fix is one capability over: making the run
+non-addressable means `content-space-caret`'s boundary rule returning the run's own length for a
+non-list node, and every shape that spec pins is a list item — whose run this layer does not
+touch. Whoever picks it up should read the collapsed run and a list item's marker prefix as the
+same kind of thing, and check what a click at the text's left edge resolves to, which today is a
+coin flip between column 0 and the content start.
+
 ### A provisional (gap) line has no decoration facts, so the caret visibly jumps
 
 **Graduated** — closed by the `decorate-provisional-positions` change, which renders the

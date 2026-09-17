@@ -1,20 +1,19 @@
 /*
- * A non-list line's own source indentation (`SOURCE_INDENT_CLASS`,
- * decorations.ts), rendered at no width.
+ * A line's own source indentation (`SOURCE_INDENT_CLASS`, decorations.ts),
+ * rendered at no width.
  *
- * The depth rules in `10-editor.css` already state where such a line begins —
- * `depth × unit + gutter`, as padding on a block line and as margin on an atom
- * — so the literal whitespace the file wrote to express that same depth is a
- * second column for one tree level, and one whose width depends on whether the
- * file used a tab or spaces. Collapsed, the depth is the only thing that
- * positions the line, and a paragraph, fence, table, quote or callout written
- * under a list item lands on the same column whatever its source looks like.
+ * The depth rules in `10-editor.css` already state where such a line begins, so
+ * the literal whitespace the file wrote to express that same depth is a second
+ * column for one tree level. Collapsed, the depth is the only thing positioning
+ * the line, and a paragraph, fence, table, quote or callout written under a list
+ * item lands on the same column whatever its source looks like. Which lines
+ * carry the mark at all is decorate.ts's decision, not this file's.
  *
- * Not the same discipline break it appears to be: the line's own box is where
- * the additive rules put it, and what this removes is the width of characters
- * markdown itself reads as structure — reading mode renders none of them.
- * List-item lines are untouched here; their whitespace is SIZED instead
- * (`--to-list-hang`), because it carries their native marker's hang.
+ * Not the discipline break it appears to be: the line's own box is where the
+ * additive rules put it, and what this removes is the width of characters
+ * Markdown itself reads as structure — reading mode renders none of them. A
+ * list item's run is SIZED instead (`--to-list-hang`), because it carries the
+ * item's native marker.
  *
  * `white-space: pre` and `overflow: hidden` keep a collapsed run from wrapping
  * the line or spilling over the text, and `vertical-align: top` keeps the
@@ -35,46 +34,29 @@
  * The span Obsidian made of the same run, collapsed with the mark inside it.
  *
  * The mark alone is not always enough: Obsidian wraps a leading run in a span
- * of its own whose width is STATED, and CM6 nests that span outside our mark, so
- * the outer width survives a zero-width inner one. Measured on a paragraph
- * blank-separated under `- alpha`, with the mark applied and this rule absent:
- * 62px where the column is 46px for two spaces in a `.cm-hmd-list-indent`, and
- * 82px for a tab in a bare `.cm-indent`. A three-space run under a heading takes
- * a `.cm-indent-spacing`, so all three are named.
+ * whose width is stated, and CM6 nests that span outside the mark, so the outer
+ * width survives a zero-width inner one. The figures, and the four spans this
+ * names, are in `docs/research/source-indentation-width`.
  *
- * `:has()` keeps the rule to the run the mark covers — a span holding no mark is
- * someone else's whitespace, and the same classes appear on list-item lines,
- * whose run `10-editor.css` sizes to the stated hang instead.
+ * Only on a line whose mark covers the WHOLE run (`SOURCE_INDENT_WHOLE_CLASS`).
+ * The span holds the run as Obsidian quantised it — the node's own indentation
+ * and anything past it together — so on a line carrying more, code indented
+ * inside its own fence, zeroing the span takes the surplus with it. There the
+ * mark stands alone and collapses what it covers.
  *
- * A fence's INTERIOR lines are excluded, and that exclusion is the point rather
- * than a precaution: inside a fence, Obsidian quantises the whole leading run —
- * the fence's own indentation and the code's own together — into spans of this
- * kind, so zeroing one takes the code's indentation with it. Measured on
- * `      deeper` inside a fence indented by two: all six spaces went. The mark
- * by itself is exact enough there, collapsing what it covers and leaving the
- * rest to Obsidian's own quantisation. The fence's own first and last lines are
- * not interior: they carry the same wrapper every other kind does, around
- * nothing but the fence marker, and measured 14px past the column without this.
+ * `:has()` keeps even that to the run the mark is in: the same classes appear on
+ * a list-item line, whose run `10-editor.css` sizes to the stated hang instead.
  */
 .markdown-source-view.mod-cm6
   .cm-content
-  > .cm-line:is(.to-decor-block, .to-decor-atom):not(
-    .HyperMD-codeblock:not(.HyperMD-codeblock-begin, .HyperMD-codeblock-end)
-  )
+  > .cm-line.to-decor-indent-whole
   :is(.cm-hmd-list-indent, .cm-indent, .cm-indent-spacing):has(.to-decor-source-indent) {
   display: inline-block;
-  /* `!important` for the reason every other override here carries one:
-   * Obsidian states these widths INLINE, from its own measurement of the run,
-   * and a stylesheet rule does not beat an inline style. Measured with the
-   * rule in place and the keyword absent: the wrapper collapsed, the span
-   * inside it kept its 16px, and the caret — which CM6 places from
-   * `coordsAtPos`, not from where the text ended up — drew 16px right of the
-   * text it belongs to. */
   width: 0 !important;
   min-width: 0 !important;
-  /* The width is not always stated as a width: measured, `.cm-indent-spacing`
-   * carries the run as `padding-left: 16px` on a `border-box` element, where a
-   * zero WIDTH still leaves the padding standing. */
+  /* The width is not always stated as a width: `.cm-indent-spacing` carries the
+   * run as `padding-left` on a `border-box` element, where a zero width leaves
+   * the padding standing. */
   padding: 0 !important;
   margin: 0 !important;
   overflow: hidden;

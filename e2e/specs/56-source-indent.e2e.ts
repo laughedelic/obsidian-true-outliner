@@ -37,6 +37,9 @@ const SPACED = [
   '',
   '  > quote child',
   '',
+  '  > [!note] callout',
+  '  > body',
+  '',
 ].join('\n');
 
 /** The same document, written with tabs. */
@@ -84,6 +87,9 @@ describe('source indentation: one column per tree level', function () {
     // Every line of every child node, the fence's own interior included: the
     // fence's indentation is the node's on all of its lines.
     for (const i of [2, 4, 5, 7, 9, 10, 11, 13]) {
+      // The callout renders as a widget, so its own box is asserted below
+      // rather than through a source position.
+
       expect(await textColumn(i, lines[i]!)).toBeCloseTo(column, 1);
     }
   });
@@ -94,6 +100,44 @@ describe('source indentation: one column per tree level', function () {
     // Four spaces past the fence's own two: content, not structure, and the
     // only part of the run that still occupies width.
     expect(await textColumn(6, '      deeper')).toBeGreaterThan(flush + 10);
+  });
+
+  it('starts a widget-rendered callout child on the same column', async function () {
+    await openOutlined('SourceIndent/spaced.md', SPACED);
+    const column = (await h.publishedUnit()) + (await h.publishedGutter());
+    const info = await h.getLineElementInfo(15);
+    const left = info.rect.left - (await h.contentLeftAbsoluteX());
+    expect(+left.toFixed(2)).toBeCloseTo(column, 1);
+  });
+
+  it('keeps a non-fence line indented deeper than its node', async function () {
+    // The wrapper Obsidian builds holds the WHOLE run, this line's surplus
+    // included, so collapsing it here would take indentation the node never
+    // claimed. The line therefore takes the mark alone.
+    const deeper = ['- alpha', '', '  first line', '      second deeper', ''].join('\n');
+    await openOutlined('SourceIndent/deeper.md', deeper);
+    const flush = await textColumn(2, '  first line');
+    expect(await textColumn(3, '      second deeper')).toBeGreaterThan(flush + 10);
+  });
+
+  it('leaves a child of a heading alone, whose depth its whitespace never stated', async function () {
+    const under = ['# Heading', '', 'plain child', '', '   three-space child', ''].join('\n');
+    await openOutlined('SourceIndent/heading.md', under);
+    expect(await textColumn(4, '   three-space child')).toBeGreaterThan(
+      await textColumn(2, 'plain child'),
+    );
+  });
+
+  it('holds with Obsidian’s own indentation guides turned off', async function () {
+    await openOutlined('SourceIndent/spaced.md', SPACED);
+    const column = (await h.publishedUnit()) + (await h.publishedGutter());
+    await h.setIndentGuides(false);
+    try {
+      await browser.pause(150);
+      expect(await textColumn(2, '  child paragraph')).toBeCloseTo(column, 1);
+    } finally {
+      await h.setIndentGuides(true);
+    }
   });
 
   it('puts a tab-indented child on the same column as a space-indented one', async function () {

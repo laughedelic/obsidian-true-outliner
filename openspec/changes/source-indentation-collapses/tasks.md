@@ -43,11 +43,30 @@
       nothing changed with outline mode off. Negative control: every column assertion fails
       against the layer disabled — measured before the fix at 72.17px and 82px where the column
       is 46px.
-- [x] 4.2 Re-run the `decorations` group and re-record `53-decoration-dom-baseline`'s
-      `space-indented-paragraph` baseline, desktop and mobile: the new mark is an intended
-      addition to the plugin-owned DOM contract.
+- [x] 4.2 Re-run the `decorations` group, and every other group that positions chrome —
+      `outline-mode`, `backlinks`, `folding`, `selection`. `53-decoration-dom-baseline`'s
+      recorded baselines stay as they are: no line the fixtures hold takes the mark (task 5.1).
 - [x] 4.3 `npm test`, `npm run lint`, `npm run build`, `npm run build:e2e`.
 
-## 5. Validate
+## 5. Close the review's findings
 
-- [x] 5.1 `openspec validate source-indentation-collapses --strict`.
+- [x] 5.1 Scope the fact to a node with a LIST-ITEM ANCESTOR (design D1). Found by review: the
+      first version collapsed a depth-0 run too, flattening all five lines of the
+      `space-indented-paragraph` fixture onto one column — the four-space line among them, whose
+      run is the only thing saying it is an indented code block. Its recorded DOM baseline is the
+      negative control, and reverts to `main`'s with the scope in place.
+- [x] 5.2 Key the wrapper rule on the mark's own coverage rather than on the kind of line
+      (design D3). Found by review: the fence-interior exclusion left every OTHER line whose run
+      outruns its node unprotected. Negative control, measured: with the old rule,
+      `      second deeper` under `  first line` renders at 46px, the same column as the line
+      above it, all four surplus spaces gone.
+- [x] 5.3 Cover the gaps the review named: a callout child, Obsidian's indentation guides turned
+      off, a non-fence line indented deeper than its node, a child of a heading left alone, and
+      the two scoping cases in `tests/decorate.test.ts`.
+- [x] 5.4 Record the caret consequence — positions inside a collapsed run share one x — in
+      `docs/research/decoration-follow-ups.md` and in the delta spec, since closing it is
+      `content-space-caret`'s boundary rule rather than this layer's.
+
+## 6. Validate
+
+- [x] 6.1 `openspec validate source-indentation-collapses --strict`.

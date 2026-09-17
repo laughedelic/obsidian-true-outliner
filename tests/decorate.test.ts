@@ -313,6 +313,22 @@ describe('decorate: source indentation (indentCh)', () => {
     }
   });
 
+  it('is 0 without a list-item ancestor, whose column is the only one a run restates', () => {
+    // Under a heading the depth is the ancestor's, not the whitespace's, so the
+    // spaces are ordinary content — and at the top level they are the only
+    // thing saying a four-space line is an indented code block.
+    const heading = '# Heading\n\n   three-space child\n';
+    expect(indentChOf(heading, '   three-space child')).toBe(0);
+    const top = 'Intro.\n\n    four-space line\n';
+    expect(indentChOf(top, '    four-space line')).toBe(0);
+  });
+
+  it('is reported under a list item however deep the node sits beneath it', () => {
+    const md = '- alpha\n  - beta\n\n    ```\n    fenced\n    ```\n';
+    expect(indentChOf(md, '    ```')).toBe(4);
+    expect(indentChOf(md, '    fenced')).toBe(4);
+  });
+
   it('is 0 for a line with no indentation of its own', () => {
     const md = '# Heading\n\nPara.\n';
     expect(indentChOf(md, '# Heading')).toBe(0);

@@ -227,12 +227,12 @@ body.is-mobile {
    * renders purely at our own depth position instead of being folded into a
    * hanging-indent calculation that assumes zero prior padding.
    *
-   * The leading spaces themselves used to stay, rendered as ordinary content on
-   * top of that — which was the second column issue #117 reported for a child of
-   * a list item, and the same double count wherever else a line leads with
-   * whitespace. `70-source-indent.css` collapses that run now: Markdown reads it
-   * as structure, the depth rules already state the structure, and reading mode
-   * renders none of it. */
+   * The leading spaces themselves stay, rendered as ordinary content on top of
+   * that, wherever they state nothing the depth rules already state — under a
+   * heading, and at the top level, where they are also the only thing saying a
+   * four-space line is an indented code block. Under a LIST ITEM they restate
+   * the item's own content column, which was the second column issue #117
+   * reported, and `70-source-indent.css` collapses them there. */
   text-indent: 0 !important;
 }
 

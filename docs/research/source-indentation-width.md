@@ -55,6 +55,22 @@ the depth already states, which is why collapsing it is not a discipline break: 
 additive rules add to is the line's own box, and this removes no content, only a second
 statement of the depth.
 
+## Which runs restate a depth, and which state one
+
+Only a run written under a LIST ITEM does. A child of an item is written to the item's own
+content column, and the depth rules then state that column a second time — the two columns in
+the table above. Everywhere else the ancestor carries the depth and the whitespace carries
+nothing: under a heading, three spaces are insignificant to Markdown and the issue itself reads
+that shape as already correct, and at the top level the run is the only thing telling a reader
+that a four-space line is an indented code block, which this project's parser deliberately
+reads as a paragraph.
+
+Measured on the row above: the three-space child of a heading is the one shape the collapse
+leaves at 61.27px, by design rather than by omission. A first version of this change collapsed
+every non-list run and flattened all five lines of the `space-indented-paragraph` decoration
+fixture onto one column, the four-space line included — recorded here because the fixture's
+recorded DOM baseline was the only thing that noticed.
+
 ## What holds the run, and what states its width
 
 The run is not one element, and which element holds it depends on the shape and on the reader's
@@ -86,6 +102,19 @@ Three findings decided the mechanism:
   item's own run — except that a list item's run is SIZED to its hang rather than collapsed,
   because it carries the native marker.
 
+## What may be collapsed WITH the mark, and what may not
+
+The wrapper rule is keyed on whether the mark covers the whole leading run, not on the kind of
+line. Obsidian's span holds the run as it quantised it — the node's own indentation and anything
+past it together — so zeroing it on a line that carries more discards the surplus the mark
+deliberately left standing.
+
+Measured on `- alpha` / `` / `  first line` / `      second deeper`, with the rule keyed on the
+line's kind instead: the deeper line rendered at 46px, the same column as the flush line above it,
+all four surplus spaces gone. The same mechanism was first found inside a fence, where it took all
+six spaces of `      deeper`; keying on the mark's own coverage covers both, and a fence needs no
+exception of its own.
+
 ## The one residue: code inside an indented fence
 
 A fence's own indentation is collapsed on every one of its lines, and a line indented deeper than
@@ -98,10 +127,19 @@ its fence, correctly, and by up to one quantum too much.
 
 The alternative was measured and is worse both ways: zeroing the quantised span takes the code's
 own indentation with it (all six spaces went), and excluding a fence from the collapse entirely
-leaves the whole block double-indented, which is the reported defect. The exclusion in
-`70-source-indent.css` is therefore of a fence's INTERIOR lines only — its first and last carry
-the same wrapper every other kind does, around nothing but the fence marker, and measured 14px
-past the column when they were excluded with the rest.
+leaves the whole block double-indented, which is the reported defect.
+
+## What a zero-width run does to the caret
+
+The characters stay in the document and stay addressable: `contentBoundaryCh` returns 0 for every
+non-list kind (`caret.ts`, D7), so Home, the arrows and a click can all land inside a run that now
+renders at no width, and `coordsAtPos` returns the same x for every position in it. Home on
+`  child paragraph` no longer appears to move the caret, and typing there writes at column 0,
+which takes the paragraph out of its item.
+
+Recorded rather than closed. Making the run non-addressable is a change to the caret's own
+contract — `content-space-caret`'s boundary rule, one capability over — and every shape that spec
+pins is a list item, whose run this change does not touch.
 
 ## What was left alone
 

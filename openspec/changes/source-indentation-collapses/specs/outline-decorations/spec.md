@@ -25,16 +25,25 @@ from the item's own depth rather than accept whatever the leading whitespace mea
 two-space file, a three-space file and a tab file render the same grid, with that setting on or
 off.
 
-A line that is NOT a list item takes the same guarantee by the other half of the same rule: its
-own source indentation — the whitespace its node's first line leads with, which Markdown reads as
-structure and reading mode renders none of — SHALL contribute no width to the rendered line, the
-depth contribution being the whole of its position. So a paragraph, fence, table, quote or
-callout written as a child of a list item SHALL begin on its own depth's column, and SHALL begin
-on the same column whether the file indented it with a tab or with any number of spaces.
+A line written UNDER A LIST ITEM and not itself a list item takes the same guarantee by the other
+half of the same rule. Its own source indentation is written to the item's content column, which
+the depth contribution states a second time, so that whitespace SHALL contribute no width to the
+rendered line. A paragraph, fence, table, quote or callout written as a child of a list item SHALL
+therefore begin on its own depth's column, and SHALL begin on the same column whether the file
+indented it with a tab or with any number of spaces.
 
-What a line carries BEYOND its node's own indentation is not structure and SHALL be left
-standing: a line indented deeper than the node it belongs to — code inside an indented fence —
-SHALL keep the surplus, so its indentation relative to its own block survives.
+A run that states a depth rather than restating one SHALL be left as it is. A line under a heading
+or at the top level takes its depth from its ancestor, so its leading whitespace is ordinary
+content and SHALL render at its own width — at the top level it is also the only thing
+distinguishing an indented code block from a paragraph.
+
+What a line carries BEYOND its node's own indentation is not structure either and SHALL be left
+standing: a line indented deeper than the node it belongs to — code inside an indented fence, a
+paragraph's own continuation line — SHALL keep the surplus, so its indentation relative to its own
+block survives.
+
+Positions inside a collapsed run stay addressable and render at the line's own column. Where a
+caret lands is `content-space-caret`'s to state, and this requirement does not move it.
 
 What this does NOT change is the parse: which levels exist is Markdown's business and is
 already decided by the time this layer runs.
@@ -77,12 +86,17 @@ already decided by the time this layer runs.
   with spaces
 - **THEN** both begin on the same column
 
-#### Scenario: Code inside an indented fence keeps its own indentation
+#### Scenario: A line indented deeper than its node keeps the surplus
 
-- **WHEN** a fenced code block written under a list item holds a line indented further than the
-  fence itself
-- **THEN** the fence begins on its own depth's column, and that line still renders indented
+- **WHEN** a block written under a list item holds a line indented further than the block's own
+  first line — code inside a fence, or a paragraph's continuation line
+- **THEN** the block begins on its own depth's column, and that line still renders indented
   relative to the rest of the block
+
+#### Scenario: A child of a heading keeps its own leading whitespace
+
+- **WHEN** a paragraph written with leading spaces sits under a heading, or at the top level
+- **THEN** its whitespace renders at its own width, as stock Obsidian renders it
 
 #### Scenario: Outline mode off is stock
 
@@ -98,6 +112,9 @@ already decided by the time this layer runs.
 **Covered by**: `e2e/specs/56-list-grid.e2e.ts`; `e2e/specs/56-source-indent.e2e.ts` ("starts
 every kind written under an item on the item's child column", "keeps a fence's interior
 indentation, which is the code's own", "puts a tab-indented child on the same column as a
-space-indented one", "collapses the run itself, so the line begins where its text does", "leaves
-the item's own indentation to the list rules", "touches nothing with outline mode off");
+space-indented one", "starts a widget-rendered callout child on the same column", "keeps a
+non-fence line indented deeper than its node", "leaves a child of a heading alone, whose depth its
+whitespace never stated", "holds with Obsidian's own indentation guides turned off", "collapses the
+run itself, so the line begins where its text does", "leaves the item's own indentation to the list
+rules", "touches nothing with outline mode off");
 `tests/decorate.test.ts` ("decorate: source indentation (indentCh)").
