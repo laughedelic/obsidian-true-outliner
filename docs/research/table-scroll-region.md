@@ -170,25 +170,47 @@ is with none of this rule at all. That is a residual, not a fix: the handles wer
 of this change, and one of them cannot be had at the same time as a mark that stays clear.
 
 **A percentage inset resolves against the VISIBLE padding box, not the scrollable content.** This
-is the mechanism behind the second report — a wide table's add-column button out of reach — and it
-is not this change's doing. `inset-inline-start: 100%` on a box whose containing block is also the
-scroll container resolves to the scrollport's own width, so the button lands near the content's
-left end and scrolling carries it off: measured 2977 px left of the table's right edge, its centre
-at x = −2001 in a 1024 px viewport at full scroll, where no pointer can reach it. The same figures
-come back from the rule as it stands on `main`, from the symmetrical reservation, and from the
-three-sided one — all three, because all three make the anchor box the scroller. Natively the
-button sits at the table's right edge (offset 0), because natively the anchor box is the tight
-wrapper INSIDE a scrolling outer element.
+is the mechanism behind the second report, and it is not this change's doing. `inset-inline-start:
+100%` on a box whose containing block is also the scroll container resolves to the scrollport's own
+width, so the button's anchor is that width — a length with no relation to the table.
+
+Measured on the wide fixture, the button sits at content x = 558 px: the scrollport's 574 px less
+its own 16 px, which the transform accounts for. It scrolls with the content from there, so its
+distance from the table's left edge never changes, and 558 px into a 3523 px table is the third of
+thirty columns, 37 % across it. At scroll 0 that lands flush against the scrollport's right edge,
+which is why it looks correct until the table is scrolled; past that it is a button in the middle
+of a column, and at full scroll it has left the viewport entirely. The rule as it stands on `main`
+reads the same way — anchor 546 px, exactly the scrollport, column three at 32 % across — so the
+transform moved this by 16 px and changed nothing else about it.
+
+The signature is the pane: narrow the line to 400 px and the anchor follows it to 1939 px minus
+the scroll, landing in column two at 51 % across. A control that depends on the window's width for
+which cell it appears in is anchored to the wrong length.
+
+The add-row strip has the same defect in the block axis, from the same `100%`: it spans the
+scrollport's width (558 px) rather than the table's (3523 px).
+
+Natively the button sits at the table's right edge (offset 0), because natively the anchor box is
+the tight wrapper INSIDE a scrolling outer element.
 
 What this change can do there, it does: on a table that fits, both buttons keep their native
 placement to the pixel, and a real pointer hover reveals the add-column button and lands on it.
 What it cannot do is give a wide table back an affordance that the Experiment 2b arrangement took
-away before this change existed. Three ways out, none of them a stylesheet: make the wrapper a
-flex row so the buttons take a static position at the table's own right edge (a real intervention
-in native layout, unmeasured); publish the table's measured width as a custom property for the
-inset to use, the way the chevron and the accent stops are already measured; or the parking-lot
-option that dissolves the arrangement itself, drawing a widget's marker and guide outside the
-widget so Obsidian's own box can keep its own scroll ([decoration-follow-ups.md](decoration-follow-ups.md)).
+away before this change existed.
+
+Three ways out, none of them a stylesheet, since the anchor a stylesheet can name is either the
+scrollport or nothing:
+
+- **Publish the table's own width** from the pass that already measures the chevron and the accent
+  stops, and let both buttons' insets read it. The anchor becomes the table's right edge in content
+  coordinates, which is where native puts it, and a stale value costs a few pixels of placement
+  until the next render. The smallest of the three, and the only one that leaves Obsidian's layout
+  alone.
+- **Make the wrapper a flex row** so the buttons take a static position beside the table and get
+  the same anchor from layout rather than from measurement. No state, but a real intervention in
+  the widget's own layout, and unmeasured.
+- **Draw a widget's marker and guide outside the widget**, so Obsidian's own box keeps its own
+  scroll and none of this arises ([decoration-follow-ups.md](decoration-follow-ups.md)).
 
 An uncovered handle is a grabbable one, checked rather than assumed. Hit-tested at the centre of
 its own visible part, the row drag handle answers as itself in every state — but without the
