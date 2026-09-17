@@ -372,5 +372,13 @@ describe('mapCursorForward agrees with CM6’s own forward mapping at assoc 1', 
     const end = mapCursorForward(lines, changes, { line: 2, ch: 3 });
     expect(mapCursorForward(lines, changes, { line: 2, ch: 4 })).toBe(end);
     expect(mapCursorForward(lines, changes, { line: 3, ch: 0 })).not.toBe(end);
+
+    // A line the document does not have offers no length to clamp against, so
+    // the column stands and the position stays outside the text rather than
+    // being folded onto its last line. Nothing produces one; the guard is what
+    // keeps the clamp from answering as though something had.
+    expect(mapCursorForward(lines, [], { line: lines.length, ch: 2 })).toBeGreaterThan(
+      lines.join('\n').length,
+    );
   });
 });
