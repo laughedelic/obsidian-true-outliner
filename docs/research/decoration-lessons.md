@@ -339,6 +339,21 @@ Findings from `lists-on-the-outline-grid` (measurements:
   single wrapper Obsidian puts around ALL of a list line's leading whitespace, is emitted
   either way; stating ITS width makes the setting, and the four-space quantum inside it,
   stop mattering.
+- **A mark of ours nests INSIDE Obsidian's own span, so it cannot shrink it.** CM6 puts the
+  longer-lived span outside, and a wrapper whose width is stated keeps that width however wide
+  its contents are: a zero-width mark over a leading run left 62px standing where the column was
+  46px (`source-indentation-width.md`). Collapsing a run means collapsing the box Obsidian put
+  around it as well as the characters — and zeroing a `width` is not enough, since
+  `.cm-indent-spacing` states its run as `padding-left` on a `border-box` element.
+- **Zero is the one width that survives a split mark.** CM6 may break a mark across the spans it
+  overlaps, and each piece then takes the rule: a stated width is paid once per piece, zero once
+  in total. Any collapse that must hold through Obsidian's own tokenising says zero and lets the
+  line's own box supply the distance.
+- **Which element holds a leading run depends on the line's kind, not only on the setting.** The
+  `.cm-hmd-list-indent` wrapper is a LIST line's; a non-list line's run arrives as a bare
+  `.cm-indent`, a `.cm-indent-spacing`, or — inside a fence — a highlighting token that may hold
+  the whitespace and the code after it together. A rule written from one shape's DOM misses the
+  others silently.
 - **When one fix serves both a reported bug and an accepted residual, the residual was a
   mis-scoped bug.** "Two- and three-space files stay misaligned" and "space-indented files
   depend on a setting the user owns" were both written down as things to document rather than
