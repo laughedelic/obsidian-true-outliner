@@ -108,7 +108,10 @@ describe('hiding gap lines', function () {
   });
 
   afterEach(async function () {
+    // Both are global and persisted, so a failed assertion mid-test would
+    // otherwise carry its value into the next one.
     await h.setPluginSetting('hideGapLines', false);
+    await h.setPluginSetting('backlinksFooter', false);
   });
 
   after(async function () {
@@ -233,7 +236,6 @@ describe('hiding gap lines', function () {
       return cm.dom.querySelectorAll('[class*="backlinks"]').length;
     });
     expect(footers).toBeGreaterThan(0);
-    await h.setPluginSetting('backlinksFooter', false);
   });
 
   it('composes with a fold, whose cover ends on a gap line', async function () {
@@ -246,6 +248,37 @@ describe('hiding gap lines', function () {
     const folded = await f.foldedLineRanges();
     expect(folded.length).toBeGreaterThan(0);
     await f.clearFolds();
+  });
+
+  it('composes with a node cover, whose background ends on a gap line', async function () {
+    // The fourth mechanism that ends on a gap line. The cover's class comes
+    // from a separate decoration provider, so what is measured here is that
+    // CM6 merges the two same-position line decorations rather than one
+    // displacing the other.
+    // Two bare paragraph siblings, so a cover is one node and not a subtree —
+    // in DOC the list may attach to the paragraph above it (Q34), which would
+    // make a cover of that paragraph reach past its own gap.
+    await h.setBuffer('Alpha\n\nBeta\n');
+    await h.setPluginSetting('hideGapLines', true);
+    // A node's bounds include its own trailing gap (escalate-include-owned-gap),
+    // so a cover of `Alpha` runs to the start of the gap line below it — the
+    // selection head therefore sits ON a collapsed row, which is the case
+    // design D3's precondition is about.
+    await h.setSelection({ line: 0, ch: 0 }, { line: 1, ch: 0 });
+    await browser.pause(250);
+    const on = await rows();
+    const covered = on.filter((r) => r.classes.includes('to-decor-node-selected'));
+    expect(covered.length).toBeGreaterThan(0);
+    // The gap row inside the cover keeps BOTH classes: the collapse does not
+    // displace the cover, and the cover does not reopen the row.
+    const coveredGap = covered.find((r) => r.text === '');
+    expect(coveredGap).toBeDefined();
+    expect(coveredGap!.classes).toContain('to-decor-gap-hidden');
+    expect(coveredGap!.height).toBe(0);
+    // And the content row it covers is untouched.
+    const coveredContent = covered.find((r) => r.text !== '');
+    expect(coveredContent).toBeDefined();
+    expect(coveredContent!.height).toBeGreaterThan(0);
   });
 
   it('composes with a zoom, whose hidden ranges end on a gap line', async function () {

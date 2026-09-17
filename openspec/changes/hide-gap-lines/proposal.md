@@ -57,5 +57,5 @@ document keeps every byte, every gap keeps its owner, and no operation behaves d
   — which now also emits for a gap line carrying no guide, since a top-level gap has none and
   still has to be collapsed.
 - `styles/70-gap-lines.css`: one rule, one new part.
-- `tests/decorations.test.ts` and a new e2e case; `docs/research/gap-line-hiding` records the
+- `tests/decorate.test.ts` and a new e2e case; `docs/research/gap-line-hiding` records the
   measurement this rests on.

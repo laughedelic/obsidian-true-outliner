@@ -5,8 +5,10 @@
       unhidden
 - [x] 1.2 Probe CodeMirror's own height map — `contentHeight`, and a `coordsAtPos`/`posAtCoords`
       round-trip on every content line — since scrolling and click-to-place read it
-- [x] 1.3 Probe the three mechanisms that already end on a gap line: the backlinks footer's
-      anchor at the document end, a fold cover, a node cover's background
+- [x] 1.3 Probe the mechanisms that already end on a gap line: the backlinks footer's anchor at
+      the document end, a fold cover, a zoom's trailing range. The node cover's background is
+      reasoned about (separate provider, CM6 concatenates same-position line classes) and NOT
+      measured — task 4.6 closes that
 - [x] 1.4 Measure the caret's own row at the pure level over both generators: every gap line
       materializes a provisional position, and no gap line carries a `decorate()` fact.
       Negative control — a build that hides a row carrying a fact fails the second property
@@ -18,8 +20,8 @@
       description naming what the outline gives up (design D4)
 - [x] 2.2 Accessor pair on the plugin plus its `WRITERS` row; the setter forces a redraw, as
       every paint-only appearance setting's does
-- [x] 2.3 `DecorationSource` gains the field, and `renderInputs`' cache key gains it too — two
-      settings have to be told apart on one state
+- [x] 2.3 `DecorationSource` gains the field. It stays OUT of `renderInputs`' cache key: that
+      function's records do not depend on it, and `computeDecorations` reads it live
 
 ## 3. The rendering
 
@@ -28,14 +30,16 @@
 - [x] 3.2 Emit it for a gap line carrying no guide when the setting is on. Negative control — with
       the old `guides !== undefined` gate, a top-level gap stays open while nested ones collapse
 - [x] 3.3 `styles/70-gap-lines.css`, one new part: height and min-height to zero, block padding
-      and margin to zero, `overflow: hidden` so the guide overlay's absolute `::after` collapses
-      with the box
+      and margin to zero. The guide overlay needs nothing — its `::after` resolves both `top` and
+      `bottom`, so its used height is the collapsed box's; `overflow: hidden` is a guard, not a
+      requirement
 
 ## 4. Tests
 
-- [x] 4.1 Unit test in `tests/decorations.test.ts`: the gap/fact partition over both generators,
+- [x] 4.1 Unit test in `tests/decorate.test.ts`: the gap/fact partition over both generators,
       as a standing property rather than a one-off measurement. Negative control — a gap line
-      given a fact makes it fail
+      given a fact makes it fail. Note what this does NOT guard: `computeProvisional`'s own gate,
+      which lives in `decorations.ts` and has no unit test (design D3)
 - [x] 4.2 E2E case in `e2e/specs/50-decorations.e2e.ts` or its own spec: every separator row at
       zero height, every content row's class list and height unchanged, seams closed. Negative
       control — the setting off leaves every row at its natural height
@@ -45,6 +49,13 @@
       gap. Negative control — the same note under a block-replacement mechanism loses the footer
 - [x] 4.5 E2E case: the setting composes with a zoom and with a folded node, neither of which
       may lose its own hidden range or cover
+- [x] 4.6 E2E case: a node cover's selection background over a node whose trailing gap is
+      collapsed — the fourth mechanism that ends on a gap line, reasoned about in task 1.3 but
+      not measured there. Negative control — the cover's own class failing to land on the gap row
+- [ ] 4.7 Decide D1 against the height-map figures: accept the scrollbar settling, or move to a
+      block replacement kept disjoint from the fold cover, the node cover and the zoom's ranges,
+      and stopped short of the document end so the footer's anchor stays outside it. Blocked on
+      the author
 
 ## 5. Land
 

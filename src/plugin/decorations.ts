@@ -821,9 +821,8 @@ export interface DecorationSource {
   readonly guideVisibility: GuideVisibility;
   /** Drop the outermost guide while the document has exactly one root. */
   readonly guideHideSingleRoot: boolean;
-  /** Collapse the blank separator rows between nodes. A paint-only setting in
-   * the same sense as `guideHideSingleRoot`: it changes what a gap line's own
-   * decoration carries and touches nothing else, least of all the document. */
+  /** Collapse the blank separator rows between nodes. Read by
+   * `computeDecorations` alone; `renderInputs`' records do not depend on it. */
   readonly hideGapLines: boolean;
 }
 
@@ -1407,7 +1406,6 @@ function renderInputs(state: EditorState, modes: DecorationSource): RenderInputs
     modes.markerHighlight,
     modes.guideVisibility,
     modes.guideHideSingleRoot,
-    modes.hideGapLines,
   ].join('|');
   const cached = renderInputsCache.get(state);
   if (cached && cached.key === key) return cached.inputs;
@@ -1479,18 +1477,11 @@ function lineDecoration(lineText: string, fact: LineDecorationFact, render: Line
 
 /**
  * The class a collapsed gap line carries (`hideGapLines`). The row keeps its
- * box and its guide background; the stylesheet takes its height to zero.
+ * element and its extent; the stylesheet takes its height to zero.
  *
- * A LINE decoration and not a block replacement, which is the other way to make
- * lines disappear and is what the zoom uses. Three reasons, all of them
- * measured rather than argued: a replacement that spans a line break may not
- * come from a view plugin, which is where every decoration in this module comes
- * from; a replacement whose range reaches `doc.length` swallows the backlinks
- * footer's anchor (docs/research/zoom-hiding-mechanism); and a gap line is
- * exactly where a fold cover and a zoom's own trailing range already end, so a
- * second block replacement would have to be kept disjoint from both. A class on
- * a row this module already decorates is disjoint from all of it by
- * construction.
+ * Why a line decoration rather than the block replacement the zoom uses, and
+ * what that costs CodeMirror's height map: `hide-gap-lines` design D1 and
+ * docs/research/gap-line-hiding.
  */
 export const HIDDEN_GAP_CLASS = 'to-decor-gap-hidden';
 
@@ -1501,10 +1492,9 @@ export const HIDDEN_GAP_CLASS = 'to-decor-gap-hidden';
 // line too (a path segment passing through the gap between two blocks), and
 // the record's background already carries it.
 //
-// With `hideGapLines` on, a gap line that carries NO guide gets a decoration
-// too — at the top level there is no guide to draw, and the row still has to be
-// collapsed. That is why `guides` is optional here: the two halves of this
-// decoration are independent, and either one alone is a reason to emit it.
+// With `hideGapLines` on, a gap line carrying NO guide gets a decoration too:
+// a top-level gap has no guide to draw and still has to be collapsed, so
+// `guides` is optional and either half alone is a reason to emit.
 function gapLineDecoration(guides: string | undefined, hidden: boolean): Decoration {
   const classes: string[] = [];
   if (guides !== undefined) classes.push('to-decor-guides');

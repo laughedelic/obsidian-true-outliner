@@ -45,24 +45,59 @@ paragraph, a paragraph, two list items, and the five gaps between and after them
 | --- | --- | --- |
 | `.cm-content` box height | 700.31px | 613.95px |
 | CodeMirror's own `contentHeight` | 700.31px | 580.31px |
+| Sum of the rendered rows | 291.81px | 171.81px |
 | `.cm-line` elements | 12 | 12 |
-| Height of every blank row | 24.00–26.38px | **0.00px** |
+| Height of every blank row | 24.00px | **0.00px** |
 | `coordsAtPos` → `posAtCoords` round-trips on every content line | yes | yes |
 
-Three things the table is making precise:
+Two things the table is making precise:
 
 - **The rows survive; only their height changes.** The element count is identical, and every
   content row's class list and height are byte-identical to its unhidden rendering — checked
   row by row, not sampled. The collapse composes with the established decoration sources rather
   than displacing them, which is the composition question `outline-decorations-postmortem` exists
   to insist on asking first.
-- **CodeMirror's height map stays coherent.** Its own `contentHeight` moves with the DOM, and the
-  round-trip through `coordsAtPos`/`posAtCoords` returns the right line for every content line
-  with the setting on. Scrolling and click-to-place read that map, so this is the measurement that
-  says the mechanism is not merely invisible but correct.
 - **The seams close exactly.** For every collapsed gap the row above ends and the row below begins
   at the same coordinate, to 0.01px. A guide running through the gap therefore stays continuous:
   there is no longer a row between its neighbours to break it.
+
+The third thing it makes precise is a DEFECT, and an earlier draft of this note read the same two
+numbers as their own refutation — "CodeMirror's height map stays coherent, its own `contentHeight`
+moves with the DOM". Both `contentHeight` and the rendered-row sum fall by exactly 120.00px, which
+is the five gap rows at 24.00px each, so the height map agrees with the rows it has MEASURED. The
+box falls by 86.36px, and the difference is not the point. The point is what happens to the rows it
+has not measured, which an eleven-line fixture inside one viewport cannot show at all.
+
+## The height map inflates every gap row it has not rendered
+
+A CSS collapse is invisible to CodeMirror until it measures the DOM, and it measures only the
+rendered viewport. `measureVisibleLineHeights` iterates the rendered children alone, and
+`HeightMapText.updateHeight` takes a measured height only when one is available for that line —
+otherwise it falls back to `max(widgetHeight, oracle.heightForLine(...))`, which for a
+non-wrapping line is `oracle.lineHeight` and is never zero.
+
+**Measured 17 September 2026**, same instance, on a 600-line note: 300 paragraphs each followed by
+one blank line, so half its rows collapse.
+
+| | `contentHeight` | `scrollHeight` |
+| --- | --- | --- |
+| Setting off | 14785px | 14893px |
+| Setting on, at open | 13921px | 14029px |
+| Setting on, after scrolling to the end and back | **9720.5px** | 9829px |
+
+Walking down the document reads 12625 → 11329 → 10009 → 9864.5, monotonically, as each gap row
+enters the viewport and is measured at zero for the first time. So at open CodeMirror believes the
+note is 43% taller than it is, and the scrollbar thumb grows by that much over one pass through it.
+It is not a one-time settling either: any refresh that marks the map outdated — a window resize, a
+font change — re-inflates every row not currently rendered.
+
+This is the property the block replacement has and this mechanism does not. A block-level
+replacement records the collapse on the height-map node itself, so an unrendered hidden range is
+exact without ever being measured. D1 weighed three costs of that mechanism and did not weigh this
+one against them, because this one was not known until the note was challenged.
+
+The claim "nothing downstream has to learn about the setting" is therefore false as written:
+CodeMirror's height oracle has to, and cannot.
 
 Also measured, and each one a mechanism that could have broken:
 
@@ -72,6 +107,13 @@ Also measured, and each one a mechanism that could have broken:
   list item lands on that list item.
 - **The footer renders.** Nine of its elements are present with the setting on, against a document
   ending in a gap. This is the case a block replacement would have lost.
+- **A node cover composes with the collapse.** A cover of `Alpha` in `Alpha` / blank / `Beta` runs
+  to the gap line the node owns, and that row measures
+  `cm-line to-decor-gap-hidden to-decor-node-selected` at 0.00px: CodeMirror merges the two
+  same-position line decorations from their separate providers rather than one displacing the
+  other, and the cover ends on the last content row. An earlier draft of this note reasoned this
+  out instead of measuring it, and named it among the mechanisms task 1.3 had probed when it had
+  not.
 - **A top-level gap needs the decoration it did not previously get.** The last gap row measures
   `cm-line to-decor-gap-hidden` with no `to-decor-guides`: at the top level there is no guide to
   draw, so `gapLineDecoration` was never emitted for such a row at all. Collapsing it is a second,
@@ -171,7 +213,14 @@ Two behaviours worth naming because they look like they should break and do not:
 
 ## Verdict
 
-Ship the mechanism as measured: a line decoration and a stylesheet rule, off by default. The three
-costs above are not defects to fix later — the first two are what the setting means, and the third
-is a note for its description. Where a reader wants the outline to keep telling them how their file
-is punctuated, the answer is to leave the setting off.
+The three costs in "What the outline gives up" are not defects to fix later — the first two are what
+the setting means, and the third is a note for its description. Where a reader wants the outline to
+keep telling them how their file is punctuated, the answer is to leave the setting off.
+
+The height map is a different matter and is open. A CSS collapse cannot be made exact: there is no
+way to tell CodeMirror a line's height short of replacing it, so the choice is between a scrollbar
+that settles as the reader scrolls and a block replacement that must be kept disjoint from the fold
+cover, the node cover and the zoom's own ranges, and must stop short of the document end to leave
+the footer's anchor outside it. Both are real; neither is free. What this note can say is that D1
+chose the first without knowing it was choosing, and that the figures above are what the decision
+should be taken against.

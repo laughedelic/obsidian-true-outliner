@@ -12,12 +12,12 @@
  * zoom's hiding ranges and a node cover's own background all still find the
  * line they expect where they expect it.
  *
- * `overflow: hidden` is load-bearing rather than defensive: the guide overlay
- * this row may also carry is an absolutely positioned `::after`, which a
- * zero-height box does not clip on its own. Its height comes from the box's,
- * so the overlay paints nothing here, and the rows above and below are now
- * adjacent — the guide stays continuous because there is no longer a row
- * between them to break it.
+ * The guide overlay this row may also carry needs nothing done to it: it is an
+ * absolutely positioned `::after` with both `top` and `bottom` resolved, so its
+ * used height is this box's, which is zero. `overflow: hidden` is kept as a
+ * guard for anything later given a height of its own, not because the overlay
+ * needs clipping. The guide stays continuous across the row because the rows
+ * above and below it are now adjacent.
  *
  * `min-height` is set alongside `height` because Obsidian gives a line a
  * minimum of its own, which `height` alone does not defeat.
