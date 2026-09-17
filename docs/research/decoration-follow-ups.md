@@ -342,22 +342,6 @@ record forward through the operation (the record is per-view and the operation's
 could re-state it), or cancel the place first — which is not available, because Enter-then-Tab is
 the canonical outliner gesture for "new node, one level in" and cancelling would destroy it.
 
-### Shift+Enter on an item whose marker has no trailing space opens a position outside the node
-
-`parse.ts` reads `-` as a list item with content column 2 (`LIST_ITEM_RE` allows a marker at
-end-of-line); `grammar.ts`'s `LIST_CONT_RE` requires whitespace after the marker, so it finds no
-match and Shift+Enter writes an empty line instead of the item's continuation indent. Typing there
-produces a TOP-LEVEL paragraph, so the position stands for no continuation of anything, and the
-`a-position-does-not-split-its-node` overlay correctly declines to repair it — there is no tree in
-which that node is whole.
-
-A buffer defect rather than a rendering one, which is why it was left out of that change. Found by
-its differential property test, and pinned by a test of its own
-(`tests/decorate.test.ts`, "a position the grammar writes OUTSIDE its node is not one this can
-repair"). The fix is to derive the continuation prefix from the same rule the parser uses for the
-content column, rather than from a second regex that disagrees with it about a marker at
-end-of-line.
-
 ### Node-granular selection halves a bisected node, and cannot be fixed without provenance
 
 Measured while closing `a-position-does-not-split-its-node`, attempted, and withdrawn — the most

@@ -39,26 +39,25 @@ import { nodeAtLine, nodeStartLine } from './locate';
  * `#`, a quote's `>`, a code fence's backticks are all ordinary content (D7).
  *
  * Computes the list prefix here rather than reusing `ops.ts`'s
- * `contentColumnCh`, which also swallows an ATX heading prefix and requires
- * whitespace after the marker. Both behaviours are wrong for THIS question:
+ * `contentColumnCh`, which also swallows an ATX heading prefix: `- # title`'s
+ * `#` belongs to the item's content, and this change's own spec says a heading
+ * prefix stays addressable. Sharing the helper made `# ` chrome, so the caret
+ * could not be placed on it.
  *
- * - `- # title` — the `#` belongs to the item's content, and this change's own
- *   spec says a heading prefix stays addressable. Sharing the helper made `# `
- *   chrome, so the caret could not be placed on it.
- * - `-` with no trailing space — an empty item mid-edit. Requiring whitespace
- *   left the boundary at 0, making the marker itself addressable and putting a
- *   hole in the invariant exactly where the marker is all there is.
- *
- * Whitespace after the marker is therefore optional only at END OF LINE. A first
- * attempt made it optional everywhere (`[ \t]*`), which then swallowed ordinary
- * punctuation at the start of a CONTINUATION line: `  *emphasis*` measured a
- * boundary of 3, making the `*` non-addressable, and `  -foo` the same. A marker
- * needs a space after it or nothing at all.
+ * The whitespace after the marker is REQUIRED, matching the parser's own rule
+ * (`marker-without-trailing-space`): a marker with nothing after it is not a
+ * marker, so a line holding one is a paragraph and its dash is content the
+ * caret belongs on. The requirement also decides a shape the node kind does
+ * not — an item's CONTINUATION line that reads exactly `␣␣-`, which is the
+ * item's text and not a marker of its own. Optional whitespace, in an earlier
+ * version, swallowed ordinary punctuation at the start of such a line:
+ * `␣␣*emphasis*` measured a boundary of 3, making the `*` non-addressable, and
+ * `␣␣-foo` the same.
  *
  * `contentColumnCh` keeps its own semantics for the structural operations that
  * want them; this is the caret's question, so it gets its own answer.
  */
-const LIST_PREFIX = /^[ \t]*(?:(?:[-+*]|\d{1,9}[.)])(?:[ \t]+|$))?/;
+const LIST_PREFIX = /^[ \t]*(?:(?:[-+*]|\d{1,9}[.)])[ \t]+)?/;
 
 export function contentBoundaryCh(node: OutlineNode, line: string): number {
   if (node.kind !== 'list-item') return 0;

@@ -118,10 +118,15 @@ describe('contentBoundaryCh (PR #31 review: list prefix only, no heading)', () =
     expect(boundaryOf('- item\n  1.5 litres\n', 1)).toBe(2);
   });
 
-  it('covers a marker with no trailing space, so the marker is never addressable', () => {
-    // An empty item mid-edit. Requiring whitespace left the boundary at 0,
-    // putting a hole in the invariant exactly where the marker is all there is.
-    expect(boundaryOf('-\n')).toBe(1);
+  it('leaves a marker with no trailing space wholly addressable, being no marker', () => {
+    // `marker-without-trailing-space`: a marker needs whitespace after it to be
+    // one, so this line is a PARAGRAPH and its dash is content the caret
+    // belongs on — boundary 0, the whole line.
+    expect(boundaryOf('-\n')).toBe(0);
+    // The same rule inside an item, where the node kind cannot decide it: a
+    // continuation line reading exactly `␣␣-` is the item's own text, and the
+    // dash stays addressable.
+    expect(boundaryOf('- a\n  -\n', 1)).toBe(2);
   });
 
   it('leaves a nested ordered marker as content, matching the outer-marker-only rule', () => {
