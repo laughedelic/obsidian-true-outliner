@@ -423,10 +423,18 @@ body.is-mobile {
  * level then renders 7.25px left of its column. The wrapper is emitted either
  * way, so one rule covers both.
  *
- * `white-space: pre` and `overflow: hidden` keep whitespace wider than its own
- * box from wrapping the line or spilling over the marker; `vertical-align: top`
- * keeps an `overflow: hidden` inline-block — whose baseline would otherwise be
- * its bottom margin edge — from dropping the row it sits in.
+ * `white-space: pre` keeps whitespace wider than its own box from wrapping the
+ * line, and `vertical-align: top` keeps the inline-block — whose baseline would
+ * otherwise be its bottom margin edge — from dropping the row it sits in.
+ *
+ * NOT `overflow: hidden`, which this rule carried until the manual pass on issue
+ * #117 found what it costs. Obsidian draws the NATIVE caret, so a clipping box
+ * hides it wherever the caret's own position falls inside — and on the line
+ * Shift+Enter opens inside a list item, which is the item's own indentation and
+ * nothing else, every position falls inside. Measured there: the caret's
+ * ancestors held `.cm-hmd-list-indent-2 | hidden | w=46`, and the caret was
+ * invisible until a character was typed. What spills without the clip is
+ * whitespace, which paints nothing.
  */
 .markdown-source-view.mod-cm6
   .cm-content
@@ -435,7 +443,6 @@ body.is-mobile {
   display: inline-block;
   width: calc(var(--to-list-hang) - var(--to-list-marker-cols, 0px));
   white-space: pre;
-  overflow: hidden;
   vertical-align: top;
 }
 
