@@ -424,47 +424,66 @@ rather than twice — and it is a change of its own, not a patch to this one.
 
 ### A structural key leaves the caret off a TRAILING place, and leaves the place its old width
 
-Supersedes "Outdent leaves the caret off the place it just moved", whose diagnosis was wrong in
-both halves and is corrected below, because the entry was specific enough to be believed.
+**Closed** by `a-trailing-place-moves-with-its-node` (issue #130). Kept with its measurements,
+because the correction it carries is easy to re-derive and the parked residual below belongs with
+it.
 
-**The gap.** A place at the END of a node's lines — Shift+Enter at the end of its last line, the
-ordinary way to open a continuation — is not a bisection, so `positionBisectsANode` declines to
-resolve it and a structural key acts on the raw parse, where the place is a trailing gap. Two
-things follow, and both are visible in two keypresses:
+**The gap, as it was.** A place at the END of a node's lines — Shift+Enter at the end of its last
+line, the ordinary way to open a continuation — is not a bisection, so `positionBisectsANode`
+declined to resolve it and a structural key acted on the raw parse, where the place is a trailing
+gap. Two things followed, and both were visible in two keypresses:
 
 | Gesture | After Shift+Enter | After the structural key |
 |---|---|---|
 | `- top` / `␣␣- foo`, Shift+Tab | place `␣␣␣␣` at 2:4 | `- top` / `- foo` / `␣␣␣␣`, caret 1:2 |
 | `- a` / `- foo`, Tab | place `␣␣` at 2:2 | `- a` / `␣␣- foo` / `␣␣`, caret 1:4 |
 
-`caret-policy` refuses the trailing gap as a caret target, so the caret falls back to the moved
-node's content start — off the line the user was about to type into. And the place keeps the width
-it had while the node's content column moves, so typing there now makes a CHILD of the node rather
-than continuing it: exactly what `resolvedOutline`'s own doc comment names as the reason the
-interior case reads the resolved tree. Reproduced with and without a following continuation line,
-with a following sibling, under a heading, and on a two-digit ordered marker.
+`caret-policy` refused the trailing gap as a caret target, so the caret fell back to the moved
+node's content start — off the line the user was about to type into. And the place kept the width
+it had while the node's content column moved, so typing there made a CHILD of the node rather than
+continuing it. Reproduced with and without a following continuation line, with a following
+sibling, under a heading, with children, on a task marker, on a two-digit ordered marker, on a
+tab-indented item, and with no final newline.
 
-The exclusion itself is deliberate and says why (`positionBisectsANode`: `indent` re-emits a
-node's lines, so resolving the document's own final blank line would write trailing whitespace at
-the end of the file). The caret and width consequences are not stated anywhere — not in
-`outline-keyboard-grammar`'s "Provisional positions", which covers only the interior case, and not
-in `caret-placement-policy`, which has no provisional-position scenario at all. Closing it means
-separating a place from a blank line the document merely ends with, which `grammar.ts` can already
-do — it is handed `placeLine` from `provisional-cleanup`'s record — while `resolvedOutline` cannot,
-since it derives from the document alone. That is the same asymmetry D5 already accepts, and it is
-a change of its own rather than a patch. Asserted as measured in `tests/grammar.test.ts` ("a
-TRAILING place loses the caret, and keeps its old width") so a fix has to move it on purpose.
+**What the re-measurement added.** The MOVES are worse than either key the table above names, and
+in a different way. Their caret is right — `caret-placement-policy` sends a move to its subject's
+content start, which an interior place has always taken — but the place's LINE stayed where it
+was while the node moved, so the node that inherited the line inherited the place: move-up on
+`- a` / `- foo` / `␣␣` gave `- foo` / `- a` / `␣␣`, and move-down on `- top` / `␣␣- foo` / `␣␣␣␣` /
+`␣␣- bar` gave `- top` / `␣␣- bar` / `␣␣␣␣` / `␣␣- foo`, handing `- bar` a place the user opened on
+`- foo`.
 
-**The correction.** The superseded entry recorded Shift+Tab on `- top` / `⇥- foo` / `⇥␣␣` (place) /
-`⇥␣␣bar` leaving the caret at line 3 column 0, and attributed it to outdent's line-level edit
-mapping a column at the end of the place's line with assoc=1 onto the start of the line below. The
-pre-op column it measured from was 4. `⇥␣␣` is three characters, so column 4 is not a position on
-that line, and `keymap.ts` builds a column as an offset minus its own line's start. At column 3
-that shape — an INTERIOR place — keeps the caret on the place at its new content column, as Tab
-does, across the widths an interior place's content column takes. So the asymmetry the entry
-reported between the two keys is not there either: both keys are right on an interior place and
-both are wrong on a trailing one. "Right on an interior place" holds for ONE structural keypress
-from a freshly opened place; the entry below is why a second one does not get the same answer.
+**The fix.** The gate split along what each caller knows. `positionJoinsANode` asks only that the
+place's own materialized line is not a first line, and the operations ask it through
+`placeOutline`, which will not answer without the place line `provisional-cleanup` records.
+`positionBisectsANode` keeps both halves and stays the rendering's, which has no place line to ask
+with — so the document's own final blank line is still out of reach of an operation that was not
+told a place is there. The exclusion's stated reason (`indent` re-emits a node's lines, so
+resolving that line would write trailing whitespace at the end of the file) survives as the
+place-line test rather than as the gate.
+
+It is a fix in the GRAMMAR, and reaches the app only as far as the place line does: the entry below
+is why a second structural keypress is handed none, trailing place and interior place alike.
+
+**Parked, and measured.** An ENTER place — blank-separated, so its materialized line is a first
+line — still does not resolve, and must not: the tree it stands for would contain a node that does
+not exist yet, which is the half of the gate that cannot be widened (`outline-decorations` forbids
+it, and two measured shapes show it). With such a place open below a paragraph, Tab indents the
+paragraph and leaves the place at column 0, so typing there makes a top-level node rather than a
+sibling of the one that moved. Whether that is wrong depends on where the node the place stands
+for ought to live, which the raw tree does not encode — so it is recorded rather than guessed at.
+
+**The correction.** The superseded entry, "Outdent leaves the caret off the place it just moved",
+recorded Shift+Tab on `- top` / `⇥- foo` / `⇥␣␣` (place) / `⇥␣␣bar` leaving the caret at line 3
+column 0, and attributed it to outdent's line-level edit mapping a column at the end of the
+place's line with assoc=1 onto the start of the line below. The pre-op column it measured from was
+4. `⇥␣␣` is three characters, so column 4 is not a position on that line, and `keymap.ts` builds a
+column as an offset minus its own line's start. At column 3 that shape — an INTERIOR place — keeps
+the caret on the place at its new content column, as Tab does, across the widths an interior
+place's content column takes. So the asymmetry the entry reported between the two keys was not
+there either: both keys were right on an interior place and both were wrong on a trailing one.
+"Right on an interior place" holds for ONE structural keypress from a freshly opened place; the
+entry below is why a second one does not get the same answer.
 
 Re-measuring that column today gives line 3 column 2 rather than column 0:
 `source-indentation-collapses` has since had `planCaret` resolve a mapped position that lands
@@ -510,17 +529,31 @@ it means separating the two, so a keypress that CARRIES a place forward keeps th
 a creating one starts it. The `undoDepth` guard in `liveRecord` is the same story one level down: it
 is right for the abandon path and wrong for this one.
 
+The PALETTE loses the record for a second, independent reason, found closing the trailing-place
+entry: the module writes one only for a transaction carrying the `abandonEdit` annotation, which
+`keymap.ts` attaches from the plan's own `abandon` edit, and `main.ts`'s `runOp` builds its plan
+itself and states none. So a palette operation over a place leaves it standing with nothing behind
+it even for a key the event lists do name, and abandoning it leaves it in the file. Separating the
+two questions above does not reach that one; giving `runOp` the plan's `abandon` form does.
+
 Not caused by #129, which touches only `dispatch.ts`'s `{line, ch}` conversion: both sequences
 reproduce identically against `main`'s own `dispatch.ts`.
 
 ### The palette path does not resolve a place at all
 
-Found alongside the entry above. `main.ts`'s `runOp` passes no `placeLine`, so the same document
-and caret diverge by entry point: Shift+Tab from the keymap on `- top` / `␣␣- foo` / `␣␣␣␣` (an
-interior place) / `␣␣␣␣bar` gives `- top` / `- foo` / `␣␣` / `␣␣bar` with the caret on the place,
-while the command palette and any custom hotkey give `- top` / `- foo` / `␣␣␣␣` / `␣␣bar` with the
-caret at 1:2. Keyboard and palette agreeing is what `selection-structural-ops` exists to hold, so
-this belongs with whatever change closes the entry above rather than on its own.
+**Closed** by `a-trailing-place-moves-with-its-node`, which is where it was found.
+
+`main.ts`'s `runOp` passed no place line, so the same document and caret diverged by entry point:
+Shift+Tab from the keymap on `- top` / `␣␣- foo` / `␣␣␣␣` (an interior place) / `␣␣␣␣bar` gave
+`- top` / `- foo` / `␣␣` / `␣␣bar` with the caret on the place, while the command palette and any
+custom hotkey gave `- top` / `- foo` / `␣␣␣␣` / `␣␣bar` with the caret at 1:2. Keyboard and palette
+agreeing is what `selection-structural-ops` exists to hold, so it closed with the trailing-place
+entry rather than on its own: `runOp` resolves through `placeOutline` now, and the resolved tree
+feeds the operand, the zoom re-resolution, the operation and the caret policy alike.
+
+The place-line test moved INSIDE `placeOutline` at the same time, which is what keeps this shut.
+Each call site used to spell the test itself; the keyboard path spelled it twice, slightly
+differently, and the palette spelled it not at all.
 
 ### A caret parked on a blank line the user authored reads it as a bisection
 

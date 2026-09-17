@@ -26,7 +26,7 @@ import type { OpOutput } from '../ops';
 import type { OpResult } from '../result';
 import { applyEdits, diffLines } from '../result';
 import { nodeAtLine, nodeStartLine } from '../locate';
-import { resolvedOutline } from './decorate';
+import { placeOutline } from './decorate';
 import { coveredForestOf } from '../escalate';
 import { afterState, groupRootsByParent, resolveOperand } from '../operand';
 import { planCaret, type CaretOp } from '../caret-policy';
@@ -228,16 +228,15 @@ function planFromOp(
   // caret cannot stay where it was. A place the operation carried along is still
   // a blank line in the raw parse of the result, so `caret-policy`'s
   // addressability test rejects it as a trailing gap and falls back to the moved
-  // node's content start — Tab on an interior position moved the caret to the
-  // item's first line, off the line the user was about to type into.
+  // node's content start — Tab moved the caret to the item's first line, off the
+  // line the user was about to type into, on an interior place and on a trailing
+  // one alike.
   //
-  // Gated on the place's own line, and on the mapped caret still being on it:
-  // indent and outdent add and remove no lines, so the place keeps its index,
-  // and anywhere else this would be guessing that a blank line is a place.
-  const after =
-    (placeLine !== undefined && mapped?.line === placeLine
-      ? resolvedOutline(afterText, mapped.line, mapped.ch)
-      : null) ?? parse(afterText);
+  // `placeOutline` holds the gate — the place's own line, and the mapped caret
+  // still being on it: indent and outdent add and remove no lines, so the place
+  // keeps its index, and anywhere else this would be guessing that a blank line
+  // is a place.
+  const after = placeOutline(afterText, mapped, placeLine) ?? parse(afterText);
 
   const { caret } = planCaret(op, { before, after, anchor: result.value.anchor, mapped });
 
@@ -571,20 +570,22 @@ export function planKey(
   if (!onOwnLines && (key === 'split' || key === 'continue')) return null;
 
   // A structural operation acts on the OUTLINE, which is not the raw parse while
-  // a provisional position is open interior to a node: the blank line bisects
-  // that node, so `moveDown` walks half a paragraph past the other half, `indent`
-  // turns half of one into a list item, and a cover stops at the position (all
-  // measured — see the change's Findings). `resolvedOutline` is that tree, in the
+  // a provisional position is open on one of a node's lines: the blank line ends
+  // the node's own lines, so `moveDown` walks half a paragraph past the other
+  // half, `indent` turns half of one into a list item, a cover stops at the
+  // position, and a place at the node's END is left behind at its old width on
+  // whichever node inherits its line (all measured — see the change's Findings
+  // and docs/research/decoration-follow-ups). `placeOutline` is that tree, in the
   // buffer's own text so the edits it produces are correct against the buffer.
   //
   // `placeLine` — the line a structural keypress of OURS put a place on, which
   // only the adapter can know (`provisional-cleanup.ts`'s `createdPlaceLine`) —
-  // is what makes this safe. The document alone cannot tell a place from a blank
-  // line the user authored between two paragraphs, and here the difference has
-  // teeth: measured, Tab with the caret on the gap between `para` and `last`
-  // read the two as one node and indented both. The rendering layer takes the
-  // truthful reading either way (`decorate-provisional-positions` D5); an
-  // operation may not guess.
+  // is what makes this safe, and `placeOutline` declines without it. The
+  // document alone cannot tell a place from a blank line the user authored
+  // between two paragraphs, and here the difference has teeth: measured, Tab
+  // with the caret on the gap between `para` and `last` read the two as one node
+  // and indented both. The rendering layer takes the truthful reading either way
+  // (`decorate-provisional-positions` D5); an operation may not guess.
   //
   // Deliberately NOT used for the gates above. They decide whether the key is
   // declined at all, and the resolved tree makes the position one of the node's
@@ -592,8 +593,7 @@ export function planKey(
   // would start splitting it instead of advancing past it
   // (`provisional-cleanup.ts`'s `advanceFromEmptyPlace`). What the key targets
   // changes; whether the key applies does not.
-  const outline =
-    placeLine === cursor.line ? resolvedOutline(text, cursor.line, cursor.ch) : null;
+  const outline = placeOutline(text, cursor, placeLine);
   const opDoc = outline ?? doc;
   const opNode = outline ? nodeAtLine(outline, cursor.line) : node;
   if (!opNode) return null;

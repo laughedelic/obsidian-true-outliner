@@ -244,10 +244,13 @@ export function materializeProbe(text: string, line: number, ch?: number): strin
 
 /**
  * Whether a provisional position BISECTED a node — joined one, with lines of
- * that node still below it — the single gate that decides which parse the whole
+ * that node still below it — the gate that decides which parse the whole
  * document's facts come from while the position is open (`outline-decorations`,
- * "No line renders differently because a position is open") and which tree the
- * structural keys act on (`resolvedOutline`).
+ * "No line renders differently because a position is open").
+ *
+ * The RENDERING gate, which is all of it: the structural keys ask
+ * `positionJoinsANode` through `placeOutline` instead, because they are told
+ * which line holds a place and this is not.
  *
  * A position opened INTERIOR to a multi-line node — Shift+Enter at the end of a
  * line that is not the node's last — writes a blank line between lines that were
@@ -295,17 +298,44 @@ export function positionBisectsANode(
   materialized: readonly LineDecorationFact[],
   line: number,
 ): boolean {
-  const own = materialized.find((f) => f.lineNumber === line);
-  if (!own || own.isFirstLine) return false;
+  if (!positionJoinsANode(materialized, line)) return false;
   // And something of the node's must remain BELOW it — otherwise the position is
   // at the node's end, the blank line is that node's trailing gap, and nothing
-  // was bisected. Rendering would not care (measured: the two parses agree about
-  // every line there), but an OPERATION would: the document's own final blank
-  // line joins the node above it under the test so far, and `indent` re-emits a
-  // node's lines, so Tab would write trailing whitespace at the end of the file
-  // where there was none.
+  // was bisected. Measured: the two parses agree about every line there, so what
+  // this half buys the rendering is the NAME being true rather than any
+  // difference on screen. It is also what keeps a caller with no place line from
+  // resolving a line that is not a place — the document's own final blank line
+  // joins the node above it, and `indent` re-emits a node's lines, so Tab would
+  // write trailing whitespace at the end of the file where there was none.
   const next = materialized.find((f) => f.lineNumber === line + 1);
   return next !== undefined && !next.isFirstLine;
+}
+
+/**
+ * The half of the gate above that asks only about the position's OWN line: its
+ * materialized line is one of an existing node's lines rather than the first
+ * line of a new one.
+ *
+ * This is what a caller that already knows the line holds a PLACE asks, and the
+ * difference between the two is a place at the END of a node's lines — the one
+ * Shift+Enter opens at the end of its last line. Nothing of the node remains
+ * below such a place, so it bisects nothing; it is still the node's own
+ * continuation position, and an operation that re-emits the node's lines has to
+ * carry it along. The only caller is `placeOutline`, whose doc comment says why
+ * knowing the line is a place is what makes this safe to ask.
+ *
+ * What is NOT split off, and must not be: the first-line test itself. A position
+ * whose own materialized line is a first line stands for a node that does not
+ * exist yet, and resolving it would put that node in the tree —
+ * `positionBisectsANode`'s doc comment names the two measured shapes, and they
+ * apply here unchanged.
+ */
+export function positionJoinsANode(
+  materialized: readonly LineDecorationFact[],
+  line: number,
+): boolean {
+  const own = materialized.find((f) => f.lineNumber === line);
+  return own !== undefined && !own.isFirstLine;
 }
 
 /**
@@ -385,15 +415,35 @@ export function materializeProvisional(
 }
 
 /**
- * The OUTLINE a provisional position stands for (`outline-keyboard-grammar`'s
- * "Provisional positions"): the tree in which the node the position bisected is
- * whole again — or null when the caret is not on such a position.
+ * The OUTLINE a PLACE stands for (`outline-keyboard-grammar`'s "Provisional
+ * positions"): the tree in which the node the place opened inside is whole
+ * again, the place among its own lines — or null when the caret is not on a
+ * place the operations may resolve.
  *
- * This is `positionJoinsANode`'s tree, for the consumers that need the TREE and
- * not just the per-line facts: the structural keys, node-granular selection, and
- * the select-all ladder all read a parse and get the bisected one, so an
- * operation moves half a node past the other half and a cover stops at the
- * position (measured — see the change's Findings).
+ * `placeLine` is `provisional-cleanup`'s record of the line our own structural
+ * keypress put a place on, and this resolves nothing unless the caret is still
+ * on it. That is the asymmetry `a-position-does-not-split-its-node` D5 states:
+ * the rendering derives from document and caret alone and takes the truthful
+ * reading of an ambiguous blank line, while an operation is TOLD, because a
+ * blank line the user authored between two paragraphs is byte-identical to one
+ * Shift+Enter opened inside one paragraph and reading the two alike indents
+ * both. The test lives here rather than at each call site so that no entry point
+ * can hold a different version of it — the divergence `caret-placement-policy`
+ * and `selection-structural-ops` both exist to prevent, and one the command
+ * palette was on the wrong side of until this took the parameter.
+ *
+ * Being told is also what lets this ask `positionJoinsANode` rather than
+ * `positionBisectsANode`, and the difference is a place at the END of a node's
+ * lines. The rendering gate declines that one, because resolving a blank line
+ * the document merely ENDS with would have Tab write trailing whitespace onto
+ * it; a place is not that line, and refusing it cost the trailing place both its
+ * caret and its width (docs/research/decoration-follow-ups).
+ *
+ * The consumers are the ones that need the TREE and not just the per-line facts:
+ * the structural keys, node-granular selection, and the select-all ladder all
+ * read a parse and get the bisected one, so an operation moves half a node past
+ * the other half and a cover stops at the position (measured — see the change's
+ * Findings).
  *
  * The position's own line is restored to the BUFFER's text before the tree is
  * returned, and that is the whole reason this exists as its own function rather
@@ -404,18 +454,25 @@ export function materializeProvisional(
  * the resolved one while every line it holds is a real line of the buffer, and an
  * operation's edits are correct against the buffer by construction.
  *
- * The position's line being one of the node's own lines is then a feature rather
- * than a wrinkle: an indent re-indents it along with the rest, so the position
- * stays at the node's content column and keeps standing for a continuation of it.
- * Without that, Tab leaves the position two columns left of where the item's
- * content moved to, and typing there makes a paragraph child of the node above
- * instead — the document is right and the place is ruined.
+ * The place's line being one of the node's own lines is then a feature rather
+ * than a wrinkle: an indent re-indents it along with the rest, a move carries it
+ * with the node, and the place stays at the node's content column, standing for
+ * a continuation of it. Without that, Tab leaves the place two columns left of
+ * where the item's content moved to and typing there makes a paragraph child of
+ * the node above, and a move leaves the place behind on whichever node inherits
+ * its line — the document is right and the place is ruined.
  */
-export function resolvedOutline(text: string, line: number, ch?: number): OutlineDoc | null {
+export function placeOutline(
+  text: string,
+  caret: { readonly line: number; readonly ch: number } | undefined,
+  placeLine: number | undefined,
+): OutlineDoc | null {
+  if (caret === undefined || placeLine === undefined || placeLine !== caret.line) return null;
+  const { line, ch } = caret;
   const probe = materializeProbe(text, line, ch);
   if (probe === null) return null;
   const doc = parse(probe);
-  if (!positionBisectsANode(decorate(doc), line)) return null;
+  if (!positionJoinsANode(decorate(doc), line)) return null;
 
   const own = (text === '' ? [] : text.split('\n'))[line];
   if (own === undefined) return null;

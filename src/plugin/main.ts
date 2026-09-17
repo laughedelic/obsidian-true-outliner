@@ -105,6 +105,8 @@ import {
 import type { EditorView } from '@codemirror/view';
 import { historyCaretExtension } from './history-caret';
 import { TransactionStats } from './stats';
+import { placeOutline } from './decorate';
+import { createdPlaceLine } from './provisional-cleanup';
 
 /**
  * Note: `indent`/`outdent` also accept an optional trailing
@@ -143,12 +145,17 @@ function resultCursor(
   op: CaretOp,
   anchor: { line: number; ch: number },
   mapFrom?: { line: number; ch: number },
+  placeLine?: number,
 ): { line: number; ch: number } {
-  const after = parse(newLines.join('\n'));
+  const afterText = newLines.join('\n');
   const mapped =
     mapFrom === undefined
       ? undefined
       : offsetToPos(newLines, mapCursorForward(lines, changes, mapFrom));
+  // Read through the place the operation carried along, or the caret cannot stay
+  // on it: `grammar.ts`'s `planFromOp` states why, and `placeOutline` holds the
+  // gate both entry points ask through.
+  const after = placeOutline(afterText, mapped, placeLine) ?? parse(afterText);
   return planCaret(op, { before, after, anchor, mapped }).caret;
 }
 
@@ -1326,6 +1333,7 @@ export default class TrueOutlinerPlugin extends Plugin {
     const text = editor.getValue();
     const doc = parse(text);
     if (this.data.debugCrossCheck && ctx.file) this.crossCheck(doc, ctx.file);
+    const view = viewFor(ctx);
 
     // The operand comes from the SELECTION, through the same rule the keyboard
     // path uses (`selection-structural-ops`). Reading only `getCursor()` is
@@ -1341,7 +1349,16 @@ export default class TrueOutlinerPlugin extends Plugin {
     const backward =
       range.head.line < range.anchor.line ||
       (range.head.line === range.anchor.line && range.head.ch < range.anchor.ch);
-    const operand = resolveOperand(doc, range);
+    // The OUTLINE a place stands for, on the same terms `grammar.ts` resolves it
+    // on — the line `provisional-cleanup` recorded, and the caret still on it.
+    // Without this the palette and a custom hotkey acted on the RAW parse while
+    // the keymap acted on the resolved one, so the same key on the same document
+    // gave two different results depending on how it was invoked, which is the
+    // divergence `selection-structural-ops` exists to hold shut.
+    const placeLine = view ? (createdPlaceLine(view) ?? undefined) : undefined;
+    const outline = placeOutline(text, cursorBefore, placeLine);
+    const opDoc = outline ?? doc;
+    const operand = resolveOperand(opDoc, range);
     if (!operand) {
       new Notice(REJECTION_MESSAGES['node-not-found'], 1500);
       return;
@@ -1350,21 +1367,20 @@ export default class TrueOutlinerPlugin extends Plugin {
     // algebra runs. Checked here and in `grammar.ts` against the SAME predicate,
     // so the two entry points cannot disagree about it — the divergence
     // `selection-structural-ops` exists to prevent.
-    const view = viewFor(ctx);
     const scope = view ? zoomScope(view.state) : null;
-    // Re-resolved against `doc`, the fresh parse this command just made —
+    // Re-resolved against `opDoc`, the fresh parse this command just made —
     // `scope` was built from the live editor's own cached parse, a DIFFERENT
     // parse object even when the text agrees, and `parse()` allocates every
     // node a new id regardless of content. Comparing `scope`'s ids against
     // `operand.groups`' below without this re-derivation would never match
     // anything, silently letting every palette operation on the zoom root or
     // its direct children through (`reresolveZoom`'s own comment says why).
-    const localScope = scope ? reresolveZoom(doc, scope) : null;
+    const localScope = scope ? reresolveZoom(opDoc, scope) : null;
     if (localScope && operandEscapes(localScope, operand.groups, isOutdent)) {
       new Notice(REJECTION_MESSAGES['would-leave-zoom-scope'], 1500);
       return;
     }
-    const result = op(doc, operand.groups);
+    const result = op(opDoc, operand.groups);
     if (!result.ok) {
       new Notice(REJECTION_MESSAGES[result.rejection.reason], 1500);
       return;
@@ -1376,10 +1392,11 @@ export default class TrueOutlinerPlugin extends Plugin {
       lines,
       newLines,
       changes,
-      doc,
+      opDoc,
       useMappedCursor ? { kind: 'derived' } : { kind: 'subject' },
       result.value.anchor,
       useMappedCursor ? cursorBefore : undefined,
+      placeLine,
     );
 
     // The change and the caret that belongs to it go in ONE transaction. A

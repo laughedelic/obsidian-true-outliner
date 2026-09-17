@@ -57,7 +57,7 @@ export function leadingWhitespace(line: string): string {
  * A STRUCTURAL node cannot reach that case from a real parse at all: a blank
  * line ENDS a paragraph's, a list item's, or a heading's own lines
  * (`parse.ts`), so a whitespace-only line among them exists in exactly one
- * tree — the one `resolvedOutline` builds for an open PROVISIONAL POSITION,
+ * tree — the one `placeOutline` builds for an open PROVISIONAL POSITION,
  * where the blank line is the place itself. That line must move with the node,
  * or an indent leaves the place at the old content column and typing there
  * makes a node somewhere else entirely.
