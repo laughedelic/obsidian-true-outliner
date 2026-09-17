@@ -92,18 +92,6 @@ specs headlessly in a Linux container instead (`e2e/docker/`), one container per
 A cloud session needs its VM provisioned before any of this runs:
 [`docs/cloud-sessions.md`](docs/cloud-sessions.md).
 
-## Mobile beta builds
-
-Mobile has no vault folder to copy a build into, so a branch reaches a phone as a GitHub
-prerelease that BRAT installs. `.github/workflows/beta.yml` publishes one on every push to a
-branch other than `main`, and `scripts/beta-cleanup.mjs` drops them again as the branch moves on.
-The version is stamped into the built `manifest.json` only; committing it would move the file
-that triggers the release workflow.
-
-On the phone, BRAT → *Add beta plugin* → `laughedelic/obsidian-true-outliner`, then *Check for
-updates* after each push. BRAT tracking "latest" takes the highest prerelease across every
-branch, so keep one branch at a time on beta, or pin BRAT to a specific version.
-
 ## Conventions
 
 - **Committed prose is team voice** — "we" and "our", never "you", and never session-log phrasing
