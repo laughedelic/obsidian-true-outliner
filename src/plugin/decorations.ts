@@ -1957,6 +1957,7 @@ function clearWidgetPatch(el: HTMLElement): void {
   el.style.removeProperty('--to-own-shift');
   el.style.removeProperty('--to-selected-left');
   el.style.removeProperty('--to-selected-right');
+  el.style.removeProperty('--to-table-width');
   clearWidgetMarker(el);
 }
 
@@ -3431,6 +3432,32 @@ class MarginCompensation implements PluginValue {
           el.classList.remove('to-decor-guides');
           el.style.removeProperty('--to-guides');
           el.style.removeProperty('--to-own-shift');
+        }
+
+        // A table's own width, for the two add buttons styles.css places
+        // against it. They are absolutely positioned inside `.table-wrapper`,
+        // which our own rule makes a scroll container, and a percentage inset
+        // resolves against a scroll container's VISIBLE padding box — so
+        // Obsidian's own `inset-inline-start: 100%` stops meaning "the table's
+        // right edge" and starts meaning "however wide the pane is", which is
+        // a length with no relation to the table (docs/research/table-scroll-region).
+        // There is no CSS length for what the buttons need, so it is measured
+        // here, where the chevron and the accent stops are already measured.
+        //
+        // The rect, not `offsetWidth`: a table's width is fractional and the
+        // buttons sit flush against it, so rounding would show. Republished on
+        // every render, which is when a column's width can have changed;
+        // a stale value costs placement, not correctness, and styles.css
+        // falls back to the native percentage while none is published.
+        if (fact.kind === 'table') {
+          const table = el.querySelector(':scope > .table-wrapper > table');
+          if (table) {
+            el.style.setProperty('--to-table-width', `${table.getBoundingClientRect().width}px`);
+          } else {
+            el.style.removeProperty('--to-table-width');
+          }
+        } else {
+          el.style.removeProperty('--to-table-width');
         }
 
         if (rootTarget !== undefined) {

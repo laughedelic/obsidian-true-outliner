@@ -41,6 +41,134 @@ async function ensureOutlineMode(notePath: string): Promise<void> {
   await h.setOutlineMode(true);
 }
 
+/**
+ * Obsidian's four pieces of table-edit chrome, by selector. The two buttons
+ * are children of `.table-wrapper`; the two drag handles hang off their own
+ * cells, which is why the reservation moves the first pair and merely uncovers
+ * the second — on the sides that have a reservation at all.
+ */
+const CHROME_PIECES = [
+  ':scope > .table-col-btn',
+  ':scope > .table-row-btn',
+  '.table-row-drag-handle',
+  '.table-col-drag-handle',
+] as const;
+
+interface ChromePiece {
+  w: number;
+  h: number;
+  /** Offset from the table's own top-left, so a move shows up as a change. */
+  dx: number;
+  dy: number;
+  /** How far outside the wrapper's scrollport it reaches, worst side. */
+  outsidePort: number;
+}
+
+interface TableGeometry {
+  client: { w: number; h: number };
+  /** The table's own width, which is what the add buttons anchor to. */
+  tableW: number;
+  /** Clearance between the scrollport's leading edge and the marker's column. */
+  portLeadingVsMarker: number | null;
+  region: { w: number; h: number };
+  scrollbarH: number;
+  scrollbarV: number;
+  widgetH: number;
+  outerOverflowsX: number;
+  chrome: Record<string, ChromePiece | null>;
+}
+
+/**
+ * The first table widget's boxes, and where each piece of native chrome sits
+ * relative to the table and to the wrapper's scrollport.
+ *
+ * A drag handle is `display: none` at rest on mobile and appears on an active
+ * row or column, so both active classes are set for the read and removed
+ * after it — the question here is geometry, not what reveals it.
+ */
+async function tableGeometry(): Promise<TableGeometry> {
+  return (await browser.executeObsidian(
+    ({ app, obsidian }, pieces: readonly string[]) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const cm = (view.editor as any).cm;
+      const outer = cm.contentDOM.querySelector('.cm-embed-block.cm-table-widget') as HTMLElement;
+      const wrapper = outer.querySelector('.table-wrapper') as HTMLElement;
+      const table = wrapper.querySelector('table') as HTMLElement;
+      const activated: HTMLElement[] = [];
+      for (const [sel, cls] of [
+        ['.table-row-drag-handle', 'mod-active-row-handle'],
+        ['.table-col-drag-handle', 'mod-active-col-handle'],
+      ] as const) {
+        const parent = (wrapper.querySelector(sel) as HTMLElement | null)?.parentElement;
+        if (parent) {
+          parent.classList.add(cls);
+          activated.push(parent);
+        }
+      }
+      const round = (n: number) => Math.round(n * 100) / 100;
+      const wr = wrapper.getBoundingClientRect();
+      const tr = table.getBoundingClientRect();
+      const port = {
+        left: wr.left,
+        top: wr.top,
+        right: wr.left + wrapper.clientWidth,
+        bottom: wr.top + wrapper.clientHeight,
+      };
+      const marker = outer.querySelector(':scope > .to-decor-marker-icon') as HTMLElement | null;
+      const chrome: Record<string, unknown> = {};
+      for (const sel of pieces) {
+        const el = wrapper.querySelector(sel) as HTMLElement | null;
+        if (!el) {
+          chrome[sel] = null;
+          continue;
+        }
+        const r = el.getBoundingClientRect();
+        chrome[sel] = {
+          w: round(r.width),
+          h: round(r.height),
+          dx: round(r.left - tr.left),
+          dy: round(r.top - tr.top),
+          outsidePort: round(
+            Math.max(
+              r.right - port.right,
+              r.bottom - port.bottom,
+              port.left - r.left,
+              port.top - r.top,
+            ),
+          ),
+        };
+      }
+      for (const [i, el] of activated.entries()) {
+        el.classList.remove(i === 0 ? 'mod-active-row-handle' : 'mod-active-col-handle');
+      }
+      return {
+        client: { w: wrapper.clientWidth, h: wrapper.clientHeight },
+        tableW: round(tr.width),
+        portLeadingVsMarker: marker
+          ? round(port.left - marker.getBoundingClientRect().right)
+          : null,
+        region: { w: wrapper.scrollWidth, h: wrapper.scrollHeight },
+        scrollbarH: wrapper.offsetHeight - wrapper.clientHeight,
+        scrollbarV: wrapper.offsetWidth - wrapper.clientWidth,
+        widgetH: outer.offsetHeight,
+        outerOverflowsX: outer.scrollWidth - outer.clientWidth,
+        chrome,
+      };
+    },
+    CHROME_PIECES as unknown as string[],
+  )) as TableGeometry;
+}
+
+/** Each piece's size and its offset from the table, at whole-pixel precision. */
+function chromeAgainstTable(g: TableGeometry): Record<string, string> {
+  return Object.fromEntries(
+    CHROME_PIECES.map((p) => {
+      const c = g.chrome[p]!;
+      return [p, `${Math.round(c.w)}x${Math.round(c.h)} at ${Math.round(c.dx)},${Math.round(c.dy)}`];
+    }),
+  );
+}
+
 /** Number of `repeating-linear-gradient(` layers in a resolved background-image. */
 function gradientLayerCount(backgroundImage: string): number {
   if (backgroundImage === 'none' || backgroundImage === '') return 0;
@@ -253,12 +381,26 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
         wrapperClientWidth: wrapper.clientWidth,
         scrollerScrollWidth: scroller.scrollWidth,
         scrollerClientWidth: scroller.clientWidth,
+        wrapperScrollHeight: wrapper.scrollHeight,
+        wrapperClientHeight: wrapper.clientHeight,
+        wrapperVScrollbar: wrapper.offsetWidth - wrapper.clientWidth,
       };
     });
 
     // The outer widget element itself no longer overflows (nothing for
     // the guide's pseudo to be clipped by).
     expect(info.outerScrollWidth).toBe(info.outerClientWidth);
+    // A wide table scrolls SIDEWAYS ONLY. The vertical axis carried the
+    // add-row button's own reach before the chrome reservation, which cost a
+    // scrollbar and 12px of the table's own visible width.
+    //
+    // This assertion pins the reservation, not the `overflow: auto hidden`
+    // pairing: with the reservation in place the unpaired form measures
+    // identically (docs/research/table-scroll-region), so its control is the
+    // reservation's — remove the wrapper's padding and the region grows by
+    // one `--table-drag-handle-size`.
+    expect(info.wrapperScrollHeight).toBe(info.wrapperClientHeight);
+    expect(info.wrapperVScrollbar).toBe(0);
     // The inner .table-wrapper DOES genuinely overflow — this fixture is
     // wide enough to need real scrolling, confirming the test isn't
     // vacuously true.
@@ -275,6 +417,46 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
       'background-image',
     );
     expect(gradientLayerCount(tableBg)).toBe(1);
+
+    // Scrolled to the end, a wide table still does not render its own cells
+    // under its own mark: the scrollport's leading edge stays clear of the
+    // marker's column, whatever the scroll position. Reported from real use
+    // when the reservation was still symmetrical. Negative control: reserve
+    // on the inline-start side and this reads negative.
+    await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const cm = (view.editor as any).cm;
+      const outer = cm.contentDOM.querySelector('.cm-embed-block.cm-table-widget') as HTMLElement;
+      const wrapper = outer.querySelector('.table-wrapper') as HTMLElement;
+      wrapper.scrollLeft = wrapper.scrollWidth - wrapper.clientWidth;
+    });
+    await browser.pause(120);
+    const scrolled = await tableGeometry();
+    expect(scrolled.portLeadingVsMarker).toBeGreaterThanOrEqual(0);
+
+    // The add buttons anchor to the TABLE, not to the pane. Obsidian places
+    // them with a percentage, which resolves against a scroll container's
+    // visible padding box — so on a wide table the add-column button used to
+    // sit a pane's width into the content (a button in the middle of a
+    // column, moving to a different one when the pane resized) and the
+    // add-row strip spanned the scrollport rather than the table. Both now
+    // read `--to-table-width`. Asserted as a relationship to the table's own
+    // width, and at both ends of the scroll, since the defect was invisible
+    // at rest. Negative control: restore the percentages and the button's
+    // offset reads the scrollport's width instead of the table's.
+    for (const at of [0, scrolled.region.w] as const) {
+      await browser.executeObsidian(({ app, obsidian }, left: number) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+        const cm = (view.editor as any).cm;
+        const outer = cm.contentDOM.querySelector('.cm-embed-block.cm-table-widget') as HTMLElement;
+        const wrapper = outer.querySelector('.table-wrapper') as HTMLElement;
+        wrapper.scrollLeft = left;
+      }, at);
+      await browser.pause(120);
+      const g = await tableGeometry();
+      expect(g.chrome[':scope > .table-col-btn']!.dx).toBeCloseTo(g.tableW, 0);
+      expect(g.chrome[':scope > .table-row-btn']!.w).toBeCloseTo(g.tableW, 0);
+    }
 
     // And the wrapper's own scrollLeft is genuinely functional (not inert,
     // as it was when overflow was forced visible on the wrong element).
@@ -293,6 +475,92 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
       return wrapper.scrollLeft;
     });
     expect(scrollLeftAfter).toBe(300);
+  });
+
+  it('a table that fits its line scrolls on neither axis, and its native edit chrome keeps its stock geometry', async function () {
+    // The other half of the contract above. Moving the scroll onto
+    // `.table-wrapper` made a box that is tight to the table by construction
+    // into a scroll container, and Obsidian's four pieces of table-edit chrome
+    // sit flush OUTSIDE that box — two of them children of the wrapper, two
+    // anchored to their own cells. All four entered its scroll region: the
+    // buttons as scroll range on each axis (a table that fits scrolling both
+    // ways, the reported defect), the handles on the negative side, which a
+    // scroll container cannot reach, and clipped. styles.css answers with the
+    // reservation the widget's own padding already is. Figures, the candidates
+    // that failed, and the residuals: docs/research/table-scroll-region.
+    const fixture = ALL_DECORATION_FIXTURES.find((f) => f.label === 'widget-atoms')!;
+    await h.createNote(fixture.note, fixture.md);
+    await h.openNote(fixture.note);
+    await h.setOutlineMode(false);
+    await browser.pause(150);
+    const stock = await tableGeometry();
+    await ensureOutlineMode(fixture.note);
+    await browser.pause(150);
+    const outlined = await tableGeometry();
+
+    // Nothing to scroll on either axis, and no scrollbar taking space.
+    // Negative control: revert the reservation and each axis reads one
+    // `--table-drag-handle-size` of region with a scrollbar on both.
+    expect(outlined.region.w).toBe(outlined.client.w);
+    expect(outlined.region.h).toBe(outlined.client.h);
+    expect(outlined.scrollbarH).toBe(0);
+    expect(outlined.scrollbarV).toBe(0);
+
+    // Every piece of chrome keeps the size and the offset from the table that
+    // stock gives it — the reservation moves the scrollport's edge, not the
+    // chrome. Compared against stock rather than asserted as pixels: these are
+    // theme and font lengths. Negative control: drop the buttons' cross-axis
+    // corrections and each diverges by one reservation.
+    // The marker's column is the scrollport's business, not the table's: the
+    // port's leading edge must stay clear of it, or a scrolled wide table
+    // renders its own cells under its own mark — reported from real use.
+    // Asserted before the chrome below because it is the user-visible half:
+    // restoring the inline-start reservation takes this negative (the chrome
+    // map then diverges too, at the add-row strip's own offset).
+    // Stated as a clearance rather than against stock, which has no marker to
+    // clear: with outline mode off the icon does not exist.
+    expect(outlined.portLeadingVsMarker).toBeGreaterThanOrEqual(0);
+
+    // Asserted as whole maps, so a failure names the piece that moved rather
+    // than a bare pair of numbers; rounded to whole pixels, since a divergence
+    // here is a whole reservation and sub-pixel jitter is not the question.
+    expect(CHROME_PIECES.filter((p) => !outlined.chrome[p] || !stock.chrome[p])).toEqual([]);
+    expect(chromeAgainstTable(outlined)).toEqual(chromeAgainstTable(stock));
+
+    // Which pieces the scrollport contains, stated rather than filtered, so
+    // the one exception is visible and a change to any of them fails here.
+    // The row drag handle sits on the inline-start side, which deliberately
+    // gets no reservation — a leading one is a strip that scrolled content
+    // renders into, and that strip is the marker's own column. So that handle
+    // stays clipped, as it is with none of this rule at all.
+    expect(
+      Object.fromEntries(CHROME_PIECES.map((p) => [p, outlined.chrome[p]!.outsidePort <= 0])),
+    ).toEqual({
+      ':scope > .table-col-btn': true,
+      ':scope > .table-row-btn': true,
+      '.table-col-drag-handle': true,
+      '.table-row-drag-handle': false,
+    });
+
+
+    // The widget's own box returns to the height stock gives it: the two
+    // scrollbars were taking their thickness out of the line.
+    expect(outlined.widgetH).toBe(stock.widgetH);
+
+    // What the reservation could have flipped and did not. This spec's first
+    // table case pins `outer.scrollWidth === outer.clientWidth`, and the
+    // reservation takes the slack between the wrapper's border box and the
+    // outer's padding box from a reservation each side to zero — so the
+    // question becomes sub-pixel rounding at a flush boundary. Held at every
+    // width measured, fractional ones included; pinned here at one.
+    expect(outlined.outerOverflowsX).toBe(0);
+    await h.applyStyleOverride('to-fractional-line-width', 'body { --file-line-width: 541.33px; }');
+    await browser.pause(250);
+    const fractional = await tableGeometry();
+    expect(fractional.outerOverflowsX).toBe(0);
+    expect(fractional.region.w).toBe(fractional.client.w);
+    expect(fractional.region.h).toBe(fractional.client.h);
+    await h.applyStyleOverride('to-fractional-line-width', null);
   });
 
   it('a pure list nesting fixture draws one guide per ancestor level', async function () {
