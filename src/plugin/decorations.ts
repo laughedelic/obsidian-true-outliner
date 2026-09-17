@@ -2270,8 +2270,14 @@ class SurplusMarkerSpacePlugin implements PluginValue {
  * first letter and moved back and forth across it under repeated arrow presses,
  * or, with the box clipping instead, vanished outright. A replacement leaves no
  * position inside to stand on: CM6 draws the caret at the replacement's own
- * edge, which is the line's column, and `EditorView.atomicRanges` (below) walks
- * motion and deletion over the run in one step.
+ * edge, which is the line's column.
+ *
+ * NOT atomic (`EditorView.atomicRanges`), which would make a run one step for
+ * the caret: CM6 consults that facet for deletion as well as motion and the two
+ * cannot be scoped apart, so Backspace at a run's text start would take the
+ * whole run — measured, six spaces at once, a block leaving its parent in one
+ * press. Editing keeps its own semantics; what it costs the caret is recorded
+ * in `docs/research/decoration-follow-ups`.
  */
 const SOURCE_INDENT_REPLACEMENT = Decoration.replace({});
 
@@ -2358,13 +2364,6 @@ class SourceIndentPlugin implements PluginValue {
 
   constructor(private readonly view: EditorView) {
     this.decorations = this.compute();
-  }
-
-  /** The replaced runs, for `EditorView.atomicRanges`: a run is one step to
-   * every motion and every deletion, never a sequence of positions sharing an
-   * x. */
-  atomic(): DecorationSet {
-    return this.decorations;
   }
 
   update(): void {
@@ -3735,8 +3734,6 @@ export function decorationsExtension(modes: DecorationSource): Extension {
     // the reason the two marks above have one.
     ViewPlugin.define((view) => new SourceIndentPlugin(view), {
       decorations: (v) => v.decorations,
-      provide: (plugin) =>
-        EditorView.atomicRanges.of((view) => view.plugin(plugin)?.atomic() ?? Decoration.none),
     }),
     // The fold affordance, drawn for every node we fold and hidden by CSS
     // wherever Obsidian's own indicator is present — see `FoldToggleWidget`.
