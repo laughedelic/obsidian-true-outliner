@@ -1,59 +1,34 @@
 /*
- * A line's own source indentation (`SOURCE_INDENT_CLASS`, decorations.ts),
- * rendered at no width.
+ * What Obsidian made of a run this layer REPLACED, and the width that run is
+ * owed.
  *
- * The depth rules in `10-editor.css` already state where such a line begins, so
- * the literal whitespace the file wrote to express that same depth is a second
- * column for one tree level. Collapsed, the depth is the only thing positioning
- * the line, and a paragraph, fence, table, quote or callout written under a list
- * item lands on the same column whatever its source looks like. Which lines
- * carry the mark at all is decorate.ts's decision, not this file's.
+ * `decorations.ts` takes a line's own source indentation out of the rendering
+ * altogether (`SOURCE_INDENT_REPLACEMENT`), so the characters are gone from the
+ * DOM and the depth rules in `10-editor.css` are the whole of the line's
+ * position. Which lines that reaches is decorations.ts's decision, not this
+ * file's.
  *
  * Not the discipline break it appears to be: the line's own box is where the
  * additive rules put it, and what this removes is the width of characters
  * Markdown itself reads as structure — reading mode renders none of them. A
  * list item's run is SIZED instead (`--to-list-hang`), because it carries the
  * item's native marker.
- *
- * `white-space: pre` keeps the run from wrapping the line, and
- * `vertical-align: top` keeps the inline-block — whose baseline would otherwise
- * be its bottom margin edge — from dropping the row it sits in.
- *
- * NOT `overflow: hidden`, which a list item's own wrapper carries and this one
- * must not: Obsidian draws the NATIVE caret, so a clipping box hides it
- * outright wherever the caret's own position falls inside — measured on the
- * manual pass, where the caret vanished on every line whose run was collapsed
- * and came back only once a character was typed past it. What overflows here is
- * whitespace, which paints nothing, so there is nothing to clip.
  */
-.markdown-source-view.mod-cm6 .cm-content > .cm-line .to-decor-source-indent {
-  display: inline-block;
-  width: 0;
-  white-space: pre;
-  vertical-align: top;
-}
 
 /*
- * The span Obsidian made of the same run, collapsed with the mark inside it.
+ * The span Obsidian made of the same run, collapsed with it.
  *
- * The mark alone is not always enough: Obsidian wraps a leading run in a span
- * whose width is stated, and CM6 nests that span outside the mark, so the outer
- * width survives a zero-width inner one. The figures, and the four spans this
- * names, are in `docs/research/source-indentation-width`.
+ * Replacing the characters is not always enough: Obsidian wraps a leading run in a span
+ * whose width is stated, and that width outlives the characters it was made
+ * from. The figures, and the four spans this
+ * rule names, are in `docs/research/source-indentation-width`.
  *
- * Only on a line this layer accounts for entire (`SOURCE_INDENT_WHOLE_CLASS`).
- * The span holds the run as Obsidian quantised it — the node's own indentation
- * and anything past it together — so a line carrying more only qualifies once
- * that surplus has a width of its own, which the rules below give it. A surplus
- * holding a tab never does, and there the mark stands alone.
- *
- * EVERY such span on the line, not only the one the mark landed in: Obsidian
- * splits a run across several, and on a line accounted for entire the mark's
- * characters and the surplus are both restated elsewhere. Measured with the rule
- * keyed on the mark's own span: code four spaces deep inside a two-space fence
- * kept a 16.86px `.cm-indent-spacing` beside the collapsed one, and rendered
- * two spaces wider than it is. These classes wrap leading indentation and
- * nothing else, and a list-item line carries neither this class nor the mark.
+ * Obsidian sizes these from the document rather than from the DOM, so they keep
+ * their stated widths even with the characters replaced away — measured, a
+ * replaced run still rendered 62px of `.cm-indent`. EVERY such span on the line,
+ * since Obsidian splits a run across several and the whole run is replaced.
+ * These classes wrap leading indentation and nothing else, and a list-item line
+ * carries neither this class nor a replacement.
  */
 .markdown-source-view.mod-cm6
   .cm-content
@@ -67,8 +42,6 @@
    * the padding standing. */
   padding: 0 !important;
   margin: 0 !important;
-  /* No `overflow: hidden` here either, and for the same reason: the caret's own
-   * position can fall inside this span too, on the surplus past the mark. */
   white-space: pre;
   vertical-align: top;
 }
@@ -80,7 +53,8 @@
  * Stated from `--to-space-advance`, the space width `MarginCompensation`
  * measures live, since a space's advance has no CSS unit of its own
  * (`docs/research/decoration-lessons`). The count comes from the decoration,
- * which knows how many characters of the run its mark did not cover.
+ * which knows how many characters of the run belong to the node and how many
+ * are past it.
  *
  * A block line adds it to the depth padding it already carries
  * (`10-editor.css`); an atom takes its depth as MARGIN, so the padding here is

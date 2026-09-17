@@ -2261,8 +2261,19 @@ class SurplusMarkerSpacePlugin implements PluginValue {
   }
 }
 
-/** The mark over a line's own source indentation; see `computeSourceIndent`. */
-export const SOURCE_INDENT_CLASS = 'to-decor-source-indent';
+/**
+ * A line's own source indentation, taken out of the rendering entirely.
+ *
+ * REPLACED rather than marked and collapsed. A zero-width box keeps the
+ * characters in the DOM, and every position among them then renders at the same
+ * x — measured on the manual pass, where the caret sat on top of the line's
+ * first letter and moved back and forth across it under repeated arrow presses,
+ * or, with the box clipping instead, vanished outright. A replacement leaves no
+ * position inside to stand on: CM6 draws the caret at the replacement's own
+ * edge, which is the line's column, and `EditorView.atomicRanges` (below) walks
+ * motion and deletion over the run in one step.
+ */
+const SOURCE_INDENT_REPLACEMENT = Decoration.replace({});
 
 /**
  * Set on a line whose whole leading run this layer accounts for: the mark's own
@@ -2311,33 +2322,29 @@ function computeSourceIndent(state: EditorState): DecorationSet {
     if (fact.indentCh === 0) continue;
     if (fact.lineNumber >= totalLines) continue; // stale fact past a shrunk doc
     const line = state.doc.line(fact.lineNumber + 1); // CM6 lines are 1-indexed
-    // A line with no text of its own has nothing for a run to push right, and
-    // collapsing it costs the caret its only place to stand: the position is
-    // inside the mark, which has no width. Shift+Enter writes exactly that line
-    // — the item's own indentation and nothing else — so this is the shape the
-    // reader meets most (manual pass, issue #117).
-    if (line.text.trim() === '') continue;
+    const run = LEADING_RUN_RE.exec(line.text)![0];
+    const surplus = run.slice(fact.indentCh);
+    // A surplus holding a TAB has no width this layer can state, so the line is
+    // left entirely alone rather than half-accounted: its run renders as stock.
+    if (surplus.includes('\t')) continue;
     // A provisional position's fact is derived from the MATERIALIZED text
     // rather than from this line, so the clamp is load-bearing rather than
     // defensive: the probe's line is one character longer than the real one.
-    const to = Math.min(line.from + fact.indentCh, line.to);
+    const to = Math.min(line.from + run.length, line.to);
     if (to <= line.from) continue;
-    const surplus = LEADING_RUN_RE.exec(line.text)![0].slice(fact.indentCh);
     // The line decoration first: `RangeSetBuilder` wants ascending sides at the
-    // same position, and a line's own side is below a mark's.
-    if (!surplus.includes('\t')) {
-      builder.add(
-        line.from,
-        line.from,
-        Decoration.line({
-          class: SOURCE_INDENT_WHOLE_CLASS,
-          attributes: {
-            style: `--to-indent-surplus: calc(${surplus.length} * var(--to-space-advance, 0.26em))`,
-          },
-        }),
-      );
-    }
-    builder.add(line.from, to, Decoration.mark({ class: SOURCE_INDENT_CLASS }));
+    // same position, and a line's own side is below a replacement's.
+    builder.add(
+      line.from,
+      line.from,
+      Decoration.line({
+        class: SOURCE_INDENT_WHOLE_CLASS,
+        attributes: {
+          style: `--to-indent-surplus: calc(${surplus.length} * var(--to-space-advance, 0.26em))`,
+        },
+      }),
+    );
+    builder.add(line.from, to, SOURCE_INDENT_REPLACEMENT);
   }
   return builder.finish();
 }
@@ -2351,6 +2358,13 @@ class SourceIndentPlugin implements PluginValue {
 
   constructor(private readonly view: EditorView) {
     this.decorations = this.compute();
+  }
+
+  /** The replaced runs, for `EditorView.atomicRanges`: a run is one step to
+   * every motion and every deletion, never a sequence of positions sharing an
+   * x. */
+  atomic(): DecorationSet {
+    return this.decorations;
   }
 
   update(): void {
@@ -3721,6 +3735,8 @@ export function decorationsExtension(modes: DecorationSource): Extension {
     // the reason the two marks above have one.
     ViewPlugin.define((view) => new SourceIndentPlugin(view), {
       decorations: (v) => v.decorations,
+      provide: (plugin) =>
+        EditorView.atomicRanges.of((view) => view.plugin(plugin)?.atomic() ?? Decoration.none),
     }),
     // The fold affordance, drawn for every node we fold and hidden by CSS
     // wherever Obsidian's own indicator is present — see `FoldToggleWidget`.
