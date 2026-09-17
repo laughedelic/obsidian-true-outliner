@@ -23,13 +23,16 @@ states `overflow-x` alone, and one axis `auto` beside `visible` computes the oth
 - **Both overflow axes are stated**, rather than one stated and the other promoted. Measured, this
   changes nothing once the reservation is in place; it is written to say on the box what Obsidian
   says on its own, and the note records that no assertion can fail without it.
-- **The two add buttons are re-anchored into the reservation**, at their stock size and their
-  stock offset from the table, so nothing in the widget moves on screen. That means releasing
-  their native near inset as well as setting the far-edge one — the difference between the fix and
-  the third dead end the note records.
-- **The two drag handles come back** with no rule of their own, because they track the table while
-  the reservation moves the scrollport's edge out past them — on every table rather than only on
-  the ones that fit.
+- **The two add buttons are pulled inside the reservation by a transform**, at their stock size
+  and their stock offset from the table, so nothing in the widget moves on screen. A transform
+  rather than an inset: a percentage inset resolves against the visible padding box, so every
+  inset form scrolls the button out of reach on a wide table — which the note records as
+  predating this change rather than following from it.
+- **The column drag handle comes back** with no rule of its own, because it tracks the table while
+  the reservation moves the scrollport's edge out past it. The row drag handle does not: it sits on
+  the inline-start side, which gets no reservation, because a leading one is a strip that a
+  scrolled table renders its own cells into — and that strip is the marker's column. Real use
+  found that; the note carries the figures.
 - Every length in the rule derives from Obsidian's own `--table-drag-handle-size`, so the
   reservation follows the platform's own value rather than carrying one of ours.
 

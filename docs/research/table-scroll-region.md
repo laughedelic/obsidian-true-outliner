@@ -102,10 +102,11 @@ where the line offers 558.
 | `.table-wrapper { position: static }` | region 0/0, widget 93 px | the two buttons re-anchor to the widget: the add-column button lands 455 px right of the table at the widget's full height, the add-row strip 590 px wide |
 
 The third is a dead end of the declaration rather than of the technique: releasing the native near
-inset (`inset-inline-start: auto`, `top: auto`) alongside the far-edge one moves the button as
-intended, which is what the reservation below does with it. Recorded because the malformed form
-looks identical in a stylesheet and reports no error — the computed insets are the only way to see
-which one landed.
+inset (`inset-inline-start: auto`, `top: auto`) alongside the far-edge one does move the button.
+Recorded because the malformed form looks identical in a stylesheet and reports no error — the
+computed insets are the only way to see which one landed. The released form is a dead end too, for
+a different reason real use found later: any inset form scrolls the button out of reach on a wide
+table, so the rule ends up moving the button with a transform instead.
 
 `position: fixed` on the chrome was measured for the same reason and is recorded only because it
 isolates the mechanism: it too gives a clean region (0/0), positioning the button against the
@@ -122,10 +123,15 @@ for.
 ## The reservation
 
 What the wrapper is missing is the reservation the widget's own padding already is. Give it the
-same one, re-anchor the two add buttons into it — releasing their native near inset, per the third
-dead end — and pull their cross-axis length back to the table's own so the reservation cannot
-stretch them. The handles need nothing of their own: they track the table, and the reservation
-moves the scrollport's edge out past them.
+same one, pull the two add buttons inside it, and correct their cross-axis length so the
+reservation cannot stretch them. The handles need nothing of their own: they track the table, and
+the reservation moves the scrollport's edge out past them.
+
+The figures below are that shape with the reservation on all four sides, which is what this pass
+settled on and what real use then found two defects in — the section after next revises it to
+three sides and replaces the buttons' re-anchoring with a transform. The geometry it reports for
+a table that fits is unchanged by that revision; what changes is the row drag handle, which the
+revision leaves clipped.
 
 | | region (h/v) | scrollbars | widget | chrome against the table | drag handles |
 | --- | ---: | ---: | ---: | --- | --- |
@@ -142,6 +148,47 @@ table itself does not move (16,16 from the widget's own box, in all three states
 height returns to stock, the guide and the marker are unaffected, `scrollLeft` on the wide fixture
 still takes 300, and the document's own scroller stays at its client width — 668/668 — instead of
 scrolling sideways.
+
+## What real use found, and what the reservation had to become
+
+Two defects came back from a wide table in a real vault, and only one of them was ours.
+
+**A leading reservation is a strip that scrolled content renders into.** A scroll container's
+scrollport IS its padding box, so reserving on the inline-start side moves the clip edge one
+reservation left of the table — into the column the marker occupies. Unscrolled, nothing is there;
+scrolled, the table's own cells render across the whole scrollport, mark included. Measured as the
+clearance between the scrollport's leading edge and the marker's right edge: +7.2 px without any
+reservation, **−8.8 px with a symmetrical one**, +7.2 px again once the inline-start side is
+dropped. The e2e case asserts that clearance, and the symmetrical rule is its control: it reads
+back the same −8.8 px. The table's own box reads −1467 px at mid scroll in every case, which is why the box is
+the wrong thing to measure: the clip is what decides whether anything shows.
+
+So the reservation is three-sided. The block-start side keeps its own — that axis never scrolls,
+so nothing can move into it, and the column drag handle it uncovers stays uncovered. The
+inline-start side gets none, and the row drag handle that lives there stays clipped, exactly as it
+is with none of this rule at all. That is a residual, not a fix: the handles were never the point
+of this change, and one of them cannot be had at the same time as a mark that stays clear.
+
+**A percentage inset resolves against the VISIBLE padding box, not the scrollable content.** This
+is the mechanism behind the second report — a wide table's add-column button out of reach — and it
+is not this change's doing. `inset-inline-start: 100%` on a box whose containing block is also the
+scroll container resolves to the scrollport's own width, so the button lands near the content's
+left end and scrolling carries it off: measured 2977 px left of the table's right edge, its centre
+at x = −2001 in a 1024 px viewport at full scroll, where no pointer can reach it. The same figures
+come back from the rule as it stands on `main`, from the symmetrical reservation, and from the
+three-sided one — all three, because all three make the anchor box the scroller. Natively the
+button sits at the table's right edge (offset 0), because natively the anchor box is the tight
+wrapper INSIDE a scrolling outer element.
+
+What this change can do there, it does: on a table that fits, both buttons keep their native
+placement to the pixel, and a real pointer hover reveals the add-column button and lands on it.
+What it cannot do is give a wide table back an affordance that the Experiment 2b arrangement took
+away before this change existed. Three ways out, none of them a stylesheet: make the wrapper a
+flex row so the buttons take a static position at the table's own right edge (a real intervention
+in native layout, unmeasured); publish the table's measured width as a custom property for the
+inset to use, the way the chevron and the accent stops are already measured; or the parking-lot
+option that dissolves the arrangement itself, drawing a widget's marker and guide outside the
+widget so Obsidian's own box can keep its own scroll ([decoration-follow-ups.md](decoration-follow-ups.md)).
 
 An uncovered handle is a grabbable one, checked rather than assumed. Hit-tested at the centre of
 its own visible part, the row drag handle answers as itself in every state — but without the
@@ -161,7 +208,9 @@ fixtures, at the default width, at two fractional readable-line widths (587.5 px
 under a 1.1 leaf zoom — the last of which leaves the wrapper 528.381 px in a 528 px box and still
 rounds to no overflow.
 
-Three residuals. The add-row strip's bottom lands 0.39 px past the scrollport on the wide fixture,
+Four residuals, counting what the revision below adds: the row drag handle stays clipped, since
+the side it sits on is the side that has to stay clear of the marker. The add-row strip's bottom
+lands 0.39 px past the scrollport on the wide fixture,
 a sub-pixel of the table's own fractional height, clipped by the hidden axis. On a wide table the
 add-column button stays pinned to the scrollport's inline edge rather than sitting at the table's
 far right, which is how it already behaves today — the reservation moves it 12 px right, the width

@@ -12,8 +12,8 @@ Two constraints shape everything below, both inherited rather than chosen:
 - The inner `.table-wrapper` is `position: relative; width: fit-content`, tight to the table, and
   is the positioning anchor for Obsidian's two add buttons, each placed at a `100%` inset of its
   padding box. So anything done to that box moves those two with it. The two drag handles are
-  anchored to their own cells instead, which is why the same change moves the buttons and merely
-  uncovers the handles.
+  anchored to their own cells instead, so the same change leaves them where they are and only
+  decides whether the scrollport contains them.
 
 ## Goals / Non-Goals
 
@@ -48,11 +48,18 @@ the asymmetry of its two failure directions rather than on feasibility: it is bu
 CM6 already provides, and the direction that fails badly puts the whole note into sideways scroll.
 The third is this change.
 
-The reservation is the same one the outer widget's own padding already is — `padding:
-var(--table-drag-handle-size)` — given back with a negative margin of the same length so the
-widget's box does not grow, and `max-width` widened by twice the reservation so a wide table
-keeps the visible width it has today. The reservation half carries `:not(.is-loading)`, for the
-reason under Risks; the overflow half does not, so no state can leave a wide table unclipped.
+The reservation is the one the outer widget's own padding already is, given back with a negative
+margin of the same length so the widget's box does not grow, and `max-width` widened to match so
+a wide table keeps the visible width it has today. The reservation half carries
+`:not(.is-loading)`, for the reason under Risks; the overflow half does not, so no state can
+leave a wide table unclipped.
+
+On three sides, not four. A scroll container's scrollport IS its padding box, so reserving on the
+inline-start side puts the clip edge one reservation left of the table — inside the column the
+marker occupies — and a scrolled table renders its own cells there. Real use found exactly that
+(figures in the note). The block-start side keeps its reservation, since that axis never scrolls
+and nothing can move into it; the inline-start side gets none, and the row drag handle that lives
+there stays clipped, as it is with none of this rule at all.
 
 ### D2. State both overflow axes, as Obsidian's own rule does
 
@@ -69,32 +76,31 @@ and because a future overhang should reappear as nothing rather than as a scroll
 the fix needs it. Nothing in this change's coverage can fail without it, and task 2.3 is written
 to say so rather than to claim a control it does not have.
 
-### D3. Re-anchor the two add buttons by their logical insets, not by a transform
+### D3. Pull the two add buttons in with a transform, leaving their insets alone
 
-Both land in the same place and both measured identically. Logical insets (`inset-inline-end`,
-`inset-block-end`) say "the far edge" in the same spelling Obsidian's own rules use, so ours
-cannot resolve against a different edge than the declarations it is correcting. A transform would
-have to name a physical side and hold that naming in step with theirs.
+The transforms are physical (`translateX`, `translateY`) because the box they act on is: with
+Obsidian's own right-to-left setting on, `.cm-content` computes `direction: rtl` while
+`.table-wrapper` stays `ltr`, so both buttons keep the physical sides an LTR note gives them,
+measured with the reservation and without it. An earlier draft of this decision re-anchored the
+buttons by logical insets and claimed RTL as the reason; real use then showed the inset form
+scrolls the button out of reach on a wide table, and the RTL case turns out to be unaffected
+either way.
 
-The direction question turns out to be moot rather than decisive, and measurement is what says so:
-with Obsidian's own right-to-left setting on, `.cm-content` computes `direction: rtl` while
-`.table-wrapper` stays `ltr`, so both buttons keep the physical sides they have in an LTR note,
-with the reservation and without it. An earlier draft of this decision claimed RTL as the reason
-for the logical spelling; the reason is agreement with native, and the RTL case is simply
-unaffected.
+Obsidian's own insets are left alone, and each button is pulled inside by its own width with a
+transform instead. An inset cannot do this job: a percentage resolves against the VISIBLE padding
+box, not the scrollable content, so on a wide table every inset form — Obsidian's own included —
+lands the button near the content's left end, where scrolling carries it off. That is the second
+thing real use found, and the note records that it predates this change: any arrangement where
+the anchor box is also the scroller has it. A transform moves the box without touching where it
+is anchored, which keeps a fitting table's buttons exactly where stock puts them.
 
-Setting the far-edge inset is not enough on its own. Obsidian gives each button an explicit size
-as well as a near inset (`inset-inline-start: 100%` on the add-column button, `top: 100%` on the
-add-row strip), and an over-constrained box drops the far-edge inset — which is the note's third
-dead end, indistinguishable from a working rule in a stylesheet and visible only in the computed
-insets. So each button's native near inset is released to `auto` in the same declaration block
-that sets the far-edge one.
-
-Each button also needs its cross-axis length pulled back by twice the reservation and its
-cross-axis offset pushed in by one: its native `height: 100%` / `width: 100%` and its `top: 0` /
-`inset-inline-start: 0` resolve against the padding box, which the reservation has grown.
-Measured: with the release and both corrections, every piece of chrome keeps its stock size and
-its stock offset from the table.
+Each button also needs its cross-axis length pulled back by the reservation on that axis, and the
+add-column button its cross-axis offset pushed in by one: `height: 100%`, `width: 100%` and
+`top: 0` all resolve against the padding box, which the reservation has grown — by two
+reservations in the block axis, by one in the inline axis, since the inline-start side has none.
+The add-row strip's own `inset-inline-start: 0` needs nothing for the same reason. Measured: with
+the transforms and those corrections, every piece of chrome keeps its stock size and its stock
+offset from the table.
 
 The declarations keep the `!important` the rule they replace already carries on every one of its
 own. Ours out-specifies Obsidian's `.table-wrapper` and chrome rules on class count, so the flag is
@@ -106,8 +112,9 @@ same elements, which is the exposure under Risks.
 The `.table-wrapper` rule fires on the same three classes as the outer element's
 `contain`/`overflow` override, so the two are active together: making the wrapper a scroll
 container is only correct while the outer is not one. The two new button rules take the same
-gate, verbose as the tripled selector list is, rather than the broader
-`.to-decor-widget-line` — which marks every widget line we patch, including those the outer
+gate — one `:is()` list of the same three classes, whose specificity is its most specific
+argument and so counts as the spelled-out selectors it replaces — rather than the broader
+`.to-decor-widget-line`, which marks every widget line we patch, including those the outer
 override does not cover.
 
 ### D5. The rule lives in `styles/10-editor.css`

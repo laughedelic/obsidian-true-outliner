@@ -8,9 +8,13 @@ A table SHALL scroll on an axis only when its own content exceeds the space avai
 axis. A table that fits its line SHALL NOT scroll on either axis, and SHALL render in the same
 box stock Obsidian gives it. The vertical axis SHALL NEVER scroll: a table's rows are all shown.
 
+A table's own content SHALL NOT render in the column its node's marker occupies, at any scroll
+position.
+
 Obsidian's own table-edit chrome — the add-row and add-column buttons and the row and column
 drag handles — SHALL keep the size and the position relative to the table that stock Obsidian
-gives it, and SHALL remain reachable, in outline mode as outside it.
+gives it. On a table that fits its line, all four SHALL remain reachable. The row drag handle,
+which sits on the side the previous requirement reserves for the marker, MAY be clipped.
 
 #### Scenario: Blockquote native bar and guide render together
 - **WHEN** a blockquote line also carries an active guide
@@ -38,11 +42,19 @@ gives it, and SHALL remain reachable, in outline mode as outside it.
   are off, so block-selection chrome alone reaches outside the widget's box
 - **THEN** it scrolls exactly as the two scenarios above require
 
-#### Scenario: Native table-edit chrome stays put and stays reachable
+#### Scenario: Native table-edit chrome stays put
 - **WHEN** a table in outline mode is compared against the same table with outline mode off
 - **THEN** the add-row button, the add-column button and both drag handles have the same size and
-  the same offset from the table in both, and none of them is clipped away by the table's own
-  scrolling
+  the same offset from the table in both
+
+#### Scenario: A fitting table's chrome is reachable
+- **WHEN** a table narrower than its line carries outline chrome
+- **THEN** the add-row button, the add-column button and the column drag handle are inside the
+  table's own scrollport rather than clipped or scrolled away from
+
+#### Scenario: A scrolled wide table does not render under its own marker
+- **WHEN** a table wider than its line is scrolled to its far edge
+- **THEN** no part of the table renders in the column its marker occupies
 
 **Covered by**: `e2e/specs/51-guides-gradient.e2e.ts` ("blockquote: native colored bar
 (::before) and our guide (::after) coexist, neither clobbers the other", "wide-table

@@ -971,16 +971,31 @@ body.is-mobile {
  * handles fall on the negative side, which a scroll container cannot reach,
  * and are clipped. Hence the reservation here — the widget's own padding,
  * restated on the box that scrolls, and handed straight back with a negative
- * margin so the widget's box does not grow. `max-width` widens by twice the
- * reservation to keep the visible width a wide table had without it.
+ * margin so the widget's box does not grow.
  *
- * The buttons then need re-anchoring into that reservation, and a far-edge
- * inset alone does not do it: Obsidian gives each one a near inset AND an
- * explicit size, and an over-constrained box drops the far-edge inset
- * silently — nothing in the stylesheet says which one landed, only the
- * computed insets do. So each button's near inset is released to `auto` in
- * the same block. Their cross-axis offset and length are corrected for the
- * same reason the reservation exists: both resolve against the padding box.
+ * On three sides, not four. A scroll container's scrollport is its padding
+ * box, so a LEADING reservation is a strip that scrolled content renders
+ * into — and that strip is the marker's own column, which is where a wide
+ * table was reported sliding under its own mark. The inline-start side
+ * therefore gets no reservation, and the row drag handle that lives there
+ * stays clipped, as it is without any of this. The block-start side keeps
+ * its reservation: that axis never scrolls, so nothing can move into it.
+ *
+ * The buttons then have to come back inside the scrollport, and a far-edge
+ * inset cannot do it. A percentage inset resolves against the VISIBLE padding
+ * box, not the scrollable content, so on a wide table every inset form lands
+ * the button near the content's left end, where scrolling carries it off —
+ * Obsidian's own `inset-inline-start: 100%` included, which is why a wide
+ * table's add-column button is out of reach whenever this wrapper is the
+ * scroller. Obsidian's insets are therefore left alone and each button is
+ * pulled in by its own width with a transform, which keeps it beside the
+ * table where native puts it. Their cross-axis offset and length are
+ * corrected for the reservation on that axis: both resolve against the
+ * padding box, which the reservation has grown.
+ *
+ * The transforms are physical because this box is: `.table-wrapper` computes
+ * `direction: ltr` even in a right-to-left note, where the editor's own
+ * content box does not.
  *
  * `overflow` states both axes because `overflow-x` alone does not leave the
  * other one alone — one axis `auto` beside `visible` computes `visible` to
@@ -1011,9 +1026,11 @@ body.is-mobile {
   .cm-content
   > .cm-table-widget:is(.to-decor-guides, .to-decor-marker, .to-decor-node-selected):not(.is-loading)
   .table-wrapper {
-  padding: var(--table-drag-handle-size) !important;
-  margin: calc(-1 * var(--table-drag-handle-size)) !important;
-  max-width: calc(100% + 2 * var(--table-drag-handle-size)) !important;
+  padding: var(--table-drag-handle-size) var(--table-drag-handle-size)
+    var(--table-drag-handle-size) 0 !important;
+  margin: calc(-1 * var(--table-drag-handle-size)) calc(-1 * var(--table-drag-handle-size))
+    calc(-1 * var(--table-drag-handle-size)) 0 !important;
+  max-width: calc(100% + var(--table-drag-handle-size)) !important;
 }
 
 .markdown-source-view.mod-cm6
@@ -1021,8 +1038,7 @@ body.is-mobile {
   > .cm-table-widget:is(.to-decor-guides, .to-decor-marker, .to-decor-node-selected):not(.is-loading)
   .table-wrapper
   > .table-col-btn {
-  inset-inline-start: auto !important;
-  inset-inline-end: 0 !important;
+  transform: translateX(-100%);
   top: var(--table-drag-handle-size) !important;
   height: calc(100% - 2 * var(--table-drag-handle-size)) !important;
 }
@@ -1032,10 +1048,8 @@ body.is-mobile {
   > .cm-table-widget:is(.to-decor-guides, .to-decor-marker, .to-decor-node-selected):not(.is-loading)
   .table-wrapper
   > .table-row-btn {
-  inset-block-start: auto !important;
-  inset-block-end: 0 !important;
-  inset-inline-start: var(--table-drag-handle-size) !important;
-  width: calc(100% - 2 * var(--table-drag-handle-size)) !important;
+  transform: translateY(-100%);
+  width: calc(100% - var(--table-drag-handle-size)) !important;
 }
 
 /*

@@ -45,7 +45,7 @@ async function ensureOutlineMode(notePath: string): Promise<void> {
  * Obsidian's four pieces of table-edit chrome, by selector. The two buttons
  * are children of `.table-wrapper`; the two drag handles hang off their own
  * cells, which is why the reservation moves the first pair and merely uncovers
- * the second.
+ * the second — on the sides that have a reservation at all.
  */
 const CHROME_PIECES = [
   ':scope > .table-col-btn',
@@ -66,6 +66,8 @@ interface ChromePiece {
 
 interface TableGeometry {
   client: { w: number; h: number };
+  /** Clearance between the scrollport's leading edge and the marker's column. */
+  portLeadingVsMarker: number | null;
   region: { w: number; h: number };
   scrollbarH: number;
   scrollbarV: number;
@@ -110,6 +112,7 @@ async function tableGeometry(): Promise<TableGeometry> {
         right: wr.left + wrapper.clientWidth,
         bottom: wr.top + wrapper.clientHeight,
       };
+      const marker = outer.querySelector(':scope > .to-decor-marker-icon') as HTMLElement | null;
       const chrome: Record<string, unknown> = {};
       for (const sel of pieces) {
         const el = wrapper.querySelector(sel) as HTMLElement | null;
@@ -138,6 +141,9 @@ async function tableGeometry(): Promise<TableGeometry> {
       }
       return {
         client: { w: wrapper.clientWidth, h: wrapper.clientHeight },
+        portLeadingVsMarker: marker
+          ? round(port.left - marker.getBoundingClientRect().right)
+          : null,
         region: { w: wrapper.scrollWidth, h: wrapper.scrollHeight },
         scrollbarH: wrapper.offsetHeight - wrapper.clientHeight,
         scrollbarV: wrapper.offsetWidth - wrapper.clientWidth,
@@ -409,6 +415,22 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
     );
     expect(gradientLayerCount(tableBg)).toBe(1);
 
+    // Scrolled to the end, a wide table still does not render its own cells
+    // under its own mark: the scrollport's leading edge stays clear of the
+    // marker's column, whatever the scroll position. Reported from real use
+    // when the reservation was still symmetrical. Negative control: reserve
+    // on the inline-start side and this reads negative.
+    await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const cm = (view.editor as any).cm;
+      const outer = cm.contentDOM.querySelector('.cm-embed-block.cm-table-widget') as HTMLElement;
+      const wrapper = outer.querySelector('.table-wrapper') as HTMLElement;
+      wrapper.scrollLeft = wrapper.scrollWidth - wrapper.clientWidth;
+    });
+    await browser.pause(120);
+    const scrolled = await tableGeometry();
+    expect(scrolled.portLeadingVsMarker).toBeGreaterThanOrEqual(0);
+
     // And the wrapper's own scrollLeft is genuinely functional (not inert,
     // as it was when overflow was forced visible on the wrong element).
     await browser.executeObsidian(({ app, obsidian }) => {
@@ -462,16 +484,37 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
     // chrome. Compared against stock rather than asserted as pixels: these are
     // theme and font lengths. Negative control: drop the buttons' cross-axis
     // corrections and each diverges by one reservation.
+    // The marker's column is the scrollport's business, not the table's: the
+    // port's leading edge must stay clear of it, or a scrolled wide table
+    // renders its own cells under its own mark — reported from real use.
+    // Asserted before the chrome below because it is the user-visible half:
+    // restoring the inline-start reservation takes this negative (the chrome
+    // map then diverges too, at the add-row strip's own offset).
+    // Stated as a clearance rather than against stock, which has no marker to
+    // clear: with outline mode off the icon does not exist.
+    expect(outlined.portLeadingVsMarker).toBeGreaterThanOrEqual(0);
+
     // Asserted as whole maps, so a failure names the piece that moved rather
     // than a bare pair of numbers; rounded to whole pixels, since a divergence
     // here is a whole reservation and sub-pixel jitter is not the question.
     expect(CHROME_PIECES.filter((p) => !outlined.chrome[p] || !stock.chrome[p])).toEqual([]);
     expect(chromeAgainstTable(outlined)).toEqual(chromeAgainstTable(stock));
 
-    // And every piece is inside the scrollport, so neither scrolled-to nor
-    // clipped. Negative control: drop the wrapper's padding and both drag
-    // handles read a handle's width outside it.
-    expect(CHROME_PIECES.filter((p) => outlined.chrome[p]!.outsidePort > 0)).toEqual([]);
+    // Which pieces the scrollport contains, stated rather than filtered, so
+    // the one exception is visible and a change to any of them fails here.
+    // The row drag handle sits on the inline-start side, which deliberately
+    // gets no reservation — a leading one is a strip that scrolled content
+    // renders into, and that strip is the marker's own column. So that handle
+    // stays clipped, as it is with none of this rule at all.
+    expect(
+      Object.fromEntries(CHROME_PIECES.map((p) => [p, outlined.chrome[p]!.outsidePort <= 0])),
+    ).toEqual({
+      ':scope > .table-col-btn': true,
+      ':scope > .table-row-btn': true,
+      '.table-col-drag-handle': true,
+      '.table-row-drag-handle': false,
+    });
+
 
     // The widget's own box returns to the height stock gives it: the two
     // scrollbars were taking their thickness out of the line.
