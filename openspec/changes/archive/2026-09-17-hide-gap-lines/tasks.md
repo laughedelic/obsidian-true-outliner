@@ -64,7 +64,7 @@
 ## 5. Land
 
 - [x] 5.1 `npm run lint`, `npm run build`, `npm run test`
-- [ ] 5.2 A checkpoint push, which runs CI's full matrix
-- [ ] 5.3 Sync the delta spec into `openspec/specs/outline-decorations`
-- [ ] 5.4 Archive the change and bump the version, on the branch, before merging
+- [x] 5.2 A checkpoint push, which runs CI's full matrix
+- [x] 5.3 Sync the delta spec into `openspec/specs/outline-decorations`
+- [x] 5.4 Archive the change and bump the version, on the branch, before merging
 - [x] 5.5 `openspec validate hide-gap-lines --strict`
