@@ -115,19 +115,41 @@ all four surplus spaces gone. The same mechanism was first found inside a fence,
 six spaces of `      deeper`; keying on the mark's own coverage covers both, and a fence needs no
 exception of its own.
 
-## The one residue: code inside an indented fence
+## The surplus, stated rather than quantised
 
-A fence's own indentation is collapsed on every one of its lines, and a line indented deeper than
-the fence keeps the surplus — but Obsidian quantises a code line's whole leading run, so the
-surplus renders one quantum wide rather than its own. Measured on `      deeper` inside a fence
-indented by two: the run renders 48.36px (a 31.5px `.cm-indent` holding four spaces, of which the
-first two are marked and collapse to nothing inside it, plus a 16.86px literal remainder) where
-the four surviving spaces alone measure about 33.7px. The code is therefore indented relative to
-its fence, correctly, and by up to one quantum too much.
+A line carrying more than its node's own indentation keeps the difference, and what that
+difference MEASURES is stated here rather than left to Obsidian. Its quantiser sizes the whole
+run — the node's own indentation included — so leaving it to state the surplus renders a width
+that has no relation to the characters that survive. Measured on the manual pass's own shapes,
+with the wrapper left standing:
 
-The alternative was measured and is worse both ways: zeroing the quantised span takes the code's
-own indentation with it (all six spaces went), and excluding a fence from the collapse entirely
-leaves the whole block double-indented, which is the reported defect.
+| Line | Surplus | Rendered | Should be |
+|---|---|---|---|
+| `      second deeper` under `  first line` | 4 spaces | 62.2px | 20.4px |
+| `      deeper` inside a fence indented by two | 4 spaces | 48.4px | 20.4px |
+
+The layer knows the surplus in characters, so it states the width as
+`count × var(--to-space-advance)` — the space advance `MarginCompensation` already measures live
+for the marker rules, a space having no CSS unit of its own — publishes it as
+`--to-indent-surplus` on the line, and collapses every one of Obsidian's indent spans on that
+line rather than only the one holding the mark. Both rows then render at 20.4px, the width of
+four spaces.
+
+A surplus holding a TAB is the one shape left out: a tab renders to a tab stop rather than to a
+count of advances, so its width is not ours to state. There the wrapper stands and the
+quantisation residue with it.
+
+## A code block's own internal padding
+
+Obsidian pads a code line away from its own tinted box and withholds that padding from a fence
+written inside a list: measured, `padding-inline-start` 16px at the top level against 0 there.
+Before the collapse, the fence's own source indentation stood in for it; collapsed, the code sat
+flush against the box's left edge, which the manual pass reported. `70-source-indent.css` states
+the same `--size-4-4` Obsidian's own rule resolves to, so an indented block takes the padding its
+unindented neighbour has rather than one this layer invents.
+
+The fence's box still begins on its depth's column. What sits one padding in is its CONTENT,
+which is what a box means.
 
 ## What a zero-width run does to the caret
 
@@ -147,4 +169,9 @@ pins is a list item, whose run this change does not touch.
   unchanged by this pass: a nested item's marker stays one unit right of its parent's and a
   continuation line stays under its item's text.
 - **The parse.** Which levels exist is Markdown's business and was already decided by the time
-  this layer runs. Nothing here changes a byte of the document.
+  this layer runs. Nothing here changes a byte of the document. The same manual pass found that
+  a block start deeper than three columns — a tab-indented quote, or any quote two items deep in
+  a two-space file — parses as a paragraph; that is `parse.ts`'s own defect, recorded as
+  `open-questions` Q38.
+- **A table written inside a list item**, which Obsidian does not render as a table in that
+  position at all, with this plugin's decorations on or off (Q38).

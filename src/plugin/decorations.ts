@@ -2265,10 +2265,15 @@ class SurplusMarkerSpacePlugin implements PluginValue {
 export const SOURCE_INDENT_CLASS = 'to-decor-source-indent';
 
 /**
- * Set on a line whose mark covers its WHOLE leading run, which is the only
- * shape where Obsidian's own wrapper may be collapsed with the mark inside it:
- * that wrapper holds the run as Obsidian quantised it, so on a line carrying
- * more than its node's own indentation it holds the surplus too.
+ * Set on a line whose whole leading run this layer accounts for: the mark's own
+ * characters, plus — when the rest of the run is spaces — a stated width for
+ * that surplus in `--to-indent-surplus`. Obsidian's wrapper may then be
+ * collapsed entire, since nothing inside it is left to render.
+ *
+ * Absent when the surplus holds a TAB, whose rendered width is a tab stop
+ * rather than a count of advances and so cannot be stated: there the wrapper
+ * stands, with the quantisation residue `docs/research/source-indentation-width`
+ * records.
  */
 export const SOURCE_INDENT_WHOLE_CLASS = 'to-decor-indent-whole';
 
@@ -2311,11 +2316,20 @@ function computeSourceIndent(state: EditorState): DecorationSet {
     // defensive: the probe's line is one character longer than the real one.
     const to = Math.min(line.from + fact.indentCh, line.to);
     if (to <= line.from) continue;
-    const run = LEADING_RUN_RE.exec(line.text)![0].length;
+    const surplus = LEADING_RUN_RE.exec(line.text)![0].slice(fact.indentCh);
     // The line decoration first: `RangeSetBuilder` wants ascending sides at the
     // same position, and a line's own side is below a mark's.
-    if (to - line.from === run) {
-      builder.add(line.from, line.from, Decoration.line({ class: SOURCE_INDENT_WHOLE_CLASS }));
+    if (!surplus.includes('\t')) {
+      builder.add(
+        line.from,
+        line.from,
+        Decoration.line({
+          class: SOURCE_INDENT_WHOLE_CLASS,
+          attributes: {
+            style: `--to-indent-surplus: calc(${surplus.length} * var(--to-space-advance, 0.26em))`,
+          },
+        }),
+      );
     }
     builder.add(line.from, to, Decoration.mark({ class: SOURCE_INDENT_CLASS }));
   }

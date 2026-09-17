@@ -84,22 +84,40 @@ describe('source indentation: one column per tree level', function () {
     await openOutlined('SourceIndent/spaced.md', SPACED);
     const column = (await h.publishedUnit()) + (await h.publishedGutter());
     const lines = SPACED.split('\n');
-    // Every line of every child node, the fence's own interior included: the
-    // fence's indentation is the node's on all of its lines.
-    for (const i of [2, 4, 5, 7, 9, 10, 11, 13]) {
-      // The callout renders as a widget, so its own box is asserted below
-      // rather than through a source position.
-
+    // The paragraph, the table's rows and the quote: their text IS their start.
+    for (const i of [2, 9, 10, 11, 13]) {
       expect(await textColumn(i, lines[i]!)).toBeCloseTo(column, 1);
+    }
+    // A fence renders a box of its own, so it is the BOX that begins on the
+    // column; its code sits one code padding inside, asserted below.
+    for (const i of [4, 5, 7]) {
+      const info = await h.getLineElementInfo(i);
+      expect(+(info.rect.left - (await h.contentLeftAbsoluteX())).toFixed(2)).toBeCloseTo(column, 1);
     }
   });
 
-  it('keeps a fence’s interior indentation, which is the code’s own', async function () {
+  it('gives an indented fence the internal padding an unindented one has', async function () {
+    // Obsidian pads a top-level fence's code away from its own tinted box and
+    // withholds that padding inside a list, where the source indentation used to
+    // stand in for it. Collapsed, the code would sit flush against the box.
+    await openOutlined('SourceIndent/topfence.md', ['```js', 'let x = 1;', '```', ''].join('\n'));
+    const topBox = await h.getLineElementInfo(1);
+    const topPad = (await textColumn(1, 'let x = 1;')) - (topBox.rect.left - (await h.contentLeftAbsoluteX()));
+    await openOutlined('SourceIndent/spaced.md', SPACED);
+    const info = await h.getLineElementInfo(5);
+    const inset = (await textColumn(5, '  fenced')) - (info.rect.left - (await h.contentLeftAbsoluteX()));
+    expect(inset).toBeCloseTo(topPad, 1);
+  });
+
+  it('keeps a fence’s interior indentation at the width of its own spaces', async function () {
     await openOutlined('SourceIndent/spaced.md', SPACED);
     const flush = await textColumn(5, '  fenced');
-    // Four spaces past the fence's own two: content, not structure, and the
-    // only part of the run that still occupies width.
-    expect(await textColumn(6, '      deeper')).toBeGreaterThan(flush + 10);
+    // Four spaces past the fence's own two, stated from the measured space
+    // advance rather than left to Obsidian's quantiser — which sized the whole
+    // run, the fence's own indentation included, and rendered it half again too
+    // wide.
+    const advance = await h.publishedSpaceAdvance();
+    expect(await textColumn(6, '      deeper')).toBeCloseTo(flush + 4 * advance, 0);
   });
 
   it('starts a widget-rendered callout child on the same column', async function () {
@@ -117,7 +135,8 @@ describe('source indentation: one column per tree level', function () {
     const deeper = ['- alpha', '', '  first line', '      second deeper', ''].join('\n');
     await openOutlined('SourceIndent/deeper.md', deeper);
     const flush = await textColumn(2, '  first line');
-    expect(await textColumn(3, '      second deeper')).toBeGreaterThan(flush + 10);
+    const advance = await h.publishedSpaceAdvance();
+    expect(await textColumn(3, '      second deeper')).toBeCloseTo(flush + 4 * advance, 0);
   });
 
   it('leaves a child of a heading alone, whose depth its whitespace never stated', async function () {

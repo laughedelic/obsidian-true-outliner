@@ -96,7 +96,14 @@ distinguishing an indented code block from a paragraph.
 What a line carries BEYOND its node's own indentation is not structure either and SHALL be left
 standing: a line indented deeper than the node it belongs to — code inside an indented fence, a
 paragraph's own continuation line — SHALL keep the surplus, so its indentation relative to its own
-block survives.
+block survives, AND SHALL render that surplus at the width of the characters it is made of, not at
+whatever width Obsidian's own quantiser makes of the whole run. A surplus holding a tab is
+excepted: a tab's rendered width is a tab stop rather than a count of advances, and is not this
+layer's to state.
+
+A node that renders a BOX of its own puts that box on its depth's column and its content inside:
+a fenced code block SHALL keep the internal padding Obsidian gives an unindented fence, which it
+withholds from one written inside a list.
 
 Positions inside a collapsed run stay addressable and render at the line's own column. Where a
 caret lands is `content-space-caret`'s to state, and this requirement does not move it.
@@ -146,8 +153,14 @@ already decided by the time this layer runs.
 
 - **WHEN** a block written under a list item holds a line indented further than the block's own
   first line — code inside a fence, or a paragraph's continuation line
-- **THEN** the block begins on its own depth's column, and that line still renders indented
-  relative to the rest of the block
+- **THEN** the block begins on its own depth's column, and that line renders indented relative to
+  the rest of the block by the width of its own surplus characters
+
+#### Scenario: An indented fence keeps a fence's internal padding
+
+- **WHEN** a fenced code block is written under a list item
+- **THEN** its code sits the same distance inside its own box as the code of a fence written at
+  the top level
 
 #### Scenario: A child of a heading keeps its own leading whitespace
 
@@ -168,8 +181,9 @@ already decided by the time this layer runs.
 **Covered by**: `e2e/specs/56-list-grid.e2e.ts`; `e2e/specs/56-source-indent.e2e.ts` ("starts
 every kind written under an item on the item's child column", "keeps a fence's interior
 indentation, which is the code's own", "puts a tab-indented child on the same column as a
-space-indented one", "starts a widget-rendered callout child on the same column", "keeps a
-non-fence line indented deeper than its node", "leaves a child of a heading alone, whose depth its
+space-indented one", "starts a widget-rendered callout child on the same column", "gives an
+indented fence the internal padding an unindented one has", "keeps a fence's interior indentation
+at the width of its own spaces", "keeps a non-fence line indented deeper than its node", "leaves a child of a heading alone, whose depth its
 whitespace never stated", "holds with Obsidian's own indentation guides turned off", "collapses the
 run itself, so the line begins where its text does", "leaves the item's own indentation to the list
 rules", "touches nothing with outline mode off");

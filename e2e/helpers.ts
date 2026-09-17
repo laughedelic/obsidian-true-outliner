@@ -1357,6 +1357,31 @@ export function publishedGutter(): Promise<number> {
 }
 
 /**
+ * A space's own advance, as the RENDERED document publishes it, in px.
+ *
+ * `MarginCompensation` measures it live and writes it onto the editor's own
+ * element, because a space's advance has no CSS unit (see that code, and
+ * `docs/research/decoration-lessons`). Read rather than restated, for the
+ * reason `publishedUnit` records: CI's fonts are not macOS's, so a spec that
+ * spells the number asserts the font rather than the layout.
+ */
+export function publishedSpaceAdvance(): Promise<number> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    if (!view) throw new Error('no active markdown view');
+    const cm = (view.editor as any).cm;
+    const raw = getComputedStyle(cm.dom).getPropertyValue('--to-space-advance').trim();
+    if (!raw) throw new Error('--to-space-advance is not published');
+    const probe = document.createElement('div');
+    probe.style.cssText = `position:absolute;visibility:hidden;height:0;width:${raw};`;
+    document.body.appendChild(probe);
+    const width = probe.getBoundingClientRect().width;
+    probe.remove();
+    return +width.toFixed(2);
+  });
+}
+
+/**
  * The outline unit as the RENDERED document publishes it, in px.
  *
  * Read rather than restated: overriding the unit's single declaration is a
