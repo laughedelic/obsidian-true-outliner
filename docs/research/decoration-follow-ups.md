@@ -543,6 +543,15 @@ first.
   API that forces a view-plugin refresh, or if our extension moves to the
   swap-the-extension-array pattern that makes `updateOptions()` produce a real
   reconfigure diff.
+- **A widget atom's marker and guide on a plugin-owned element, outside the widget.** Both
+  currently live inside the widget's own box, which is why the box has to be forced to
+  `overflow: visible` and `contain: none`, and why a table's scroll had to move to an inner
+  wrapper at all ([table-scroll-region.md](table-scroll-region.md)). Drawing them on an element of ours instead — the
+  pattern the footer and the zoom trail already use (`chrome-line.ts`'s own-chrome class) — would
+  let every widget keep Obsidian's own boxes untouched, and would dissolve that whole class of
+  problem, `--to-selected-right`'s notch included. Far larger than the CSS fixes it would retire,
+  and it reopens Experiment 2a's question (a measured overlay) with a third answer, so it wants
+  its own measurement pass rather than a note in a bug fix.
 - **Viewport-limited decoration building.** Facts build over the whole document; building
   only over `view.viewport` (rebuild on `docChanged || viewportChanged`) is the standard
   shape (obsidian-lapel demonstrates it) and becomes worthwhile for multi-thousand-line
