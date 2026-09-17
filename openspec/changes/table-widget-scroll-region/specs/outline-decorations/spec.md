@@ -23,14 +23,20 @@ gives it, and SHALL remain reachable, in outline mode as outside it.
   scrollable), and the guide still renders
 
 #### Scenario: A table that fits its line does not scroll
-- **WHEN** a table narrower than its line carries an active guide or marker
+- **WHEN** a table narrower than its line carries any of the outline chrome that reaches outside a
+  widget's own box — a guide, a marker, or block-selection chrome
 - **THEN** neither axis scrolls, no scrollbar is shown, and the widget occupies the same box it
   does with outline mode off
 
 #### Scenario: A wide table scrolls sideways only
-- **WHEN** a table wider than its line carries an active guide or marker
+- **WHEN** a table wider than its line carries any of that chrome
 - **THEN** the horizontal axis scrolls the table's own content and the vertical axis does not
   scroll at all, with every row shown
+
+#### Scenario: A selected table with no guide and no marker behaves the same
+- **WHEN** a table is covered by a block selection while marker visibility excludes it and guides
+  are off, so block-selection chrome alone reaches outside the widget's box
+- **THEN** it scrolls exactly as the two scenarios above require
 
 #### Scenario: Native table-edit chrome stays put and stays reachable
 - **WHEN** a table in outline mode is compared against the same table with outline mode off

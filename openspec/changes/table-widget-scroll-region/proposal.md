@@ -5,14 +5,14 @@ from real-vault use on `Notes/Edge Case Zoo`, a two-column, three-row table with
 
 The cause is measured in [docs/research/table-scroll-region](../../../docs/research/table-scroll-region.md): our own rule makes the widget's inner
 `.table-wrapper` the scroll container, and that box is tight to the table by construction —
-Obsidian positions four pieces of table-edit chrome flush outside its four edges, and reserves
-room for them in the OUTER widget's own padding. Making the tight box a scroll container took all
-four pieces into its scrollable overflow region. Two of them are scrollable and account for the
-reported scroll on both axes; the other two sit where a scroll container cannot reach and are
-clipped, which is why a desktop table's row and column drag handles are currently unreachable in
-outline mode. The vertical axis has a second cause on top: the rule states `overflow-x` alone,
-and one axis `auto` beside `visible` computes the other to `auto` too — the pairing Obsidian's own
-rule spells out as `auto hidden`.
+Obsidian positions four pieces of table-edit chrome flush outside the table's four edges, two
+anchored to the wrapper and two to their own cells, and reserves room for all four in the OUTER
+widget's own padding. Making the tight box a scroll container took every piece into its scrollable
+overflow region. The two buttons are scrollable there and account for the reported scroll on both
+axes; the two drag handles sit where a scroll container cannot reach and are clipped, which is why
+a table's row and column drag handles are currently unreachable in outline mode — on mobile too,
+where they are the only way to reorder. The vertical axis has a second cause on top: the rule
+states `overflow-x` alone, and one axis `auto` beside `visible` computes the other to `auto` too.
 
 ## What Changes
 
@@ -20,11 +20,16 @@ rule spells out as `auto hidden`.
   its scroll region holds the table and nothing else. A table that fits scrolls on neither axis
   and returns to its stock box; a table wider than its line keeps the horizontal scroll that
   [docs/research/experiment-2-guide-lines](../../../docs/research/experiment-2-guide-lines.md) finding 4 introduced.
-- **Both overflow axes are stated**, rather than one stated and the other promoted.
+- **Both overflow axes are stated**, rather than one stated and the other promoted. Measured, this
+  changes nothing once the reservation is in place; it is written to say on the box what Obsidian
+  says on its own, and the note records that no assertion can fail without it.
 - **The two add buttons are re-anchored into the reservation**, at their stock size and their
-  stock offset from the table, so nothing in the widget moves on screen.
-- **The two drag handles come back**: the reservation puts them inside the scrollport instead of
-  outside it, on every table rather than only on the ones that fit.
+  stock offset from the table, so nothing in the widget moves on screen. That means releasing
+  their native near inset as well as setting the far-edge one — the difference between the fix and
+  the third dead end the note records.
+- **The two drag handles come back** with no rule of their own, because they track the table while
+  the reservation moves the scrollport's edge out past them — on every table rather than only on
+  the ones that fit.
 - Every length in the rule derives from Obsidian's own `--table-drag-handle-size`, so the
   reservation follows the platform's own value rather than carrying one of ours.
 
@@ -56,8 +61,10 @@ None.
 
 - **The alternative fix** — making the wrapper a scroll container only when the table is genuinely
   wider than its line — is measured and rejected in [docs/research/table-scroll-region](../../../docs/research/table-scroll-region.md), not deferred.
-  It restores stock exactly for a fitting table, but a stale gate puts the whole note into
-  sideways scroll, and CM6 gives no redraw to hang the re-evaluation on when a pane is resized.
+  It restores stock exactly for a fitting table and it is buildable on signals CM6 already
+  provides, but its two failure directions are not comparable: stale one way costs an unneeded
+  scrollbar, stale the other puts the whole note into sideways scroll, and the note measures the
+  window in which a pane drag holds it there.
 - **Where the add-column button sits on a genuinely wide table.** It is pinned to the scrollport's
   inline edge rather than the table's far right today, and stays there; the reservation moves it
   by the width the removed scrollbar was taking.

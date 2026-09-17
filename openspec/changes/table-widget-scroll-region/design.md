@@ -9,9 +9,11 @@ Two constraints shape everything below, both inherited rather than chosen:
 - The outer `.cm-table-widget` stays `overflow: visible` and `contain: none`, because a marker
   icon and a guide's `::after` reach left of the line's own box
   ([docs/research/decoration-lessons.md](../../../docs/research/decoration-lessons.md)). So a wide table's scroll cannot live there.
-- The inner `.table-wrapper` is `position: relative; width: fit-content` and is the positioning
-  anchor for Obsidian's four pieces of table-edit chrome, each placed at a `100%` inset of the
-  wrapper's own padding box. So anything we do to that box moves the chrome with it.
+- The inner `.table-wrapper` is `position: relative; width: fit-content`, tight to the table, and
+  is the positioning anchor for Obsidian's two add buttons, each placed at a `100%` inset of its
+  padding box. So anything done to that box moves those two with it. The two drag handles are
+  anchored to their own cells instead, which is why the same change moves the buttons and merely
+  uncovers the handles.
 
 ## Goals / Non-Goals
 
@@ -34,28 +36,38 @@ Two constraints shape everything below, both inherited rather than chosen:
 is one
 
 A scroll container's scroll region is the union of its padding box with its descendants' boxes,
-and Obsidian's chrome is positioned exactly one `--table-drag-handle-size` outside that padding
-box on all four sides. There are three ways out of the region, and only these three: take the
-chrome out of the scroller's containing-block chain, stop being a scroll container, or grow the
-padding box to hold the chrome and place the chrome inside it.
+and Obsidian's chrome reaches one `--table-drag-handle-size` past the table on all four sides —
+the two buttons measured from the wrapper's padding box, the two handles from their own cells.
+There are three ways out of the region, and only these three: take the chrome out of the
+scroller's containing-block chain, stop being a scroll container, or grow the padding box to hold
+the chrome and place the chrome inside it.
 
 The first breaks placement outright — measured, both by making the wrapper `position: static` and
-by making the chrome `position: fixed`. The second is the gate, rejected in the research note: it
-is bit-identical to stock when correct and puts the whole note into sideways scroll when stale,
-and CM6 offers no redraw to re-evaluate it on when a pane is resized. The third is this change.
+by making the chrome `position: fixed`. The second is the gate, which the research note rejects on
+the asymmetry of its two failure directions rather than on feasibility: it is buildable on signals
+CM6 already provides, and the direction that fails badly puts the whole note into sideways scroll.
+The third is this change.
 
 The reservation is the same one the outer widget's own padding already is — `padding:
 var(--table-drag-handle-size)` — given back with a negative margin of the same length so the
 widget's box does not grow, and `max-width` widened by twice the reservation so a wide table
-keeps the visible width it has today.
+keeps the visible width it has today. The reservation half carries `:not(.is-loading)`, for the
+reason under Risks; the overflow half does not, so no state can leave a wide table unclipped.
 
 ### D2. State both overflow axes, as Obsidian's own rule does
 
 `overflow-x: auto` alone does not leave the other axis alone; it promotes `visible` to `auto`.
 The rule becomes `overflow: auto hidden`, the same pairing Obsidian writes on the outer element.
 With the reservation in place the hidden axis clips nothing that was visible before — the chrome
-is inside the scrollport — and with the wrapper's height still `auto`, a horizontal scrollbar
-adds to the box rather than covering the table's last row.
+is inside the scrollport — and with the wrapper's height still `auto`, a horizontal scrollbar adds
+to the box rather than covering the table's last row.
+
+This declaration is defensive, and the note's measurement of the unpaired form says so plainly:
+with the reservation in place, stating `overflow-x` alone gives the same region and the same
+scrollbars on both fixtures and both platforms. It is written because it is what the box means,
+and because a future overhang should reappear as nothing rather than as a scrollbar — not because
+the fix needs it. Nothing in this change's coverage can fail without it, and task 2.3 is written
+to say so rather than to claim a control it does not have.
 
 ### D3. Re-anchor the two add buttons by their logical insets, not by a transform
 
@@ -64,11 +76,23 @@ Both land in the same place and both measured identically. Logical insets (`inse
 RTL note, where the add-column button is physically on the left. A transform would have to know
 which side that is.
 
+Setting the far-edge inset is not enough on its own. Obsidian gives each button an explicit size
+as well as a near inset (`inset-inline-start: 100%` on the add-column button, `top: 100%` on the
+add-row strip), and an over-constrained box drops the far-edge inset — which is the note's third
+dead end, indistinguishable from a working rule in a stylesheet and visible only in the computed
+insets. So each button's native near inset is released to `auto` in the same declaration block
+that sets the far-edge one.
+
 Each button also needs its cross-axis length pulled back by twice the reservation and its
 cross-axis offset pushed in by one: its native `height: 100%` / `width: 100%` and its `top: 0` /
 `inset-inline-start: 0` resolve against the padding box, which the reservation has grown.
-Measured: with both corrections, every piece of chrome keeps its stock size and its stock offset
-from the table.
+Measured: with the release and both corrections, every piece of chrome keeps its stock size and
+its stock offset from the table.
+
+The declarations keep the `!important` the rule they replace already carries on every one of its
+own. Ours out-specifies Obsidian's `.table-wrapper` and chrome rules on class count, so the flag is
+not load-bearing against Obsidian itself — it is there for a theme or snippet that reaches the
+same elements, which is the exposure under Risks.
 
 ### D4. The rule keeps the gate it already has
 
@@ -92,12 +116,25 @@ this is the same rule, corrected.
   chrome does not: the failure would be a reappearing scrollbar or a misplaced button, which the
   e2e assertions this change adds would catch on the next Obsidian bump.
 - **The add-row strip's bottom edge lands a sub-pixel past the scrollport** on a table whose
-  height is fractional, and the hidden axis clips that sliver → measured at 0.39 px on the wide
+  height is fractional, and the hidden axis clips that sliver → the note measures it on the wide
   fixture; below the threshold where rounding the reservation up would be worth the divergence
   from Obsidian's own value.
+- **The reservation assumes the outer widget's padding is `--table-drag-handle-size`**, which is
+  new exposure: `max-width: 100% + 2 × reservation` only lands the wrapper flush with the outer's
+  padding box while those two agree, where the `max-width: 100%` it replaces assumed nothing.
+  Obsidian breaks the agreement itself in one state — `.cm-table-widget.is-loading` zeroes that
+  padding — and the note measures what follows: the wrapper overhangs the widget on each side and
+  the outer element itself overflows. → the reservation half of the rule carries
+  `:not(.is-loading)` (D1), and the same pseudo-class answers a theme that changes the widget's
+  padding without changing the variable, which is the residual here.
 - **A theme that restyles `.table-wrapper` itself** (its padding, or its `fit-content` width)
   could shift what the reservation is measured against → the existing rule already overrides that
   box with `!important` and the same exposure; this change does not widen it.
+- **The 16 px band around the table changes owner**: it is the wrapper's padding after this change
+  where it was the widget's before, so a pointer event there has a different `event.target` →
+  Obsidian's own hit-testing in that band is not measured, and task 3.3 checks it by hand.
+  Scrolling in the band is at parity by construction, since natively the band belongs to the
+  scroll container's own padding either way.
 - **Two scroll containers if the outer override ever stops firing while this one does** → D4
   keeps both rules on one gate, and the guide/marker e2e cases already assert the outer's own
   overflow.
