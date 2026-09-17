@@ -9,6 +9,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { TFile, Vault } from 'obsidian';
+import type { OutlineNode } from '../src/model';
 import { SourceTreeCache } from '../src/plugin/source-tree-cache';
 import { VaultSearch, type NoteHits } from '../src/plugin/vault-search';
 
@@ -43,8 +44,11 @@ function vaultOf(notes: { path: string; mtime: number; text: string }[]): FakeVa
   } as unknown as FakeVault;
 }
 
+/** The macrotask the walk yields on; the palette passes its own window's. */
+const breathe = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
 const searchOver = (vault: FakeVault): VaultSearch =>
-  new VaultSearch(vault, new SourceTreeCache(vault));
+  new VaultSearch(vault, new SourceTreeCache(vault), breathe);
 
 /** Everything a run hands back, in the order it arrived. */
 async function collect(
@@ -111,7 +115,7 @@ describe('vault search: what comes back', () => {
 
     const group = groups[0]!;
     const ids = new Set<number>();
-    const walk = (nodes: readonly { id: number; children: readonly any[] }[]): void => {
+    const walk = (nodes: readonly OutlineNode[]): void => {
       for (const node of nodes) {
         ids.add(node.id);
         walk(node.children);

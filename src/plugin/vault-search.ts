@@ -55,17 +55,6 @@ export interface VaultSearchRequest {
  */
 const YIELD_EVERY = 25;
 
-/**
- * A macrotask, so rendering and input get a turn. A resolved promise would only
- * drain the microtask queue, which is the same block with extra steps.
- *
- * `globalThis` rather than a window's own timer, which the popout-compatibility
- * lint prefers: this one resumes a loop and touches no DOM, so which window owns
- * it does not matter — and taking it from a window would put `window` in the
- * module, which is what keeps this file out of the unit suite.
- */
-const breathe = (): Promise<void> => new Promise((resolve) => globalThis.setTimeout(resolve, 0));
-
 export class VaultSearch {
   /**
    * Bumped by every new query, every scope change and every cancellation.
@@ -78,9 +67,19 @@ export class VaultSearch {
    */
   private generation = 0;
 
+  /**
+   * `breathe` is the caller's, not this module's.
+   *
+   * It has to be a MACROTASK — a resolved promise only drains the microtask
+   * queue, which is the same block with extra steps — and the timer a macrotask
+   * comes from belongs to a window, which a palette in a popout window knows
+   * and a search over a vault does not. Passing it in also keeps `window` out
+   * of this file, which is what makes the walk drivable from the unit suite.
+   */
   constructor(
     private readonly vault: Vault,
     private readonly trees: SourceTreeCache,
+    private readonly breathe: () => Promise<void>,
   ) {}
 
   /** Abandons whatever is in flight, without starting anything. */
@@ -106,7 +105,7 @@ export class VaultSearch {
 
     for (let i = 0; i < files.length; i += 1) {
       if (i > 0 && i % YIELD_EVERY === 0) {
-        await breathe();
+        await this.breathe();
         if (!live()) return;
       }
 

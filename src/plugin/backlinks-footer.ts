@@ -237,7 +237,10 @@ class FooterController {
     // attributes a block widget to. Without this the footer inherits that
     // line's node chrome, so a note whose last line is a nested list item drew
     // that item's ancestor guide straight down through the whole footer.
-    this.el = createDiv({ cls: `${FOOTER_CLASS} ${OWN_CHROME_CLASS}` });
+    // The shared scope too: the row rules and the properties they rest on are
+    // `15-lineage-list.css`'s now, and a surface that does not set it draws rows
+    // whose marks fall back to nothing in particular.
+    this.el = createDiv({ cls: `${FOOTER_CLASS} to-lineage-list ${OWN_CHROME_CLASS}` });
     // The section's own chrome — its heading, its "resolving…" placeholder, a
     // wide ordinal's clearance — lays out against the gutter and the gap, and
     // is not a row, so `chrome-line.ts` never reaches it. Published here rather

@@ -1,0 +1,703 @@
+/*
+ * A lineage list's own rules: the group a note's hits sit under, its rows, the
+ * segments on them and the marks they carry.
+ *
+ * Its own part because two surfaces draw these — the backlinks footer and the
+ * search palette — and a part is a feature's rules rather than a file's. Before
+ * `20-backlinks-footer.css` in filename order, which is cascade order, so the
+ * footer can specialise what it draws: every rule there naming a `to-lineage-*`
+ * class is rooted at `.to-backlinks` and reaches nothing else.
+ *
+ * The classes say what they draw rather than where they began. They were the
+ * footer's `to-backlinks-*` until the palette needed them, and a scope class
+ * alone would not have contained them — most of these selectors are bare
+ * element classes, which reach any surface rendering the element whatever scope
+ * wraps it. `tests/styles.test.ts` holds the two parts to their own.
+ */
+
+/*
+ * The properties every rule below rests on, on the scope both surfaces set.
+ *
+ * They were on `.to-backlinks`, which is the footer's own element and which the
+ * palette never renders — and a custom property nobody defines fails by falling
+ * back rather than by complaining (`chrome-tokens.ts` makes the same point).
+ * `--to-lineage-mark` is `--to-lineage-mark` renamed with them, for the same
+ * reason the classes were.
+ */
+.to-lineage-list {
+  /* Smaller than the editor's, because a lineage row carries one mark per
+   * ancestor rather than one for the whole chain: at the editor's 0.85rem a
+   * four-deep trail reads as a row of buttons.
+   *
+   * `em`, so it resolves against each row's own font and lands on the same size
+   * as the segment icons inline beside it — one size for every mark in a list,
+   * by construction rather than by two numbers kept in step. */
+  --to-marker-icon-size: 0.8em;
+  /* How much smaller a lineage row's TEXT is than the row it leads to. Named
+   * once because two rules have to agree about it: the chain's font-size uses
+   * it, and the inline marks divide it back out to stay the size every other
+   * mark is. */
+  --to-chain-scale: 0.92;
+  /* The colour of every mark on these rows — row markers, the icons inline on a
+   * lineage row, and the fold chevrons that are notation about the same
+   * outline. One property rather than the constant repeated in each rule,
+   * because they had already drifted once. */
+  --to-lineage-mark: var(--text-muted);
+}
+
+/* A group head is chrome, and chrome reads at UI size — the same rule the
+ * footer's own heading takes, which is why the two were one selector until a
+ * second surface drew a group without drawing that heading. */
+.to-lineage-group-head,
+.to-lineage-resolving {
+  font-size: var(--font-ui-small);
+}
+
+/* A note nothing links to still ends predictably: one quiet line where the
+ * populated header would be, rather than the section appearing and vanishing as
+ * a note gains its first reference (docs/research/structured-backlinks, D9). */
+/*
+ * Inset so the card's own contents land on the outline's SECOND column.
+ *
+ * The section's link icon sits on column 0 (`.to-backlinks-head`), so a group
+ * is one level under it — its fold chevron and its depth-0 markers belong at
+ * `1 × unit`, exactly where a note's second-level markers sit. The padding is
+ * that column minus the half-icon the rows already inset by, so the two add up
+ * to it rather than one of them guessing.
+ */
+.to-lineage-group {
+  position: relative;
+  background: var(--background-primary-alt);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  padding: 0.5rem var(--to-group-inset) 0.6rem;
+  --to-group-inset: calc(var(--to-decor-unit) - var(--to-marker-icon-size, 0.85rem) / 2);
+  margin-bottom: 0.6rem;
+}
+
+.to-lineage-group-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.to-lineage-group-head:hover {
+  color: var(--text-normal);
+}
+
+/* One box wide with a marker icon, so the chevron's centre and every depth-0
+ * marker's centre are the same column — the group's own control sits directly
+ * above the rows it opens. */
+.to-chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--to-marker-icon-size, 0.85rem);
+  height: 0.7rem;
+  flex-shrink: 0;
+  /* A group's disclosure is the same kind of mark as a row's fold, and sits in
+   * the same column — it takes the same colour for the same reason. */
+  color: var(--to-lineage-mark);
+}
+
+.to-lineage-group-name {
+  font-weight: var(--font-semibold);
+}
+
+.to-lineage-group-folder,
+.to-lineage-group-count {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+.to-lineage-group-count {
+  margin-inline-start: auto;
+}
+
+.to-lineage-resolving {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  padding: 0.2rem 0 0.2rem var(--to-marker-gutter);
+}
+
+/*
+ * A row IS an outline line. Its depth, its marker column and its guides all
+ * come from the shared contract in `10-editor.css` (`.to-decor-block` / `.to-decor-atom` /
+ * `.to-decor-guides`), so nothing here positions anything — this rule only says
+ * how a footer row differs from an editor line: it is clickable, and it is a
+ * little tighter vertically.
+ *
+ * It used to be a flex container with a fixed-width marker cell and its own
+ * `margin-inline-start`. That is what put its bullets off the editor's column
+ * and left it with no guides at all: a second layout answering the same
+ * question differently (docs/research/backlinks-footer-spikes, S4).
+ */
+.to-lineage-row {
+  padding: 0.1rem 0;
+  cursor: pointer;
+  /* Set on the ROW, so the marker's `0.5ex` correction resolves against the
+   * same font as the text beside it. The depth grid stays in `rem` — it is
+   * chrome, and it must line up with the editor's. */
+  font-size: 0.92em;
+  /*
+   * The guide overlay is a `z-index: -1` pseudo-element, and negative-z children
+   * paint before the in-flow block backgrounds of their stacking context — so
+   * the group card's own background covered every guide. The editor never hits
+   * this because a `.cm-line` has no opaque box between it and its stacking
+   * context. Making the row a stacking context of its own scopes the overlay to
+   * it: still behind the row's text, no longer behind the card.
+   *
+   * Kept although the footer currently draws no guides: this is the condition
+   * under which drawing them WORKS, and `backlinks-controls` turns them back on
+   * behind a setting. Removed, that setting would ship painting stripes behind
+   * an opaque card and looking like it does nothing. */
+  isolation: isolate;
+}
+
+/* No per-row background: a hover block per line broke the outline into rows the
+ * editor does not have, and the guide overlay paints behind the row's own
+ * background (`z-index: -1`), so a filled row would hide the guides it sits on.
+ * The affordance is on the text instead. */
+.to-lineage-row:hover .to-lineage-content {
+  color: var(--text-normal);
+}
+
+/* Markers are NOTATION, not emphasis: a node's marker says what kind of node it
+ * is and nothing else, so a lineage segment and a reference of the same kind
+ * are drawn identically. Only the text separates them (docs/research/structured-backlinks, D4).
+ * The icon itself is `.to-decor-marker-icon`, shared with the editor — sized,
+ * shifted and coloured by that rule, not by this one. */
+.to-lineage-content {
+  overflow-wrap: break-word;
+}
+
+/* Context, not substance: dimmer and a little smaller. Relative to the row, not
+ * to the UI scale — an absolute size here would decouple the text from the
+ * marker beside it, which is the mistake the rule above records. */
+/*
+ * An ordered item's number, in the marker's place.
+ *
+ * Its LEFT EDGE lands on the block icon's — `column - iconSize / 2` — which is
+ * the rule the editor's own ordered markers follow, for the reason recorded
+ * there: a shared left edge reads as a column, where centring each number on
+ * its own width leaves `10.` and `100.` ragged and eats the room the fold
+ * chevron needs.
+ *
+ * Inline, not absolute. The negative margin pulls the box back over the row's
+ * reserved gutter and the `min-width` fills it, so a narrow number leaves the
+ * text exactly where every other row's text starts — and a number too wide for
+ * the slot grows rightward and pushes its own text out, which is what the
+ * editor does too rather than letting the digits cross their own text.
+ */
+.to-lineage-ordinal {
+  --to-ordinal-slot: calc(
+    var(--to-marker-gutter) + var(--to-marker-icon-size, 0.85rem) / 2
+  );
+  display: inline-block;
+  margin-inline-start: calc(-1 * var(--to-ordinal-slot));
+  min-width: var(--to-ordinal-slot);
+  /*
+   * The clearance a number too wide for the slot keeps from its own text.
+   *
+   * The editor's ordered marker gets this for free: its trailing space is part
+   * of the line and renders whether or not the digits fit. A footer ordinal is
+   * drawn from the item's number alone, with no space after it, so an
+   * overflowing one ran straight into its text. Inert while the number fits,
+   * `min-width` covering both it and the digits (`box-sizing: border-box`).
+   */
+  padding-inline-end: var(--to-marker-gap);
+  color: var(--to-lineage-mark);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+/* A code row is one line of a fence, shown as what it is. No block, no frame:
+ * the marker already says code. */
+.to-lineage-code {
+  font-family: var(--font-monospace);
+  font-size: 0.9em;
+  background: none;
+  padding: 0;
+  color: var(--text-muted);
+}
+
+/* Context, not substance: dimmer, and smaller. */
+.to-lineage-row.is-lineage .to-lineage-content {
+  color: var(--text-faint);
+}
+
+/*
+ * A LINEAGE row renders its markdown live, and spends no colour on it
+ * (docs/research/lineage-text-rendering, D1).
+ *
+ * A chain is context: it is drawn dimmer than the reference it leads to, and a
+ * theme-accented link inside it is the loudest thing on the line — which
+ * inverts the emphasis the row's own colour establishes. So links and tags stay
+ * live and separately activatable, and take the row's colour instead of their
+ * own.
+ *
+ * `currentColor` throughout rather than a token, so every mark follows the row
+ * — including through the row's own hover, which a fixed colour would not.
+ */
+.to-lineage-row.is-lineage .to-lineage-content a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: currentColor;
+  text-decoration-thickness: from-font;
+  text-underline-offset: 0.18em;
+}
+
+/*
+ * Emphasis carries WEIGHT in a chain, never colour.
+ *
+ * Several themes colour `<strong>` — measured, Catppuccin draws it blue and
+ * Things pink — which in a lineage row is the accent problem again arriving
+ * through a channel we did not open: the loudest thing on the line becomes a
+ * bold ancestor, in a row whose whole job is to be quiet. The bold itself
+ * stays; only the colour is declined.
+ */
+.to-lineage-row.is-lineage .to-lineage-content :is(strong, em, b, i, del, s) {
+  color: inherit;
+}
+
+/*
+ * The cursor is what tells the two destinations apart before the click rather
+ * than after it: a crumb re-roots the view or opens the source note, a link
+ * inside it leaves for somewhere else entirely. `alias` is the curled arrow the
+ * platform already uses for exactly that, and it costs the row no ink.
+ */
+.to-lineage-row.is-lineage .to-lineage-content a.external-link {
+  cursor: alias;
+}
+
+/* A tag is a jump AND a word in the sentence, so it reads as text carrying a
+ * little more ink than the row around it — not as a chip. A pill would be a
+ * second object in a line that is one. The fill on hover is what says it is
+ * operable. */
+.to-lineage-row.is-lineage .to-lineage-content a.tag {
+  color: color-mix(in srgb, currentColor 55%, var(--text-normal) 45%);
+  background: none;
+  border: none;
+  padding: 0 0.15em;
+  border-radius: var(--radius-s);
+  text-decoration: none;
+  /* The app's own tag size, for the reason code takes the app's own code size:
+   * `inherit` left a chain's tags LARGER than the reference row's below them,
+   * which Obsidian had already sized down to `--tag-size`. */
+}
+
+.to-lineage-row.is-lineage .to-lineage-content a.tag:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/*
+ * A highlight keeps the row's own text colour.
+ *
+ * `<mark>` carries a browser default of black-on-yellow (`color: MarkText`),
+ * and nothing in our rows overrides it — Obsidian's own mark styling is scoped
+ * to its rendered-markdown containers, which a footer row is not. So a
+ * highlight inside a row came out black on a dark theme, in a row whose text is
+ * otherwise `--text-faint`. Measured, muted or not: the colour was never ours.
+ */
+/*
+ * A highlight the footer draws itself.
+ *
+ * `--text-highlight-bg` cannot be the source. Measured across four installed
+ * themes it is four different things: undefined (so `<mark>` falls back to the
+ * browser's opaque `rgb(255,255,0)`), fully transparent (Things, Cupertino — a
+ * highlight that renders as ordinary text), opaque and LIGHT (Catppuccin, where
+ * light ink on it measures 1.14:1), and translucent yellow (the default and
+ * AnuPpuccin, where it works). Nothing built on it behaves the same in all
+ * four, which is why this rule was reported broken twice from two different
+ * themes.
+ *
+ * No theme styles `<mark>` inside our rows either — bare, every one of the four
+ * gives black on yellow — so there is nothing here to defer to. A fixed, low
+ * tint is the one construction that behaves identically everywhere: it keeps
+ * the composited ground close to the row's own background, which is the ground
+ * the theme already guarantees its text colour is legible against.
+ */
+.to-lineage-content mark {
+  color: inherit;
+  /* 0.3, not 0.4, and the number is a contrast floor rather than a taste. Swept
+   * across five themes in both schemes, a 0.4 tint left a reference row's
+   * highlighted text at 3.73:1 — under the 4.5:1 WCAG asks of normal text —
+   * while 0.3 lands at 4.94:1 worst case and stays plainly visible. */
+  background: rgba(255, 208, 0, 0.3);
+}
+
+/*
+ * A highlight inside a CHAIN: softer ground, and ink lifted to meet it.
+ *
+ * Measured, not estimated. A chain's text is `--text-faint`, and the default
+ * highlight composited over a dark theme lands at almost exactly that
+ * luminance — `rgb(102,102,102)` on `rgb(120,101,18)` is **1.01:1**, which is
+ * the floor. The text was not hard to read, it was gone.
+ *
+ * Both levers, because neither is enough alone. Any yellow tint raises the
+ * ground toward the faint ink, so muting the background alone still leaves a
+ * chain's own 2.9:1 unreachable; and lifting the ink alone to `--text-normal`
+ * makes a highlighted run in a chain as loud as the mention it leads to.
+ * Together they clear 3:1 while keeping the run recognisably part of the
+ * chain.
+ *
+ * Relative on both sides, so a theme moves them together: the ground is a
+ * share of the theme's own highlight, and the ink starts from whatever the row
+ * is and travels toward whatever the theme calls normal. `currentColor` in a
+ * `color` declaration is the INHERITED colour — the row's — which is exactly
+ * the starting point wanted here.
+ *
+ * The literal fallback stays. It is what stops a theme that leaves the token
+ * undefined from invalidating the declaration and cancelling the highlight.
+ */
+.to-lineage-row.is-lineage .to-lineage-content mark {
+  /* 40% of the base tint, and ink 80% of the way to the theme's normal text.
+   * Both numbers are the same sweep: at this tint the chain's ink reaches
+   * 3.49:1 at 60% and 4.82:1 at 80%, worst case across five themes in both
+   * schemes. 100% would clear it further and is what a reference row uses —
+   * the 20% of the row's own colour left here is what keeps a highlighted run
+   * reading as part of the chain rather than as the mention it leads to. */
+  background: rgba(255, 208, 0, 0.12);
+  color: color-mix(in srgb, currentColor 20%, var(--text-normal) 80%);
+}
+
+/*
+ * An inline code span, at the size Obsidian gives its own.
+ *
+ * `--code-size` (0.875em by default) is applied by Obsidian through its
+ * rendered-markdown containers, which a footer row is not — so a `<code>` here
+ * came out at the row's full size. Monospace at the same px reads LARGER than
+ * the prose beside it, which is why the row looked like it changed size at the
+ * code span. `.to-lineage-code` already did this for a code ROW; this is the
+ * same rule for a span inside any row.
+ */
+/*
+ * A tag scales with the row it is in.
+ *
+ * Capped, because a size token is not guaranteed to be relative: Catppuccin
+ * sets `--tag-size` to an absolute 16px, which made a tag larger than the
+ * reference row it sits in and larger still than a chain's smaller text. `min`
+ * keeps a theme's intent where it asks for something smaller and refuses one
+ * that would break the row's scale.
+ *
+ * On every row, not just a chain: the reference row's tags are Obsidian's own
+ * and take the same token.
+ */
+.to-lineage-content a.tag {
+  font-size: min(var(--tag-size, 0.875em), 0.875em);
+}
+
+.to-lineage-content code {
+  /* Capped for the reason the tag size is — a theme may define this one in
+   * absolute units too, and nothing inside a row may outgrow the row. */
+  font-size: min(var(--code-size, 0.875em), 0.875em);
+}
+
+/*
+ * Media never sets a row's height.
+ *
+ * A lineage row gets no rule here because nothing reaches it — the renderer
+ * drops an embed to its alt text before the row is drawn (design D7). This is
+ * the REFERENCE row's case, which keeps its embed because that row is a
+ * quotation and the embed is part of what the node says. Left unbounded it
+ * rendered at natural size, which is the reproduction D18 exists to rule out.
+ */
+.to-lineage-content :is(img, video, audio, iframe, canvas, svg.excalidraw-svg) {
+  max-height: 1.4em;
+  width: auto;
+  vertical-align: text-bottom;
+}
+
+/*
+ * A transclusion is bounded as media, because that is what it becomes.
+ *
+ * `.internal-embed` is the wrapper Obsidian resolves a `![[...]]` into, and it
+ * is already treated as media where a chain drops one. A reference row KEEPS
+ * its embed — the row is a quotation and the embed is part of what the node
+ * says — and a note transclusion resolves into block content carrying none of
+ * the tags bounded above, so it could still expand the row to its natural
+ * height. `overflow: hidden` as well as the bound: the height limit alone does
+ * not stop a taller child painting past it.
+ */
+.to-lineage-content .internal-embed {
+  display: inline-block;
+  max-height: 1.4em;
+  overflow: hidden;
+  vertical-align: text-bottom;
+}
+
+/*
+ * A segment's kind mark, on the CAP midline of the text beside it.
+ *
+ * `inline-block`, NOT `inline-flex`: an inline-flex box derives its baseline
+ * from its flex item, so neither `vertical-align: middle` nor a nudge on top of
+ * it lands where the arithmetic says. With no line box the span's baseline IS
+ * its bottom edge, and the box's centre can then be placed by `top` — the
+ * construction `.to-decor-marker-icon` documents.
+ *
+ * The CAP midline, where the editor's own markers use the x-height one. A kind
+ * glyph's ink is about 0.64em tall and the x-height midline sits 0.26em above
+ * the baseline, so a mark centred there DIPS below the baseline of the text
+ * beside it. The editor never shows that, because a marker hangs in its own
+ * gutter with no text on its line to be measured against; in a lineage row the
+ * mark and its name are adjacent words. Measured before this rule, a footer
+ * icon's lower edge sat 0.17em below the baseline; after, 0.06em — the same
+ * place the trail already put its own.
+ *
+ * `cap` is the font's own cap height, so this holds at any size and in any
+ * theme, with the x-height approximation standing where `cap` is unsupported.
+ * Both terms are in `em`, so the mark scales with the row: a chain's text is
+ * smaller than the reference it leads to, and its marks follow.
+ */
+.to-lineage-seg-icon {
+  display: inline-block;
+  vertical-align: baseline;
+  line-height: 0;
+  position: relative;
+  top: calc(0.4em - 0.5ex);
+  width: 0.8em;
+  height: 0.8em;
+  margin-inline-end: 0.3em;
+  color: var(--to-lineage-mark);
+}
+
+@supports (top: 1cap) {
+  .to-lineage-seg-icon {
+    top: calc(0.4em - 0.5cap);
+  }
+}
+
+.to-lineage-seg-icon > svg {
+  width: 100%;
+  height: 100%;
+}
+
+.to-lineage-seg + .to-lineage-seg {
+  margin-inline-start: 0.7em;
+}
+
+/* An ordered ancestor's number, inline, where every other kind gets an icon.
+ * Not the gutter's `.to-lineage-ordinal` treatment: that one is a fixed slot
+ * with a negative margin, which belongs to a marker column this mark is not in.
+ * Here the number simply takes the width it needs, ahead of the name it labels. */
+.to-lineage-seg-ord {
+  margin-inline-end: 0.3em;
+  color: var(--to-lineage-mark);
+  font-variant-numeric: tabular-nums;
+}
+
+.to-lineage-row.is-hit .to-lineage-content {
+  color: var(--text-normal);
+}
+
+/*
+ * A search term's own matches, told apart from an author's `==highlight==`.
+ *
+ * Both are `<mark>`; only ours carries the class, so the author's keeps
+ * whatever the theme gives it and this one is drawn by the footer. The two can
+ * sit in the same row — a term matching text the author happened to highlight
+ * nests one inside the other — so the treatments have to differ by more than
+ * intensity: this one is the accent colour the plugin uses for its own chrome,
+ * over a wash of it, where a theme's highlight is a flat fill.
+ *
+ * Nothing here changes the row's metrics. A mark that added padding or weight
+ * would reflow the line as the reader typed, which is the one thing a live
+ * filter must not do.
+ */
+.to-lineage-content mark.to-match {
+  border-radius: var(--radius-s);
+  background-color: hsla(var(--color-accent-hsl), 0.25);
+  color: var(--text-normal);
+  padding: 0;
+  font-weight: inherit;
+}
+
+.to-lineage-prop-name {
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  background: var(--background-modifier-form-field);
+  border-radius: var(--radius-s);
+  padding: 0 0.35em;
+  margin-inline-end: 0.4em;
+}
+
+/* An embed is a transclusion, not a mention, and should not be read as one. */
+.to-lineage-tag {
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  padding: 0 0.3em;
+  margin-inline-start: 0.4em;
+  white-space: nowrap;
+}
+
+/* Each ancestor in a chain is its own link, so it needs its own hover — one
+ * underline under the whole row would claim the row goes somewhere it does
+ * not. */
+.to-lineage-seg {
+  cursor: pointer;
+}
+
+/*
+ * Colour alone. The underline went when a segment started rendering its own
+ * markdown: a link inside a chain is underlined at rest, so a segment that
+ * underlined itself under the pointer made the ancestor read as a link and hid
+ * where any link inside it began and ended. On this row an underline means
+ * "link" and nothing else.
+ *
+ * `--text-normal` rather than a step from the row's own colour, and that is
+ * checked rather than assumed: both lineage surfaces sit at `--text-faint`
+ * (the rule above governs the trail too, which has no colour of its own), so
+ * one destination is visible on both.
+ */
+.to-lineage-seg:hover {
+  color: var(--text-normal);
+}
+
+/* The icon belongs to its own segment, so it answers that segment's hover —
+ * left at the muted constant it would stay dim under the name it names. */
+.to-lineage-seg:hover .to-lineage-seg-icon {
+  color: var(--text-normal);
+}
+
+/*
+ * The outline's own fold affordance, beside the marker, rather than a bespoke
+ * badge: the reader already knows this control from the editor.
+ *
+ * Placed where the editor places its own — right edge at
+ * `column - icon/2 - 3px`, clear of the marker's left edge by the same 3px
+ * visual gap (see the `.cm-fold-indicator` rules in `10-editor.css`, whose gutter term is a
+ * block chevron's anchor at the TEXT origin; this one is anchored on the row
+ * box, so the column is spelled out instead). Absolutely positioned inside the
+ * row, which `.to-decor-block` has already made a containing block, so it takes
+ * no width in the inline flow and cannot push the text off its column. */
+/*
+ * Centred in the gap between the guide it hangs off and the marker it belongs
+ * to: the guide runs at `(depth - 1) × unit`, the marker at `depth × unit`, so
+ * the midpoint is half a unit left of the marker. Previously it was pinned to
+ * the marker's left edge with a fixed 3px gap, which put it hard against the
+ * bullet and left the whole gap open on the other side.
+ */
+/* The footer's control shares the editor toggle's class for its glyph, its
+ * hover reveal and its folded rotation; what stays here is where it sits, which
+ * is the footer's own column arithmetic. It is a real `button` — see
+ * `renderRow` for why the semantics are not shared along with the look. */
+.to-lineage-fold {
+  position: absolute;
+  left: calc(
+    (var(--to-depth, 0) - 0.5) * var(--to-decor-unit) - var(--to-fold-size) / 2
+  );
+  --to-fold-size: 0.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--to-fold-size);
+  /* One line tall, pinned below the row's own padding, so it centres on the
+   * FIRST line of a row that wraps rather than on the row's whole box. */
+  top: 0.1rem;
+  height: 1.5em;
+  cursor: pointer;
+}
+
+.to-lineage-fold:hover {
+  color: var(--text-normal);
+}
+
+/*
+ * The footer's control shares the editor toggle's GLYPH — its chevron, its
+ * rotation when folded — and none of its placement or its hover behaviour.
+ *
+ * Both declared here, in the two-class selector, so which of the two
+ * single-class rules happens to come later in this file cannot decide it. That
+ * ordering is exactly what broke first: the editor rule's `left` (built from
+ * the editor's marker gutter) won inside the footer and put the button
+ * somewhere no click could reach.
+ *
+ * Always visible, unlike the editor's: a footer row has no hover convention to
+ * inherit and no fold command behind it, so hiding it would leave a keyboard or
+ * touch reader with nothing.
+ */
+.to-lineage-fold.to-decor-fold-toggle {
+  position: absolute;
+  left: calc((var(--to-depth, 0) - 0.5) * var(--to-decor-unit) - var(--to-fold-size) / 2);
+  width: var(--to-fold-size);
+  height: 1.5em;
+  top: 0.1rem;
+  opacity: 1;
+}
+
+/* A row whose markdown holds more than one block keeps them (`unwrapBlocks`
+ * only strips a LONE wrapper), and those still arrive with document margins. */
+.to-lineage-row :is(p, ul, ol) {
+  margin: 0;
+  padding: 0;
+}
+
+/*
+ * A depth-0 marker is CENTRED on its column, so half its ink sits left of the
+ * row's own box. Unindented, that ink lands on the card's edge — and once the
+ * body clips (`is-capped`), it is cut off outright, which read as the fade
+ * spilling onto the left edge. Half an icon of inset puts the column clear of
+ * the frame, and lands it on the same x as the group head's chevron.
+ */
+.to-lineage-rows {
+  padding-left: calc(var(--to-marker-icon-size, 0.85rem) / 2);
+}
+
+
+
+
+
+/* The last card dissolves when the list continues past it. Masked rather than
+ * overlaid, for the same reason the group fade is: a gradient would have to
+ * know the theme's background colour, and a mask fades the content itself. */
+.to-lineage-group.is-fading {
+  mask-image: linear-gradient(to bottom, black calc(100% - 2rem), transparent);
+}
+
+/* ---- The lineage separator, when the setting asks for one ---------------- *
+ *
+ * Off by default: the icons already divide the names, and a mark between two
+ * names is one more than the eye needs. When it IS on, it holds the same
+ * 0.7em a chain of plain names divides by — the chevron's own margins, split
+ * either side of it — so turning it on changes what stands between two
+ * ancestors and not the rhythm of the chain.
+ *
+ * `.to-lineage-seg + .to-lineage-seg` no longer matches once a separator
+ * sits between them, so that rule stops applying exactly where this one starts.
+ */
+.to-lineage-seg-sep {
+  /* The same construction the icons take, for the same reason and so the two
+   * land on one line: a chevron centred by `vertical-align: middle` sits on
+   * neither the icons' centre nor the text's, and reads as pointing between two
+   * marks rather than from one to the next. Its own box is smaller, so its
+   * centring term is its own. */
+  display: inline-block;
+  vertical-align: baseline;
+  line-height: 0;
+  position: relative;
+  top: calc(0.325em - 0.5ex);
+  width: 0.65em;
+  height: 0.65em;
+  margin-inline: 0.35em;
+  color: var(--to-lineage-mark);
+  opacity: 0.7;
+}
+
+@supports (top: 1cap) {
+  .to-lineage-seg-sep {
+    top: calc(0.325em - 0.5cap);
+  }
+}
+
+.to-lineage-seg-sep > svg {
+  width: 100%;
+  height: 100%;
+}
