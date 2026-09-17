@@ -191,14 +191,22 @@ export async function confirm(modifiers: ('Shift' | 'Mod')[] = []): Promise<void
 }
 
 /**
- * Where the reader landed: the note, the caret's line, and whether that view is
- * zoomed.
+ * Where the reader landed: the note, the caret's line, whether that view is
+ * zoomed, and the trail above the scope.
  *
  * Zoom is read off the DOM rather than off the plugin, the way `80-outline-zoom`
- * reads it: a zoomed view draws the breadcrumb trail, and the first crumb names
- * the root it was zoomed to. What a reader can see is what a spec asserts.
+ * reads it. `trail` is the crumbs the zoomed view draws, which name the
+ * ancestors ABOVE the scope and never the scope itself — it starts at the note
+ * and ends at the scope's parent. That makes it the thing to assert when two
+ * zoom roots are a parent apart: zooming to a hit leaves its own parent as the
+ * last crumb, and zooming to that parent instead leaves the crumb before it.
  */
-export function landing(): Promise<{ path: string; line: number; zoomed: boolean; root: string }> {
+export function landing(): Promise<{
+  path: string;
+  line: number;
+  zoomed: boolean;
+  trail: string[];
+}> {
   return browser.executeObsidian(({ app }) => {
     const leaf = app.workspace.getMostRecentLeaf();
     const view = leaf?.view as unknown as {
@@ -206,13 +214,13 @@ export function landing(): Promise<{ path: string; line: number; zoomed: boolean
       editor?: { getCursor(): { line: number } };
       containerEl?: HTMLElement;
     } | undefined;
-    const trail = view?.containerEl?.querySelector('.to-zoom-trail');
-    const crumbs = trail?.querySelectorAll('.to-lineage-seg');
+    const trailEl = view?.containerEl?.querySelector('.to-zoom-trail');
+    const crumbs = Array.from(trailEl?.querySelectorAll('.to-lineage-seg') ?? []);
     return {
       path: view?.file?.path ?? '',
       line: view?.editor?.getCursor?.()?.line ?? -1,
-      zoomed: trail !== null && trail !== undefined,
-      root: crumbs?.length ? (crumbs[crumbs.length - 1]?.textContent ?? '').trim() : '',
+      zoomed: trailEl !== null && trailEl !== undefined,
+      trail: crumbs.map((crumb) => (crumb.textContent ?? '').trim()),
     };
   });
 }

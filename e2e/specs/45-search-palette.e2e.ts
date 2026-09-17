@@ -187,6 +187,17 @@ describe('search palette', function () {
     });
   });
 
+  describe('the cap and its tail', function () {
+    it('states how many further notes hold hits, once the sweep has finished', async function () {
+      await h.openNote(QUIET);
+      await p.openPalette();
+      await p.search(TERM);
+      // Every fixture note but QUIET holds the term, and the cap is well above
+      // that, so the tail has nothing to report and takes no room at all.
+      expect(await p.tailLine()).toBe('');
+    });
+  });
+
   describe('the keyboard', function () {
     beforeEach(async function () {
       await h.openNote(QUIET);
@@ -218,6 +229,26 @@ describe('search palette', function () {
       const hits = await p.hitTexts();
       await browser.keys(['ArrowDown', 'ArrowUp', 'ArrowUp', 'ArrowUp']);
       expect(await p.activeHit()).toBe(hits[0]);
+    });
+
+    it('moves to the next group’s first hit, and stops at the last group', async function () {
+      const hits = await p.hitTexts();
+      const groups = await p.groupNames();
+      expect(groups.length).toBeGreaterThan(1);
+
+      await browser.keys([h.PRIMARY_MOD, 'ArrowDown']);
+      const afterFirstJump = await p.activeHit();
+      expect(afterFirstJump).not.toBe(hits[0]);
+
+      // Past the last group the key stops, the way the hit keys' ends stop. It
+      // used to rewind into the group it was already in, which is a move
+      // BACKWARDS out of a key that means forwards.
+      for (let i = 0; i < groups.length + 2; i += 1) {
+        await browser.keys([h.PRIMARY_MOD, 'ArrowDown']);
+      }
+      const atEnd = await p.activeHit();
+      await browser.keys([h.PRIMARY_MOD, 'ArrowDown']);
+      expect(await p.activeHit()).toBe(atEnd);
     });
 
     it('keeps focus in the query field throughout', async function () {
@@ -329,24 +360,40 @@ describe('search palette', function () {
       await h.setOutlineMode(true);
     });
 
-    it('opens the note zoomed, with the caret on the hit', async function () {
+    it('opens the note zoomed to the hit, with the caret on it', async function () {
       await p.openPalette();
       await p.search(`${TERM} parent`);
       await p.confirm();
       const landed = await p.landing();
       expect(landed.path).toBe(SHAPES);
       expect(landed.zoomed).toBe(true);
+      // Which scope, not merely that a zoom happened: the hit has children, so
+      // it is its own scope and the heading above it is the last crumb. The
+      // case below is the same assertion with a different answer, and checking
+      // only `zoomed` would pass for either.
+      expect(landed.trail[landed.trail.length - 1]).toContain('Shapes');
+      // Line 2 of the fixture — the caret is on the hit, not at the top of the
+      // note nor at the top of the scope.
+      expect(landed.line).toBe(2);
     });
 
-    it('opens a childless hit zoomed to its parent', async function () {
+    it('opens a childless hit zoomed to its parent, not to itself', async function () {
       await p.openPalette();
       await p.search(`${TERM} leaf`);
       await p.confirm();
       const landed = await p.landing();
       // A zoomed view is never one line: the hit has no children of its own, so
-      // the scope is the parent that gives it a place.
+      // the scope is the parent that gives it a place. Zooming to the hit
+      // instead is the finding the prototype surfaced, and it would satisfy
+      // `zoomed: true` — which is why the root is what this asserts.
       expect(landed.path).toBe(SHAPES);
       expect(landed.zoomed).toBe(true);
+      // The heading IS the scope here, so it is no longer a crumb: the trail
+      // stops at the note. Zooming to the hit instead — the finding the
+      // prototype surfaced — would leave the heading on the end of it, and
+      // would satisfy `zoomed: true` just as well.
+      expect(landed.trail[landed.trail.length - 1]).not.toContain('Shapes');
+      expect(landed.line).toBe(4);
     });
 
     it('opens a childless top-level hit unzoomed', async function () {

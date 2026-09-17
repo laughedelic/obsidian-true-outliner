@@ -205,7 +205,7 @@ describe('vault search: a superseded query', () => {
       text: NOTE(`- note ${i} TARGET`),
     }));
 
-  it('stops reading, not just stops calling back', async () => {
+  it('stops reading at the first file it was already on', async () => {
     const vault = vaultOf(manyNotes(200));
     const search = searchOver(vault);
 
@@ -221,16 +221,48 @@ describe('vault search: a superseded query', () => {
       },
     });
 
-    // Bumped while the first batch is in flight, which is what a second
-    // keystroke does.
+    // Bumped before the first read resolves, which is what a keystroke during
+    // the very first file does.
     search.cancel();
     await sweep;
 
     expect(finished).toBe(false);
-    // The measurement that separates ending the walk from silencing it: a guard
-    // that only dropped the callbacks would have read all 200.
-    expect(vault.reads.length).toBeLessThan(200);
-    expect(groups.length).toBeLessThan(200);
+    // Exactly one, not merely "fewer than 200": a guard that only dropped the
+    // callbacks would have read all 200, and a loose bound would have been
+    // satisfied by either.
+    expect(vault.reads).toEqual(['000.md']);
+    expect(groups).toEqual([]);
+  });
+
+  it('stops at its next yield when the query moves on mid-sweep', async () => {
+    const vault = vaultOf(manyNotes(200));
+    const search = searchOver(vault);
+
+    let finished = false;
+    const sweep = search.run({
+      query: 'TARGET',
+      only: null,
+      groupCap: 1000,
+      onGroup: () => {},
+      onDone: () => {
+        finished = true;
+      },
+    });
+
+    // One macrotask in, so the walk is past its first `breathe()` and the guard
+    // being measured is the one at the yield point rather than the one after a
+    // read. `YIELD_EVERY` exists for this branch and nothing else covered it.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const readSoFar = vault.reads.length;
+    search.cancel();
+    await sweep;
+
+    expect(finished).toBe(false);
+    expect(readSoFar).toBeGreaterThan(1);
+    expect(readSoFar).toBeLessThan(200);
+    // At most one more batch after the cancel: the walk ends at the yield it
+    // was heading for, not at the end of the vault.
+    expect(vault.reads.length).toBeLessThanOrEqual(readSoFar + 25);
   });
 
   it('lets the replacement finish, and reports only its results', async () => {

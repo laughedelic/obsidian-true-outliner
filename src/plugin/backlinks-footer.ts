@@ -878,15 +878,6 @@ class FooterController {
   }
 
   /**
-   * The term in force, or '' when none is.
-   *
-   * Read at RENDER time rather than passed down: a row is rendered from an
-   * awaited `MarkdownRenderer` call, and a term captured when the pass started
-   * would mark a row the reader has already retyped past. The generation guard
-   * throws that row away either way; reading the live term means it was never
-   * marked wrongly in the first place.
-   */
-  /**
    * What the shared list draws the footer's rows with.
    *
    * One place, rather than a branch inside the renderer: the settings, the view
@@ -921,6 +912,15 @@ class FooterController {
     };
   }
 
+  /**
+   * The term in force, or '' when none is.
+   *
+   * Read at RENDER time rather than passed down: a row is rendered from an
+   * awaited `MarkdownRenderer` call, and a term captured when the pass started
+   * would mark a row the reader has already retyped past. The generation guard
+   * throws that row away either way; reading the live term means it was never
+   * marked wrongly in the first place.
+   */
   private activeTerm(): string {
     return viewStateFor(this.targetPath).search.trim();
   }

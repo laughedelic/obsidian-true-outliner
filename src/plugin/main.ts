@@ -531,7 +531,7 @@ export default class TrueOutlinerPlugin extends Plugin {
       id: 'search-outline',
       name: 'Search outline',
       callback: () => {
-        new SearchPalette({
+        const palette = new SearchPalette({
           app: this.app,
           // The index's own cache, so a note either surface has resolved is not
           // read and parsed again — and so a node id means the same thing to
@@ -539,7 +539,12 @@ export default class TrueOutlinerPlugin extends Plugin {
           trees: this.backlinks.treeCache,
           backlinksSegmentIcons: this.backlinksSegmentIcons,
           backlinksSeparator: this.backlinksSeparator,
-        }).open();
+        });
+        // A modal open across a disable or a reload would be a window onto a
+        // plugin that is no longer there, with a sweep still walking the vault
+        // behind it. Closing it runs `onClose`, which cancels that walk.
+        this.register(() => palette.close());
+        palette.open();
       },
     });
 

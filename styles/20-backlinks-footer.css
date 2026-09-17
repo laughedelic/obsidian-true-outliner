@@ -205,15 +205,6 @@
  * A marker at `--text-faint` was already the quietest mark on a card; shrinking
  * it to 0.8em took it below reading. Muted restores it at the smaller size.
  *
- * Applied to every footer marker, never to lineage markers alone: notation
- * carries kind and nothing else, so a lineage element and a reference of the
- * same kind must stay identically drawn (D4). Dimming just the lineage would
- * make the marker encode emphasis, which is exactly what that rule forbids —
- * the text already carries it.
- */
-.to-backlinks .to-decor-marker-icon {
-  color: var(--to-lineage-mark);
-}
 
 /*
  * A chain reads at less than full size, in the FOOTER only.
@@ -1052,4 +1043,12 @@
  * assumed. */
 .to-backlinks .to-lineage-rows.is-truncated {
   mask-image: linear-gradient(to bottom, black calc(100% - 3rem), transparent);
+}
+
+/* A row is a pointer where activating it goes somewhere, which is the footer's
+ * answer and not the palette's: there a row is an option in a listbox the
+ * palette drives itself, and a lineage row above a hit is inert context. The
+ * rule was on `.to-lineage-row` until a second surface drew one. */
+.to-backlinks .to-lineage-row {
+  cursor: pointer;
 }

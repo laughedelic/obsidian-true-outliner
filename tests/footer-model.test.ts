@@ -533,7 +533,7 @@ describe('what the model reports whatever the renderer draws', () => {
     }
   });
 
-  it('takes no rendering options at all', () => {
+  it('reads no setting, so one tree gives one answer', () => {
     // No parameter an APPEARANCE setting could be threaded through, which is the
     // structural form of the same guarantee: two calls over one tree cannot
     // differ because of a setting. `descendantDepth` is not one — it says which
