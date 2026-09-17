@@ -706,17 +706,41 @@ describe('grammar planner: a structural key acts on the node a position is insid
     const plain = '- top\n\t- foo\n\t  bar\n- next\n';
     const open = '- top\n\t- foo\n\t  \n\t  bar\n- next\n';
     expect(press(plain, { line: 1, ch: 6 }, 'outdent')).toBe('- top\n- foo\n  bar\n- next\n');
-    const after = press(open, { line: 2, ch: 4 }, 'outdent');
+    const after = press(open, { line: 2, ch: 3 }, 'outdent');
     expect(after).toBe('- top\n- foo\n  \n  bar\n- next\n');
     expect(withoutLine(after, (l) => l.trim() === '')).toBe('- top\n- foo\n  bar\n- next\n');
-    // The caret does NOT stay on the place here, and the reason is the mapping
-    // rather than this change: outdent's edit is line-level, so a pre-op column
-    // at the END of the place's line maps with assoc=1 onto the START of the
-    // line below it, and the after-resolution is deliberately not consulted for
-    // a mapped position that has left the place's own line. Measured, asserted
-    // so a future fix has to change it on purpose, and recorded in
-    // docs/research/decoration-follow-ups beside the indent case this change does close.
-    expect(caretAfter(open, { line: 2, ch: 4 }, 'outdent')).toEqual({ line: 3, ch: 0 });
+    // And the caret stays on the place at its new content column, the same as
+    // the indent above. The place line is `\t  `, three characters, so column 3
+    // is its content column and the furthest column a caret on it can take —
+    // the reading that had outdent dropping the caret onto `  bar` measured
+    // column 4, which is not a position on that line.
+    expect(caretAfter(open, { line: 2, ch: 3 }, 'outdent')).toEqual({ line: 2, ch: 2 });
+  });
+
+  it('a place keeps the caret at its content column, whatever that column is', () => {
+    // One shape per key is what let a column off the end of a place line read
+    // as a defect of outdent's, so the claim is pinned across the widths a
+    // place's content column takes: tabs and spaces, a second level, a marker
+    // that renumbers across a digit boundary as the operation moves it, a task
+    // marker, and a paragraph place whose column is 0 before the key runs.
+    const cases: Array<
+      [string, GrammarKey, { line: number; ch: number }, { line: number; ch: number }]
+    > = [
+      ['- top\n  - foo\n    \n    bar\n', 'outdent', { line: 2, ch: 4 }, { line: 2, ch: 2 }],
+      ['- a\n  - b\n    - c\n      \n      d\n', 'outdent', { line: 3, ch: 6 }, { line: 3, ch: 4 }],
+      ['- top\n  9. a\n  - foo\n    \n    bar\n', 'indent', { line: 3, ch: 4 }, { line: 3, ch: 7 }],
+      [
+        '- top\n  8. a\n  9. b\n  10. foo\n       \n       bar\n',
+        'outdent',
+        { line: 4, ch: 7 },
+        { line: 4, ch: 5 },
+      ],
+      ['- top\n  - [ ] foo\n    \n    bar\n', 'outdent', { line: 2, ch: 4 }, { line: 2, ch: 2 }],
+      ['# H\n\nfirst\n\nalpha\n\nbeta\n', 'indent', { line: 5, ch: 0 }, { line: 5, ch: 2 }],
+    ];
+    for (const [text, key, cursor, expected] of cases) {
+      expect(caretAfter(text, cursor, key)).toEqual(expected);
+    }
   });
 
   it('move-down does not walk half a paragraph past the other half', () => {

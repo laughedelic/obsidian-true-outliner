@@ -623,10 +623,26 @@ export function editsToChanges(lines: readonly string[], edits: readonly Edit[])
   return edits.flatMap((edit) => editToChanges(lines, edit));
 }
 
+/**
+ * A `{line, ch}` position as a flat character offset, with the column held
+ * inside its own line.
+ *
+ * `decorate.ts`'s `materializeProbe` clamps the same column the same way, and
+ * the two have to read one `{line, ch}` alike: a structural keypress resolves
+ * the tree a provisional position stands for from the caret's line and column,
+ * then maps that same caret forward through the edit. By flat arithmetic alone
+ * a column past the line's end names the start of the line BELOW it, which is
+ * not the line the resolution was asked about. A caret's column belongs to its
+ * own line, and the editor hands us no other kind.
+ *
+ * Past the last line there is no line to clamp against and the column stands —
+ * the same position the arithmetic gave before.
+ */
 function offsetOf(lines: readonly string[], pos: EditorPos): number {
   let offset = 0;
   for (let i = 0; i < pos.line; i++) offset += (lines[i]?.length ?? 0) + 1;
-  return offset + pos.ch;
+  const own = lines[pos.line];
+  return offset + (own === undefined ? pos.ch : Math.max(0, Math.min(pos.ch, own.length)));
 }
 
 /**

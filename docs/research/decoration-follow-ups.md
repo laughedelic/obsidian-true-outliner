@@ -399,24 +399,29 @@ which is what `structural-history-integration`'s own "does NOT survive undo/redo
 already contemplates. That field would serve the abandon path too, so it is worth doing once
 rather than twice — and it is a change of its own, not a patch to this one.
 
-### Outdent leaves the caret off the place it just moved
+### Outdent leaves the caret on the place — the entry that said otherwise measured off the line
 
-Found while closing `a-position-does-not-split-its-node`. Tab on a provisional position interior
-to a node now leaves the caret ON the place, at its new content column — the operation's result is
-read through the same outline the operation acted on, so `caret-policy` sees the place as one of
-the node's own lines rather than as a trailing gap. Shift+Tab does not: its edit is line-level, so
-a pre-op column at the END of the place's line maps with assoc=1 onto the START of the line below,
-and the resolution is deliberately not consulted once the mapped position has left the place's own
-line.
+**Closed**, with no defect to close. The entry is kept as a correction rather than removed,
+because the reading it replaces was specific enough to be believed and is easy to re-derive.
 
-Measured: `- top` / `⇥- foo` / `⇥␣␣` (place) / `⇥␣␣bar`, Shift+Tab leaves the caret at line 3
-column 0 — the start of `␣␣bar` — where it belongs at line 2 column 2. Asserted as measured in
-`tests/grammar.test.ts` so a fix has to change it deliberately.
+It recorded Shift+Tab on `- top` / `⇥- foo` / `⇥␣␣` (place) / `⇥␣␣bar` leaving the caret at line
+3 column 0, and attributed that to outdent's line-level edit mapping a column at the end of the
+place's line with assoc=1 onto the start of the line below. The pre-op column it measured from
+was 4. `⇥␣␣` is three characters, so column 4 is not a position on the place's line at all, and
+no editor produces one: `keymap.ts` builds the column as an offset minus its own line's start.
 
-Closing it means either clamping a mapped caret that leaves a place back onto it, which puts a
-placement rule in `grammar.ts` where `caret-placement-policy` says placement rules live, or giving
-`caret-policy` the place as a fact so it can own the rule. The second is the shape the rest of that
-policy already has.
+Re-measured at every column a caret can take, and across the widths a place's content column
+takes — tabs and spaces, a second level, a marker renumbering across a digit boundary as the
+operation moves it, a task marker, a paragraph place — Tab and Shift+Tab both leave the caret on
+the place at its new content column. Pinned in `tests/grammar.test.ts` ("a place keeps the caret
+at its content column, whatever that column is").
+
+What the off-the-line column did reach was a real disagreement between two halves of one keypress.
+`materializeProbe` clamps the column into its line before resolving the tree the place stands for,
+while `dispatch.ts`'s flat `{line, ch}` → offset arithmetic read the same column as the start of
+the line below, so the caret was mapped off a line the resolution had been asked about. The
+conversion clamps now, and `tests/minimal-change-history.test.ts` ("holds a column inside its own
+line") holds the two together.
 
 ### A caret parked on a blank line the user authored reads it as a bisection
 
