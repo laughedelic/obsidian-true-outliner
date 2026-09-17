@@ -26,6 +26,7 @@ import { Key } from 'webdriverio';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as h from '../../e2e/helpers.js';
+import { waitForBacklinkIndexReady } from '../../e2e/footer.js';
 
 const OUT = path.join(process.cwd(), 'website', 'capture', 'out');
 const SHOTS = path.join(OUT, 'shots');
@@ -446,7 +447,7 @@ describe('website captures', function () {
     await shot('backlinks-footer', async () => {
       // Two referrers, chosen for that: one row per node kind, and one
       // reference carrying a real subtree, on a single screen.
-      await h.waitForBacklinkIndexReady('Backlinks/Reference target.md', 2);
+      await waitForBacklinkIndexReady('Backlinks/Reference target.md', 2);
       await openOutlined('Backlinks/Reference target.md');
       // The footer is taller than the frame, so the end of the document is
       // mostly the scroller's bottom padding; its header at the top of the
