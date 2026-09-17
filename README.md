@@ -29,7 +29,7 @@ Obsidian 1.5.0 or later. If the **Outliner** or **Zoom** community plugin is ena
 - [Getting started](https://laughedelic.github.io/obsidian-true-outliner/guide/getting-started), five minutes with any note, with a live editor to try the keys in
 - [How a note becomes an outline](https://laughedelic.github.io/obsidian-true-outliner/guide/how-notes-become-outlines), the mapping behind everything, and the two rules that surprise people
 - [Settings](https://laughedelic.github.io/obsidian-true-outliner/reference/settings) and [commands and keys](https://laughedelic.github.io/obsidian-true-outliner/reference/commands-and-keys)
-- [Compared to other outliners](https://laughedelic.github.io/obsidian-true-outliner/guide/compared): Workflowy, Roam, Logseq, Tana, outl, org-mode, and the existing Obsidian plugins
+- [Compared to other apps](https://laughedelic.github.io/obsidian-true-outliner/compare/): one page each for Obsidian's outliner plugins, Logseq, Workflowy, Roam, Tana, outl, Orca Note, Thymer, Notion, Capacities, Anytype, Reflect and org-mode
 
 ## Why
 
