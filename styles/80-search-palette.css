@@ -17,14 +17,6 @@
    * than a dialog's. Bounded on the viewport as well, since a phone renders a
    * `Modal` full-screen and `min()` is what keeps the padding honest there. */
   width: min(42rem, 92vw);
-  /*
-   * The container the query at the foot of this file asks about, and it has to
-   * be HERE: a container query reaches a container's descendants, and the hints
-   * row it hides is a sibling of the results rather than a child of them. The
-   * footer declares its own over its own element for the same reason — there is
-   * no shared ancestor the two surfaces could have used.
-   */
-  container-type: inline-size;
 }
 
 .to-search-palette .prompt-results {
@@ -137,12 +129,15 @@
 /* ── the phone ───────────────────────────────────────────────────────────── */
 
 /*
- * The hints name keys, and a phone has none of them. The scope control carries
- * its own glyph for exactly this reason: it is the only one of the five that
- * still means something when this row is gone.
+ * Nothing here, and that is the finding rather than an omission.
+ *
+ * The hints name keys a phone does not have, and Obsidian's own mobile styling
+ * already hides `prompt-instructions` — which the palette gets by borrowing the
+ * prompt shell rather than reimplementing it. A container query of our own was
+ * written first and measured second: with it removed the hints were still
+ * hidden, so it was a rule that could only ever have agreed with the platform.
+ *
+ * What the palette owes the phone is elsewhere: the scope control is present in
+ * both scopes (design D7), because once this row is gone it is the only way to
+ * reach the narrowed scope at all.
  */
-@container (max-width: 30rem) {
-  .to-search-palette .prompt-instructions {
-    display: none;
-  }
-}

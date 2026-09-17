@@ -267,6 +267,50 @@ describe('search palette', function () {
     });
   });
 
+  describe('on a phone', function () {
+    // The emulated mobile config is the only place these mean anything: the
+    // hints name keys a phone does not have, and the tap is the gesture that
+    // replaces every one of them.
+    before(function () {
+      if (!h.IS_MOBILE_RUN) this.skip();
+    });
+
+    it('hides the key hints, which name keys there are none of', async function () {
+      await h.openNote(QUIET);
+      await p.openPalette();
+      await p.search(TERM);
+      const hintsShown = await browser.executeObsidian(() => {
+        const el = document.querySelector('.to-search-palette .prompt-instructions');
+        return el ? getComputedStyle(el).display !== 'none' : false;
+      });
+      expect(hintsShown).toBe(false);
+    });
+
+    it('keeps the scope control, which is the only way to switch without a key', async function () {
+      await h.openNote(TWO_ARMS);
+      await p.openPalette();
+      // The hints are gone, so a chip that appeared only once narrowed would
+      // leave no way into the narrowed scope at all.
+      expect(await p.scopeLabel()).toContain('This note');
+      await p.clickScope();
+      expect(await p.scopeLabel()).toContain('palette-two-arms');
+    });
+
+    it('opens a hit on tap', async function () {
+      await h.openNote(QUIET);
+      await p.openPalette();
+      await p.search(`${TERM} parent`);
+      await browser.executeObsidian(() => {
+        (document.querySelector('.to-search-palette .to-lineage-row.is-hit') as HTMLElement)?.click();
+      });
+      await browser.waitUntil(async () => !(await p.paletteOpen()), {
+        timeout: h.waitBudget(6000),
+        timeoutMsg: 'the palette stayed open after a tap',
+      });
+      expect((await p.landing()).path).toBe(SHAPES);
+    });
+  });
+
   describe('assistive technology', function () {
     it('is a combobox over a listbox of options', async function () {
       await h.openNote(QUIET);

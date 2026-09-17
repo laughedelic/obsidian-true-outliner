@@ -54,7 +54,7 @@
       Negative control: a second `SourceTreeCache` over the same vault, which reads again and
       answers with a tree whose node ids are not the first's — ids are per parse, so two caches
       cost correspondence, not just memory
-- [ ] 3.2 Create `src/plugin/vault-search.ts`: the progressive, yielding, generation-guarded walk
+- [x] 3.2 Create `src/plugin/vault-search.ts`: the progressive, yielding, generation-guarded walk
       over the vault or one file, ordered by modification time before the first tree is resolved,
       calling back per note with one hit per matching node — the id, the index of the first of the
       node's own lines `matchRanges` finds the term in, and that occurrence as written, not the
@@ -101,9 +101,9 @@
       means nothing in a modal, its heading and its controls (design D2). Add the check that keeps
       it true: no `to-lineage-*` selector in the footer's part, and no `to-backlinks-*` selector in
       the shared one, as a case in `tests/styles.test.ts` beside the brace check. Then `styles/80-search-palette.css`: the
-      shell, the hit-only active state, the scope control, and the palette's own `container-type`
-      with the query that hides the hints. Verify on the desktop and mobile e2e configs by
-      screenshot
+      shell, the hit-only active state and the scope control. The hints need no rule of ours —
+      Obsidian's own mobile styling hides `prompt-instructions`, which borrowing the prompt shell
+      inherits. Verify on the desktop and mobile e2e configs
 
 ## 5. End-to-end
 
@@ -124,9 +124,11 @@
       graph view offers no scope control; the group cap's tail states the remainder. Negative controls: for the zoom tests, disable
       the `zoomTo` dispatch; for the stale-results test, drop the generation guard; for the cap
       test, stop counting past the cap
-- [ ] 5.2 Run the same spec under the mobile config and add the tap-opens, hints-hidden and
-      scope-control-tappable assertions; verify it passes under `--mobile`. Negative control:
-      drop the palette's container query and confirm the hints-hidden assertion fails
+- [x] 5.2 Run the same spec under the mobile config and add the tap-opens, hints-hidden and
+      scope-control-tappable assertions; verify it passes under `--mobile`. The hints-hidden case
+      holds a guarantee the palette DEPENDS on rather than one it implements: dropping our own
+      container query left the hints hidden anyway, which is what showed the platform was already
+      doing it — so the rule went, and the assertion stayed to catch the day that changes
 - [ ] 5.3 Manual pass in a real vault: broad and narrow queries, both scopes, every landing
       variant, a note not yet opened this session; record findings in
       `docs/research/search-surfaces`
