@@ -102,8 +102,8 @@ export function renderGroupHead(card: HTMLElement, group: GroupHead): void {
   const { name, folder, count, collapsed } = group;
   const head = card.createDiv({ cls: 'to-lineage-group-head' });
   head.toggleClass('is-collapsed', collapsed);
-  if (group.onToggle) makeDisclosure(head, !collapsed, name);
   if (group.onToggle) {
+    makeDisclosure(head, !collapsed, name);
     const chevron = head.createSpan({ cls: 'to-chevron' });
     // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
     chevron.appendChild(chevronGlyph(!collapsed));

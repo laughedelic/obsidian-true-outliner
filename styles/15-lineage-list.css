@@ -21,7 +21,7 @@
  * They were on `.to-backlinks`, which is the footer's own element and which the
  * palette never renders — and a custom property nobody defines fails by falling
  * back rather than by complaining (`chrome-tokens.ts` makes the same point).
- * `--to-lineage-mark` is `--to-lineage-mark` renamed with them, for the same
+ * `--to-lineage-mark` was `--to-backlinks-mark`, renamed with them for the same
  * reason the classes were.
  */
 .to-lineage-list {
@@ -134,9 +134,26 @@
  * and left it with no guides at all: a second layout answering the same
  * question differently (docs/research/backlinks-footer-spikes, S4).
  */
+/*
+ * The colour of every mark on a lineage row.
+ *
+ * Applied to every marker on these rows, never to lineage markers alone:
+ * notation carries kind and nothing else, so a lineage element and a hit of the
+ * same kind must stay identically drawn (D4). Dimming just the lineage would
+ * make the marker encode emphasis, which is exactly what that rule forbids —
+ * the text already carries it.
+ *
+ * On the shared scope rather than the footer's own, which is where it was: the
+ * palette draws these rows too, and scoped to `.to-backlinks` its markers fell
+ * back to whatever colour they inherited while `--to-lineage-mark` went on
+ * claiming to be the colour of every mark on these rows.
+ */
+.to-lineage-list .to-decor-marker-icon {
+  color: var(--to-lineage-mark);
+}
+
 .to-lineage-row {
   padding: 0.1rem 0;
-  cursor: pointer;
   /* Set on the ROW, so the marker's `0.5ex` correction resolves against the
    * same font as the text beside it. The depth grid stays in `rem` — it is
    * chrome, and it must line up with the editor's. */
@@ -650,10 +667,6 @@
 .to-lineage-rows {
   padding-left: calc(var(--to-marker-icon-size, 0.85rem) / 2);
 }
-
-
-
-
 
 /* The last card dissolves when the list continues past it. Masked rather than
  * overlaid, for the same reason the group fade is: a gradient would have to

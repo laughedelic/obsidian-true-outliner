@@ -111,7 +111,18 @@ export class VaultSearch {
 
       const file = files[i];
       if (!file) continue;
-      const doc = await this.trees.get(file);
+
+      // A file that has gone since `getMarkdownFiles()` listed it is ordinary
+      // rather than exceptional — a sweep of a synced vault of a few thousand
+      // notes will meet one — and it is no reason to abandon the rest. The
+      // backlink index treats a mid-flight deletion the same way.
+      let doc;
+      try {
+        doc = await this.trees.get(file);
+      } catch {
+        if (!live()) return;
+        continue;
+      }
       // The read is the other place this suspends, and a query typed during one
       // is the common case rather than the rare one.
       if (!live()) return;
@@ -166,9 +177,10 @@ function hitsIn(doc: OutlineDoc, query: string): Map<number, Hit> {
 
   const hits = new Map<number, Hit>();
   for (const id of matchNodes(doc, query)) {
+    // Indexed by the same walk `matchNodes` makes over the same tree, so every
+    // id it answers with is one of these.
     const node = byId.get(id);
-    if (!node) continue;
-    hits.set(id, hitIn(node, query));
+    if (node) hits.set(id, hitIn(node, query));
   }
   return hits;
 }

@@ -15,7 +15,16 @@
  * group collapse, and a row that is an option in a listbox rather than a link.
  */
 
-import { Component, MarkdownView, Modal, Scope, type App, type TFile } from 'obsidian';
+import {
+  Component,
+  Keymap,
+  MarkdownView,
+  Modal,
+  Platform,
+  Scope,
+  type App,
+  type TFile,
+} from 'obsidian';
 import type { OutlineDoc, OutlineNode } from '../model';
 import { nodeStartLine } from '../locate';
 import { buildRows } from './footer-model';
@@ -30,7 +39,7 @@ import { zoomScope } from './zoom-scope';
 import type { HeadingMarkerStyle } from './marker-shapes';
 import type { LineageSeparator, SegmentIcons } from './settings/footer';
 
-export const PALETTE_CLASS = 'to-search-palette';
+const PALETTE_CLASS = 'to-search-palette';
 
 /**
  * The floor below which the palette does not search (design D9).
@@ -39,7 +48,7 @@ export const PALETTE_CLASS = 'to-search-palette';
  * reader has to type past. Two is the prototype's floor and nothing measured
  * since has argued with it.
  */
-export const MIN_QUERY = 2;
+const MIN_QUERY = 2;
 
 /** How many notes' groups are shown before the tail speaks for the rest. */
 const GROUP_CAP = 20;
@@ -74,9 +83,13 @@ interface Slot {
   readonly el: HTMLElement;
 }
 
+/** The modifier this platform spells, since the hints name keys a reader is
+ * meant to press and `⌘` is not on most keyboards. */
+const MOD_GLYPH = Platform.isMacOS ? '⌘' : 'Ctrl';
+
 const HINTS: readonly { key: string; means: string }[] = [
   { key: '↑↓', means: 'hit' },
-  { key: '⌘↑↓', means: 'group' },
+  { key: `${MOD_GLYPH}↑↓`, means: 'group' },
   { key: '↵', means: 'open zoomed' },
   { key: '⇧↵', means: 'open note' },
   { key: '⇥', means: 'this note' },
@@ -133,7 +146,6 @@ export class SearchPalette extends Modal {
   override onClose(): void {
     this.search.cancel();
     this.component.unload();
-    this.contentEl.empty();
   }
 
   // ---- the shell ---------------------------------------------------------
@@ -260,6 +272,13 @@ export class SearchPalette extends Modal {
   private paint(): void {
     const painting = (this.painting += 1);
     const query = this.queryEl.value;
+    // The rows about to be discarded own child components — link hovers,
+    // embeds, math — that Obsidian releases when their owner unloads and not
+    // before. One `Component` for the palette's whole lifetime would collect
+    // every keystroke's worth of them; the footer cycles its own for the same
+    // reason.
+    this.component.unload();
+    this.component.load();
     this.resultsEl.empty();
     this.slots = [];
     this.active = -1;
@@ -279,27 +298,38 @@ export class SearchPalette extends Modal {
     // say it on every keystroke.
     this.stateEl.setText('Searching…');
 
-    void this.search.run({
-      query,
-      only: this.narrowed ? this.openedFrom : null,
-      groupCap: GROUP_CAP,
-      onGroup: (group) => {
+    void this.search
+      .run({
+        query,
+        only: this.narrowed ? this.openedFrom : null,
+        groupCap: GROUP_CAP,
+        onGroup: (group) => {
+          if (painting !== this.painting) return;
+          this.stateEl.setText('');
+          this.appendGroup(group, query);
+        },
+        onDone: ({ beyondCap }) => {
+          if (painting !== this.painting) return;
+          this.stateEl.setText(this.slots.length === 0 ? 'No matches.' : '');
+          // Stated only now: a number that climbed as notes resolved would not
+          // be a count of what is not shown.
+          if (beyondCap > 0) {
+            this.tailEl.setText(
+              beyondCap === 1
+                ? '1 more note holds matches'
+                : `${beyondCap} more notes hold matches`,
+            );
+          }
+        },
+      })
+      .catch((error: unknown) => {
+        // A sweep that died owes the reader an answer either way. "Searching…"
+        // left standing is the one state that is never true again, and it is
+        // what a reader would sit and wait through.
         if (painting !== this.painting) return;
-        this.stateEl.setText('');
-        this.appendGroup(group, query);
-      },
-      onDone: ({ beyondCap }) => {
-        if (painting !== this.painting) return;
-        this.stateEl.setText(this.slots.length === 0 ? 'No matches.' : '');
-        // Stated only now: a number that climbed as notes resolved would not be
-        // a count of what is not shown.
-        if (beyondCap > 0) {
-          this.tailEl.setText(
-            beyondCap === 1 ? '1 more note holds matches' : `${beyondCap} more notes hold matches`,
-          );
-        }
-      },
-    });
+        this.stateEl.setText('Search failed.');
+        console.error('[true-outliner] the vault search failed', error);
+      });
   }
 
   /**
@@ -316,6 +346,9 @@ export class SearchPalette extends Modal {
     renderGroupHead(card, { name, folder, count: group.hits.size, collapsed: false });
     const body = card.createDiv({ cls: 'to-lineage-rows' });
 
+    // Collected because `renderRow` asks for somewhere to put them, and awaited
+    // only so a rejected render is a handled one: the palette measures nothing,
+    // so a row that fills in a moment later costs it nothing to wait for.
     const pending: Promise<void>[] = [];
     const rows = buildRows(
       group.doc,
@@ -326,8 +359,9 @@ export class SearchPalette extends Modal {
       { descendantDepth: 0 },
     );
 
+    const options = this.listOptions(query);
     for (const row of rows) {
-      const el = renderRow(body, group.path, row, pending, this.listOptions(query));
+      const el = renderRow(body, group.path, row, pending, options);
       if (row.type !== 'node' || !row.isHit) continue;
       const slot: Slot = { group, nodeId: row.nodeId, el };
       this.slots.push(slot);
@@ -338,10 +372,14 @@ export class SearchPalette extends Modal {
       // the active hit into view under a still pointer would otherwise hand the
       // choice straight back to whatever the row landed under.
       el.addEventListener('mousemove', () => this.setActive(this.slots.indexOf(slot), false));
-      el.addEventListener('click', (event) => void this.land(slot, event));
+      el.addEventListener('click', (event) => this.landed(slot, event));
     }
 
     if (this.active < 0 && this.slots.length > 0) this.setActive(0, false);
+    void Promise.all(pending).catch(() => {
+      // A row whose markdown failed to render is a row with less in it, which
+      // the reader can see. Nothing here can put it right.
+    });
   }
 
   /** What the shared list draws the palette's rows with. */
@@ -420,10 +458,19 @@ export class SearchPalette extends Modal {
     if (this.slots.length === 0) return false;
     const current = this.slots[this.active]?.group;
     let index = this.active;
+    let crossed = false;
     while (index + delta >= 0 && index + delta < this.slots.length) {
       index += delta;
-      if (this.slots[index]?.group !== current) break;
+      if (this.slots[index]?.group !== current) {
+        crossed = true;
+        break;
+      }
     }
+    // Running off the end without finding another group is the end stopping,
+    // the same way the hit keys' ends stop. Without this the rewind below drags
+    // the active hit back to the top of the group it is already in, which is a
+    // move BACKWARDS out of a key that means forwards.
+    if (!crossed) return false;
     // A group is entered at its FIRST hit whichever direction the move came
     // from, so the key means the same thing both ways.
     const group = this.slots[index]?.group;
@@ -436,11 +483,25 @@ export class SearchPalette extends Modal {
     const slot = this.slots[this.active];
     if (!slot) return false;
     event.preventDefault();
-    void this.land(slot, event);
+    this.landed(slot, event);
     return false;
   }
 
   // ---- landing on a hit --------------------------------------------------
+
+  /**
+   * `land`, with its rejection handled.
+   *
+   * The palette has already closed by the time anything in there can fail, so
+   * there is no longer a surface to report on — but an unhandled rejection is
+   * the one outcome that leaves no trace at all for whoever reads the console
+   * after a landing that did not happen.
+   */
+  private landed(slot: Slot, event: MouseEvent | KeyboardEvent): void {
+    void this.land(slot, event).catch((error: unknown) => {
+      console.error('[true-outliner] landing on a search hit failed', error);
+    });
+  }
 
   /**
    * Opens the hit's note, puts the caret on it, and zooms unless asked not to.
@@ -452,7 +513,12 @@ export class SearchPalette extends Modal {
    */
   private async land(slot: Slot, event: MouseEvent | KeyboardEvent): Promise<void> {
     const unzoomed = event.shiftKey;
-    const newTab = event.ctrlKey || event.metaKey;
+    // The platform's own reading of the gesture, and the same one the footer
+    // takes. Reading `ctrlKey || metaKey` by hand makes Ctrl+click open a new
+    // tab on macOS, where that gesture is the secondary click. `getLeaf` takes
+    // exactly what this answers, including the `'tab'` / `'split'` a modifier
+    // combination can mean.
+    const newTab = Keymap.isModEvent(event);
     const { workspace } = this.source.app;
 
     this.close();
@@ -462,8 +528,14 @@ export class SearchPalette extends Modal {
     const view = leaf.view instanceof MarkdownView ? leaf.view : null;
     if (!view) return;
 
+    // Every line below is checked against the LIVE document before it is used.
+    // The tree these came from is a parse of the file as it was on disk, keyed
+    // on `path + mtime`; the editor holds its own buffer, and the two diverge
+    // whenever the note has edits Obsidian has not flushed yet or a sync client
+    // rewrote it since the sweep. A line past the end is an ordinary outcome
+    // there, and `Text.line` answers a shorter document with a `RangeError`.
     const line = nodeStartLine(slot.group.doc, slot.nodeId);
-    if (line < 0) return;
+    if (line < 0 || line >= view.editor.lineCount()) return;
     view.editor.setCursor({ line, ch: 0 });
     view.editor.scrollIntoView({ from: { line, ch: 0 }, to: { line, ch: 0 } }, true);
 
@@ -474,8 +546,10 @@ export class SearchPalette extends Modal {
     // there. A reader who was zoomed into one part of a note and searched their
     // way to another would otherwise land inside the old scope — with the caret
     // on a line that scope hides, which is the one place the caret may not be.
+    // A root the live document is too short for withholds it the same way: a
+    // zoom to a line that is not there is not a better answer than no zoom.
     const rootLine = unzoomed ? -1 : zoomRootLine(slot.group.doc, slot.nodeId);
-    if (rootLine < 0) {
+    if (rootLine < 0 || rootLine >= cm.state.doc.lines) {
       if (zoomScope(cm.state)) cm.dispatch({ effects: zoomCleared.of(null) });
       return;
     }

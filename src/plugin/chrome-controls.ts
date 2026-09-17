@@ -24,9 +24,13 @@ export function glyph(box: number, d: string[], attrs: Record<string, string>): 
 }
 
 /**
- * The chevron, in both the orientations this file needs.
+ * The chevron, in both the orientations a disclosure takes.
  *
- * Both chevrons in the footer — fold and cap — come from this one path.
+ * Drawn by the footer's own heading, by every group head the lineage list
+ * renders, and by a foldable row's control. The footer's volume cap draws a
+ * different one — `capChevron` says why in its own comment — so "both
+ * orientations" here means this control's two, open and closed, rather than
+ * every chevron in the plugin.
  *
  * It was the lineage separator too, before every segment gained its own icon
  * and the separator went. Before that it was the text glyph `❯` (U+276F), a
