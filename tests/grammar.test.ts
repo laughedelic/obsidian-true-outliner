@@ -246,11 +246,40 @@ describe('grammar planner: Shift+Enter (continue)', () => {
     expect(applyPlan(src, outcome.plan).text).toBe('- top\n\t- kid\n\t  \n');
   });
 
+  it('a tab inside the marker run is measured in COLUMNS, not characters', () => {
+    // The case that separates the two arithmetics: `-\tx` puts its content at
+    // column 4, because the tab advances from column 1 to the next stop, while
+    // the marker and its run are two CHARACTERS. A prefix counted in
+    // characters left the continuation two columns short of the content it
+    // belongs to, where it re-parsed as a top-level paragraph — the reported
+    // defect again, from the same disagreement.
+    const src = '-\tx\n';
+    const outcome = plan(src, { line: 0, ch: 3 }, 'continue');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
+    const { text } = applyPlan(src, outcome.plan);
+    expect(text).toBe('-\tx\n    \n');
+    const nodes = [...walkNodes(parse('-\tx\n    y\n'))];
+    expect(nodes.length).toBe(1);
+    expect(nodes[0]!.lines).toEqual(['-\tx', '    y']);
+  });
+
   it('a wide marker run continues at the content column, not one space past it', () => {
     const src = '10)  wide\n';
     const outcome = plan(src, { line: 0, ch: 9 }, 'continue');
     if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
     expect(applyPlan(src, outcome.plan).text).toBe('10)  wide\n     \n');
+  });
+
+  it('an indented paragraph that starts with a hash breaks past the hash, not before it', () => {
+    // `\t# b` indented under an item is a PARAGRAPH — `ATX_RE` allows a heading
+    // at most three columns in — and its `# ` is chrome the break clamps out
+    // of, the same as a marker. Reading the boundary from the line's own
+    // indentation instead would leave the hash behind on a whitespace-only
+    // line with the text pushed below it.
+    const src = '- a\n\n\t# b\n';
+    const outcome = plan(src, { line: 2, ch: 0 }, 'continue');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
+    expect(applyPlan(src, outcome.plan).text).toBe('- a\n\n\t# \n\tb\n');
   });
 
   it('a break never lands before a marker that has nothing after it', () => {

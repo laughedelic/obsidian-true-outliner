@@ -778,15 +778,20 @@ export function planKey(
       }
 
       const lineText = lines[cursor.line] ?? '';
-      const indentCh = /^[ \t]*/.exec(lineText)?.[0].length ?? 0;
       // Clamp out of chrome, the same rule Enter applies: a break inside a
       // marker or a node's indentation would split the chrome itself. An
       // item's first line takes the CARET's boundary, which treats a marker at
       // end-of-line as one — `contentColumnCh` requires whitespace after the
-      // marker and reads 0 for a bare `-`, which put the break before it.
-      // Every other line, and every other kind, breaks past its indentation.
-      const boundary =
-        onFirstLine && node.kind === 'list-item' ? contentBoundaryCh(node, lineText) : indentCh;
+      // marker and reads 0 for a bare `-`, which put the break before it. A
+      // paragraph keeps `contentColumnCh`, whose ATX clause is load-bearing
+      // there: a `#` line indented past three columns is a PARAGRAPH, and
+      // breaking at its indentation instead would leave the `#` behind with a
+      // whitespace-only line above it rather than carrying the text down.
+      const boundary = onFirstLine
+        ? node.kind === 'list-item'
+          ? contentBoundaryCh(node, lineText)
+          : contentColumnCh(lineText)
+        : (/^[ \t]*/.exec(lineText)?.[0].length ?? 0);
       const at: EditorPos = {
         line: cursor.line,
         ch: Math.min(Math.max(cursor.ch, boundary), lineText.length),
