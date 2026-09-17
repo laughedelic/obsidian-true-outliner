@@ -11,7 +11,7 @@
 import { EditorState, Compartment, Prec, type Extension } from '@codemirror/state';
 import { EditorView, drawSelection, highlightSpecialChars, keymap, placeholder } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
-import { indentUnit } from '@codemirror/language';
+import { codeFolding, indentUnit } from '@codemirror/language';
 
 import { nestedEditorExtension } from '../../src/plugin/nested-editor';
 import { viewRegistryExtension } from '../../src/plugin/view-registry';
@@ -26,6 +26,11 @@ import { zoomTrailExtension, type ZoomTrailSource } from '../../src/plugin/zoom-
 import { zoomClickExtension } from '../../src/plugin/zoom-click';
 import { zoomViewExtension } from '../../src/plugin/zoom-view';
 import { historyCaretExtension } from '../../src/plugin/history-caret';
+import { guideHoverExtension } from '../../src/plugin/guide-hover';
+import { foldServiceExtension } from '../../src/plugin/fold-service';
+import { foldViewExtension } from '../../src/plugin/fold-view';
+import { foldCarryExtension } from '../../src/plugin/fold-carry';
+import { runFoldGesture, runFoldAll } from '../../src/plugin/fold-commands';
 import { zoomScope } from '../../src/plugin/zoom-scope';
 import { parsedDoc } from '../../src/plugin/parsed-doc';
 import { resolveZoom } from '../../src/zoom';
@@ -58,12 +63,18 @@ export interface OutlineEditorOptions {
 export interface OutlineEditor {
   view: EditorView;
   wrapper: HTMLElement;
+  /** The note as it was created with; `reset` steps return to it. */
+  doc: string;
   settings: DemoSettings;
   setOutline(on: boolean): void;
   isOutline(): boolean;
   setSettings(patch: Partial<DemoSettings>): void;
   zoomToLine(line: number): void;
   zoomOut(): void;
+  fold(action: 'fold' | 'unfold' | 'toggle'): void;
+  foldAll(action: 'fold' | 'unfold'): void;
+  /** Calls `handler` on input that came from a person, never from a script. */
+  onUserInput(handler: () => void): () => void;
   isZoomed(): boolean;
   setDoc(doc: string): void;
   destroy(): void;
@@ -120,7 +131,17 @@ export function createOutlineEditor(parent: HTMLElement, options: OutlineEditorO
     nestedEditorExtension(),
     viewRegistryExtension(),
     zoomStateExtension(),
+    guideHoverExtension(),
     outlineStateExtension({ outlineByDefault: options.outline ?? true }),
+    // Obsidian's fold is CodeMirror's fold: the fold state field the plugin's
+    // fold service and commands read and write.
+    // No placeholder: the plugin's own folded marker carries the hidden count.
+    codeFolding({ placeholderDOM: () => document.createElement('span') }),
+    foldServiceExtension(),
+    // Fold state is remembered per file through Obsidian's workspace; a page
+    // has no workspace, so a demo editor forgets its folds with the page.
+    foldViewExtension({ rememberFolds: false }),
+    foldCarryExtension(),
     grammarExtension(),
     decorationsExtension(settings),
     transactionFilterExtension({ debugCrossCheck: false }, stats),
@@ -129,6 +150,13 @@ export function createOutlineEditor(parent: HTMLElement, options: OutlineEditorO
     zoomClickExtension(),
     zoomViewExtension(),
     historyCaretExtension(),
+    // The fold gestures are Obsidian commands with default hotkeys in the
+    // plugin; here the same keys reach the same functions.
+    keymap.of([
+      { key: 'Mod-Alt-ArrowUp', run: (v) => runFoldGesture(v, 'fold') },
+      { key: 'Mod-Alt-ArrowDown', run: (v) => runFoldGesture(v, 'unfold') },
+      { key: 'Mod-Alt-.', run: (v) => runFoldGesture(v, 'toggle') },
+    ]),
     keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
   ];
 
@@ -141,6 +169,7 @@ export function createOutlineEditor(parent: HTMLElement, options: OutlineEditorO
   const editor: OutlineEditor = {
     view,
     wrapper,
+    doc: options.doc,
     settings,
     setOutline(on) {
       if (isOutlineMode(view.state) === on) return;
@@ -165,6 +194,24 @@ export function createOutlineEditor(parent: HTMLElement, options: OutlineEditorO
     zoomOut() {
       view.dispatch({ effects: zoomCleared.of(null) });
     },
+    fold(action) {
+      runFoldGesture(view, action);
+    },
+    foldAll(action) {
+      runFoldAll(view, action);
+    },
+    onUserInput(handler) {
+      // A scripted keystroke is a synthetic event; a person's is trusted.
+      const onEvent = (e: Event) => {
+        if (e.isTrusted) handler();
+      };
+      view.dom.addEventListener('pointerdown', onEvent, true);
+      view.dom.addEventListener('keydown', onEvent, true);
+      return () => {
+        view.dom.removeEventListener('pointerdown', onEvent, true);
+        view.dom.removeEventListener('keydown', onEvent, true);
+      };
+    },
     isZoomed: () => zoomScope(view.state) !== null,
     setDoc(doc) {
       view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: doc } });
@@ -188,6 +235,9 @@ export type ScriptStep = { label?: string } & (
   | { select: [[number, number], [number, number]] }
   | { click: 'marker'; line: number }
   | { zoom: 'out' }
+  | { fold: 'fold' | 'unfold' | 'toggle' }
+  | { foldAll: 'fold' | 'unfold' }
+  | { reset: true }
   | { outline: boolean }
   | { pause: number }
   | { say: string }
@@ -286,6 +336,15 @@ export function scriptRunner(editor: OutlineEditor, delay = 700): ScriptRunner {
           editor.zoomToLine(step.line);
         } else if ('zoom' in step) {
           editor.zoomOut();
+        } else if ('reset' in step) {
+          editor.setDoc(editor.doc);
+          editor.setOutline(true);
+          if (editor.isZoomed()) editor.zoomOut();
+          editor.foldAll('unfold');
+        } else if ('fold' in step) {
+          editor.fold(step.fold);
+        } else if ('foldAll' in step) {
+          editor.foldAll(step.foldAll);
         } else if ('outline' in step) {
           editor.setOutline(step.outline);
         } else {

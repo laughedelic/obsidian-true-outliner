@@ -138,11 +138,14 @@ function inlineDecorations(text: string, base: number, active: boolean, out: Ran
 
 function build(view: EditorView): DecorationSet {
   const { doc } = view.state;
+  // Live Preview reveals formatting on the caret's line and inside a
+  // selection that stays within one line; a selection across lines, which in
+  // outline mode is a block selection, reveals nothing.
   const activeLines = new Set<number>();
   for (const r of view.state.selection.ranges) {
     const a = doc.lineAt(r.from).number;
     const b = doc.lineAt(r.to).number;
-    for (let n = a; n <= b; n++) activeLines.add(n);
+    if (a === b) activeLines.add(a);
   }
   const ranges: Range<Decoration>[] = [];
   let inFence = false;
