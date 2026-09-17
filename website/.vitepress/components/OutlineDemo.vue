@@ -121,7 +121,10 @@ function zoomOut() {
 onMounted(async () => {
   const { createOutlineEditor, scriptRunner } = await import('../../demo/editor');
   await import('../../demo/obsidian-theme.css');
-  await import('../../../styles.css');
+  // The plugin's stylesheet is assembled from the parts under styles/ by the
+  // build; the parts are imported in the same filename order here.
+  const parts = import.meta.glob('../../../styles/*.css', { eager: true });
+  void Object.keys(parts).sort();
   if (!host.value) return;
   const ed = createOutlineEditor(host.value, {
     doc: props.doc,
