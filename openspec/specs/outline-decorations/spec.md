@@ -105,8 +105,11 @@ A node that renders a BOX of its own puts that box on its depth's column and its
 a fenced code block SHALL keep the internal padding Obsidian gives an unindented fence, which it
 withholds from one written inside a list.
 
-Positions inside a collapsed run stay addressable and render at the line's own column. Where a
-caret lands is `content-space-caret`'s to state, and this requirement does not move it.
+Positions inside a collapsed run stay addressable and render at the line's own column, and the
+collapse SHALL NOT clip: Obsidian draws the native caret, so a caret whose position falls inside
+the run has to remain drawable. A line whose content is only whitespace SHALL NOT have its run
+collapsed at all — it has no text for the run to push, and the caret nowhere else to stand. Where
+a caret lands is `content-space-caret`'s to state, and this requirement does not move it.
 
 What this does NOT change is the parse: which levels exist is Markdown's business and is
 already decided by the time this layer runs.
@@ -162,6 +165,12 @@ already decided by the time this layer runs.
 - **THEN** its code sits the same distance inside its own box as the code of a fence written at
   the top level
 
+#### Scenario: The caret stays drawable on a collapsed line
+
+- **WHEN** the caret is placed at the start of a line whose run is collapsed, inside that run, or
+  on the line Shift+Enter opens inside a list item
+- **THEN** nothing between the caret's position and its line clips, so the native caret renders
+
 #### Scenario: A child of a heading keeps its own leading whitespace
 
 - **WHEN** a paragraph written with leading spaces sits under a heading, or at the top level
@@ -183,7 +192,9 @@ every kind written under an item on the item's child column", "keeps a fence's i
 indentation, which is the code's own", "puts a tab-indented child on the same column as a
 space-indented one", "starts a widget-rendered callout child on the same column", "gives an
 indented fence the internal padding an unindented one has", "keeps a fence's interior indentation
-at the width of its own spaces", "keeps a non-fence line indented deeper than its node", "leaves a child of a heading alone, whose depth its
+at the width of its own spaces", "leaves the caret somewhere it can be drawn, inside a collapsed
+run", "leaves a line Shift+Enter opens uncollapsed, having no text to push", "keeps a non-fence
+line indented deeper than its node", "leaves a child of a heading alone, whose depth its
 whitespace never stated", "holds with Obsidian's own indentation guides turned off", "collapses the
 run itself, so the line begins where its text does", "leaves the item's own indentation to the list
 rules", "touches nothing with outline mode off");

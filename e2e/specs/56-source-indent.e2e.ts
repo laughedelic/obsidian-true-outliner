@@ -60,6 +60,8 @@ async function lineStartColumn(i: number): Promise<number> {
   return +(coords.left - (await h.contentLeftAbsoluteX())).toFixed(2);
 }
 
+const waitMs = 300;
+
 async function openOutlined(path: string, content: string): Promise<void> {
   await h.createNote(path, content);
   await h.setOutlineMode(true);
@@ -173,6 +175,50 @@ describe('source indentation: one column per tree level', function () {
     const wrapped = ['- alpha', '', '  child paragraph', '  second line', ''].join('\n');
     await openOutlined('SourceIndent/wrapped.md', wrapped);
     expect(await lineStartColumn(3)).toBeCloseTo(await textColumn(3, '  second line'), 1);
+  });
+
+  /** The classes of every ancestor between the caret's own position and the
+   * line that CLIPS — an empty string when nothing does. Obsidian draws the
+   * native caret, so a clipping ancestor hides it outright. */
+  const caretClipper = (): Promise<string> =>
+    browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const cm = (view.editor as any).cm;
+      const dom = cm.domAtPos(cm.state.selection.main.head);
+      let el: HTMLElement | null =
+        dom.node.nodeType === 3 ? dom.node.parentElement : (dom.node as HTMLElement);
+      const clipping: string[] = [];
+      while (el && !el.classList?.contains('cm-content')) {
+        if (getComputedStyle(el).overflow !== 'visible') clipping.push(el.className);
+        el = el.parentElement;
+      }
+      return clipping.join(', ');
+    });
+
+  it('leaves the caret somewhere it can be drawn, inside a collapsed run', async function () {
+    // Obsidian draws the NATIVE caret, so a zero-width clipping box over the run
+    // hides it — measured on the manual pass, where the caret vanished wherever
+    // its position fell inside one and returned only once a character was typed
+    // past it.
+    const deeper = ['- alpha', '', '  first line', '      second deeper', ''].join('\n');
+    await openOutlined('SourceIndent/caret.md', deeper);
+    for (const ch of [0, 2, 6]) {
+      await h.setCursorSettled(3, ch);
+      expect(await caretClipper()).toBe('');
+    }
+  });
+
+  it('leaves a line Shift+Enter opens uncollapsed, having no text to push', async function () {
+    // Shift+Enter writes the item's own indentation and nothing else. There is
+    // no text for a run to push right, and a collapsed line leaves the caret
+    // nowhere to stand.
+    const wrapped = ['- alpha', '', '  first line', ''].join('\n');
+    await openOutlined('SourceIndent/shift-enter.md', wrapped);
+    await h.setCursorSettled(2, '  first line'.length);
+    await browser.keys(['Shift', 'Enter']);
+    await browser.pause(waitMs);
+    expect(await h.getBuffer()).toContain('  first line\n  \n');
+    expect(await caretClipper()).toBe('');
   });
 
   it('leaves the item’s own indentation to the list rules', async function () {

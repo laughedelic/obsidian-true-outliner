@@ -2311,6 +2311,12 @@ function computeSourceIndent(state: EditorState): DecorationSet {
     if (fact.indentCh === 0) continue;
     if (fact.lineNumber >= totalLines) continue; // stale fact past a shrunk doc
     const line = state.doc.line(fact.lineNumber + 1); // CM6 lines are 1-indexed
+    // A line with no text of its own has nothing for a run to push right, and
+    // collapsing it costs the caret its only place to stand: the position is
+    // inside the mark, which has no width. Shift+Enter writes exactly that line
+    // — the item's own indentation and nothing else — so this is the shape the
+    // reader meets most (manual pass, issue #117).
+    if (line.text.trim() === '') continue;
     // A provisional position's fact is derived from the MATERIALIZED text
     // rather than from this line, so the clamp is load-bearing rather than
     // defensive: the probe's line is one character longer than the real one.

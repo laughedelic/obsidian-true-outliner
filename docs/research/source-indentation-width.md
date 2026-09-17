@@ -153,11 +153,23 @@ which is what a box means.
 
 ## What a zero-width run does to the caret
 
-The characters stay in the document and stay addressable: `contentBoundaryCh` returns 0 for every
+Obsidian draws the NATIVE caret — measured, there is no `.cm-cursor` element in the editor — so a
+collapsed run must not CLIP. The first version carried `overflow: hidden`, copied from the list
+item's own whitespace wrapper where the box has a width to keep its content inside, and the caret
+vanished wherever its position fell inside one: on every line whose run was collapsed, and on
+every line Shift+Enter opens, which is the item's own indentation and nothing else. It came back
+only once a character was typed past the run. Measured by walking the ancestors of
+`domAtPos(head)`: `.cm-hmd-list-indent | hidden | w=0`, on a line start, inside the run, and on
+the Shift+Enter line alike.
+
+Two things follow, and the change carries both. A run overflows rather than clips, whitespace
+having no ink to spill; and a line whose content is ONLY whitespace is not marked at all, since
+there is no text for a run to push right and nowhere else for the caret to stand.
+
+What remains is that the characters stay addressable: `contentBoundaryCh` returns 0 for every
 non-list kind (`caret.ts`, D7), so Home, the arrows and a click can all land inside a run that now
-renders at no width, and `coordsAtPos` returns the same x for every position in it. Home on
-`  child paragraph` no longer appears to move the caret, and typing there writes at column 0,
-which takes the paragraph out of its item.
+renders at no width. Home on `  child paragraph` no longer appears to move the caret, and typing
+there writes at column 0, which takes the paragraph out of its item.
 
 Recorded rather than closed. Making the run non-addressable is a change to the caret's own
 contract — `content-space-caret`'s boundary rule, one capability over — and every shape that spec

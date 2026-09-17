@@ -15,17 +15,20 @@
  * list item's run is SIZED instead (`--to-list-hang`), because it carries the
  * item's native marker.
  *
- * `white-space: pre` and `overflow: hidden` keep a collapsed run from wrapping
- * the line or spilling over the text, and `vertical-align: top` keeps the
- * `overflow: hidden` inline-block — whose baseline would otherwise be its
- * bottom margin edge — from dropping the row it sits in. The same trio
- * `10-editor.css` states for a list item's own whitespace wrapper, and for the
- * same reasons.
+ * `white-space: pre` keeps the run from wrapping the line, and
+ * `vertical-align: top` keeps the inline-block — whose baseline would otherwise
+ * be its bottom margin edge — from dropping the row it sits in.
+ *
+ * NOT `overflow: hidden`, which a list item's own wrapper carries and this one
+ * must not: Obsidian draws the NATIVE caret, so a clipping box hides it
+ * outright wherever the caret's own position falls inside — measured on the
+ * manual pass, where the caret vanished on every line whose run was collapsed
+ * and came back only once a character was typed past it. What overflows here is
+ * whitespace, which paints nothing, so there is nothing to clip.
  */
 .markdown-source-view.mod-cm6 .cm-content > .cm-line .to-decor-source-indent {
   display: inline-block;
   width: 0;
-  overflow: hidden;
   white-space: pre;
   vertical-align: top;
 }
@@ -64,7 +67,8 @@
    * the padding standing. */
   padding: 0 !important;
   margin: 0 !important;
-  overflow: hidden;
+  /* No `overflow: hidden` here either, and for the same reason: the caret's own
+   * position can fall inside this span too, on the surplus past the mark. */
   white-space: pre;
   vertical-align: top;
 }
