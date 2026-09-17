@@ -274,11 +274,12 @@ this is designed for, and a debounce is added if that figure asks for one.
 ### D10. Phone
 
 Obsidian renders a `Modal` full-screen on a phone; the palette keeps that. Hits open on tap, and
-the instructions row is hidden by a container query the palette declares over its own shell — the
-footer's `@container` rule is on `.to-backlinks` and switches its own compact labels, so there is
-nothing here to inherit. That the hints can be hidden is the second reason the scope control
-carries the key's glyph rather than relying on them to name it, and the first reason it is present
-in both scopes (D7).
+the instructions row is hidden by Obsidian's own mobile styling — which the palette gets by
+borrowing the prompt shell rather than reimplementing it. A container query of our own was written
+first and measured second: with it removed the hints were still hidden, so it was a rule that could
+only ever have agreed with the platform, and it is gone. That the hints are hidden is the second
+reason the scope control carries the key's glyph rather than relying on them to name it, and the
+first reason it is present in both scopes (D7).
 
 ## Risks / Trade-offs
 
