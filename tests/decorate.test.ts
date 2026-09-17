@@ -291,6 +291,70 @@ describe('decorate: supplemental depth (additive list margin)', () => {
   });
 });
 
+describe('decorate: source indentation (indentCh)', () => {
+  /** The `indentCh` of the line whose text is `text`. */
+  const indentChOf = (md: string, text: string): number => {
+    const line = md.split('\n').indexOf(text);
+    return decorate(parse(md)).find((f) => f.lineNumber === line)!.indentCh;
+  };
+
+  it('covers a non-list child’s whole run, whatever the file wrote it with', () => {
+    const spaces = '- alpha\n\n  child paragraph\n';
+    const tab = '- alpha\n\n\tchild paragraph\n';
+    expect(indentChOf(spaces, '  child paragraph')).toBe(2);
+    expect(indentChOf(tab, '\tchild paragraph')).toBe(1);
+  });
+
+  it('is 0 for a list item, whose whitespace the list rules size instead', () => {
+    const md = '- alpha\n  - nested\n    continuation\n';
+    const facts = decorate(parse(md));
+    for (const fact of facts) {
+      if (fact.isListItem) expect(fact.indentCh).toBe(0);
+    }
+  });
+
+  it('is 0 for a line with no indentation of its own', () => {
+    const md = '# Heading\n\nPara.\n';
+    expect(indentChOf(md, '# Heading')).toBe(0);
+    expect(indentChOf(md, 'Para.')).toBe(0);
+  });
+
+  it('caps at the node’s own first line, so a deeper line keeps its surplus', () => {
+    const md = '- alpha\n\n  ```\n  flush\n      deeper\n  ```\n';
+    expect(indentChOf(md, '  ```')).toBe(2);
+    expect(indentChOf(md, '  flush')).toBe(2);
+    // Six spaces on a node indented by two: two are the fence's own, four are
+    // the code's.
+    expect(indentChOf(md, '      deeper')).toBe(2);
+  });
+
+  it('takes no character that only half fits: a tab straddling the node’s own width', () => {
+    // The fence is two spaces in; its content line leads with a tab, which
+    // spans columns 0-4. Half a tab is not a position, so the whole tab stays.
+    const md = '- alpha\n\n  ```\n\tdeeper\n  ```\n';
+    expect(indentChOf(md, '\tdeeper')).toBe(0);
+  });
+
+  it('gives up a line’s whole run when it is shallower than its node', () => {
+    // A paragraph's second line, indented less than its first.
+    const md = '- alpha\n\n    first\n  second\n';
+    expect(indentChOf(md, '    first')).toBe(4);
+    expect(indentChOf(md, '  second')).toBe(2);
+  });
+
+  it('never indexes past the whitespace of the line it describes', () => {
+    fc.assert(
+      fc.property(arbMarkdownText, (md) => {
+        const lines = md.split('\n');
+        for (const fact of decorate(parse(md))) {
+          const line = lines[fact.lineNumber] ?? '';
+          expect(/^[ \t]*$/.test(line.slice(0, fact.indentCh))).toBe(true);
+        }
+      }),
+    );
+  });
+});
+
 describe('computeLineGuides: per-line active guide depths (Experiment 2b)', () => {
   it('produces empty guideDepths for every line of a flat, childless document', () => {
     const md = 'First.\n\nSecond.\n\nThird.\n';

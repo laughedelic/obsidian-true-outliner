@@ -2261,6 +2261,83 @@ class SurplusMarkerSpacePlugin implements PluginValue {
   }
 }
 
+/**
+ * A non-list line's own SOURCE INDENTATION, marked so it renders at no width.
+ *
+ * The depth rules state where a line begins — `depth × unit + gutter` as
+ * `padding-left` for a block line, as `margin-left` for an atom — and the
+ * literal whitespace the file wrote to express that same depth then renders on
+ * top of it as characters, a second visual column for one tree level. Measured
+ * against Obsidian 1.13.7 with the 32px unit and the 14px gutter, on a
+ * paragraph blank-separated under `- alpha`: the box at 46px, correct, and the
+ * text at 72.17px with two spaces in the source, 82px with a tab. The amount
+ * the reader sees therefore depends on how the file was written, which is the
+ * one thing the outline is supposed to make invisible.
+ *
+ * List items are excluded because their whitespace is already stated, sized to
+ * `--to-list-hang` by the list rules rather than collapsed — a list item's
+ * indentation is the native marker's hang, and moving it would move the marker.
+ *
+ * Marked rather than selected in CSS, because there is nothing dependable to
+ * select. Obsidian wraps the run differently depending on the shape and on the
+ * reader's own "Show indentation guides" setting — measured on the same
+ * fixture: a `.cm-hmd-list-indent` wrapper for spaces under a list item, a bare
+ * `.cm-indent` for a tab, a `.cm-indent-spacing` for a leftover run under a
+ * heading, and, inside a fence, no wrapper at all but a highlighting token that
+ * may hold the whitespace and the code after it together. A mark covers exactly
+ * the characters, whatever Obsidian made of them, and collapses to zero width
+ * even when CM6 splits it across those spans — which is why the width is zero
+ * rather than stated: zero survives the split, a stated width would be paid
+ * once per piece. Obsidian's own spans carry stated `min-width`s of their own,
+ * so `70-source-indent.css` zeroes those alongside the mark.
+ *
+ * `indentCh` is the node's own indentation, capped at its first line
+ * (`decorate.ts`), so a line indented deeper than its node keeps the surplus:
+ * code inside a fence keeps its relative indentation, and only the fence's own
+ * is collapsed.
+ */
+export const SOURCE_INDENT_CLASS = 'to-decor-source-indent';
+
+function computeSourceIndent(state: EditorState): DecorationSet {
+  if (!isOutlineMode(state)) return Decoration.none;
+
+  const totalLines = state.doc.lines;
+  const builder = new RangeSetBuilder<Decoration>();
+  const { facts } = factsFor(state);
+  for (const fact of facts) {
+    if (fact.isListItem || fact.indentCh === 0) continue;
+    if (fact.lineNumber >= totalLines) continue; // stale fact past a shrunk doc
+    const line = state.doc.line(fact.lineNumber + 1); // CM6 lines are 1-indexed
+    // The fact is derived from this same state, so the run is there; a line
+    // shorter than its fact claims would still be a range CM6 rejects.
+    const to = Math.min(line.from + fact.indentCh, line.to);
+    if (to <= line.from) continue;
+    builder.add(line.from, to, Decoration.mark({ class: SOURCE_INDENT_CLASS }));
+  }
+  return builder.finish();
+}
+
+/** The source-indentation mark's own plugin, for the reason the digits and the
+ * surplus run each have one: CM6 merges decoration sets from separate sources,
+ * and a `Decoration.mark` at a line's start would otherwise have to be ordered
+ * by hand against the `Decoration.line` already there. */
+class SourceIndentPlugin implements PluginValue {
+  decorations: DecorationSet;
+
+  constructor(private readonly view: EditorView) {
+    this.decorations = this.compute();
+  }
+
+  update(): void {
+    this.decorations = this.compute();
+  }
+
+  private compute(): DecorationSet {
+    if (isNestedEditor(this.view)) return Decoration.none;
+    return computeSourceIndent(this.view.state);
+  }
+}
+
 class SelectionDecorationPlugin implements PluginValue {
   decorations: DecorationSet;
   private mouseDown = false;
@@ -3612,6 +3689,12 @@ export function decorationsExtension(modes: DecorationSource): Extension {
     // (`computeSurplusMarkerSpace`). Its own plugin for the reason the digits
     // have one.
     ViewPlugin.define((view) => new SurplusMarkerSpacePlugin(view), {
+      decorations: (v) => v.decorations,
+    }),
+    // A non-list line's own source indentation, collapsed so its depth is the
+    // one thing that positions it (`computeSourceIndent`). Its own plugin for
+    // the reason the two marks above have one.
+    ViewPlugin.define((view) => new SourceIndentPlugin(view), {
       decorations: (v) => v.decorations,
     }),
     // The fold affordance, drawn for every node we fold and hidden by CSS

@@ -30,7 +30,7 @@
 import type { NodeKind, OutlineDoc, OutlineNode } from '../model';
 import { isAtom, ownSpan } from '../model';
 import { nodeAtLine } from '../locate';
-import { parse } from '../parse';
+import { indentPrefixCh, indentWidth, parse } from '../parse';
 import { encode } from '../encode';
 import type { ZoomScope } from '../zoom';
 
@@ -90,6 +90,21 @@ export interface LineDecorationFact {
    * follow-up) to optionally hide markers on leaf nodes.
    */
   readonly hasChildren: boolean;
+  /**
+   * How many leading CHARACTERS of this line are the node's own source
+   * indentation — the run whose width the depth rules already state, and which
+   * therefore renders at no width of its own (see the
+   * `to-decor-source-indent` mark in decorations.ts).
+   *
+   * Measured against the node's FIRST line and capped there, so a line
+   * indented deeper than its node keeps the surplus: the second line of a
+   * paragraph, and every line inside a fence, hold their own relative
+   * indentation as content rather than as structure.
+   *
+   * Always 0 for a list item, whose leading whitespace is sized by the list
+   * rules instead (`--to-list-hang`), and 0 for any line that carries none.
+   */
+  readonly indentCh: number;
 }
 
 /**
@@ -105,6 +120,10 @@ export function decorate(doc: OutlineDoc): LineDecorationFact[] {
   const walk = (node: OutlineNode, depth: number, listRootDepth: number | null): void => {
     const atom = isAtom(node);
     const isListItem = node.kind === 'list-item';
+    // The node's own indentation, from its first line: what every one of its
+    // lines repeats to stay inside the block, as opposed to what any one of
+    // them indents further by.
+    const indentCols = isListItem ? 0 : indentWidth(node.lines[0] ?? '');
     // Entering a new list-item chain (this node's parent wasn't one) roots
     // it at this node's own depth; continuing a chain inherits the root.
     const rootDepth = isListItem ? (listRootDepth ?? depth) : null;
@@ -119,6 +138,7 @@ export function decorate(doc: OutlineDoc): LineDecorationFact[] {
         supplementalDepth: isListItem ? rootDepth! : 0,
         kind: node.kind,
         hasChildren: node.children.length > 0,
+        indentCh: isListItem ? 0 : indentPrefixCh(node.lines[i]!, indentCols),
       });
     }
     current += ownSpan(node);

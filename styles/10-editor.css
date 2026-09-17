@@ -224,11 +224,15 @@ body.is-mobile {
    * NEGATIVE — outdented past the depth column, growing with every extra
    * leading space (more native "measured" width to subtract), exactly the
    * reported bug. Zeroing text-indent removes the hang outright: the line
-   * renders purely at our own depth position, and the literal leading
-   * spaces still show up as ordinary rendered content on top of it (additive
-   * -only, same invariant every other kind here already keeps) instead of
-   * being folded into a hanging-indent calculation that assumes zero prior
-   * padding. */
+   * renders purely at our own depth position instead of being folded into a
+   * hanging-indent calculation that assumes zero prior padding.
+   *
+   * The leading spaces themselves used to stay, rendered as ordinary content on
+   * top of that — which was the second column issue #117 reported for a child of
+   * a list item, and the same double count wherever else a line leads with
+   * whitespace. `70-source-indent.css` collapses that run now: Markdown reads it
+   * as structure, the depth rules already state the structure, and reading mode
+   * renders none of it. */
   text-indent: 0 !important;
 }
 

@@ -49,6 +49,11 @@ point.
 
 ### A non-list-item child of a list item is indented twice
 
+**Graduated** — closed by the `source-indentation-collapses` change (issue #117), which collapses
+a non-list line's own source indentation so the depth rules are the only thing positioning it.
+The geometry this entry left unmeasured is in `docs/research/source-indentation-width`, with the
+one residue the fix leaves inside an indented fence.
+
 Found while cataloguing Enter/Shift+Enter (2026-08-06,
 `enter-and-shift-enter-catalogue.md` E10/E11), from a real-vault report that indented
 text under a list item renders misaligned.
@@ -70,6 +75,13 @@ Fixing it is a decoration decision, not a parse one: either subtract a child's o
 whitespace from its depth padding (the source whitespace already encodes the same depth),
 or render non-list children with the native regime the way list items are. Both need the
 guide-line and marker offsets re-derived, which is why this is a change of its own.
+
+**How it was closed.** Neither candidate below survived the measurement as written. Subtracting
+the run's width needs a width nothing can state — it is the file's, not the tree's — and the
+native regime for a non-list line is no indentation at all, so there was nothing to render it
+with. What the pass found instead is that markdown itself reads the run as structure and reading
+mode renders none of it: collapsing it to no width, and leaving the depth rules to supply the
+column, is the same trade `lists-on-the-outline-grid` made for a list item's own run.
 
 **Amended 2026-08-11** (`a-position-does-not-split-its-node`): the first measured shape above —
 a blank line followed by indented text under an item — had a TRANSIENT way in as well as the
