@@ -10,9 +10,10 @@
       axis. Verify that each button's size and its offset from the table match the
       outline-mode-off values in the note's reservation table
 - [x] 1.3 Rewrite the rule's doc comment: the four pieces of chrome and what each is anchored to,
-      why the tight box could not hold them, why the near inset has to be released, and what the
-      `auto hidden` pairing is and is not doing. Leave the account of why the scroll moved to the
-      wrapper at all (Experiment 2b finding 4) in place above it
+      why the tight box could not hold them, why the reservation stops at three sides, why a
+      transform places the buttons where an inset cannot, and what the `auto hidden` pairing is
+      and is not doing. Leave the account of why the scroll moved to the wrapper at all
+      (Experiment 2b finding 4) in place above it
 
 ## 2. E2E coverage
 
@@ -66,8 +67,10 @@
       buttons add a row and a column. Click each of the four bands around the table and confirm
       what focuses or selects, since the band's owner changes with this rule (Risks). Check one
       table in each bundled theme
-- [x] 4.4 Check a table in a note with an RTL first line, confirming D3's logical insets put the
-      add-column button on the inline-far side rather than over the table
+- [x] 4.4 Check a table with Obsidian's right-to-left setting on, confirming the buttons keep the
+      sides they have in an LTR note. Measured: `.cm-content` computes `direction: rtl` while
+      `.table-wrapper` stays `ltr`, so direction moves nothing here and D3's physical transforms
+      are safe
 
 ## 5. Land
 
