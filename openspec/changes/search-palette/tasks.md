@@ -135,7 +135,7 @@
 
 ## 6. Docs and validation
 
-- [ ] 6.1 Update `docs/research/search-surfaces`'s prototype section with what changed between
+- [x] 6.1 Update `docs/research/search-surfaces`'s prototype section with what changed between
       prototype and feature (the four differences named in design Context); verify the section
       reads as a record, not a session log
-- [ ] 6.2 `openspec validate search-palette --strict`
+- [x] 6.2 `openspec validate search-palette --strict`
