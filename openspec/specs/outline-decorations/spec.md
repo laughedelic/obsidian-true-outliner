@@ -94,22 +94,24 @@ content and SHALL render at its own width — at the top level it is also the on
 distinguishing an indented code block from a paragraph.
 
 What a line carries BEYOND its node's own indentation is not structure either and SHALL be left
-standing: a line indented deeper than the node it belongs to — code inside an indented fence, a
-paragraph's own continuation line — SHALL keep the surplus, so its indentation relative to its own
-block survives, AND SHALL render that surplus at the width of the characters it is made of, not at
-whatever width Obsidian's own quantiser makes of the whole run. A surplus holding a tab is
-excepted: a tab's rendered width is a tab stop rather than a count of advances, and is not this
-layer's to state.
+standing, as the characters it is: a line indented deeper than the node it belongs to — code
+inside an indented fence, a paragraph's own continuation line — SHALL keep the surplus, so its
+indentation relative to its own block survives, and SHALL render it at whatever those characters
+measure in that line's own font. The plugin SHALL state no width for it, which is what keeps a
+fence's own space advance and a tab correct without an exception for either.
 
 A node that renders a BOX of its own puts that box on its depth's column and its content inside:
 a fenced code block SHALL keep the internal padding Obsidian gives an unindented fence, which it
 withholds from one written inside a list.
 
-Positions inside a collapsed run stay addressable and render at the line's own column, and the
-collapse SHALL NOT clip: Obsidian draws the native caret, so a caret whose position falls inside
-the run has to remain drawable. A line whose content is only whitespace SHALL NOT have its run
-collapsed at all — it has no text for the run to push, and the caret nowhere else to stand. Where
-a caret lands is `content-space-caret`'s to state, and this requirement does not move it.
+Obsidian draws the native caret, so every position a caret can reach SHALL remain drawable. A
+node's own indentation is not one of them: it renders nothing, so the caret SHALL treat it as
+chrome — motion and placement floored at it, exactly as they are at a list marker, and one step
+across it rather than one press per character standing at the same column. A line whose content is
+only that indentation SHALL still give the caret its own column to stand on, having no text to
+stand against. What a line carries past its node's own indentation SHALL keep stock motion and
+stock deletion, one character at a time. Where a caret lands otherwise is `content-space-caret`'s
+to state.
 
 What this does NOT change is the parse: which levels exist is Markdown's business and is
 already decided by the time this layer runs.
@@ -188,17 +190,17 @@ already decided by the time this layer runs.
 - **THEN** the note without it renders its lists exactly as stock Obsidian does
 
 **Covered by**: `e2e/specs/56-list-grid.e2e.ts`; `e2e/specs/56-source-indent.e2e.ts` ("starts
-every kind written under an item on the item's child column", "keeps a fence's interior
-indentation, which is the code's own", "puts a tab-indented child on the same column as a
-space-indented one", "starts a widget-rendered callout child on the same column", "gives an
-indented fence the internal padding an unindented one has", "keeps a fence's interior indentation
-at the width of its own spaces", "leaves the caret somewhere it can be drawn, inside a collapsed
-run", "leaves a line Shift+Enter opens uncollapsed, having no text to push", "keeps a non-fence
-line indented deeper than its node", "leaves a child of a heading alone, whose depth its
-whitespace never stated", "holds with Obsidian's own indentation guides turned off", "collapses the
-run itself, so the line begins where its text does", "leaves the item's own indentation to the list
-rules", "touches nothing with outline mode off");
-`tests/decorate.test.ts` ("decorate: source indentation (indentCh)").
+every kind written under an item on the item's child column", "gives an indented fence the
+internal padding an unindented one has", "keeps a fence's interior indentation at the width of its
+own spaces", "starts a widget-rendered callout child on the same column", "keeps a line indented
+deeper than its node, at the width of its own spaces", "leaves a child of a heading alone, whose
+depth its whitespace never stated", "holds with Obsidian's own indentation guides turned off",
+"puts a tab-indented child on the same column as a space-indented one", "draws nothing at all for
+the run itself", "walks a line's surplus one character at a time", "crosses the node's own
+indentation in one press, and draws the caret at both ends", "leaves deletion to stock, in the
+surplus and in the run alike", "draws the caret on a line Shift+Enter opens, which is indentation
+alone", "leaves the item's own indentation to the list rules", "touches nothing with outline mode
+off"); `tests/decorate.test.ts` ("decorate: source indentation (indentCh)").
 
 ### Requirement: One grid, one unit, from one declaration
 
