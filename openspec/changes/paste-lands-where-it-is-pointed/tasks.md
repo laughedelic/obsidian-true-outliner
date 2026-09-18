@@ -103,6 +103,11 @@
       and is withdrawn. The probe now records both so a re-run cannot repeat it
 - [x] 6c.7 E2E for the Enter-then-paste gap collapse and the caret-on-a-heading anchor, through
       the real buffer
+- [x] 6c.8 `outline-zoom`'s G1 caught by CI: a paste at the zoom root's content start no longer
+      splices BESIDE the root when that root has children, so the gesture the scenario names stops
+      meeting its own condition. The ground is unchanged — restated from a CHILDLESS root, whose
+      own line still names its next-sibling slot, with the new in-scope case pinned beside it.
+      Delta added under `specs/outline-zoom/`
 
 ## 6b. Review round (independent review, 2026-09-16)
 
