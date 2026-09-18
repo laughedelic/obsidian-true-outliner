@@ -46,14 +46,25 @@ interface Declared {
   type: string;
 }
 
-/** What `getSettingDefinitions()` offers — the 1.13+ path. */
+/**
+ * What `getSettingDefinitions()` offers — the 1.13+ path.
+ *
+ * A description is `string | DocumentFragment` (`SettingDefinitionBase`), and a
+ * setting that carries a chip supplies the fragment. Read as SEARCHABLE TEXT
+ * rather than passed through, for two reasons: Obsidian indexes a fragment by
+ * its `textContent`, so this is the string the assertions here are actually
+ * about; and a fragment is not attached to the document, so handing one back
+ * across the WebDriver boundary serialises a reference that is stale before it
+ * arrives — every test in this file failed that way, in both platforms' runs,
+ * the first time a setting declared a chip.
+ */
 function declaredSettings(): Promise<Declared[]> {
   return browser.executeObsidian(({ app }) => {
     const tab = (app as any).setting.pluginTabs.find((t: any) => t.id === 'true-outliner');
     return tab.getSettingDefinitions().map((d: any) => ({
       key: d.control?.key ?? '',
       name: d.name ?? '',
-      desc: d.desc ?? '',
+      desc: typeof d.desc === 'string' ? d.desc : (d.desc?.textContent ?? ''),
       type: d.control?.type ?? '',
     }));
   });

@@ -8,6 +8,17 @@
 export interface SettingRow {
   readonly name: string;
   readonly desc: string;
+  /**
+   * Marks a setting whose behaviour is still being judged in real use. The tab
+   * draws a chip ahead of the description, in both render paths; the word also
+   * reaches Obsidian's settings search, because search reads a description
+   * fragment's `textContent`.
+   *
+   * A property of the DECLARATION rather than prose inside `desc`, so the chip
+   * cannot drift out of step with the description it labels, and so nothing has
+   * to parse a string to know which settings carry one.
+   */
+  readonly experimental?: boolean;
 }
 
 interface Declared {
