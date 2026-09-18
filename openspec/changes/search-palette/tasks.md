@@ -100,7 +100,7 @@
       `white-space: normal`, which undoes the CodeMirror `pre-wrap` a block widget inherits and
       means nothing in a modal, its heading and its controls (design D2). Add the check that keeps
       it true: no `to-lineage-*` selector in the footer's part, and no `to-backlinks-*` selector in
-      the shared one, as a case in `tests/styles.test.ts` beside the brace check. Then `styles/80-search-palette.css`: the
+      the shared one, as a case in `tests/styles.test.ts` beside the brace check. Then `styles/90-search-palette.css`: the
       shell, the hit-only active state and the scope control. The hints need no rule of ours —
       Obsidian's own mobile styling hides `prompt-instructions`, which borrowing the prompt shell
       inherits. Verify on the desktop and mobile e2e configs

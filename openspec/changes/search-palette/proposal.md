@@ -69,7 +69,7 @@ requirements keep holding, on the shared module.
   one level above the `lineage-row.ts` that `lineage-text-rendering` already shares),
   `src/plugin/vault-search.ts` (the progressive vault-wide search over the shared tree cache,
   reporting a hit per matching node so a row can show the line the match is on),
-  a `search-palette` spec, `e2e/specs/45-search-palette.e2e.ts`, `styles/80-search-palette.css`,
+  a `search-palette` spec, `e2e/specs/45-search-palette.e2e.ts`, `styles/90-search-palette.css`,
   `styles/15-lineage-list.css` (the row rules both surfaces share, out of the footer's part).
 - **Modified**: `src/plugin/backlinks-footer.ts` (calls the shared list renderer),
   `src/plugin/lineage-row.ts` (takes the segment-level helpers the trail already imports from the
@@ -96,8 +96,10 @@ neither needs. Three seams, of which the first has already settled in this chang
   `mark.to-match` — because its own marks are a CM6 decoration rather than rendered text. So the
   rename below no longer touches that rule, and the palette's marks are drawn by it for free. What
   is left is a textual conflict in the region both changes edit, not a disagreement.
-- **The stylesheet's prefixes.** That change has taken `70-` for `styles/70-outline-filter.css`,
-  so the palette's part is `80-search-palette.css`. Filename order is cascade order and neither
-  feature's rules reach the other, so the number is a name rather than a decision.
+- **The stylesheet's prefixes.** `70-` and `80-` are both taken on `main` now, so the palette's
+  part is `styles/90-search-palette.css`. `70-` is taken twice over — `70-gap-lines.css` and
+  `70-source-indent.css` — so a shared prefix is not in itself a problem and the `70-` that
+  change names for its own part can stay. Filename order is cascade order and no two of these
+  features' rules reach each other, so the number orders them and decides nothing else.
 - **`src/plugin/main.ts`**, where both add imports at the top and a command below. Different
   hunks, one file.
