@@ -31,7 +31,7 @@ const isBlank = (line: string): boolean => line.trim() === '';
 
 const ATX_RE = /^ {0,3}(#{1,6})(?:[ \t]|$)/;
 const FENCE_OPEN_RE = /^([ \t]*)(`{3,}|~{3,})/;
-const LIST_ITEM_RE = /^([ \t]*)([-+*]|\d{1,9}[.)])([ \t]+|$)/;
+const LIST_ITEM_RE = /^([ \t]*)([-+*]|\d{1,9}[.)])([ \t]+)/;
 const QUOTE_RE = /^ {0,3}>/;
 const CALLOUT_RE = /^ {0,3}>\s*\[!/;
 const HR_RE = /^ {0,3}(?:(?:\* *){3,}|(?:- *){3,}|(?:_ *){3,})$/;
