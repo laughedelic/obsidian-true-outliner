@@ -1,30 +1,28 @@
 /*
- * A line's own source indentation, PAID FOR out of the depth rules
- * (`SOURCE_INDENT_SIZED_CLASS`, decorations.ts).
+ * What Obsidian made of a run whose own indentation this layer REPLACED
+ * (`SOURCE_INDENT_REPLACEMENT`, decorations.ts).
  *
- * The run keeps its own width — real characters, navigable and editable one at
- * a time — and `10-editor.css` subtracts that width from the line's depth
- * contribution instead. The two then share one column rather than each adding
- * its own, which is the whole of issue #117. What a line carries BEYOND its
- * node's own indentation is untouched and pushes its text right, which is what
- * a deeper line means.
+ * Only the node's own indentation is hidden — the characters that restate a
+ * depth the rules already state. What a line carries beyond them stays where it
+ * is, rendered by Obsidian at whatever those characters measure, and pushes the
+ * line's text right.
  *
- * `docs/research/source-indentation-width` carries the versions that took the
- * width off the RUN instead, and what each cost the caret.
+ * `docs/research/source-indentation-width` carries the versions that hid the
+ * WHOLE run, or hid none of it, and what each cost the caret.
  */
 
 /*
- * Obsidian's quantiser, overridden so the run measures what it holds.
+ * Obsidian's quantiser, overridden so the span measures what is left inside it.
  *
- * It sizes a leading run from `--list-indent` rather than from the characters:
+ * It sizes a leading run from `--list-indent` rather than from the characters —
  * measured, 26.17px for two spaces, 36px for a tab, and a `border-box`
- * `.cm-indent-spacing` carrying its width as `padding-left`. The subtraction
- * above states the characters' own width, so the rendering has to agree with it
- * — otherwise the line's text lands off the column by whatever the quantiser
- * added.
+ * `.cm-indent-spacing` carrying its width as `padding-left` — and it sizes from
+ * the document, so that width outlives the characters the replacement took.
+ * Left standing it would put the line's text back in a second column.
  *
- * `width: auto` rather than a stated one: what these spans hold IS the run, so
- * their natural width is the number the subtraction uses.
+ * `width: auto` rather than zero: the span still holds the surplus, whose own
+ * glyphs are the width the line is owed. Every such span on the line, since
+ * Obsidian splits a run across several.
  */
 .markdown-source-view.mod-cm6
   .cm-content
