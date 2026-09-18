@@ -70,3 +70,24 @@
 ## 6. Validate
 
 - [x] 6.1 `openspec validate source-indentation-collapses --strict`.
+
+## 7. Close the manual pass's findings
+
+- [x] 7.1 Restore the internal padding Obsidian gives a top-level fence and withholds from one
+      written inside a list (`--size-4-4`), which the source indentation used to stand in for.
+- [x] 7.2 Suppress Obsidian's own indentation aid on every line outline mode decorates, not only
+      on a list line — it hangs off a span this layer leaves no width in, so its segments started
+      inside the text they were meant to sit left of.
+- [x] 7.3 Hide the node's OWN indentation only, and state no width for what a line carries past it
+      (design D3). Closes the two shapes a stated width got wrong — a fence's own space advance,
+      and a tab, which the earlier version skipped outright.
+- [x] 7.4 Undisplay the characters rather than replacing them (design D2), so the caret at the
+      boundary is not drawn against CM6's own `cm-widgetBuffer`; replace instead on a line that is
+      indentation alone, where an undisplayed mark leaves the caret nowhere to stand.
+- [x] 7.5 Floor the caret's motion and placement at the hidden indentation (design D5), in the
+      predicate, both resolvers and the planner together, with `own-indent.ts` as the one
+      definition both layers read.
+- [x] 7.6 Rewrite `e2e/specs/56-source-indent.e2e.ts` for the final mechanism: 15 cases, the caret
+      walk and the run's absence among them.
+- [x] 7.7 File what the pass found that is not this layer's: #136, #137, #138 (parse and renderer
+      disagreements) and #140 (Obsidian's own quantised caret steps in a top-level run).

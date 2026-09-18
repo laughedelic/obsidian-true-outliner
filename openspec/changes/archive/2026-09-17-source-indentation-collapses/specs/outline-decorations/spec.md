@@ -38,12 +38,24 @@ content and SHALL render at its own width — at the top level it is also the on
 distinguishing an indented code block from a paragraph.
 
 What a line carries BEYOND its node's own indentation is not structure either and SHALL be left
-standing: a line indented deeper than the node it belongs to — code inside an indented fence, a
-paragraph's own continuation line — SHALL keep the surplus, so its indentation relative to its own
-block survives.
+standing, as the characters it is: a line indented deeper than the node it belongs to — code
+inside an indented fence, a paragraph's own continuation line — SHALL keep the surplus, so its
+indentation relative to its own block survives, and SHALL render it at whatever those characters
+measure in that line's own font. The plugin SHALL state no width for it, which is what keeps a
+fence's own space advance and a tab correct without an exception for either.
 
-Positions inside a collapsed run stay addressable and render at the line's own column. Where a
-caret lands is `content-space-caret`'s to state, and this requirement does not move it.
+A node that renders a BOX of its own puts that box on its depth's column and its content inside:
+a fenced code block SHALL keep the internal padding Obsidian gives an unindented fence, which it
+withholds from one written inside a list.
+
+Obsidian draws the native caret, so every position a caret can reach SHALL remain drawable. A
+node's own indentation is not one of them: it renders nothing, so the caret SHALL treat it as
+chrome — motion and placement floored at it, exactly as they are at a list marker, and one step
+across it rather than one press per character standing at the same column. A line whose content is
+only that indentation SHALL still give the caret its own column to stand on, having no text to
+stand against. What a line carries past its node's own indentation SHALL keep stock motion and
+stock deletion, one character at a time. Where a caret lands otherwise is `content-space-caret`'s
+to state.
 
 What this does NOT change is the parse: which levels exist is Markdown's business and is
 already decided by the time this layer runs.

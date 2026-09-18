@@ -56,7 +56,7 @@ Characters rather than columns, for the reason `parseListMarker` already records
 pair: a tab is one character and one to four columns, and only the character count is a valid
 index into the string.
 
-### D2 — A mark, collapsed to zero, plus the span Obsidian wrapped it in
+### D2 — An undisplayed mark over the node's own indentation, and the span Obsidian wrapped it in
 
 The mark covers exactly those characters, whatever Obsidian made of them. That is the point of
 marking rather than selecting: measured, the run lands in a `.cm-hmd-list-indent` wrapper for
@@ -64,30 +64,60 @@ spaces under a list item, a bare `.cm-indent` for a tab, a `.cm-indent-spacing` 
 under a heading, and, inside a fence, in a highlighting token that may hold the whitespace and the
 code after it together.
 
-Zero width rather than a stated one, because CM6 may split a mark across those spans and a stated
-width would be paid once per piece, where zero survives the split.
+`display: none` rather than a zero width, and rather than a `Decoration.replace`. A box of no
+width still PAINTS, and its glyphs landed on the line's own first word — clipping them hid the
+native caret instead. A replacement draws nothing either, but CM6 pads one with `cm-widgetBuffer`
+elements, and the native caret drawn against one of those is a different height than the caret
+drawn against text. An undisplayed mark reserves nothing and paints nothing, so the caret at the
+boundary stands against the line's own first character.
+
+One exception, which the caret forced: a line whose content is ONLY the node's own indentation —
+what Shift+Enter opens — takes the REPLACEMENT, because an undisplayed mark leaves that line with
+nothing rendered at all and `coordsAtPos` returns null there. The replacement's buffer element is
+something for the caret to stand against, at the line's own column, and the height that buffer
+costs needs a boundary with text to show at.
 
 The mark alone is not enough: CM6 nests Obsidian's own span outside it, and that span's width is
-stated — measured at 62px for two spaces and 82px for a tab against a 46px column. So
-`70-source-indent.css` zeroes that span too, and by `width`, `min-width`, `padding` and `margin`
-together, since `.cm-indent-spacing` carries its run as `padding-left` on a `border-box` element
-where a zero width leaves the padding standing.
+stated from the DOCUMENT — measured at 62px for two spaces and 82px for a tab against a 46px
+column, and it outlives the characters the mark undraws. So `70-source-indent.css` puts that span
+back to `width: auto`, with `min-width`, `padding` and `margin` zeroed too, since
+`.cm-indent-spacing` carries its run as `padding-left` on a `border-box` element. Auto rather than
+zero, because the span still holds the surplus, whose own glyphs are the width the line is owed.
 
-### D3 — The wrapper is collapsed only where the mark covers the whole run
+### D3 — Only the node's OWN indentation is hidden, and no width is stated for what is past it
 
-Obsidian's span holds the run as it quantised it, the node's own indentation and anything past it
-together, so zeroing it on a line that carries more discards the surplus D1 deliberately left
-standing. The rule is therefore keyed on the mark's own coverage — `SOURCE_INDENT_WHOLE_CLASS`,
-set from the line's leading run — rather than on the kind of line.
+The distinction the fact layer carried from the start and two renderings lost. Obsidian's span
+holds the run as it quantised it — the node's own indentation and anything past it together — so
+zeroing that span takes the surplus with it: measured, `      second deeper` at 46px, the same
+column as the flush line above it. A replacement widened to the whole run loses it the other way:
+six positions rendering at one x, which reads as the caret standing still while the document
+changes.
 
-Keyed on the kind instead, two shapes lose indentation that is content: a fence's interior (all
-six spaces of `      deeper`) and, measured after the first version shipped this rule as a
-fence-only exclusion, an ordinary paragraph continuation (`      second deeper` at 46px, the same
-column as the line above it). One rule covers both, and a fence needs no exception of its own.
+Hiding the node's own indentation ALONE needs no width stated anywhere. The surplus renders as
+itself, in its own font, which is what makes the two shapes a stated width could not get right
+come out correct: a space in a fence's CODE font measures 8.43px against the prose font's 5.08px,
+and a tab renders to a tab stop rather than to a count of advances. Measured, with a 46px column:
+`      second deeper` at 66.3 (46 + 4 × 5.08), `      deeper` inside a fence at 95.7 (62 + 4 ×
+8.43), and a tab-indented child at 46.0, level with a space-indented one.
 
-What remains is a residue rather than a defect: on a line the rule skips, the surviving
-indentation renders as Obsidian quantised it, up to one quantum wider than its own characters —
-48.36px where four spaces measure about 33.7px. The numbers are in the research note.
+### D5 — Hidden characters are chrome, so the caret is floored at them
+
+Hiding characters is not enough on its own: a press that walks through them looks dead, since
+every position among them renders at one x. `caret.ts` floors motion and placement at the node's
+own indentation, exactly as it already does at a list marker — both are characters that state the
+tree's shape rather than the reader's text, and outline mode draws neither.
+`EditorView.atomicRanges` carries the same rule to every gesture that does not come through the
+plugin's own keys.
+
+The floor has to hold in the predicate, both resolvers and the motion planner together: with it in
+motion alone, a left-then-right round trip stopped returning where it started, caught by
+`caret.test.ts`'s own property. `own-indent.ts` states which characters are hidden, once, for the
+decoration layer and the caret layer together, so the two cannot disagree.
+
+Deletion is deliberately untouched and stays stock: Obsidian's own editor removes a whole indent
+unit inside leading whitespace. An earlier version made the run atomic over its WHOLE length,
+which turned Backspace at a run's text start into a six-character deletion — a block leaving its
+parent in one press.
 
 ### D4 — The fact is published, not the rendering decision
 
