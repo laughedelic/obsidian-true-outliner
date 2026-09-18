@@ -385,3 +385,74 @@ second CommonMark list.
 
 A plain bullet payload does the same today, so the mechanism is old and the renumbering half of
 it is arguably the sharper bug of the two.
+
+## What Obsidian does with a heading inside a list item (tasks 2.2, 2.3)
+
+Measured in a real instance — Obsidian 1.13.7, default theme, Live Preview and reading mode,
+outline mode on — by the probe at
+`docs/research/prototypes/heading-in-list-probe/heading-in-list-probe.e2e.ts.txt`. The fixture is
+a converted payload exactly as the paste now writes it, `  - ## Notes` at depth 2, beside a real
+`## RealHeading` so every reading is a comparison rather than an absolute.
+
+The answer is split three ways, and only one of the three matches what the `#`-carrying decision
+assumed.
+
+### Reading mode renders it as a real heading
+
+```
+<H1> Top
+<H2> Notes          <- the converted list item
+<H2> RealHeading
+```
+
+CommonMark's "a list item contains blocks" is honoured in full: `- ## Notes` produces an `<h2>`.
+This is the half of the assumption that holds.
+
+### Live Preview does NOT give it heading styling
+
+| line | classes | font | weight |
+| --- | --- | --- | --- |
+| `# Top` | `HyperMD-header HyperMD-header-1` | 25.9px | 700 |
+| `## RealHeading` | `HyperMD-header HyperMD-header-2` | 23.4px | 680 |
+| `  - ## Notes` | `HyperMD-list-line HyperMD-list-line-2` | **16px** | **400** |
+| `  - two` (plain) | `HyperMD-list-line HyperMD-list-line-2` | 16px | 400 |
+
+The converted item is styled as a list line, indistinguishable in size and weight from a plain
+one. Obsidian does TOKENIZE the run — an inner span carries `cm-header cm-header-2 cm-list-2`,
+and the `##` is concealed on an unfocused line exactly as a real heading's markers are — but the
+line-level heading treatment is what supplies the size, and a list line does not get it.
+
+The concealment without the sizing is the awkward part: unfocused, the row reads `- Notes` with
+no indication the rank is there at all. Focused, the `##` comes back. The rank is in the file and
+invisible in the editor, which is a worse place to be than either showing it or not carrying it.
+
+A theme could style `cm-header-2` inside a list line and close the gap; the default does not.
+
+### The metadata cache does not index it
+
+```
+headings:  [ {Top, 1}, {RealHeading, 2} ]      <- `Notes` absent
+listItems: 4                                    <- counted here instead
+```
+
+So `[[note#Notes]]` has no target. The file resolves, the fragment does not, and the link lands
+at the top of the note rather than at the section. Every heading-anchor link into a converted
+section breaks.
+
+This is not a REGRESSION — demoting the heading to `- Notes` instead would break the same anchor,
+and before this change the paste did not produce a well-formed result at all. But it is a cost
+the decision was recorded as possibly avoiding, and it does not.
+
+### What this leaves of the decision
+
+Of design D2's three supports, one is measured false and one is untouched:
+
+- *"Obsidian renders it with heading styling"* — **false in Live Preview**, true in reading mode.
+  Outline mode lives in Live Preview, which is where the claim was made.
+- *"`contentColumnCh` already treats the run as chrome"* — unchanged and true.
+- *"the rank survives the move and returns on an outdent"* — unchanged and true, verified through
+  the real operations rather than by hand.
+
+Reversibility is therefore the whole of the remaining case for carrying the `#`, and it is a real
+one: the alternative loses the rank irretrievably. What is gone is the ergonomic argument the
+decision was originally made on.

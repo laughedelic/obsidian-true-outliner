@@ -13,11 +13,13 @@
 
 - [ ] 2.1 Record the root-level absorption magnitude on a real note in the dev vault, so
       design D3's accepted case is judged against a real document rather than a fixture
-- [ ] 2.2 Confirm in a real instance that Obsidian renders `- ## Notes` with heading styling
-      at depth, in outline mode and out of it
-- [ ] 2.3 Measure whether Obsidian's metadata cache indexes a heading inside a list item —
+- [x] 2.2 Confirm in a real instance that Obsidian renders `- ## Notes` with heading styling
+      at depth, in outline mode and out of it — measured: reading mode yes, LIVE PREVIEW NO
+      (plain list line, `##` concealed). Recorded in `docs/research/paste-across-encoding-regimes`
+- [x] 2.3 Measure whether Obsidian's metadata cache indexes a heading inside a list item —
       i.e. whether a `[[note#Notes]]` anchor still resolves after a conversion (design D2's
-      one unmeasured claim). Record either way in `docs/research/paste-across-encoding-regimes`
+      one unmeasured claim). Measured: it does NOT index it, so the anchor has no target.
+      Recorded in `docs/research/paste-across-encoding-regimes`
 
 ## 3. The heading arm
 
@@ -67,8 +69,8 @@
 
 - [x] 6.1 E2E paste scenarios matching `examples.md` frames B1/B2, C1, D1/D2 and E1/E2, in the
       existing clipboard group (which `run-e2e.mjs` forces to one worker — the OS clipboard is
-      shared). Added to spec `62`, which is already in that group. Verified by CI's matrix: the
-      harness cannot fetch Obsidian from the container these were written in
+      shared). Added to spec `62`, which is already in that group. Green in CI's matrix and,
+      since the Obsidian cache was repaired, in a local run of the whole spec too (51 passing)
 - [x] 6.2 E2E: undo restores the pre-paste buffer byte-identically in one step, for a converted
       paste and for an absorbing one
 - [ ] 6.3 Real-vault manual pass on the reporter's own shapes, plus the drag work's drop path

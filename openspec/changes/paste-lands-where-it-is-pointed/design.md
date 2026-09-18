@@ -63,9 +63,15 @@ what the person pointing meant.
 `## Notes` converting into a list scope becomes `- ## Notes`, not `- Notes`.
 
 `- ## Notes` is a list item containing an `h2` — canonical CommonMark, not an Obsidian
-extension — and Obsidian renders it with heading styling. Our own `contentColumnCh` already
-treats a `#` run following a list marker as chrome, so the caret machinery lands where it should
-on such a line without changing.
+extension. Our own `contentColumnCh` already treats a `#` run following a list marker as chrome,
+so the caret machinery lands where it should on such a line without changing.
+
+*Measured since, in a real instance (`docs/research/paste-across-encoding-regimes`): reading mode
+does render it as a real `<h2>`, but LIVE PREVIEW does not give it heading styling — the line is
+a list line at plain size, with the `##` concealed on an unfocused row. And the metadata cache
+does not index it, so `[[note#Notes]]` has no target. Neither is a regression (demoting the
+heading loses the rank and breaks the same anchor), but the rendering was the ergonomic argument
+this decision was made on, and it does not hold where outline mode lives.*
 
 What this buys is reversibility. Measured, outdenting a converted item back to a heading scope
 strips the marker and re-parses the line as a real heading again, at its original rank. The
@@ -175,10 +181,11 @@ quietly left in the tasks:
   top makes the whole remainder its children. Markdown means exactly that, and D3's visibility
   argument still applies, but the magnitude is worth seeing in real use before we accept it for
   good.
-- **`- ## Notes` depends on how Obsidian treats a heading inside a list item** → the rendering
-  is reported and matches CommonMark, but whether the metadata cache indexes such a heading — so
-  whether a `[[note#Notes]]` anchor still resolves — is unmeasured. It is no worse than demoting
-  the heading outright, which breaks the anchor too; it may be better. Task 2.3 measures it.
+- **`- ## Notes` renders as a heading only in reading mode, and breaks heading anchors** →
+  measured, not predicted. Live Preview styles it as a plain list line with the `##` concealed,
+  so the rank is in the file and invisible in the editor; the metadata cache does not index it,
+  so `[[note#Notes]]` has no target. Neither is worse than the alternative, which loses the rank
+  outright, but the decision's ergonomic argument is gone and only reversibility remains.
 - **An outdent can turn a converted item back into a heading unintentionally** → the reverse
   trip that D2 counts as a feature fires whenever such an item reaches a heading scope, whether
   or not that was the intent. It re-parses cleanly, so it is a surprise rather than a
