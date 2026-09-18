@@ -2264,12 +2264,20 @@ class SurplusMarkerSpacePlugin implements PluginValue {
 /**
  * A line's own source indentation, taken out of the rendering.
  *
- * REPLACED rather than collapsed to no width. A zero-width box keeps the
- * characters in the DOM and every position among them then renders at the same
- * x, which cost the caret twice on the manual pass: clipped, it vanished
- * outright; overflowing, its glyphs painted over the line's own first word. A
- * replacement leaves nothing inside to stand on — CM6 draws the caret at the
- * replacement's own edge, which is the line's column.
+ * A MARK the stylesheet gives `display: none`, rather than a
+ * `Decoration.replace`. Both hide the characters; what separates them is what
+ * the caret finds beside itself at the boundary. CM6 pads a replacement with
+ * its own `cm-widgetBuffer` elements — measured, an `<img>` either side of an
+ * empty span — and the native caret drawn against one of those is a different
+ * height than the caret drawn against text, which the manual pass saw as the
+ * caret growing at the boundary. An undisplayed mark leaves no box at all, so
+ * the caret at the boundary stands against the line's own first character and
+ * measures what every other caret on the line measures.
+ *
+ * Not the zero-width mark two earlier versions carried: a box of no width still
+ * PAINTS, and its glyphs landed on top of the line's first word (clipping them
+ * instead hid the caret outright). `display: none` renders nothing and reserves
+ * nothing.
  *
  * What it covers is the node's OWN indentation and nothing past it — the
  * distinction `indentCh` has carried from the start and the rendering lost
@@ -2278,12 +2286,14 @@ class SurplusMarkerSpacePlugin implements PluginValue {
  * visible and editable one character at a time, and it pushes the line's own
  * text right, which is what a deeper line means.
  */
-const SOURCE_INDENT_REPLACEMENT = Decoration.replace({});
+export const SOURCE_INDENT_OWN_CLASS = 'to-decor-indent-own';
+
+const SOURCE_INDENT_MARK = Decoration.mark({ class: SOURCE_INDENT_OWN_CLASS });
 
 /**
- * Set on a line whose own indentation is replaced, for the one rule that has to
- * follow the replacement: Obsidian's quantiser states a width for the span it
- * wrapped the run in, and that width outlives the characters it was made from.
+ * Set on a line whose own indentation is hidden, for the one rule that has to
+ * follow it: Obsidian's quantiser states a width for the span it wrapped the
+ * run in, and that width outlives the characters it was made from.
  */
 export const SOURCE_INDENT_SIZED_CLASS = 'to-decor-indent-sized';
 
@@ -2308,7 +2318,7 @@ const LEADING_RUN_RE = /^[ \t]*/;
  * characters measure — no width this layer states, so a tab and a code font's
  * own advance need no exception.
  *
- * Replaced rather than selected in CSS, because there is nothing dependable to
+ * Marked rather than selected in CSS, because there is nothing dependable to
  * select: which element holds the run depends on the shape and on the reader's
  * own "Show indentation guides" setting.
  */
@@ -2333,7 +2343,7 @@ function computeSourceIndent(state: EditorState): DecorationSet {
     // The line decoration first: `RangeSetBuilder` wants ascending sides at the
     // same position, and a line's own side is below a replacement's.
     builder.add(line.from, line.from, Decoration.line({ class: SOURCE_INDENT_SIZED_CLASS }));
-    builder.add(line.from, to, SOURCE_INDENT_REPLACEMENT);
+    builder.add(line.from, to, SOURCE_INDENT_MARK);
   }
   return builder.finish();
 }
@@ -2348,9 +2358,11 @@ class SourceIndentPlugin implements PluginValue {
     this.decorations = this.compute();
   }
 
-  /** The replaced ranges, for `EditorView.atomicRanges`: a node's own
-   * indentation is one step to every motion and every deletion, never a
-   * sequence of positions sharing an x.
+  /** The hidden ranges, for `EditorView.atomicRanges`: a node's own indentation
+   * is one step to every motion and every deletion, never a sequence of
+   * positions sharing an x. The plugin's own arrow keys stop at the same floor
+   * by their own rule (`caret.ts`); this is what holds for every gesture that
+   * does not come through them.
    *
    * CM6 consults that facet for deletion as well as motion and the two cannot
    * be scoped apart, so Backspace at such a line's text start removes the whole
@@ -3725,9 +3737,9 @@ export function decorationsExtension(modes: DecorationSource): Extension {
     ViewPlugin.define((view) => new SurplusMarkerSpacePlugin(view), {
       decorations: (v) => v.decorations,
     }),
-    // A non-list line's own source indentation, collapsed so its depth is the
-    // one thing that positions it (`computeSourceIndent`). Its own plugin for
-    // the reason the two marks above have one.
+    // A non-list line's own source indentation, hidden so its depth is the one
+    // thing that positions it (`computeSourceIndent`). Its own plugin for the
+    // reason the two marks above have one.
     ViewPlugin.define((view) => new SourceIndentPlugin(view), {
       decorations: (v) => v.decorations,
       provide: (plugin) =>

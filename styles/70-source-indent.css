@@ -1,6 +1,6 @@
 /*
- * What Obsidian made of a run whose own indentation this layer REPLACED
- * (`SOURCE_INDENT_REPLACEMENT`, decorations.ts).
+ * A node's own source indentation, undrawn, and what Obsidian made of the span
+ * that held it (`SOURCE_INDENT_MARK`, decorations.ts).
  *
  * Only the node's own indentation is hidden — the characters that restate a
  * depth the rules already state. What a line carries beyond them stays where it
@@ -12,12 +12,28 @@
  */
 
 /*
+ * The characters themselves: no box at all.
+ *
+ * `display: none` rather than a zero width, and rather than a
+ * `Decoration.replace`. A box of no width still paints, and its glyphs landed on
+ * the line's own first word; clipping them hid the native caret instead. A
+ * replacement draws nothing either, but CM6 pads one with `cm-widgetBuffer`
+ * elements, and the caret drawn against one of those is a different height than
+ * the caret drawn against text — the growing caret the manual pass saw at the
+ * boundary. Nothing displayed means nothing beside the caret but the line's own
+ * first character.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .cm-line .to-decor-indent-own {
+  display: none;
+}
+
+/*
  * Obsidian's quantiser, overridden so the span measures what is left inside it.
  *
  * It sizes a leading run from `--list-indent` rather than from the characters —
  * measured, 26.17px for two spaces, 36px for a tab, and a `border-box`
  * `.cm-indent-spacing` carrying its width as `padding-left` — and it sizes from
- * the document, so that width outlives the characters the replacement took.
+ * the document, so that width outlives the characters the mark undraws.
  * Left standing it would put the line's text back in a second column.
  *
  * `width: auto` rather than zero: the span still holds the surplus, whose own

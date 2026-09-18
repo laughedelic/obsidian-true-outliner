@@ -30,7 +30,8 @@
 import type { NodeKind, OutlineDoc, OutlineNode } from '../model';
 import { isAtom, ownSpan } from '../model';
 import { nodeAtLine } from '../locate';
-import { indentPrefixCh, indentWidth, parse } from '../parse';
+import { parse } from '../parse';
+import { ownIndentCh } from '../own-indent';
 import { encode } from '../encode';
 import type { ZoomScope } from '../zoom';
 
@@ -136,12 +137,6 @@ export function decorate(doc: OutlineDoc): LineDecorationFact[] {
   ): void => {
     const atom = isAtom(node);
     const isListItem = node.kind === 'list-item';
-    // The node's own indentation, from its first line: what every one of its
-    // lines repeats to stay inside the block, as opposed to what any one of
-    // them indents further by. Read only where it restates a depth — see
-    // `indentCh`.
-    const statesDepth = underListItem && !isListItem;
-    const indentCols = statesDepth ? indentWidth(node.lines[0] ?? '') : 0;
     // Entering a new list-item chain (this node's parent wasn't one) roots
     // it at this node's own depth; continuing a chain inherits the root.
     const rootDepth = isListItem ? (listRootDepth ?? depth) : null;
@@ -156,7 +151,7 @@ export function decorate(doc: OutlineDoc): LineDecorationFact[] {
         supplementalDepth: isListItem ? rootDepth! : 0,
         kind: node.kind,
         hasChildren: node.children.length > 0,
-        indentCh: statesDepth ? indentPrefixCh(node.lines[i]!, indentCols) : 0,
+        indentCh: ownIndentCh(node, node.lines[i]!, underListItem),
       });
     }
     current += ownSpan(node);

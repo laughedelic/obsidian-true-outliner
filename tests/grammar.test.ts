@@ -709,14 +709,14 @@ describe('grammar planner: a structural key acts on the node a position is insid
     const after = press(open, { line: 2, ch: 4 }, 'outdent');
     expect(after).toBe('- top\n- foo\n  \n  bar\n- next\n');
     expect(withoutLine(after, (l) => l.trim() === '')).toBe('- top\n- foo\n  bar\n- next\n');
-    // The caret does NOT stay on the place here, and the reason is the mapping
-    // rather than this change: outdent's edit is line-level, so a pre-op column
-    // at the END of the place's line maps with assoc=1 onto the START of the
-    // line below it, and the after-resolution is deliberately not consulted for
-    // a mapped position that has left the place's own line. Measured, asserted
-    // so a future fix has to change it on purpose, and recorded in
-    // docs/research/decoration-follow-ups beside the indent case this change does close.
-    expect(caretAfter(open, { line: 2, ch: 4 }, 'outdent')).toEqual({ line: 3, ch: 0 });
+    // The caret does not stay on the place here, and the reason is the mapping:
+    // outdent's edit is line-level, so a pre-op column at the END of the place's
+    // line maps with assoc=1 onto the START of the line below it. It lands on
+    // that line's own content start rather than in front of its indentation —
+    // `planCaret` resolves a mapped position that falls inside chrome instead of
+    // dropping it, which is what `source-indentation-collapses` needed for the
+    // indentation it hides and what this case gets for free.
+    expect(caretAfter(open, { line: 2, ch: 4 }, 'outdent')).toEqual({ line: 3, ch: 2 });
   });
 
   it('move-down does not walk half a paragraph past the other half', () => {
