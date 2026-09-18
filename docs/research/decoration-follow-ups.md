@@ -1070,3 +1070,17 @@ wait in the harness's per-spec-file setup, after the vault reset, with a budget 
 measured rate and the vault's file count — and a resolved-link count held still as the criterion,
 never a comparison to the file count. Parked: it is harness work with a cost on every spec file,
 and the case it fixes is one intermittent read.
+
+### A top-level leading run's caret positions are quantised, not measured
+
+Obsidian groups a leading run into `.cm-indent` spans of four columns each and sizes them from
+`--list-indent` rather than from the characters, so a caret position at a group's edge renders at
+the box's edge. Measured on `    four-space line,`: three steps of 5.08px — a space — and a fourth
+of 24.9px. A nine-space line jumps at the fourth and the eighth. At the seam between the last box
+and the text the caret can draw at either side, which reads as skipping the first letter.
+
+Stock, and measured identical with outline mode off but for the marker gutter's 14px. Nothing here
+touches a top-level run: `source-indentation-collapses` reports its fact only under a list item,
+where the run restates a depth. Fixing it would mean reaching `70-source-indent.css`'s override of
+that quantiser onto lines this layer otherwise leaves alone — worth it only if the stepping is
+reported as confusing in its own right. Issue #140.
