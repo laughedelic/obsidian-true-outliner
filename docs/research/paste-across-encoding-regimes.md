@@ -394,8 +394,7 @@ outline mode on — by the probe at
 a converted payload exactly as the paste now writes it, `  - ## Notes` at depth 2, beside a real
 `## RealHeading` so every reading is a comparison rather than an absolute.
 
-The answer is split three ways, and only one of the three matches what the `#`-carrying decision
-assumed.
+Both editing surfaces render it as a heading; the metadata cache does not index it.
 
 ### Reading mode renders it as a real heading
 
@@ -406,27 +405,30 @@ assumed.
 ```
 
 CommonMark's "a list item contains blocks" is honoured in full: `- ## Notes` produces an `<h2>`.
-This is the half of the assumption that holds.
 
-### Live Preview does NOT give it heading styling
+### Live Preview renders it at heading size too
 
-| line | classes | font | weight |
+| element | classes | font | weight |
 | --- | --- | --- | --- |
-| `# Top` | `HyperMD-header HyperMD-header-1` | 25.9px | 700 |
-| `## RealHeading` | `HyperMD-header HyperMD-header-2` | 23.4px | 680 |
-| `  - ## Notes` | `HyperMD-list-line HyperMD-list-line-2` | **16px** | **400** |
-| `  - two` (plain) | `HyperMD-list-line HyperMD-list-line-2` | 16px | 400 |
+| line `# Top` | `HyperMD-header HyperMD-header-1` | 25.9px | 700 |
+| its text span | `cm-header cm-header-1` | 25.9px | 700 |
+| line `## RealHeading` | `HyperMD-header HyperMD-header-2` | 23.4px | 680 |
+| its text span | `cm-header cm-header-2` | **23.4px** | **680** |
+| line `  - ## Notes` | `HyperMD-list-line HyperMD-list-line-2` | 16px | 400 |
+| its text span | `cm-header cm-header-2 cm-list-2` | **23.4px** | **680** |
+| line `  - one` (plain) | `HyperMD-list-line HyperMD-list-line-1` | 16px | 400 |
+| its text span | `cm-list-1` | 16px | 400 |
 
-The converted item is styled as a list line, indistinguishable in size and weight from a plain
-one. Obsidian does TOKENIZE the run — an inner span carries `cm-header cm-header-2 cm-list-2`,
-and the `##` is concealed on an unfocused line exactly as a real heading's markers are — but the
-line-level heading treatment is what supplies the size, and a list line does not get it.
+The converted item's TEXT renders at exactly the real `h2`'s size and weight. The `##` is
+concealed on an unfocused row and comes back when the caret is on it, the same treatment a real
+heading's markers get, and focused it carries `cm-formatting-header-2` at heading size as well.
 
-The concealment without the sizing is the awkward part: unfocused, the row reads `- Notes` with
-no indication the rank is there at all. Focused, the `##` comes back. The rank is in the file and
-invisible in the editor, which is a worse place to be than either showing it or not carrying it.
-
-A theme could style `cm-header-2` inside a list line and close the gap; the default does not.
+*(Corrected 2026-09-18. The first pass read `getComputedStyle` on the `.cm-line` element and
+reported 16px/400 — but the line box holds the list chrome and keeps the list's own size; the
+heading treatment is on the text span inside it. The reading below was drawn from that number and
+is withdrawn: Live Preview does give the converted item heading styling, and D2's ergonomic
+argument holds. Every table above now reports the line AND its text span, and the probe does the
+same so a re-run cannot repeat the mistake.)*
 
 ### The metadata cache does not index it
 
@@ -445,24 +447,25 @@ the decision was recorded as possibly avoiding, and it does not.
 
 ### What this leaves of the decision
 
-Of design D2's three supports, one is measured false and one is untouched:
+Design D2's three supports stand, with one cost the decision did not name:
 
-- *"Obsidian renders it with heading styling"* — **false in Live Preview**, true in reading mode.
-  Outline mode lives in Live Preview, which is where the claim was made.
+- *"Obsidian renders it with heading styling"* — true in reading mode and in Live Preview, where
+  outline mode lives. The text renders at the real `h2`'s size and weight.
 - *"`contentColumnCh` already treats the run as chrome"* — unchanged and true.
 - *"the rank survives the move and returns on an outdent"* — unchanged and true, verified through
   the real operations rather than by hand.
 
-Reversibility is therefore the whole of the remaining case for carrying the `#`, and it is a real
-one: the alternative loses the rank irretrievably. What is gone is the ergonomic argument the
-decision was originally made on.
+The heading ANCHOR is the cost. It is not a regression — demoting the heading breaks the same
+link, and before this change the paste produced no well-formed result at all — but a reader
+following `[[note#Notes]]` into a converted section lands at the top of the note.
 
-## Manual pass (2026-09-18): three reports from a real vault
+## Manual pass (2026-09-18): four reports from a real vault
 
 Driven against `test-vault/Journal/2026-07-10.md` — copying its `## Aurora review` section and
 pasting it in different places — through `classify` + `computeVerdict`, the same two gates the
-transaction filter uses. The section parses as `h2` → [a childless paragraph, a paragraph with
-three list children, a callout].
+transaction filter uses, and through the real editor where the gesture is what matters. The
+section parses as `h2` → [a childless paragraph, a paragraph with three list children, a
+callout].
 
 ### M1. Peers in the payload landed as two kinds of row
 
@@ -503,14 +506,62 @@ node's child column, and leaves the shallower reading as the `after` it always w
 Measured after the fix: the copy lands at line 2, as the `h1`'s first child, still `## Aurora
 review`.
 
-### M3. Trailing gap lines: not reproduced
+### M3. Trailing gap lines: the place the paste never consumed
 
-Reported as happening "sometimes". Swept every caret position in the note at column 0 and at
-end-of-line, against the section payload and the same payload carrying one and two trailing blank
-lines, plus eleven synthetic documents (three of them already holding a double gap) at every
-position with five payloads — roughly 800 combinations. No blank run grew and no trailing blank
-was added in any of them.
+It did not reproduce through the verdict layer — ~800 (document, caret, payload) combinations,
+including payloads carrying one and two trailing blank lines, grew no blank run. It reproduces
+immediately through the real gesture, which is Enter and then Ctrl+V:
 
-Whatever produces it is therefore not in the verdict layer. What remains unswept is the CM6
-adapter (`buildRewriteSpec` → `editsToChangeSpec`) and Obsidian's own paste handling; carried as
-an open question rather than guessed at.
+| document | after Enter at `# Day`'s end | after the paste, before the fix |
+| --- | --- | --- |
+| `# Day` / gap / `## First` | `# Day` / gap / gap / gap / `## First` | three blank lines still above the payload |
+
+A structural Enter opens a PLACE, and a place needs a separator on each side to parse as a node
+of its own rather than as a continuation line — so it widens the gap it opens in by two. Nothing
+in the paste path consumed it: the payload landed in the right position and the widened gap
+stayed above it.
+
+The paste now collapses the gap the caret sat in to a single blank line, and only that gap, and
+only when it is already wider than one — a gap of none or one is the separation the document
+already had. Measured after the fix, through the real editor:
+
+```
+# Day
+
+## Notes
+
+Some prose.
+## First
+
+body
+```
+
+A list scope needs none of this: Enter there writes a real empty list item (`- one` / `- ` /
+`- two`), which `isEmptyAnchor` already replaces with the payload.
+
+### M4. A caret ON a heading still pasted at the end of its section
+
+Reported after the first two fixes landed. `pasteAnchor` read the gap line correctly and left the
+node's OWN lines on the old reading — `insertSubtrees(..., 'after')`, which means after the whole
+subtree.
+
+The two are one rule, and stating it once fixes both: **a paste inserts at the boundary
+immediately after the anchor's own lines** — its first child's `before` whenever it has children.
+On a gap line the caret's column can still ask for the shallower reading; on the node's own lines
+there is no such choice to express, because the column there is a position in the node's text.
+
+The heading arm's absorption (D3) is what this makes reachable from the commonest caret position
+on a heading. Pasting a section with the caret on `## First` gives:
+
+```tree
+h1: # Day
+  h2: ## First
+    h3: ### Notes
+      paragraph: Some prose.
+      paragraph: body      <- absorbed
+```
+
+`body` was `## First`'s own content and is now inside the pasted subsection. That is what a
+heading placed before content at the same scope means, and there is no encoding in which it does
+not: the alternatives are placing the payload after the content, which is the defect above, or
+demoting it, which loses the rank. Worth watching in use.

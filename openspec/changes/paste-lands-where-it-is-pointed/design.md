@@ -72,12 +72,11 @@ what the person pointing meant.
 extension. Our own `contentColumnCh` already treats a `#` run following a list marker as chrome,
 so the caret machinery lands where it should on such a line without changing.
 
-*Measured since, in a real instance (`docs/research/paste-across-encoding-regimes`): reading mode
-does render it as a real `<h2>`, but LIVE PREVIEW does not give it heading styling — the line is
-a list line at plain size, with the `##` concealed on an unfocused row. And the metadata cache
-does not index it, so `[[note#Notes]]` has no target. Neither is a regression (demoting the
-heading loses the rank and breaks the same anchor), but the rendering was the ergonomic argument
-this decision was made on, and it does not hold where outline mode lives.*
+*Measured since, in a real instance (`docs/research/paste-across-encoding-regimes`): both reading
+mode and Live Preview render it at the real `h2`'s size and weight, with the `##` concealed on an
+unfocused row exactly as a real heading's markers are. The metadata cache does NOT index it, so
+`[[note#Notes]]` has no target after a conversion — not a regression, since demoting the heading
+breaks the same link, but a cost this decision did not name.*
 
 What this buys is reversibility. Measured, outdenting a converted item back to a heading scope
 strips the marker and re-parses the line as a real heading again, at its original rank. The
@@ -177,27 +176,50 @@ quietly left in the tasks:
 - **Ordered-run renumbering and the setext-underline trap.** Both already handled, by
   `renumberOrderedAgainst` and by `normalizeBoundaries` respectively.
 
-### D8. The caret's COLUMN is part of where it points
+### D8. A paste inserts at the boundary after the anchor's OWN lines
 
-Added after a real-vault manual pass, which found the change's own thesis failing on the
-commonest caret position there is: the blank line under a note's top heading.
+Added after a real-vault manual pass, which found the change's own thesis failing on the two
+commonest caret positions there are: the blank line under a note's top heading, and a heading's
+own line.
 
 `nodeAtLine` resolves a gap line to the node that PRECEDES it — right for every question the
-verdict layer asked of it before, since a caret there is inside that node's extent. For a paste
-it is not, because `insertSubtrees(..., 'after')` means after the node's whole SUBTREE. Measured,
-an `h2` pasted on that line came out at the bottom of the note, re-levelled to `h1` because root
-was the destination it reached, and nothing appeared where the caret was.
+verdict layer asked of it before, since a caret there is inside that node's extent. What was
+wrong was the SIDE: `insertSubtrees(..., 'after')` means after the node's whole SUBTREE. Measured,
+an `h2` pasted on the blank line under a note's `h1` came out at the bottom of the note,
+re-levelled to `h1` because root was the destination it reached; and a paste with the caret on a
+heading's own line landed past that heading's whole section. Nothing appeared where the caret was
+in either case.
 
-A node's trailing gap sits immediately before its first child, so that line is the first child's
-`before`. What decides between the two readings is the COLUMN, the same thing that decides what
-typing there would parse as: at or past the node's child column the caret stands for a child,
-and to its left for a sibling.
+The boundary a paste wants is the next one after the anchor's own lines, which is its first
+child's `before` whenever it has children, and `after` the node when it has none. A node's
+trailing gap sits immediately before its first child, so a caret there names the same boundary.
+
+On a GAP line the COLUMN can still ask for the shallower reading — at or past the node's child
+column the caret stands for a child, to its left for a sibling — which is the same thing that
+decides what typing there would parse as. On the node's own lines there is no such choice to
+express, because the column there is a position in the node's text.
 
 This is not the provisional-position machinery. `resolvedOutline` answers a different question —
 which tree a position that BISECTED a node stands for — and needs `createdPlaceLine` to tell a
 place from a blank line the user authored, which only the view knows. The anchor question needs
 neither: it reads the tree the verdict layer already has, and the reading is the same whoever
 put the caret there.
+
+### D9. The gap the caret sat in collapses to one blank line
+
+A structural Enter opens a PLACE, and a place needs a separator on each side to parse as a node
+of its own rather than as a continuation line — so it widens the gap it opens in by two.
+Measured, Enter at a heading's end followed by Ctrl+V left three blank lines above the pasted
+content: the payload landed in the right position and nothing consumed the place it filled.
+
+So the paste consumes it. A gap is one separation however wide it is, and rewriting it to the
+single blank line the document already used is chrome maintenance rather than an editing
+semantic — the tree is identical either way. Two bounds keep it that: only the gap the caret was
+actually IN, and only one already wider than a single line, since a gap of none or one is the
+separation the document had and the paste has no business changing it.
+
+A list scope needs none of this. Enter there writes a real empty list item, which
+`isEmptyAnchor` already replaces with the payload.
 
 ## Risks / Trade-offs
 
@@ -209,11 +231,17 @@ put the caret there.
   top makes the whole remainder its children. Markdown means exactly that, and D3's visibility
   argument still applies, but the magnitude is worth seeing in real use before we accept it for
   good.
-- **`- ## Notes` renders as a heading only in reading mode, and breaks heading anchors** →
-  measured, not predicted. Live Preview styles it as a plain list line with the `##` concealed,
-  so the rank is in the file and invisible in the editor; the metadata cache does not index it,
-  so `[[note#Notes]]` has no target. Neither is worse than the alternative, which loses the rank
-  outright, but the decision's ergonomic argument is gone and only reversibility remains.
+- **`- ## Notes` breaks heading anchors** → measured, not predicted. Both editing surfaces render
+  it at heading size, but the metadata cache does not index it, so `[[note#Notes]]` has no target
+  after a conversion. Not worse than the alternative, which loses the rank outright and breaks the
+  same link, but a reader following such a link lands at the top of the note.
+
+- **A caret ON a heading now opens a section that absorbs the heading's own content** → D8 makes
+  D3's absorption reachable from the commonest caret position on a heading: pasting with the
+  caret on `## First` puts the payload before `## First`'s body, which is therefore inside the
+  pasted subsection. Markdown means exactly that, the outline draws it before anything else
+  happens, and one undo restores it — but the gesture is far more common than the mid-run splice
+  absorption was first measured on.
 - **An outdent can turn a converted item back into a heading unintentionally** → the reverse
   trip that D2 counts as a feature fires whenever such an item reaches a heading scope, whether
   or not that was the intent. It re-parses cleanly, so it is a surprise rather than a

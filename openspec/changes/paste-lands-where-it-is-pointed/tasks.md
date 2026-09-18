@@ -14,8 +14,9 @@
 - [ ] 2.1 Record the root-level absorption magnitude on a real note in the dev vault, so
       design D3's accepted case is judged against a real document rather than a fixture
 - [x] 2.2 Confirm in a real instance that Obsidian renders `- ## Notes` with heading styling
-      at depth, in outline mode and out of it — measured: reading mode yes, LIVE PREVIEW NO
-      (plain list line, `##` concealed). Recorded in `docs/research/paste-across-encoding-regimes`
+      at depth, in outline mode and out of it — measured: yes in both reading mode and Live
+      Preview, the item's TEXT at the real `h2`'s size and weight. Recorded in
+      `docs/research/paste-across-encoding-regimes` (see 6c.6 for the pass that got it wrong)
 - [x] 2.3 Measure whether Obsidian's metadata cache indexes a heading inside a list item —
       i.e. whether a `[[note#Notes]]` anchor still resolves after a conversion (design D2's
       one unmeasured claim). Measured: it does NOT index it, so the anchor has no target.
@@ -74,7 +75,7 @@
 - [x] 6.2 E2E: undo restores the pre-paste buffer byte-identically in one step, for a converted
       paste and for an absorbing one
 - [x] 6.3 Real-vault manual pass on the reporter's own shapes, plus the drag work's drop path
-      if it has landed by then. Three reports, driven against `test-vault/Journal/2026-07-10.md`
+      if it has landed by then. Four reports, driven against `test-vault/Journal/2026-07-10.md`
       and written up in `docs/research/paste-across-encoding-regimes` (M1–M3). The drop path has
       not landed
 - [ ] 6.4 Record the findings in `docs/research/open-questions`, as the entry that settles the
@@ -91,12 +92,17 @@
       `after`
 - [x] 6c.3 E2E for both, through the real buffer: the M2 frame byte-for-byte, and the M1 peers
       frame
-- [x] 6c.4 Hunt M3, the trailing gap lines. Not reproduced in ~800 (document, caret, payload)
-      combinations through both gates, nor in the e2e buffers. Carried as an open question with
-      what remains unswept named
-- [ ] 6c.5 Ask the reporter for M3's exact gesture — a Ctrl+V after an Enter, a drop, or a
-      right-click paste — since the verdict layer is ruled out and the remaining suspects are
-      the CM6 adapter and Obsidian's own handling
+- [x] 6c.4 M3, the trailing gap lines: not reproducible through the verdict layer (~800
+      combinations), reproducible immediately through the real gesture — Enter then Ctrl+V. The
+      gap the caret sat in now collapses to one blank line with the insertion (design D9).
+      Negative control: the regression test fails without the collapse
+- [x] 6c.5 M4, a caret ON a heading pasting at the end of its section. The same rule as 6c.2,
+      stated once for the whole anchor: the boundary immediately after the anchor's own lines
+- [x] 6c.6 Re-measure the Live Preview rendering of `- ## Notes`, reading the text SPAN rather
+      than the line box. It renders at the real `h2`'s size and weight; the first pass was wrong
+      and is withdrawn. The probe now records both so a re-run cannot repeat it
+- [x] 6c.7 E2E for the Enter-then-paste gap collapse and the caret-on-a-heading anchor, through
+      the real buffer
 
 ## 6b. Review round (independent review, 2026-09-16)
 

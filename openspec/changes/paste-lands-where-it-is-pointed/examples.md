@@ -549,12 +549,12 @@ One rule in one place is what collapses these three into one answer.
 
 ---
 
-## F. The caret on a blank line
+## F. Where a paste lands relative to the caret
 
-Design D8. Measured through `classify` + `computeVerdict` like every other **today** frame, and
-the **intended** frames are buffers written out and re-parsed.
+Design D8 and D9. Measured through `classify` + `computeVerdict` like every other **today**
+frame, with the **intended** frames taken from the real editor.
 
-### F1 — Today: the payload lands past the node's whole section
+### F1 — Today: the payload lands past the node's whole subtree
 
 ```
 # Day
@@ -590,7 +590,10 @@ inserting after `# Day` means after its whole section — the end of the note. R
 destination, so the payload re-levels to `h1`. From the editor nothing at all appears where the
 caret was.
 
-### F2 — Intended: the blank line is the first child's slot
+The caret on the heading's OWN line gives the same shape for the same reason — `## First` with a
+section under it puts the payload below `body`, outside the section the caret was in.
+
+### F2 — Intended: the next boundary after the anchor's own lines
 
 ```
 # Day
@@ -616,13 +619,14 @@ adjacent to the anchor carries no gap in either direction, and `normalizeBoundar
 only where the parse needs it. The separation the caret's own line held is now above the payload
 rather than below it.
 
-### F3 — In a list scope the column carries the whole answer
+### F3 — On a gap line the column carries the shallower reading
 
-Same document, two columns.
+Same document, two columns. A gap line reaches a column past zero only when it carries
+whitespace, which is what a place in a list scope is made of.
 
 ```
 - one
-|
+␣␣|
   - sub
 - two
 ```
@@ -637,7 +641,7 @@ list-item: - one
 list-item: - two
 ```
 
-At column 0 — to the left of it, so a sibling, which is the reading `after` already gave:
+At column 0 — to the left of it, so a sibling, which is the reading `after` gives:
 
 ```tree
 list-item: - one
@@ -649,3 +653,65 @@ h1: # Notes
 
 A heading's child column is 0, so in a heading scope every column takes the first reading. That
 is why F1's frame had no second answer to choose between.
+
+### F4 — On the node's own line there is no second reading
+
+```
+- one|
+  - a
+  - b
+- two
+```
+
+Pasting `- alpha` / `  - beta` →
+
+```tree
+list-item: - one
+  list-item:   - alpha
+    list-item:     - beta
+  list-item:   - a
+  list-item:   - b
+list-item: - two
+```
+
+The column inside `- one`'s text is a position in a word, not a depth. A childless node has no
+first child to land before, so it keeps splicing after itself — unchanged.
+
+### F5 — The place a paste fills is consumed with it
+
+Enter at the end of `# Day`, then Ctrl+V. **Today**, the place survives the paste:
+
+```
+# Day
+
+
+
+## Notes
+
+Some prose.
+## First
+```
+
+Three blank lines, because a place carries a separator on each side — that separation is what
+makes it parse as a node rather than as a continuation line — and nothing in the paste path
+consumed the place the payload filled.
+
+**Intended:** the gap the caret sat in collapses to the single blank line the document already
+had, giving F2's buffer exactly. A gap of none or one is left alone.
+
+### F6 — What the heading arm's absorption looks like from here
+
+D8 makes D3's absorption reachable from the commonest caret position on a heading. Caret on
+`## First`, pasting `## Notes` / `Some prose.`:
+
+```tree
+h1: # Day
+  h2: ## First
+    h3: ### Notes
+      paragraph: Some prose.
+      paragraph: body      <- was `## First`'s own content
+```
+
+`body` is inside the pasted subsection now. A heading placed before content at the same scope
+means exactly that, and the alternatives are the ones F1 shows: put the payload after the
+content, or demote it and lose the rank.

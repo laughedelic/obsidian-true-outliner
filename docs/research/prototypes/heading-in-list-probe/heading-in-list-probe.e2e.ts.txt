@@ -68,14 +68,26 @@ describe('probe: a heading inside a list item', function () {
       const root = (view as unknown as { contentEl: HTMLElement }).contentEl;
       return (Array.from(root.querySelectorAll('.cm-line')) as HTMLElement[]).map((l) => {
         const cs = getComputedStyle(l);
+        // The LINE and every element inside it. Reading the line alone is what
+        // made the first pass report this as unstyled: a converted item's line
+        // box keeps the list's own 16px while the heading treatment sits on the
+        // text span within it.
         return {
           text: (l.textContent ?? '').slice(0, 40),
           cls: l.className,
           fontPx: parseFloat(cs.fontSize),
           weight: cs.fontWeight,
-          headerDesc: Array.from(l.querySelectorAll('*'))
-            .map((e) => (e as HTMLElement).className)
-            .filter((c) => typeof c === 'string' && /header|heading/i.test(c)),
+          spans: (Array.from(l.querySelectorAll('*')) as HTMLElement[])
+            .filter((e) => (e.textContent ?? '').trim() !== '')
+            .map((e) => {
+              const k = getComputedStyle(e);
+              return {
+                cls: typeof e.className === 'string' ? e.className : String(e.className),
+                text: (e.textContent ?? '').slice(0, 24),
+                fontPx: parseFloat(k.fontSize),
+                weight: k.fontWeight,
+              };
+            }),
         };
       });
     });

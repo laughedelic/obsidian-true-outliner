@@ -1034,9 +1034,11 @@ describe('a paste on the blank line under a node lands in it', () => {
 
   it('a caret left of the child column still means a sibling', () => {
     // The column is the whole of what distinguishes the two readings, so the
-    // shallower one has to keep landing where it always did.
+    // shallower one has to keep landing where it always did. The gap line
+    // carries whitespace because that is the only way a caret reaches a column
+    // past zero on one — an EMPTY line has no column but zero.
     const verdict = pasteThroughBothGates(
-      '- one\n\n  - sub\n', pos(1, 0), pos(1, 0), '- alpha\n  - beta\n',
+      '- one\n  \n  - sub\n', pos(1, 0), pos(1, 0), '- alpha\n  - beta\n',
     );
     expect(verdict.kind).toBe('rewrite');
     if (verdict.kind !== 'rewrite') return;
@@ -1046,6 +1048,114 @@ describe('a paste on the blank line under a node lands in it', () => {
         '  list-item: - sub',
         'list-item: - alpha',
         '  list-item: - beta',
+      ].join('\n'),
+    );
+  });
+
+  it('at the child column on that same line it means a child', () => {
+    const verdict = pasteThroughBothGates(
+      '- one\n  \n  - sub\n', pos(1, 2), pos(1, 2), '- alpha\n  - beta\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(shapeOf(verdict.after)).toBe(
+      [
+        'list-item: - one',
+        '  list-item: - alpha',
+        '    list-item: - beta',
+        '  list-item: - sub',
+      ].join('\n'),
+    );
+  });
+
+  it('the gap the caret sat in collapses to one blank line', () => {
+    // Negative control: without the collapse the three blank lines a
+    // structural Enter leaves — a separator on each side of the place —
+    // survive above the pasted content, which is what the manual pass saw.
+    const verdict = pasteThroughBothGates(
+      '# Day\n\n\n\n## First\n\nbody\n', pos(2, 0), pos(2, 0), '## Notes\n\nSome prose.\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(encode(verdict.after)).toBe('# Day\n\n## Notes\n\nSome prose.\n## First\n\nbody\n');
+  });
+
+  it('a gap of one is the document\'s own separation and is left alone', () => {
+    const verdict = pasteThroughBothGates(
+      '# Day\n\n## First\n\nbody\n', pos(1, 0), pos(1, 0), '## Notes\n\nSome prose.\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(encode(verdict.after)).toBe('# Day\n\n## Notes\n\nSome prose.\n## First\n\nbody\n');
+  });
+});
+
+describe('a paste with the caret ON a node lands at its next boundary', () => {
+  function shapeOf(doc: OutlineDoc): string {
+    const out: string[] = [];
+    const walk = (nodes: readonly OutlineNode[], depth: number): void => {
+      for (const node of nodes) {
+        const kind = node.kind === 'heading' ? `h${node.level}` : node.kind;
+        out.push(`${'  '.repeat(depth)}${kind}: ${(node.lines[0] ?? '').trim()}`);
+        walk(node.children, depth + 1);
+      }
+    };
+    walk(doc.children, 0);
+    return out.join('\n');
+  }
+
+  it('a heading\'s own line anchors inside its section, not past it', () => {
+    // Negative control: anchoring `after` the heading put this past the whole
+    // section — `### Notes` landed below `beta` as an `h2` sibling of `## Two`.
+    const verdict = pasteThroughBothGates(
+      '# One\n\n## Two\n\nalpha\n\nbeta\n\n## Three\n', pos(2, 6), pos(2, 6),
+      '## Notes\n\nSome prose.\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(shapeOf(verdict.after)).toBe(
+      [
+        'h1: # One',
+        '  h2: ## Two',
+        '    h3: ### Notes',
+        '      paragraph: Some prose.',
+        '      paragraph: alpha',
+        '      paragraph: beta',
+        '  h2: ## Three',
+      ].join('\n'),
+    );
+  });
+
+  it('a list item\'s own line anchors among its children', () => {
+    const verdict = pasteThroughBothGates(
+      '- one\n  - a\n  - b\n- two\n', pos(0, 5), pos(0, 5), '- alpha\n  - beta\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(shapeOf(verdict.after)).toBe(
+      [
+        'list-item: - one',
+        '  list-item: - alpha',
+        '    list-item: - beta',
+        '  list-item: - a',
+        '  list-item: - b',
+        'list-item: - two',
+      ].join('\n'),
+    );
+  });
+
+  it('a childless node still splices after it', () => {
+    const verdict = pasteThroughBothGates(
+      '- one\n- two\n', pos(0, 5), pos(0, 5), '- alpha\n  - beta\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(shapeOf(verdict.after)).toBe(
+      [
+        'list-item: - one',
+        'list-item: - alpha',
+        '  list-item: - beta',
+        'list-item: - two',
       ].join('\n'),
     );
   });

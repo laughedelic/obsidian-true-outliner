@@ -868,6 +868,29 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     );
   });
 
+  it('Enter then paste leaves no widened gap behind (M3)', async function () {
+    await outlineNote('# Day\n\n## First\n\nbody\n');
+    await h.setCursor(0, '# Day'.length);
+    await h.keys.enter();
+    // The place a structural Enter opens carries a separator on each side, so
+    // the heading's one-line gap becomes three.
+    expect(await h.getBuffer()).toBe('# Day\n\n\n\n## First\n\nbody\n');
+    await h.pasteText('## Notes\n\nSome prose.\n');
+    expect(await h.getBuffer()).toBe('# Day\n\n## Notes\n\nSome prose.\n## First\n\nbody\n');
+  });
+
+  it('a paste with the caret ON a heading lands inside its section (M4)', async function () {
+    await outlineNote('# Day\n\n## First\n\nbody\n');
+    await h.setCursor(2, '## First'.length);
+    await h.pasteText('## Notes\n\nSome prose.\n');
+    // The manual pass saw this land at the END of `## First`'s section. It now
+    // lands at the next boundary after the heading's own line — its first
+    // child — and opens a section there, which takes `body` into it.
+    expect(await h.getBuffer()).toBe(
+      '# Day\n\n## First\n\n### Notes\n\nSome prose.\n\nbody\n',
+    );
+  });
+
   it('undo restores the pre-paste buffer byte-identically, in one step, for a CONVERTED paste', async function () {
     const md = '- one\n  - two\n';
     await outlineNote(md);

@@ -468,33 +468,67 @@ function computeDeletionVerdict(
  * form", and the type-over path has always vetoed it. One answer on all three.
  */
 /**
- * Where a paste ANCHORS, and on which side.
+ * Where a paste ANCHORS, on which side, and whether the caret was in the
+ * anchor's trailing GAP.
  *
  * `nodeAtLine` resolves a gap line to the node that PRECEDES it, and inserting
- * after that node means after its whole subtree. On a node's own lines that is
- * what the caret means; on the blank line between a node's own lines and its
- * FIRST CHILD it is not. The outline draws that line as a slot nested under the
- * node, and measured, a paste there landed past the node's entire section — an
- * `h2` pasted on the blank line under a note's `h1` came out at the bottom of
- * the note, re-levelled to `h1` because root was the destination it reached.
- * Nothing appeared where the caret was, which is the whole of what the user saw.
+ * after that node means after its whole SUBTREE — for a note's own top heading,
+ * the end of the note. That is not where any caret on or under that node's row
+ * points. The boundary a paste wants is the next one after the anchor's own
+ * lines, which is its first child's `before` whenever it has children.
  *
- * A node's trailing gap sits immediately before its first child, so that slot
- * is the first child's `before`. The caret's COLUMN is what says whether the
- * slot was meant: at or past the node's child column it stands for a child, and
- * to the left of it for a sibling, which is the reading `after` already gives.
+ * Measured, both readings of the old one were wrong in the same way: an `h2`
+ * pasted on the blank line under a note's `h1` came out at the bottom of the
+ * note, re-levelled to `h1` because root was the destination it reached; and a
+ * paste with the caret ON a heading's own line landed past that heading's whole
+ * section. Nothing appeared where the caret was, which is the whole of what the
+ * user saw in either case.
+ *
+ * On a GAP line the caret's COLUMN can still ask for the shallower reading: at
+ * or past the node's child column it stands for a child, and to the left of it
+ * for a sibling, which is what `after` gives. On the node's OWN lines there is
+ * no such choice to express — the column there is a position in the node's text
+ * and says nothing about depth.
  */
 function pasteAnchor(
   doc: OutlineDoc,
   node: OutlineNode,
   at: LinePos,
-): { readonly anchor: OutlineNode; readonly position: 'before' | 'after' } {
-  const after = { anchor: node, position: 'after' } as const;
-  const first = node.children[0];
-  if (!first) return after;
+): {
+  readonly anchor: OutlineNode;
+  readonly position: 'before' | 'after';
+  readonly inGap: boolean;
+} {
   const start = nodeStartLine(doc, node.id);
-  if (start < 0 || at.line < start + node.lines.length) return after;
-  return at.ch >= childBaseCol(node) ? { anchor: first, position: 'before' } : after;
+  const inGap = start >= 0 && at.line >= start + node.lines.length;
+  const first = node.children[0];
+  if (!first || start < 0) return { anchor: node, position: 'after', inGap };
+  const wantsChild = !inGap || at.ch >= childBaseCol(node);
+  return wantsChild
+    ? { anchor: first, position: 'before', inGap }
+    : { anchor: node, position: 'after', inGap };
+}
+
+/**
+ * `doc` with one node's trailing gap collapsed to a single blank line.
+ *
+ * A gap is one separation however wide it is, and a structural Enter widens the
+ * one it opens a place in by two — a separator on each side, which is what
+ * makes the place parse as a node of its own rather than a continuation line.
+ * Measured: Enter at the end of a heading, then Ctrl+V, left three blank lines
+ * above the pasted content, because nothing consumed the place the paste filled.
+ *
+ * Only a gap the caret was actually in, and only one already wider than a
+ * single line — a gap of none or one is the separation the document already had
+ * and the paste has no business rewriting it.
+ */
+function withGapCollapsed(doc: OutlineDoc, id: number): OutlineDoc {
+  const map = (node: OutlineNode): OutlineNode => ({
+    ...node,
+    trailingGap: node.id === id && node.trailingGap.length > 1 ? [''] : node.trailingGap,
+    children: node.children.map(map),
+  });
+  return { ...doc, children: doc.children.map(map) };
 }
 
 function computePasteVerdict(
@@ -514,8 +548,13 @@ function computePasteVerdict(
     // empty anchor didn't work out for some reason (conservative bias).
   }
 
-  const { anchor, position } = pasteAnchor(doc, node, edit.from);
-  const inserted = insertSubtrees(doc, anchor.id, parsedBlocks, position, fallbackIndentUnit);
+  const { anchor, position, inGap } = pasteAnchor(doc, node, edit.from);
+  // The gap the caret sat in is the place the paste fills, so it collapses
+  // with the insertion. `insertSubtrees` runs against that collapsed tree and
+  // the edits are re-diffed against the real one below, the same crossing
+  // `deleteAndSplice` makes.
+  const source = inGap ? withGapCollapsed(doc, node.id) : doc;
+  const inserted = insertSubtrees(source, anchor.id, parsedBlocks, position, fallbackIndentUnit);
   if (!inserted.ok) return vetoFrom(inserted);
   const runEnd = endOfInsertedRun(inserted.value.doc, inserted.value.anchor, parsedBlocks.length);
   const { caret } = planCaret(
@@ -524,7 +563,10 @@ function computePasteVerdict(
   );
   return {
     kind: 'rewrite',
-    edits: inserted.value.edits,
+    edits:
+      source === doc
+        ? inserted.value.edits
+        : diffLines(encodeLines(doc), encodeLines(inserted.value.doc)),
     cursor: caret,
     userEvent: 'input.paste.structural',
     after: inserted.value.doc,

@@ -19,21 +19,33 @@ reason, on every insertion path. It SHALL NOT fall through to the native inserti
 result concatenates the payload's first line onto the anchor's and leaves the remainder at its
 source indentation, which is not the "editable text" the conservative default assumes.
 
-The "nearest node boundary" a paste splices at SHALL be read from the caret's LINE and COLUMN
-together. On a node's own lines the boundary is after that node. On a BLANK LINE the node owns —
-which sits immediately before its first child, and which the outline draws as a slot nested under
-it — the boundary is BEFORE that first child when the caret's column is at or past the node's
-child column, and after the node itself when it is to the left of it. Resolving such a line to
-the node alone puts the payload after that node's whole subtree, which for a note's own top
+The "nearest node boundary" a paste splices at is the one immediately AFTER the anchor's own
+lines: BEFORE its first child where it has children, and after the node itself where it has none.
+A node's trailing gap sits immediately before its first child, so a caret on a blank line the node
+owns names the same boundary — and the outline draws that line as a slot nested under the node.
+The boundary SHALL NOT be read as after the anchor's whole SUBTREE, which for a note's own top
 heading is the end of the note.
+
+On a GAP line the caret's COLUMN MAY ask for the shallower reading: to the left of the node's
+child column the payload lands after the node, as a sibling. On the node's OWN lines there is no
+such choice to express, the column there being a position in the node's text.
+
+A gap the caret was in and that is WIDER than a single blank line SHALL collapse to one with the
+insertion. A structural Enter opens a place there and widens the gap by two — a separator on each
+side is what makes the place parse as a node rather than a continuation line — and the paste that
+fills the place consumes it. A gap of none or one SHALL be left as it is: that is the separation
+the document already had. This is chrome maintenance, not an editing semantic: the resulting tree
+is the same either way.
 
 *(Amendment 2026-09-16, `paste-lands-where-it-is-pointed`: the cross-regime case was assumed by
 this requirement's "preserving the copied content's own relative nesting exactly" but had no
 rule behind it, and the guard that refused what could not be expressed ran on two of the three
 insertion paths. Measured in `docs/research/paste-across-encoding-regimes`. Amendment 2026-09-18,
-real-vault manual pass: "the nearest node boundary" was read from the line alone, so a paste on
-the blank line under a note's `h1` landed at the bottom of the note, re-levelled to `h1`, with
-nothing where the caret was.)*
+real-vault manual pass: "the nearest node boundary" resolved to after the anchor's whole subtree,
+so a paste on the blank line under a note's `h1` landed at the bottom of the note re-levelled to
+`h1`, and a paste with the caret on a heading's own line landed past that heading's section; and
+the place a structural Enter opens survived the paste that filled it, leaving three blank lines
+above the pasted content.)*
 
 #### Scenario: A paste on the blank line under a node lands inside it
 - **WHEN** a structural payload is pasted with the caret on the blank line between a node's own
@@ -44,6 +56,17 @@ nothing where the caret was.)*
 #### Scenario: A caret left of the child column still means a sibling
 - **WHEN** the caret is on the same blank line but to the left of the node's child column
 - **THEN** the payload lands after the node, the reading it has always had
+
+#### Scenario: A paste with the caret on a heading's own line lands inside its section
+- **WHEN** a structural payload is pasted with the caret anywhere on a heading's own line and
+  that heading has content under it
+- **THEN** it lands as that heading's first child, opening a section there, rather than after the
+  heading's whole section
+
+#### Scenario: A paste onto a place leaves no widened gap behind
+- **WHEN** a structural Enter opens a place and a structural payload is pasted onto it
+- **THEN** the gap the place widened collapses to a single blank line, and the buffer holds no
+  more blank lines above the pasted content than the document had before the Enter
 
 #### Scenario: A heading section pasted into a list lands coherently
 - **WHEN** a heading with its paragraphs and nested lists is pasted inside a list scope
