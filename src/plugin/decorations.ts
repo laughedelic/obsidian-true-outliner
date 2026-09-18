@@ -2291,6 +2291,20 @@ export const SOURCE_INDENT_OWN_CLASS = 'to-decor-indent-own';
 const SOURCE_INDENT_MARK = Decoration.mark({ class: SOURCE_INDENT_OWN_CLASS });
 
 /**
+ * The same indentation on a line that holds NOTHING else — the line Shift+Enter
+ * opens, which is the item's own indentation and no text.
+ *
+ * A mark there leaves the line with no displayed content at all, and the caret
+ * with nowhere to be drawn: measured, `coordsAtPos` returns null on such a line
+ * and the native caret disappears until a character is typed. A replacement
+ * draws nothing either, but CM6 gives it a buffer element the caret can stand
+ * against — measured at the line's own column, which is where a continuation
+ * begins. The height the buffer costs needs a boundary with text to show at, and
+ * this line has none.
+ */
+const SOURCE_INDENT_REPLACEMENT = Decoration.replace({});
+
+/**
  * Set on a line whose own indentation is hidden, for the one rule that has to
  * follow it: Obsidian's quantiser states a width for the span it wrapped the
  * run in, and that width outlives the characters it was made from.
@@ -2343,7 +2357,7 @@ function computeSourceIndent(state: EditorState): DecorationSet {
     // The line decoration first: `RangeSetBuilder` wants ascending sides at the
     // same position, and a line's own side is below a replacement's.
     builder.add(line.from, line.from, Decoration.line({ class: SOURCE_INDENT_SIZED_CLASS }));
-    builder.add(line.from, to, SOURCE_INDENT_MARK);
+    builder.add(line.from, to, to < line.to ? SOURCE_INDENT_MARK : SOURCE_INDENT_REPLACEMENT);
   }
   return builder.finish();
 }
