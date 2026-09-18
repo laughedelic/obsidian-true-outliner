@@ -597,8 +597,13 @@ describe('grammar planner: splitting a line a Shift+Enter just made', () => {
  * that every branch states an answer, and states the right KIND of answer.
  */
 describe('grammar planner: a plan states how to abandon the place it makes', () => {
-  function planOf(text: string, cursor: { line: number; ch: number }, key: GrammarKey) {
-    const outcome = planKey(text, cursor, key);
+  function planOf(
+    text: string,
+    cursor: { line: number; ch: number },
+    key: GrammarKey,
+    placeLine?: number,
+  ) {
+    const outcome = planKey(text, cursor, key, undefined, undefined, placeLine);
     if (!outcome || !('plan' in outcome)) throw new Error('expected a plan');
     return outcome.plan;
   }
@@ -635,6 +640,18 @@ describe('grammar planner: a plan states how to abandon the place it makes', () 
     const plan = planOf(src, { line: 0, ch: 6 }, 'continue');
     expect(applyPlan(src, plan).text).toBe('## Foo\n## \n');
     expect(applyChanges(applyPlan(src, plan).text, plan.abandon!)).toBe(src);
+  });
+
+  it('Shift+Tab over a TRAILING place drops the place, not the node it moved', () => {
+    // The `drop-line` form removes the CARET's line, so which line that is
+    // decides what abandoning destroys. With the trailing place unresolved the
+    // caret fell back to the moved item's own first line, and abandoning would
+    // have taken `- foo` with it; on the place, it takes the place.
+    const src = '- top\n  - foo\n    \n';
+    const plan = planOf(src, { line: 2, ch: 4 }, 'outdent', 2);
+    const after = applyPlan(src, plan).text;
+    expect(after).toBe('- top\n- foo\n  \n');
+    expect(applyChanges(after, plan.abandon!)).toBe('- top\n- foo\n');
   });
 
   it('the operations that can leave no place state nothing', () => {
@@ -684,7 +701,26 @@ describe('grammar planner: a structural key acts on the node a position is insid
   // between two paragraphs, and an operation that guesses indents both of them
   // (`createdPlaceLine`).
   function press(text: string, cursor: { line: number; ch: number }, key: GrammarKey): string {
-    const outcome = planKey(text, cursor, key, undefined, undefined, cursor.line);
+    return plannedText(text, cursor, key, cursor.line);
+  }
+
+  /** The same keypress with no place recorded, which is what the adapter
+   * supplies for every caret the grammar did not put on a blank line. */
+  function pressWithoutPlace(
+    text: string,
+    cursor: { line: number; ch: number },
+    key: GrammarKey,
+  ): string {
+    return plannedText(text, cursor, key, undefined);
+  }
+
+  function plannedText(
+    text: string,
+    cursor: { line: number; ch: number },
+    key: GrammarKey,
+    placeLine: number | undefined,
+  ): string {
+    const outcome = planKey(text, cursor, key, undefined, undefined, placeLine);
     if (outcome === null) return '<declined>';
     if ('notice' in outcome) return `<notice>`;
     return applyPlan(text, outcome.plan).text;
@@ -777,26 +813,89 @@ describe('grammar planner: a structural key acts on the node a position is insid
     }
   });
 
-  it('a TRAILING place loses the caret, and keeps its old width', () => {
-    // The gap issue #119 named, in the shape that actually reaches it. A place
-    // at the END of a node's lines — Shift+Enter at the end of its last line,
-    // the ordinary way to open a continuation — does not bisect it, so
-    // `positionBisectsANode` declines to resolve it and the operation acts on
-    // the raw parse, where the place is a trailing gap. The caret falls back to
-    // the moved node's content start and the place keeps the width it had, so
-    // typing there makes a child of the node rather than continuing it.
+  it('a TRAILING place keeps the caret, and takes the node’s new content column', () => {
+    // The shape issue #130 measured: a place at the END of a node's lines,
+    // which Shift+Enter at the end of its last line is the ordinary way to open.
+    // It bisects nothing, so the RENDERING gate declines it; the operation path
+    // is told the line holds a place and resolves it anyway, which is the whole
+    // of the fix. Before it, the place kept the width it had while the node's
+    // content column moved — so typing there made a CHILD of the node instead of
+    // continuing it — and the caret fell back to the moved node's content start.
     //
-    // The exclusion is deliberate and stated where it lives; this consequence
-    // of it is not, and closing it is a change of its own. Asserted as measured
-    // so that change has to move these lines on purpose, and recorded in
-    // docs/research/decoration-follow-ups.
-    const outdented = '- top\n  - foo\n    \n';
-    expect(press(outdented, { line: 2, ch: 4 }, 'outdent')).toBe('- top\n- foo\n    \n');
-    expect(caretAfter(outdented, { line: 2, ch: 4 }, 'outdent')).toEqual({ line: 1, ch: 2 });
+    // Negative control: restoring `placeOutline`'s gate to `positionBisectsANode`
+    // fails every row.
+    const cases: Array<
+      [string, GrammarKey, { line: number; ch: number }, string, { line: number; ch: number }]
+    > = [
+      // The issue's own two rows.
+      ['- top\n  - foo\n    \n', 'outdent', { line: 2, ch: 4 }, '- top\n- foo\n  \n', { line: 2, ch: 2 }],
+      ['- a\n- foo\n  \n', 'indent', { line: 2, ch: 2 }, '- a\n  - foo\n    \n', { line: 2, ch: 4 }],
+      // A following SIBLING, where the line below the place exists and is a
+      // first line — the other way the gate's "something below" test fails.
+      [
+        '- top\n  - foo\n    \n  - bar\n',
+        'outdent',
+        { line: 2, ch: 4 },
+        '- top\n- foo\n  \n  - bar\n',
+        { line: 2, ch: 2 },
+      ],
+      // After a continuation line of its own, and with no final newline at all.
+      [
+        '- top\n  - foo\n    cont\n    \n',
+        'outdent',
+        { line: 3, ch: 4 },
+        '- top\n- foo\n  cont\n  \n',
+        { line: 3, ch: 2 },
+      ],
+      ['- top\n  - foo\n    ', 'outdent', { line: 2, ch: 4 }, '- top\n- foo\n  ', { line: 2, ch: 2 }],
+      // Widths the place's content column takes: a tab unit, a task marker, and
+      // an ordered marker that keeps two digits as the operation moves it.
+      ['- a\n\t- foo\n\t  \n', 'outdent', { line: 2, ch: 3 }, '- a\n- foo\n  \n', { line: 2, ch: 2 }],
+      [
+        '- a\n- [ ] foo\n  \n',
+        'indent',
+        { line: 2, ch: 2 },
+        '- a\n  - [ ] foo\n    \n',
+        { line: 2, ch: 4 },
+      ],
+      [
+        '1. a\n10. foo\n    \n',
+        'indent',
+        { line: 2, ch: 4 },
+        '1. a\n   10. foo\n       \n',
+        { line: 2, ch: 7 },
+      ],
+    ];
+    for (const [text, key, cursor, after, caret] of cases) {
+      expect([key, press(text, cursor, key)]).toEqual([key, after]);
+      expect([key, caretAfter(text, cursor, key)]).toEqual([key, caret]);
+    }
+  });
 
-    const indented = '- a\n- foo\n  \n';
-    expect(press(indented, { line: 2, ch: 2 }, 'indent')).toBe('- a\n  - foo\n  \n');
-    expect(caretAfter(indented, { line: 2, ch: 2 }, 'indent')).toEqual({ line: 1, ch: 4 });
+  it('a move carries a TRAILING place with the node instead of leaving it behind', () => {
+    // Sharper than the indent rows above, and not in the issue's table: the
+    // place's LINE does not move with the node, so the node that inherits it
+    // takes it. Measured before the fix: move-up on `- a` / `- foo` / `␣␣` gave
+    // `- foo` / `- a` / `␣␣`, parking the place under a node the user never
+    // touched, and move-down on a place before a sibling handed the place to the
+    // sibling.
+    //
+    // The caret stays at the moved node's content start either way — a move is
+    // `caret-placement-policy`'s SUBJECT case, and an interior place has always
+    // behaved this way — so the place, not the caret, is what these rows pin.
+    expect(press('- a\n- foo\n  \n', { line: 2, ch: 2 }, 'move-up')).toBe('- foo\n  \n- a\n');
+    expect(caretAfter('- a\n- foo\n  \n', { line: 2, ch: 2 }, 'move-up')).toEqual({
+      line: 0,
+      ch: 2,
+    });
+
+    const sibling = '- top\n  - foo\n    \n  - bar\n';
+    expect(press(sibling, { line: 2, ch: 4 }, 'move-down')).toBe(
+      '- top\n  - bar\n  - foo\n    \n',
+    );
+
+    const between = '- a\n- foo\n  \n- b\n';
+    expect(press(between, { line: 2, ch: 2 }, 'move-down')).toBe('- a\n- b\n- foo\n  \n');
   });
 
   it('move-down does not walk half a paragraph past the other half', () => {
@@ -849,11 +948,19 @@ describe('grammar planner: a structural key acts on the node a position is insid
     expect(applyPlan(text, guessed.plan).text).toBe('first\n\n- para\n  \n  last\n');
   });
 
-  it('leaves an end-of-node position alone — it bisected nothing', () => {
-    // The gate needs a line of the node below the position. Without this, Tab at
-    // the end of a document writes trailing whitespace onto its final blank line.
-    expect(press('First.\n\nSecond.\n', { line: 3, ch: 0 }, 'indent')).toBe(
+  it('leaves the document’s own final blank line alone', () => {
+    // What keeps Tab at the end of a document from writing trailing whitespace
+    // onto its final blank line, now that a trailing place resolves: the place
+    // LINE, which the adapter supplies and the document cannot. Without one the
+    // final blank line is just a gap, and the node above it indents alone.
+    expect(pressWithoutPlace('First.\n\nSecond.\n', { line: 3, ch: 0 }, 'indent')).toBe(
       'First.\n\n- Second.\n',
+    );
+    // And when a place IS open there — Shift+Enter at the end of a paragraph
+    // that ended the file — the same line is the place, and it takes the item's
+    // new content column like any other.
+    expect(press('First.\n\nSecond.\n', { line: 3, ch: 0 }, 'indent')).toBe(
+      'First.\n\n- Second.\n  ',
     );
   });
 });

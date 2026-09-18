@@ -295,7 +295,7 @@ function notAnOutlineGesture(
  * covers only the half above the position wherever the tail becomes a sibling,
  * and the select-all content rung — a node's OWN lines — covers half in every
  * shape (the a-position-does-not-split-its-node change's Findings). The pure
- * functions are correct given `resolvedOutline`'s tree; the problem is that no
+ * functions are correct given `placeOutline`'s tree; the problem is that no
  * adapter can currently decide when to hand it to them.
  *
  * Resolving the outline requires knowing the blank line is a PLACE, which the

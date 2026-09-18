@@ -764,6 +764,41 @@ describe('keyboard grammar', function () {
     ]);
   });
 
+  it('Tab on a TRAILING place carries it too, and leaves the caret on it', async function () {
+    // The shape the interior test above does NOT reach, and the one a user hits
+    // first: Shift+Enter at the end of an item's LAST line, which is the
+    // ordinary way to open a continuation. Nothing of the item remains below the
+    // place, so it bisects nothing — and the operation path resolves it anyway,
+    // because the adapter knows the line holds a place.
+    //
+    // Before that, Tab left the place at its old width while the item's content
+    // column moved, so typing here made a CHILD of the item, and the caret fell
+    // back to the item's own first line.
+    await grammarNote('- one\n- foo\n', 1, '- foo'.length);
+    await h.keys.shiftEnter();
+    expect(await h.getBuffer()).toBe('- one\n- foo\n  \n');
+
+    await h.keys.tab();
+    const indented = (await h.getBuffer()).split('\n');
+    // Relative, not byte-exact: the indent unit is the vault's, and a tab unit
+    // puts the item's content column somewhere no prefix of its own line spells.
+    // The place is still whitespace, and the caret is still on its end —
+    // asserted rather than set, since setting it would mask a caret dropped back
+    // onto the item's first line.
+    expect(indented[1]).toMatch(/^[ \t]+- foo$/);
+    expect(indented[2]).toMatch(/^[ \t]+$/);
+    expect(await h.getCursor()).toEqual({ line: 2, ch: indented[2]!.length });
+
+    // Which column it took is settled by what typing there produces: the item's
+    // own second line, not a child of it.
+    await h.keys.type('x');
+    const doc = parse(await h.getBuffer());
+    expect(doc.children.map((n) => n.lines[0])).toEqual(['- one']);
+    const moved = doc.children[0]!.children;
+    expect(moved.map((n) => n.lines.map((l) => l.trim()))).toEqual([['- foo', 'x']]);
+    expect(moved[0]!.children).toEqual([]);
+  });
+
   it('Mod-A on an interior position abandons the place rather than selecting half a node', async function () {
     // The tree-level fix for the ladder is covered in
     // `tests/select-all-ladder.test.ts`; what this pins is the interaction that

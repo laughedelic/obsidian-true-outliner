@@ -13,7 +13,7 @@ import {
   hasSingleRoot,
   visibleGuideDepths,
   positionBisectsANode,
-  resolvedOutline,
+  placeOutline,
   materializeProbe,
   materializeProvisional,
   provisionalFact,
@@ -1837,13 +1837,47 @@ describe('positionBisectsANode: which parse the document’s facts come from', (
 });
 
 
-describe('resolvedOutline: the tree a position stands for, in the buffer’s own text', () => {
-  it('holds the bisected node whole, with the position among its own lines', () => {
+describe('placeOutline: the tree a place stands for, in the buffer’s own text', () => {
+  /** The caret is on the place, which is where every entry point calls from. */
+  function at(md: string, line: number, ch?: number) {
+    return placeOutline(md, { line, ch: ch ?? (md.split('\n')[line] ?? '').length }, line);
+  }
+
+  /** The rendering gate, for the one test that contrasts the two. */
+  function bisects(md: string, line: number, ch: number): boolean {
+    const probe = materializeProbe(md, line, ch);
+    expect(probe).not.toBeNull();
+    return positionBisectsANode(decorate(parse(probe!)), line);
+  }
+
+  it('holds the node whole, with the place among its own lines', () => {
     const md = ['- one', '- foo', '  ', '  bar', ''].join('\n');
-    const doc = resolvedOutline(md, 2, 2)!;
+    const doc = at(md, 2, 2)!;
     expect(doc).not.toBeNull();
     expect(doc.children.map((n) => n.lines)).toEqual([['- one'], ['- foo', '  ', '  bar']]);
     expect(doc.children[1]!.children).toEqual([]);
+  });
+
+  it('holds a TRAILING place among the node’s own lines too', () => {
+    // The half of the gate `positionBisectsANode` keeps and this one drops: a
+    // place at the END of a node's lines bisects nothing, and is still the
+    // node's own continuation position. Refusing it left the place behind at its
+    // old width whenever an operation moved the node
+    // (docs/research/decoration-follow-ups).
+    const md = ['- top', '  - foo', '    ', ''].join('\n');
+    expect(bisects(md, 2, 4)).toBe(false);
+    const doc = at(md, 2, 4)!;
+    expect(doc).not.toBeNull();
+    expect(doc.children[0]!.children.map((n) => n.lines)).toEqual([['  - foo', '    ']]);
+
+    // Including the shape with a following SIBLING, where the line below the
+    // place exists but is a first line.
+    const sibling = ['- top', '  - foo', '    ', '  - bar', ''].join('\n');
+    expect(bisects(sibling, 2, 4)).toBe(false);
+    expect(at(sibling, 2, 4)!.children[0]!.children.map((n) => n.lines)).toEqual([
+      ['  - foo', '    '],
+      ['  - bar'],
+    ]);
   });
 
   it('carries no probe character anywhere, so an operation cannot write one', () => {
@@ -1853,8 +1887,9 @@ describe('resolvedOutline: the tree a position stands for, in the buffer’s own
       [['- one', '- foo', '  ', '  bar', ''].join('\n'), 2, 2],
       [['# H', '', '- foo', '  ', '  bar', ''].join('\n'), 3, 2],
       [['alpha', '', 'beta', ''].join('\n'), 1, 0],
+      [['- one', '- foo', '  ', ''].join('\n'), 2, 2],
     ] as const) {
-      const doc = resolvedOutline(md, line, ch)!;
+      const doc = at(md, line, ch)!;
       expect(doc).not.toBeNull();
       // Byte-identity against the BUFFER, which is the property that makes an
       // operation's edits correct against it.
@@ -1863,14 +1898,26 @@ describe('resolvedOutline: the tree a position stands for, in the buffer’s own
   });
 
   it('declines a position that stands for a new node, and a line that is not one', () => {
-    expect(resolvedOutline(['# H', '', 'para', '', '', '', 'next', ''].join('\n'), 4)).toBeNull();
-    expect(resolvedOutline(['# H', '', '', 'beta', ''].join('\n'), 2)).toBeNull();
-    expect(resolvedOutline(['- foo', '  bar', ''].join('\n'), 0)).toBeNull();
+    expect(at(['# H', '', 'para', '', '', '', 'next', ''].join('\n'), 4)).toBeNull();
+    expect(at(['# H', '', '', 'beta', ''].join('\n'), 2)).toBeNull();
+    expect(at(['- foo', '  bar', ''].join('\n'), 0)).toBeNull();
+  });
+
+  it('declines unless the caret is on the line the adapter recorded', () => {
+    // The gate that keeps a blank line the USER authored from reading as a
+    // place. It lives here so no entry point can hold its own version — the
+    // command palette held none at all until this took the parameter.
+    const md = ['- one', '- foo', '  ', '  bar', ''].join('\n');
+    const caret = { line: 2, ch: 2 };
+    expect(placeOutline(md, caret, undefined)).toBeNull();
+    expect(placeOutline(md, caret, 1)).toBeNull();
+    expect(placeOutline(md, undefined, 2)).toBeNull();
+    expect(placeOutline(md, caret, 2)).not.toBeNull();
   });
 
   it('keeps a real child attached to the node it belongs to', () => {
     const md = ['- foo', '  ', '  bar', '\t- kid', ''].join('\n');
-    const doc = resolvedOutline(md, 1, 2)!;
+    const doc = at(md, 1, 2)!;
     expect(doc.children).toHaveLength(1);
     expect(doc.children[0]!.lines).toEqual(['- foo', '  ', '  bar']);
     expect(doc.children[0]!.children.map((n) => n.lines)).toEqual([['\t- kid']]);

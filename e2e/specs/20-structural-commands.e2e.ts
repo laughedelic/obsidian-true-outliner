@@ -324,4 +324,48 @@ describe('structural commands', function () {
       REJECTION_MESSAGES['no-previous-sibling'],
     );
   });
+
+  it('indent via the palette resolves an open place, the same as Tab does', async function () {
+    // `selection-structural-ops` holds the two entry points to one result, and
+    // the palette was on the wrong side of it: `runOp` passed no place line, so
+    // it acted on the RAW parse while the keymap acted on the resolved one, and
+    // the same key on the same document gave two documents depending on how it
+    // was invoked.
+    //
+    // Shift+Enter first, because only our own keypress records a place; the
+    // palette command then runs with the caret still on it. Asserted against the
+    // KEYBOARD's own result on the same document rather than against a literal,
+    // so the two cannot be made to agree by editing one expectation.
+    //
+    // The document carries an indented item so the unit is inferable, which is
+    // the condition on this capability's own "Palette and keyboard agree"
+    // scenario: with nothing to infer from, the two differ by the unit alone and
+    // this comparison would be about that instead.
+    const start = '- one\n  - kid\n- foo\n';
+    const opened = '- one\n  - kid\n- foo\n  \n';
+
+    await outlineNote(start, 2, '- foo'.length);
+    await h.keys.shiftEnter();
+    expect(await h.getBuffer()).toBe(opened);
+    await h.keys.tab();
+    const byKeyboard = await h.getBuffer();
+    const keyboardCaret = await h.getCursor();
+
+    await outlineNote(start, 2, '- foo'.length);
+    await h.keys.shiftEnter();
+    expect(await h.getBuffer()).toBe(opened);
+    await h.runCommand('indent-node');
+    expect(await h.getBuffer()).toBe(byKeyboard);
+    expect(await h.getCursor()).toEqual(keyboardCaret);
+  });
+
+  it('indent via the palette leaves a blank line the user AUTHORED alone', async function () {
+    // The other half of the same rule: with no place recorded, a gap line is a
+    // gap. The caret sits between two paragraphs and only the paragraph that
+    // owns the gap indents — the palette must not start guessing a place now
+    // that it reads one.
+    await outlineNote('first\n\npara\n\nlast\n', 3, 0);
+    await h.runCommand('indent-node');
+    expect(await h.getBuffer()).toBe('first\n\n- para\n\nlast\n');
+  });
 });

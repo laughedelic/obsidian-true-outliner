@@ -418,6 +418,29 @@ A structural keypress dispatched WHILE a position is open SHALL act on the outli
 on the raw parse. Which node a key targets, which lines move with it, and which lines a
 node-granular selection covers SHALL all be what they would be with no position open.
 
+**A position at a node's END is one of that node's own lines too, and the same rule governs
+it.** Shift+Enter at the end of a node's LAST line opens a position that bisects nothing: every
+line of the node is above it. It is still ADJACENT to the node, so the outline it stands for is
+the one in which it is that node's continuation position — and a structural key SHALL carry it
+along with the node, exactly as it carries an interior one. Concretely, and for every structural
+key:
+
+- The position SHALL take the node's new content column, so typing there still continues the
+  node rather than opening a CHILD of it. An indent that leaves the position at its old width
+  while the node's content column moves has ruined the position, even though the document it
+  produced is correct.
+- The position SHALL travel with the node when the node moves, rather than staying on its line
+  for whichever node comes to own it.
+
+The distinction between a position that JOINS a node and one that stands for a NEW node is
+unchanged and load-bearing here: Enter's position is blank-separated, stands for a node that
+does not exist yet, and no operation may resolve it into the tree.
+
+Telling a position from a blank line the user AUTHORED is not something the document can do, so
+the operation path SHALL be told which line holds one, from the record of our own structural
+keypress. Without that record a blank line SHALL be treated as an ordinary gap, whether it falls
+between two nodes or at the document's end.
+
 #### Scenario: The keypress creates no node
 - **WHEN** Enter is pressed at the end of a childless paragraph
 - **THEN** the document's node count is unchanged, and the cursor sits on a blank line with
@@ -460,10 +483,26 @@ node-granular selection covers SHALL all be what they would be with no position 
   or re-indenting them with it and never as a child subtree, and the result is what the same
   key produces on the same item with no position open
 
+#### Scenario: An indent carries a position at the node's end
+- **WHEN** Shift+Enter is pressed at the end of a list item's last line and Tab is pressed
+- **THEN** the position holds the item's NEW continuation indent, and typing there makes the
+  item's own second line rather than a child of it
+
+#### Scenario: A move carries a position at the node's end
+- **WHEN** a position is open at the end of a list item and the item is moved past a sibling
+- **THEN** the position moves with the item and is still its continuation position, rather than
+  staying on its line and becoming the sibling's
+
 #### Scenario: Node-granular selection sees one node
 - **WHEN** a position is open interior to a node and the selection is extended by one node
 - **THEN** the selection covers that whole node, its lines below the position included, rather
   than stopping at the position
+
+#### Scenario: A blank line the user authored is not a position
+- **WHEN** a structural key is pressed with the cursor on a blank line no keypress of ours
+  opened — between two paragraphs, or at the document's end
+- **THEN** the key acts on the node that owns the gap, and the blank line is left exactly as it
+  was
 
 ### Requirement: A split is refused when its destination is outside the zoom scope
 While a zoom scope is active (`outline-zoom`), a keypress that would place a new node in the zoom
