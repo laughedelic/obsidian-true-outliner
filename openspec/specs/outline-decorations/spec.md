@@ -577,6 +577,19 @@ be the same either way.
 The guide mechanism SHALL NOT remove or replace Obsidian's native blockquote left-bar
 rendering, and SHALL NOT disable a wide table's own horizontal scroll behavior.
 
+A table SHALL scroll on an axis only when its own content exceeds the space available on that
+axis. A table that fits its line SHALL NOT scroll on either axis, and SHALL render in the same
+box stock Obsidian gives it. The vertical axis SHALL NEVER scroll: a table's rows are all shown.
+
+A table's own content SHALL NOT render in the column its node's marker occupies, at any scroll
+position.
+
+Obsidian's own table-edit chrome — the add-row and add-column buttons and the row and column
+drag handles — SHALL keep the size and the position relative to the table that stock Obsidian
+gives it, at any table width and at any scroll position. On a table that fits its line, all four
+SHALL remain reachable. The row drag handle, which sits on the side the previous requirement
+reserves for the marker, MAY be clipped.
+
 #### Scenario: Blockquote native bar and guide render together
 - **WHEN** a blockquote line also carries an active guide
 - **THEN** both Obsidian's native colored left bar and the guide line render, neither
@@ -587,10 +600,46 @@ rendering, and SHALL NOT disable a wide table's own horizontal scroll behavior.
 - **THEN** the table's own scrollbar remains functional (not the whole document becoming
   scrollable), and the guide still renders
 
+#### Scenario: A table that fits its line does not scroll
+- **WHEN** a table narrower than its line carries any of the outline chrome that reaches outside a
+  widget's own box — a guide, a marker, or block-selection chrome
+- **THEN** neither axis scrolls, no scrollbar is shown, and the widget occupies the same box it
+  does with outline mode off
+
+#### Scenario: A wide table scrolls sideways only
+- **WHEN** a table wider than its line carries any of that chrome
+- **THEN** the horizontal axis scrolls the table's own content and the vertical axis does not
+  scroll at all, with every row shown
+
+#### Scenario: A selected table with no guide and no marker behaves the same
+- **WHEN** a table is covered by a block selection while marker visibility excludes it and guides
+  are off, so block-selection chrome alone reaches outside the widget's box
+- **THEN** it scrolls exactly as the two scenarios above require
+
+#### Scenario: Native table-edit chrome stays put
+- **WHEN** a table in outline mode is compared against the same table with outline mode off
+- **THEN** the add-row button, the add-column button and both drag handles have the same size and
+  the same offset from the table in both
+
+#### Scenario: A fitting table's chrome is reachable
+- **WHEN** a table narrower than its line carries outline chrome
+- **THEN** the add-row button, the add-column button and the column drag handle are inside the
+  table's own scrollport rather than clipped or scrolled away from
+
+#### Scenario: A wide table's add buttons follow the table, not the pane
+- **WHEN** a table wider than its line is scrolled to either end
+- **THEN** the add-column button sits at the table's own trailing edge and the add-row button spans
+  the table's own width, at every scroll position and whatever the pane's width
+
+#### Scenario: A scrolled wide table does not render under its own marker
+- **WHEN** a table wider than its line is scrolled to its far edge
+- **THEN** no part of the table renders in the column its marker occupies
+
 **Covered by**: `e2e/specs/51-guides-gradient.e2e.ts` ("blockquote: native colored bar
 (::before) and our guide (::after) coexist, neither clobbers the other", "wide-table
 fixture: guide renders AND the table keeps its own real horizontal scroll (not the whole
-document)", "widget-replaced atoms: callout/hr/html/table all get the guide after
+document)", "a table that fits its line scrolls on neither axis, and its native edit chrome keeps
+its stock geometry", "widget-replaced atoms: callout/hr/html/table all get the guide after
 overriding Obsidian's native contain:paint", "no !important/specificity fight resurrected:
 position and background resolve as set, unbeaten by Obsidian's own CSS").
 
@@ -1704,3 +1753,109 @@ document, and absent from a nested per-cell editor.
 
 - **WHEN** Backspace at `-  b`'s content start deletes the surplus space
 - **THEN** the line reads `- b` and carries no mark
+
+### Requirement: Blank separator rows are collapsible, and the caret's row never collapses
+A setting SHALL govern whether the blank separator lines between nodes — every line the tree
+model owns as a node's trailing gap — are drawn as rows at all. It SHALL default to drawing
+them, which is the rendering that exists today.
+
+With the setting on, every such row SHALL render at zero height, and the rows above and below it
+SHALL become adjacent. The row SHALL remain a line of the document in every other respect: its
+element SHALL still be present, in its own place in the editor's line order, covering its own
+extent. Collapsing SHALL be a matter of what is painted and nothing else — no line's indentation,
+column, marker or text SHALL move, no character SHALL be inserted or removed, and a note SHALL be
+byte-identical whichever way the setting is set.
+
+The collapse SHALL apply to a separator row whether or not it carries an indentation guide. A
+top-level gap carries none, and is a row like any other.
+
+**A row holding a lone caret SHALL NOT collapse.** Where the selection is a SINGLE EMPTY RANGE on a
+blank line, that line is a PROVISIONAL POSITION (`content-space-caret`, `outline-keyboard-grammar`)
+and renders as the node it would become; it is therefore not a separator row and SHALL be drawn at
+full height with the separation around it collapsed, so the position reads as exactly one row. This
+SHALL hold whether the plugin's own dispatch or a programmatic placement put the caret there.
+
+The precondition is the whole guarantee, and is stated rather than implied. A selection that is not
+a single empty range does NOT make its line a provisional position, so a blank line under a
+NON-EMPTY selection's head, or under one of several ranges, collapses like any other separator. Both
+are reachable: an escalated node cover ends on the trailing gap line it owns
+(`escalate-include-owned-gap`), so every Shift-extended cover puts a selection head on a collapsed
+row, and a programmatic multi-range dispatch is left alone by `content-space-caret`'s own
+jurisdiction rule. Neither strands a visible caret — there is no caret drawn at a selection head
+that is not a lone cursor — and a cover ending on the last content row is the better rendering. What
+is NOT permitted is a lone cursor on a collapsed row.
+
+A guide running through a collapsed row SHALL stay continuous. The existing requirement that guides
+render through blank separator lines continues to hold as an EMISSION rule — the guide is still
+drawn for that row — and this change qualifies what it means visually: on a collapsed row the guide
+paints nothing, and continuity comes from the rows either side being adjacent. No break appears
+where a row is removed.
+
+A gap line is where a fold cover, a node cover's selection background and a zoomed view's trailing
+hidden range each end, and the backlinks footer anchors at the document end past the last of them;
+all four SHALL keep working unchanged with the setting on.
+
+**The editor's reported document height MAY be approximate while rows are collapsed, and this is
+allowed rather than overlooked.** A collapsed row's height is known to the editor only once it has
+been drawn, so rows outside the rendered viewport count as full height and the scrollbar settles as
+the reader scrolls. Exact scroll metrics SHALL NOT be required of this setting. What SHALL hold is
+that every position resolves correctly at every point during that settling: a click SHALL land on
+the line under it, and caret motion SHALL behave as `content-space-caret` requires, whether or not
+the rows below have been measured yet.
+
+
+#### Scenario: Separator rows collapse and content rows do not move
+- **WHEN** the setting is turned on over a note of headings, paragraphs and list items separated
+  by blank lines
+- **THEN** every blank separator row renders at zero height while every content row keeps the
+  exact chrome and height it had, and the editor's content is shorter by the rows removed
+
+#### Scenario: A top-level gap collapses too
+- **WHEN** two top-level nodes are separated by a blank line, which carries no guide because
+  neither node has an ancestor
+- **THEN** that row collapses like any other, rather than staying open because it had no guide to
+  draw
+
+#### Scenario: A lone caret's own row stays visible
+- **WHEN** a structural keypress leaves a single empty cursor on a blank line between two nodes
+- **THEN** that row renders at full height as the node it would become, and the blank lines
+  separating it from the nodes above and below it collapse
+
+#### Scenario: A selection head on a gap line does not keep the row open
+- **WHEN** a node cover extends onto the trailing gap line it owns, putting a non-empty selection's
+  head on that line
+- **THEN** the row collapses like any other separator, and the cover ends on the last content row
+
+#### Scenario: A guide crosses a collapsed row unbroken
+- **WHEN** an ancestor's guide runs through a blank separator line that the setting collapses
+- **THEN** the guide is one unbroken run: the rows either side of the collapsed one are adjacent,
+  so nothing is drawn between them and nothing is missing
+
+#### Scenario: The footer and a fold survive the collapse
+- **WHEN** the setting is on in a note that ends with a blank line, with the backlinks footer
+  enabled and a node folded
+- **THEN** the footer renders and the fold cover is intact, because no line break has been
+  replaced
+
+### Requirement: A setting still being judged says so on its own row
+A setting whose behaviour is still being judged in real use SHALL be marked as experimental on its
+own row in the settings tab, as a distinct visual element rather than as wording inside its
+description. The marking SHALL come from the setting's DECLARATION, so that it cannot drift from the
+setting it labels, and SHALL reach the settings search along with the description.
+
+Every render path the tab offers SHALL draw it from one shared derivation, so no path can fall
+behind another.
+
+A setting so marked SHALL additionally state, in its own description, what it costs the reader who
+turns it on — in terms of what they will see, not of how it is built.
+
+#### Scenario: The experimental setting's row carries a chip
+- **WHEN** the plugin's settings tab is opened
+- **THEN** exactly the settings declared experimental carry a chip reading "Experimental", each on
+  its own row, and the word is searchable
+
+#### Scenario: Collapsing gap lines is marked experimental
+- **WHEN** the setting that collapses blank separator rows is shown
+- **THEN** its row carries the chip, and its description names the costs a reader meets: a run of
+  blank lines reading as one, the loose/tight distinction between list items disappearing, and the
+  scrollbar settling on a long note

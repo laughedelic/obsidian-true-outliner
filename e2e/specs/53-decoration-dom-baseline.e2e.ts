@@ -13,13 +13,14 @@
  * nothing here moves. Run with `UPDATE_BASELINES=1` to rewrite the files after
  * an INTENDED change to what is rendered.
  *
- * What the layer DECIDES, not what it MEASURES. Three things on a line are
+ * What the layer DECIDES, not what it MEASURES. Four things on a line are
  * read from the rendered DOM rather than derived from the document — the
- * chevron alignment (`--to-chevron-dx`/`-dy`) and the trail's accent stop
- * (`--to-accent-stop`), both a font's business and different on CI's font
- * from macOS's, and the widget pass's own marker on the footer's element,
- * which mounts on its own schedule — and all three are left out, so the
- * baseline holds on every platform and every frame. A widget line's own
+ * chevron alignment (`--to-chevron-dx`/`-dy`), the trail's accent stop
+ * (`--to-accent-stop`) and a table's own width (`--to-table-width`), all
+ * three a font's business and different on CI's font from macOS's, and the
+ * widget pass's own marker on the footer's element, which mounts on its own
+ * schedule — and all four are left out, so the baseline holds on every
+ * platform and every frame. A widget line's own
  * border and padding, which its shift expression carries, are the theme's and
  * the same wherever the suite runs.
  */
@@ -78,7 +79,7 @@ function snapshot(): Promise<string> {
         // The properties the layer measures rather than decides (see the
         // module comment). Spelled here: this function runs in the app, where
         // nothing from this file's scope exists.
-        if (name.startsWith('--to-') && !/^--to-(chevron-|accent-stop)/.test(name)) {
+        if (name.startsWith('--to-') && !/^--to-(chevron-|accent-stop|table-width)/.test(name)) {
           props.push(`${name}=${el.style.getPropertyValue(name).trim()}`);
         }
       }

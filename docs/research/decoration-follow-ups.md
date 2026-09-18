@@ -381,22 +381,6 @@ record forward through the operation (the record is per-view and the operation's
 could re-state it), or cancel the place first — which is not available, because Enter-then-Tab is
 the canonical outliner gesture for "new node, one level in" and cancelling would destroy it.
 
-### Shift+Enter on an item whose marker has no trailing space opens a position outside the node
-
-`parse.ts` reads `-` as a list item with content column 2 (`LIST_ITEM_RE` allows a marker at
-end-of-line); `grammar.ts`'s `LIST_CONT_RE` requires whitespace after the marker, so it finds no
-match and Shift+Enter writes an empty line instead of the item's continuation indent. Typing there
-produces a TOP-LEVEL paragraph, so the position stands for no continuation of anything, and the
-`a-position-does-not-split-its-node` overlay correctly declines to repair it — there is no tree in
-which that node is whole.
-
-A buffer defect rather than a rendering one, which is why it was left out of that change. Found by
-its differential property test, and pinned by a test of its own
-(`tests/decorate.test.ts`, "a position the grammar writes OUTSIDE its node is not one this can
-repair"). The fix is to derive the continuation prefix from the same rule the parser uses for the
-content column, rather than from a second regex that disagrees with it about a marker at
-end-of-line.
-
 ### Node-granular selection halves a bisected node, and cannot be fixed without provenance
 
 Measured while closing `a-position-does-not-split-its-node`, attempted, and withdrawn — the most
@@ -582,6 +566,15 @@ first.
   API that forces a view-plugin refresh, or if our extension moves to the
   swap-the-extension-array pattern that makes `updateOptions()` produce a real
   reconfigure diff.
+- **A widget atom's marker and guide on a plugin-owned element, outside the widget.** Both
+  currently live inside the widget's own box, which is why the box has to be forced to
+  `overflow: visible` and `contain: none`, and why a table's scroll had to move to an inner
+  wrapper at all ([table-scroll-region.md](table-scroll-region.md)). Drawing them on an element of ours instead — the
+  pattern the footer and the zoom trail already use (`chrome-line.ts`'s own-chrome class) — would
+  let every widget keep Obsidian's own boxes untouched, and would dissolve that whole class of
+  problem, `--to-selected-right`'s notch included. Far larger than the CSS fixes it would retire,
+  and it reopens Experiment 2a's question (a measured overlay) with a third answer, so it wants
+  its own measurement pass rather than a note in a bug fix.
 - **Viewport-limited decoration building.** Facts build over the whole document; building
   only over `view.viewport` (rebuild on `docChanged || viewportChanged`) is the standard
   shape (obsidian-lapel demonstrates it) and becomes worthwhile for multi-thousand-line

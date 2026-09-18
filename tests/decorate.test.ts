@@ -2038,18 +2038,21 @@ describe('the overlay reproduces the facts the keypress displaced (design D1/D2)
     }
   });
 
-  it('a position the grammar writes OUTSIDE its node is not one this can repair', () => {
-    // `-` has no space after its marker, so `LIST_CONT_RE` does not match it and
-    // Shift+Enter writes an empty line rather than the item's content column —
-    // while `parse` reads `-` as an item whose content column is 2. Typing on
-    // that position makes a TOP-LEVEL paragraph, so the position stands for no
-    // continuation and the gate stays shut. The node below it stays displaced.
-    // A buffer defect, out of this change's scope (proposal.md — Non-Goals) and
-    // recorded in docs/research/decoration-follow-ups.
+  it('opens a position inside the PARAGRAPH a bare marker makes', () => {
+    // A marker needs whitespace after it to be one
+    // (`marker-without-trailing-space`), so `-` is a paragraph and `⇥tab lead`
+    // its continuation: one node, two lines. Shift+Enter writes the column-0
+    // line a paragraph's continuation takes, and the position stands for that
+    // paragraph — which is what the gate needs to open.
+    //
+    // Recorded because this shape reads as a defect and is not one: while `-`
+    // was an empty LIST ITEM the same keystroke wrote the same bytes, and the
+    // position then belonged to no node at all, since typing there made a
+    // top-level paragraph beside an item.
     const md = ['-', '\ttab lead', ''].join('\n');
     const open = openPositionAt(md, 0)!;
     expect(open).toBe(['-', '', '\ttab lead', ''].join('\n'));
-    expect(positionBisectsANode(decorate(parse(materializeProbe(open, 1)!)), 1)).toBe(false);
+    expect(positionBisectsANode(decorate(parse(materializeProbe(open, 1)!)), 1)).toBe(true);
   });
 
   it('holds over generated documents', () => {
@@ -2221,6 +2224,45 @@ describe('a position carries the guides of the node it stands for', () => {
         }
       }
     }
+
+    it('holds over arbMarkdownText', () => {
+      fc.assert(fc.property(arbMarkdownText, check), { numRuns: 300 });
+    });
+
+    it('holds over arbTree', () => {
+      fc.assert(fc.property(arbTree().map(encode), check), { numRuns: 100 });
+    });
+  });
+  /**
+   * The gap/fact partition `hide-gap-lines` rests on (design D3): a row the
+   * caret can rest on always carries a fact, and a row carrying no fact is a
+   * separator the rendering may collapse. The setting protects the caret's own
+   * row by relying on the two sets never meeting, so the partition is stated
+   * here as a standing property rather than left as a one-off measurement.
+   *
+   * Negative control: give any gap line a fact, or narrow
+   * `materializeProvisional`'s gate so a blank line the caret can reach stops
+   * materializing, and one of the two halves fails.
+   */
+  describe('gap lines and per-line facts partition the document', () => {
+    const check = (text: string): boolean => {
+      const doc = parse(text);
+      const factLines = new Set(decorate(doc).map((f) => f.lineNumber));
+      const lines = text.split('\n');
+      for (const guide of computeLineGuides(doc)) {
+        if (!guide.isGapLine) continue;
+        // A separator row never carries content chrome, so collapsing it can
+        // never take a node's own rendering with it.
+        expect(factLines.has(guide.lineNumber)).toBe(false);
+        // And a caret that reaches it anyway makes it a provisional position,
+        // which does carry a fact — so it is no longer a row to collapse.
+        const raw = lines[guide.lineNumber] ?? '';
+        for (const ch of new Set([0, raw.length])) {
+          expect(materializeProvisional(text, guide.lineNumber, ch, null)).not.toBeNull();
+        }
+      }
+      return true;
+    };
 
     it('holds over arbMarkdownText', () => {
       fc.assert(fc.property(arbMarkdownText, check), { numRuns: 300 });

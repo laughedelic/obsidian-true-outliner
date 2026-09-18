@@ -170,7 +170,10 @@ describe('segmentContent: what a crumb is called', () => {
   });
 
   it('falls back to the kind when nothing survives', () => {
-    const doc = parse('# Top\n\n-\n');
+    // `- `, not `-`: a marker needs whitespace after it to be one at all
+    // (`marker-without-trailing-space`), and the empty item this names is the
+    // one the ladder writes.
+    const doc = parse('# Top\n\n- \n');
     const bare = walk(doc.children).find((n) => n.kind === 'list-item')!;
     expect(segmentContent(bare).markdown).toBe('List item');
   });
@@ -238,7 +241,7 @@ describe('segmentContent: what a crumb is called', () => {
         '- one line only',
         '- a first line',
         '  a continuation of it',
-        '-',
+        '- ',
         '',
       ].join('\n'),
     );
