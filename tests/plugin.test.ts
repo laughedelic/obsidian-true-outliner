@@ -65,6 +65,7 @@ describe('persisted plugin data', () => {
       guideVisibility: 'subtree' as const,
       guideHideSingleRoot: true,
       guideIntensity: 'strong' as const,
+      hideGapLines: true,
     };
     expect(normalizePluginData(onDisk)).toEqual(onDisk);
   });
@@ -1249,6 +1250,7 @@ describe('the settings tab, derived from the declarations', () => {
       ['guideHideSingleRoot', 'toggle', null],
       ['guideIntensity', 'dropdown', ['subtle', 'normal', 'strong']],
       ['markerVisibility', 'dropdown', ['all', 'with-children', 'headings-and-paragraphs']],
+      ['hideGapLines', 'toggle', null],
       ['guideHighlight', 'dropdown', ['off', 'full', 'lineage']],
       ['markerHighlight', 'dropdown', ['off', 'current', 'lineage']],
     ]);
@@ -1257,6 +1259,16 @@ describe('the settings tab, derived from the declarations', () => {
       expect(d.name.length).toBeGreaterThan(0);
       expect(d.desc.length).toBeGreaterThan(0);
     }
+  });
+
+  it('carries the experimental flag through, and only where it is declared', () => {
+    // The tab draws the chip from this flag, so a declaration losing it loses
+    // the chip silently. Pinned as a list for the same reason the rows above
+    // are: the set of experimental settings is a decision, not an accident.
+    const flagged = settingDefinitions()
+      .filter((d) => d.experimental)
+      .map((d) => d.control.key);
+    expect(flagged).toEqual(['hideGapLines']);
   });
 
   it('keeps the two values persisted without a row out of the tab', () => {

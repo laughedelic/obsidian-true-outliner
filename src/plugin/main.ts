@@ -781,6 +781,16 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.forceRedraw();
   }
 
+  get hideGapLines(): boolean {
+    return this.data.hideGapLines;
+  }
+
+  async setHideGapLines(value: boolean): Promise<void> {
+    this.data.hideGapLines = value;
+    await this.saveData(this.data);
+    this.forceRedraw();
+  }
+
   get guideHighlight(): GuideHighlight {
     return this.data.guideHighlight;
   }
@@ -1469,9 +1479,34 @@ const WRITERS: {
   guideHideSingleRoot: (p, v) => p.setGuideHideSingleRoot(v),
   guideIntensity: (p, v) => p.setGuideIntensity(v),
   markerVisibility: (p, v) => p.setMarkerVisibility(v),
+  hideGapLines: (p, v) => p.setHideGapLines(v),
   guideHighlight: (p, v) => p.setGuideHighlight(v),
   markerHighlight: (p, v) => p.setMarkerHighlight(v),
 };
+
+const EXPERIMENTAL_CHIP_CLASS = 'to-setting-chip';
+
+/**
+ * A setting's description as the tab renders it: the text itself, or a fragment
+ * whose first child is an EXPERIMENTAL chip.
+ *
+ * A fragment rather than a prefix in the string, because `SettingDefinitionBase`
+ * takes `string | DocumentFragment` for `desc` and nothing at all for a badge or
+ * a class. Obsidian clones the fragment before inserting it and reads its
+ * `textContent` when it indexes for search, so one fragment serves every render
+ * and the word stays findable.
+ *
+ * Shared by both render paths for the reason `getSettingDefinitions` records:
+ * two builders would agree only until someone changed one of them.
+ */
+function describeSetting(desc: string, experimental?: boolean): string | DocumentFragment {
+  if (!experimental) return desc;
+  const fragment = createFragment();
+  fragment.createSpan({ cls: EXPERIMENTAL_CHIP_CLASS, text: 'Experimental' });
+  fragment.appendText(' ');
+  fragment.appendText(desc);
+  return fragment;
+}
 
 class TrueOutlinerSettingTab extends PluginSettingTab {
   constructor(
@@ -1485,14 +1520,22 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
    * Declarative settings (Obsidian 1.13+, hardening 5.5): the settings
    * render from these definitions and become discoverable via Obsidian's
    * settings search. `display()` below is kept ONLY as the documented
-   * fallback for pre-1.13 Obsidian (`minAppVersion` is older, and the e2e
-   * harness's pinned runtime still exercises it) — on 1.13+ it is never
-   * called once this returns a non-empty array. Both render the one list
+   * fallback for pre-1.13 Obsidian (`minAppVersion` is older than 1.13). The
+   * harness runs 1.13.7, so CI exercises this path and reaches `display()`
+   * only where a spec calls it outright — on 1.13+ it is never called once
+   * this returns a non-empty array. Both render the one list
    * `settingDefinitions` derives from the declarations, so neither can fall
    * behind the other.
    */
   override getSettingDefinitions(): SettingDefinitionItem[] {
-    return settingDefinitions();
+    // Spread the rest rather than naming the fields: `SettingDefinitionBase`
+    // also carries `aliases`, `searchable` and `visible`, and a declaration
+    // gaining one of those should reach this path as it already reaches
+    // `display()`. Only `experimental` is consumed here, becoming the chip.
+    return settingDefinitions().map(({ experimental, desc, ...rest }) => ({
+      ...rest,
+      desc: describeSetting(desc, experimental),
+    }));
   }
 
   /** This plugin doesn't use the conventional `this.plugin.settings` shape
@@ -1515,8 +1558,10 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
   /** Pre-1.13 fallback only — see getSettingDefinitions() above. */
   override display(): void {
     this.containerEl.empty();
-    for (const { name, desc, control } of settingDefinitions()) {
-      const setting = new Setting(this.containerEl).setName(name).setDesc(desc);
+    for (const { name, desc, experimental, control } of settingDefinitions()) {
+      const setting = new Setting(this.containerEl)
+        .setName(name)
+        .setDesc(describeSetting(desc, experimental));
       if (control.type === 'toggle') {
         setting.addToggle((toggle) =>
           toggle

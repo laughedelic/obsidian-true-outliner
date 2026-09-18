@@ -1,0 +1,28 @@
+/*
+ * The EXPERIMENTAL chip on a settings row (`describeSetting`, main.ts).
+ *
+ * A setting marked experimental is one whose behaviour is still being judged in
+ * real use. Obsidian's setting definitions carry no badge of their own, so the
+ * chip is a span at the head of the description fragment, and this is what makes
+ * it read as a label rather than as the first word of the sentence.
+ *
+ * Drawn in the theme's own warning colour at the theme's own small size, so it
+ * sits right in a light theme and a dark one and never competes with the
+ * setting's name. A theme defining no warning colour still gets a legible chip:
+ * the border falls back to `--background-modifier-border` and the text to
+ * `--text-muted`.
+ */
+.to-setting-chip {
+  display: inline-block;
+  margin-inline-end: 0.4em;
+  padding: 0.05em 0.45em;
+  border: 1px solid var(--text-warning, var(--background-modifier-border));
+  border-radius: var(--radius-s, 4px);
+  color: var(--text-warning, var(--text-muted));
+  font-size: var(--font-smallest, 0.8em);
+  font-weight: var(--font-medium, 500);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  vertical-align: baseline;
+  white-space: nowrap;
+}

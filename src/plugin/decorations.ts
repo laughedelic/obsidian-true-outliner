@@ -821,6 +821,9 @@ export interface DecorationSource {
   readonly guideVisibility: GuideVisibility;
   /** Drop the outermost guide while the document has exactly one root. */
   readonly guideHideSingleRoot: boolean;
+  /** Collapse the blank separator rows between nodes. Read by
+   * `computeDecorations` alone; `renderInputs`' records do not depend on it. */
+  readonly hideGapLines: boolean;
 }
 
 const EMPTY_POSITION_TRAIL: PositionTrail = {
@@ -1472,16 +1475,33 @@ function lineDecoration(lineText: string, fact: LineDecorationFact, render: Line
   return Decoration.line({ class: cls, attributes: { style: chromeStyle(chrome) } });
 }
 
+/**
+ * The class a collapsed gap line carries (`hideGapLines`). The row keeps its
+ * element and its extent; the stylesheet takes its height to zero.
+ *
+ * Why a line decoration rather than the block replacement the zoom uses, and
+ * what that costs CodeMirror's height map: `hide-gap-lines` design D1 and
+ * docs/research/gap-line-hiding.
+ */
+export const HIDDEN_GAP_CLASS = 'to-decor-gap-hidden';
+
 // A blank trailingGap line carrying a guide (see computeLineGuides's doc
 // comment) has no decorate() fact at all — no depth, no kind, nothing to
 // indent — so it gets a minimal decoration with just the guide class/style,
 // not the full lineDecoration() treatment. A trail accent can land on such a
 // line too (a path segment passing through the gap between two blocks), and
 // the record's background already carries it.
-function gapLineDecoration(guides: string): Decoration {
+//
+// With `hideGapLines` on, a gap line carrying NO guide gets a decoration too:
+// a top-level gap has no guide to draw and still has to be collapsed, so
+// `guides` is optional and either half alone is a reason to emit.
+function gapLineDecoration(guides: string | undefined, hidden: boolean): Decoration {
+  const classes: string[] = [];
+  if (guides !== undefined) classes.push('to-decor-guides');
+  if (hidden) classes.push(HIDDEN_GAP_CLASS);
   return Decoration.line({
-    class: 'to-decor-guides',
-    attributes: { style: `--to-guides: ${guides}` },
+    class: classes.join(' '),
+    ...(guides === undefined ? {} : { attributes: { style: `--to-guides: ${guides}` } }),
   });
 }
 
@@ -1502,8 +1522,12 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
     if (!render.fact) {
       // A line with no fact is a gap line — the walks are in sync, so the
       // other case is defensive only — and draws its guides or nothing.
-      if (render.gap && render.guides !== undefined) {
-        builder.add(line.from, line.from, gapLineDecoration(render.guides));
+      if (render.gap && (render.guides !== undefined || modes.hideGapLines)) {
+        builder.add(
+          line.from,
+          line.from,
+          gapLineDecoration(render.guides, modes.hideGapLines),
+        );
       }
       continue;
     }
