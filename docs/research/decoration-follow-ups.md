@@ -463,7 +463,8 @@ that line, and `keymap.ts` builds a column as an offset minus its own line's sta
 that shape — an INTERIOR place — keeps the caret on the place at its new content column, as Tab
 does, across the widths an interior place's content column takes. So the asymmetry the entry
 reported between the two keys is not there either: both keys are right on an interior place and
-both are wrong on a trailing one.
+both are wrong on a trailing one. "Right on an interior place" holds for ONE structural keypress
+from a freshly opened place; the entry below is why a second one does not get the same answer.
 
 Re-measuring that column today gives line 3 column 2 rather than column 0:
 `source-indentation-collapses` has since had `planCaret` resolve a mapped position that lands
@@ -479,6 +480,38 @@ column inside its own line") holds the two together. Three other conversions of 
 `cm-pos.ts`'s `linePosToOffset`, `grammar.ts`'s `offsetInNewText`, `transaction-filter.ts`'s
 `offsetInLines` — do not clamp, and agree with this one only while every position they are handed
 is in range.
+
+### The place record is single-shot, so a SECOND structural key mistreats the place
+
+Found in the manual pass on #129. `grammar.ts` is told which blank line holds a place by
+`createdPlaceLine`, which reads `provisional-cleanup`'s record. That record is re-established only
+by a keypress the module counts as CREATING one — `GAP_PLACE_EVENTS` and `NODE_PLACE_EVENTS`, which
+list split, sibling-heading, continue, unwrap, and (for a gap place only) outdent. `indent` is in
+neither list. So a Tab that carried a place along leaves no record behind, and a second structural
+keypress sees an ordinary blank line.
+
+Both halves of the damage follow, and both were reported from the real app:
+
+| Gesture | Result |
+|---|---|
+| `- top` / `⇥- foo` / `⇥␣␣bar`, Shift+Enter, Shift+Tab, Tab | `- top` / `␣␣- foo` / `␣␣` / `␣␣␣␣bar`, caret 1:4 — the place keeps two columns while the item moves to four, and the caret is off it |
+| `- one` / `- foo` / `␣␣bar`, Shift+Enter, Tab, Shift+Tab | `- one` / `- foo` / `␣␣␣␣` / `␣␣bar`, caret 1:2 — the caret lands at the start of `foo`, and the place is left deeper than the item |
+
+The grammar is right in both: handed the place line, `planKey` produces the correct document and
+caret for every step of both sequences. Only the live path differs, and only from the second
+keypress on, which is why a single-keypress measurement — the shape every entry here was taken
+from — reports the behaviour as correct.
+
+`recordablePlace` and its event lists exist to answer "was a place CREATED here", which the abandon
+path needs: an outdent that merely relocated an already-empty item created nothing, and undoing it
+would restore a bullet the user left the list to escape. `createdPlaceLine` asks a different
+question — "is this blank line a place" — and inherits an answer scoped to the first one. Closing
+it means separating the two, so a keypress that CARRIES a place forward keeps the record while only
+a creating one starts it. The `undoDepth` guard in `liveRecord` is the same story one level down: it
+is right for the abandon path and wrong for this one.
+
+Not caused by #129, which touches only `dispatch.ts`'s `{line, ch}` conversion: both sequences
+reproduce identically against `main`'s own `dispatch.ts`.
 
 ### The palette path does not resolve a place at all
 
