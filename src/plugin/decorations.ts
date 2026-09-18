@@ -2329,13 +2329,6 @@ const SOURCE_INDENT_MARK = Decoration.mark({ class: SOURCE_INDENT_OWN_CLASS });
  */
 const SOURCE_INDENT_REPLACEMENT = Decoration.replace({});
 
-/**
- * Set on a line whose own indentation is hidden, for the one rule that has to
- * follow it: Obsidian's quantiser states a width for the span it wrapped the
- * run in, and that width outlives the characters it was made from.
- */
-export const SOURCE_INDENT_SIZED_CLASS = 'to-decor-indent-sized';
-
 /** The leading whitespace of a line, in characters. */
 const LEADING_RUN_RE = /^[ \t]*/;
 
@@ -2379,9 +2372,6 @@ function computeSourceIndent(state: EditorState): DecorationSet {
     // defensive: the probe's line is one character longer than the real one.
     const to = Math.min(line.from + own, line.to);
     if (to <= line.from) continue;
-    // The line decoration first: `RangeSetBuilder` wants ascending sides at the
-    // same position, and a line's own side is below a replacement's.
-    builder.add(line.from, line.from, Decoration.line({ class: SOURCE_INDENT_SIZED_CLASS }));
     builder.add(line.from, to, to < line.to ? SOURCE_INDENT_MARK : SOURCE_INDENT_REPLACEMENT);
   }
   return builder.finish();
