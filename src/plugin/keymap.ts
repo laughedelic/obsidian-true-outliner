@@ -74,7 +74,7 @@ import {
   abandonEdit,
   advanceFromEmptyPlace,
   cancelOnDelete,
-  createdPlaceLine,
+  openPlaceLine,
   provisionalCleanup,
 } from "./provisional-cleanup";
 
@@ -153,7 +153,7 @@ function makeHandler(key: GrammarKey) {
         line: toLine.number - 1,
         ch: (replacesSelection || actsOnSelection ? sel.to : planFrom) - toLine.from,
       },
-      createdPlaceLine(view) ?? undefined,
+      openPlaceLine(view) ?? undefined,
       startLine === undefined
         ? undefined
         : { line: startLine.number - 1, ch: sel.from - startLine.from },
@@ -302,18 +302,26 @@ function notAnOutlineGesture(
  * document cannot say — an authored blank line between two paragraphs is
  * byte-identical to one Shift+Enter opened inside one — so the structural keys
  * are told, from `provisional-cleanup`'s per-view record. That record is exactly
- * what these two handlers cannot use: with it live, either handler's own
- * dispatch is a selection that LEAVES the position, which is the abandon
- * gesture, so the place is removed before any cover is visible (measured, and
- * pinned in `e2e/specs/30-keyboard-grammar.e2e.ts`). Without it — after a redo,
- * or once a document change has dropped it — there is no provenance to read.
- * The one state where the fix would show is the one state where the record is
- * gone.
+ * what these two handlers cannot use where it comes from a keypress that just
+ * CREATED the place: either handler's own dispatch is a selection that LEAVES
+ * the position, which is the abandon gesture, so the place is removed before any
+ * cover is visible (measured, and pinned in
+ * `e2e/specs/30-keyboard-grammar.e2e.ts`). Without any record — after a redo, or
+ * once a document change has dropped it — there is no provenance to read.
  *
- * So this is left as it is rather than wired to a gate that cannot open.
- * Closing it means giving a provisional position provenance that survives undo
- * and redo, which is a change of its own; recorded with its measurements in
- * docs/research/decoration-follow-ups.md.
+ * `a-carried-place-keeps-its-record` narrowed that from "the one state where the
+ * fix would show is the one state where the record is gone" to a state that now
+ * exists: after a key CARRIED the place, `openPlaceLine` answers and the removal
+ * record does not, so a cover taken there would be visible and would stick. It
+ * is a slice of the shapes rather than the general case — a freshly opened place
+ * is still the common one and still abandons — so wiring these handlers to it
+ * would fix the ladder for whichever presses happen to follow a Tab and leave it
+ * broken otherwise, which is worse than one honest answer.
+ *
+ * So this is left as it is rather than wired to a gate that opens only
+ * sometimes. Closing it means giving a provisional position provenance that
+ * survives undo and redo, which is a change of its own; recorded with its
+ * measurements in docs/research/decoration-follow-ups.md.
  */
 
 /**

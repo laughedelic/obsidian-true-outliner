@@ -106,7 +106,7 @@ import type { EditorView } from '@codemirror/view';
 import { historyCaretExtension } from './history-caret';
 import { TransactionStats } from './stats';
 import { placeOutline } from './decorate';
-import { createdPlaceLine } from './provisional-cleanup';
+import { openPlaceLine } from './provisional-cleanup';
 
 /**
  * Note: `indent`/`outdent` also accept an optional trailing
@@ -1355,7 +1355,7 @@ export default class TrueOutlinerPlugin extends Plugin {
     // the keymap acted on the resolved one, so the same key on the same document
     // gave two different results depending on how it was invoked, which is the
     // divergence `selection-structural-ops` exists to hold shut.
-    const placeLine = view ? (createdPlaceLine(view) ?? undefined) : undefined;
+    const placeLine = view ? (openPlaceLine(view) ?? undefined) : undefined;
     const outline = placeOutline(text, cursorBefore, placeLine);
     const opDoc = outline ?? doc;
     const operand = resolveOperand(opDoc, range);

@@ -502,14 +502,18 @@ is in range.
 
 ### The place record is single-shot, so a SECOND structural key mistreats the place
 
-Found in the manual pass on #129. `grammar.ts` is told which blank line holds a place by
-`createdPlaceLine`, which reads `provisional-cleanup`'s record. That record is re-established only
-by a keypress the module counts as CREATING one — `GAP_PLACE_EVENTS` and `NODE_PLACE_EVENTS`, which
-list split, sibling-heading, continue, unwrap, and (for a gap place only) outdent. `indent` is in
-neither list. So a Tab that carried a place along leaves no record behind, and a second structural
-keypress sees an ordinary blank line.
+**Closed** by `a-carried-place-keeps-its-record` (issue #142). Kept with its measurements, because
+the re-measurement below retires one of the two rows the issue reported and the two residuals it
+names are still parked.
 
-Both halves of the damage follow, and both were reported from the real app:
+**The gap, as it was.** `grammar.ts` is told which blank line holds a place by what was then
+`createdPlaceLine`, which reads `provisional-cleanup`'s record. That record was re-established only
+by a keypress the module counts as CREATING one — `GAP_PLACE_EVENTS` and `NODE_PLACE_EVENTS`, which
+list split, sibling-heading, continue, unwrap, and (for a gap place only) outdent. `indent` was in
+neither list. So a Tab that carried a place along left no record behind, and a second structural
+keypress saw an ordinary blank line.
+
+Both halves of the damage followed, and both were reported from the real app:
 
 | Gesture | Result |
 |---|---|
@@ -567,7 +571,23 @@ it even for a key the event lists do name, and abandoning it leaves it in the fi
 two questions above does not reach that one; giving `runOp` the plan's `abandon` form does.
 
 Not caused by #129, which touches only `dispatch.ts`'s `{line, ch}` conversion: both sequences
-reproduce identically against `main`'s own `dispatch.ts`.
+reproduced identically against `main`'s own `dispatch.ts`.
+
+**How it closed.** The record splits in two. A PLACE record holds the line an open place occupies,
+started by a creating dispatch and kept by one of ours that began with the caret on that place and
+left the caret on an empty place; the removal record keeps every condition it had, including the
+`undoDepth` backstop, which a fact issuing no edit does not need. `createdPlaceLine` became
+`openPlaceLine`, the name being the defect in miniature.
+
+**Still parked**, both named above: the ABANDON record does not survive a carrying key either, so
+walking away after a Tab still leaves the blank line in the file (the entry above this one); and
+the palette writes no record at all, for or against, because `runOp` dispatches with no `userEvent`
+and states no `abandon` edit.
+
+**And newly reachable**: after a carrying key the place record answers while the removal record does
+not, which is the state `keymap.ts`'s note about the selection handlers said did not exist. It is a
+slice of the shapes rather than the general case, so the handlers stay on the raw parse and the note
+now says so.
 
 Seen while re-measuring and unrelated to places: with the editor's indent unit set to a TAB,
 `indent` writes the unit on the node's first line and SPACES on its continuation lines — `- top` /
