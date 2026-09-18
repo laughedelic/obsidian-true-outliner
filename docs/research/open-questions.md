@@ -2489,3 +2489,46 @@ worth its risk. Revisit there.
 string — moved into `search.ts` as `matchRanges`, unit-tested with the rest of the grammar it
 belongs to. The walk that cuts a text node around those ranges is asserted in
 `e2e/specs/77-footer-controls.e2e.ts`, against a real rendered row.
+
+## Q38. A block start deeper than three columns parses as a paragraph ❓ OPEN (2026-09-17, `source-indentation-collapses` manual pass)
+
+Tracked as issue #136; the two neighbouring findings at the end of this entry are #137 (a table
+inside a list item) and #138 (a top-level four-space line, whose decision lives in Q35).
+
+Reported from the manual pass on issue #117: a quote written under a list item with a TAB
+"breaks and renders as a paragraph", with its `>` marker left on the top-level guide.
+
+The cause is not the tab and not the decoration layer. `parse.ts` detects a block start with
+CommonMark's top-level allowance for leading whitespace — `ATX_RE`, `QUOTE_RE`, `HR_RE`,
+`SETEXT_RE` and `HTML_OPEN_RE` all begin `^ {0,3}` — and applies it to the RAW line, without
+first taking off the indentation the enclosing list item's content column accounts for. Four
+columns of indentation therefore stop being a block start, wherever they come from. Measured:
+
+| Document | Our kind |
+|---|---|
+| `- alpha` / `` / `␣␣> quote child` | quote |
+| `- alpha` / `` / `⇥> quote child` | paragraph |
+| `- alpha` / `` / `␣␣␣␣> quote child` | paragraph |
+| `- alpha` / `` / `⇥# heading child` | paragraph |
+
+So it reaches every tab-indented vault at the first level, and every two-space vault at the
+second — a quote or heading nested two items deep is a paragraph to us, with the marker, the
+guides and every structural operation reading it that way. Reading mode renders all three
+identically, which is the reader's own evidence that the three are one shape.
+
+The fix is to measure the allowance from the line's own CONTENT COLUMN rather than from column
+zero: strip what the enclosing item's content column accounts for, then apply the same
+`{0,3}` rule to the remainder, as CommonMark itself does inside a list item. What makes it a
+change of its own rather than a one-line edit is that segmentation runs before hierarchy is
+derived, so the enclosing item's column is not yet known where the regexes are used today — the
+same ordering `list-marker-content-column` had to work around, and the same one Q35 runs into
+from the other side.
+
+Two neighbouring findings from the same pass, both Obsidian's rather than ours, recorded so the
+next reader does not re-diagnose them:
+
+- **A table written inside a list item is not rendered as a table at all**, in outline mode or
+  out of it, at any indentation — measured with the plugin's decorations off, where the rows
+  stay plain `.cm-line`s. Obsidian's own table widget does not run in that position.
+- **A tab-indented quote is mis-rendered by Live Preview itself**, independently of the parse
+  above: the line takes `HyperMD-quote-lazy` and a padding of its own.

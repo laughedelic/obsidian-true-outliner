@@ -470,6 +470,9 @@ export function rowFact(kind: LineDecorationFact['kind'], depth: number): LineDe
     supplementalDepth: 0,
     kind,
     hasChildren: false,
+    // Both synthetic facts: a footer row renders its content inline, with no
+    // source indentation of its own to state (D18).
+    indentCh: 0,
   };
 }
 
@@ -495,6 +498,7 @@ function syntheticFact(node: OutlineNode, depth: number): LineDecorationFact {
     supplementalDepth: 0,
     kind: node.kind,
     hasChildren: node.children.length > 0,
+    indentCh: 0,
   };
 }
 

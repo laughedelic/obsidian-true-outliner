@@ -31,6 +31,7 @@ import type { OutlineDoc, OutlineNode } from './model';
 import { ownSpan } from './model';
 import type { LinePos } from './line-pos';
 import { nodeAtLine, nodeStartLine } from './locate';
+import { ownIndentAt } from './own-indent';
 
 /**
  * The character offset where `line` (one of `node`'s own lines) becomes
@@ -39,26 +40,25 @@ import { nodeAtLine, nodeStartLine } from './locate';
  * `#`, a quote's `>`, a code fence's backticks are all ordinary content (D7).
  *
  * Computes the list prefix here rather than reusing `ops.ts`'s
- * `contentColumnCh`, which also swallows an ATX heading prefix and requires
- * whitespace after the marker. Both behaviours are wrong for THIS question:
+ * `contentColumnCh`, which also swallows an ATX heading prefix: `- # title`'s
+ * `#` belongs to the item's content, and this change's own spec says a heading
+ * prefix stays addressable. Sharing the helper made `# ` chrome, so the caret
+ * could not be placed on it.
  *
- * - `- # title` — the `#` belongs to the item's content, and this change's own
- *   spec says a heading prefix stays addressable. Sharing the helper made `# `
- *   chrome, so the caret could not be placed on it.
- * - `-` with no trailing space — an empty item mid-edit. Requiring whitespace
- *   left the boundary at 0, making the marker itself addressable and putting a
- *   hole in the invariant exactly where the marker is all there is.
- *
- * Whitespace after the marker is therefore optional only at END OF LINE. A first
- * attempt made it optional everywhere (`[ \t]*`), which then swallowed ordinary
- * punctuation at the start of a CONTINUATION line: `  *emphasis*` measured a
- * boundary of 3, making the `*` non-addressable, and `  -foo` the same. A marker
- * needs a space after it or nothing at all.
+ * The whitespace after the marker is REQUIRED, matching the parser's own rule
+ * (`marker-without-trailing-space`): a marker with nothing after it is not a
+ * marker, so a line holding one is a paragraph and its dash is content the
+ * caret belongs on. The requirement also decides a shape the node kind does
+ * not — an item's CONTINUATION line that reads exactly `␣␣-`, which is the
+ * item's text and not a marker of its own. Optional whitespace, in an earlier
+ * version, swallowed ordinary punctuation at the start of such a line:
+ * `␣␣*emphasis*` measured a boundary of 3, making the `*` non-addressable, and
+ * `␣␣-foo` the same.
  *
  * `contentColumnCh` keeps its own semantics for the structural operations that
  * want them; this is the caret's question, so it gets its own answer.
  */
-const LIST_PREFIX = /^[ \t]*(?:(?:[-+*]|\d{1,9}[.)])(?:[ \t]+|$))?/;
+const LIST_PREFIX = /^[ \t]*(?:(?:[-+*]|\d{1,9}[.)])[ \t]+)?/;
 
 export function contentBoundaryCh(node: OutlineNode, line: string): number {
   if (node.kind !== 'list-item') return 0;
@@ -69,7 +69,7 @@ export function contentBoundaryCh(node: OutlineNode, line: string): number {
 export function nodeContentStart(doc: OutlineDoc, node: OutlineNode): LinePos {
   const start = nodeStartLine(doc, node.id);
   const firstLine = node.lines[0] ?? '';
-  return { line: start, ch: contentBoundaryCh(node, firstLine) };
+  return { line: start, ch: caretFloorCh(doc, node, start, firstLine) };
 }
 
 /** The node's own content-end position: its last own line's full length
@@ -105,6 +105,25 @@ export function nextNodeInOrder(doc: OutlineDoc, node: OutlineNode): OutlineNode
 }
 
 /**
+ * Where MOTION stops at the left of a line: past the list marker, and past a
+ * node's own indentation where outline mode hides it (`own-indent.ts`).
+ *
+ * Both are chrome by the same test — characters that state the tree's shape
+ * rather than the reader's text. A caret among them stands where nothing is
+ * drawn, which measured as a dead key: the position moves, every position in the
+ * run renders at one x, and the press appears to do nothing. A surplus past the
+ * node's own indentation is ordinary text, and this floor never reaches it.
+ *
+ * One floor for the predicate, both resolvers and the motion planner, because
+ * they answer one question between them: a position the predicate calls
+ * addressable and motion refuses to stop at is a press that appears dead, and a
+ * left-then-right round trip that does not return where it started.
+ */
+function caretFloorCh(doc: OutlineDoc, node: OutlineNode, line: number, lineText: string): number {
+  return Math.max(contentBoundaryCh(node, lineText), ownIndentAt(doc, line));
+}
+
+/**
  * The addressable-position predicate (content-space-caret spec): true for
  * every position in the preamble (out of jurisdiction, D10) and every
  * position at or past a node's own line's content boundary; false for a
@@ -116,7 +135,7 @@ export function isAddressable(doc: OutlineDoc, pos: LinePos): boolean {
   const lineIndex = pos.line - nodeStartLine(doc, node.id);
   if (lineIndex >= node.lines.length) return false; // this node's own trailing gap
   const line = node.lines[lineIndex] ?? '';
-  return pos.ch >= contentBoundaryCh(node, line);
+  return pos.ch >= caretFloorCh(doc, node, pos.line, line);
 }
 
 /**
@@ -134,7 +153,7 @@ export function resolvePlacement(doc: OutlineDoc, pos: LinePos): LinePos {
   const lineIndex = pos.line - nodeStartLine(doc, node.id);
   if (lineIndex >= node.lines.length) return nodeContentEnd(doc, node); // gap line
   const line = node.lines[lineIndex] ?? '';
-  const boundary = contentBoundaryCh(node, line);
+  const boundary = caretFloorCh(doc, node, pos.line, line);
   return pos.ch >= boundary ? pos : { line: pos.line, ch: boundary };
 }
 
@@ -161,7 +180,7 @@ export function resolveMarkerPlacement(doc: OutlineDoc, pos: LinePos): LinePos {
   const lineIndex = pos.line - nodeStartLine(doc, node.id);
   if (lineIndex >= node.lines.length) return pos; // gap line: D2 leaves these to user gestures
   const line = node.lines[lineIndex] ?? '';
-  const boundary = contentBoundaryCh(node, line);
+  const boundary = caretFloorCh(doc, node, pos.line, line);
   return pos.ch >= boundary ? pos : { line: pos.line, ch: boundary };
 }
 
@@ -244,7 +263,7 @@ export function planHorizontal(
   const line = node.lines[lineIndex] ?? '';
 
   if (direction === 'left') {
-    const boundary = contentBoundaryCh(node, line);
+    const boundary = caretFloorCh(doc, node, pos.line, line);
     if (pos.ch > boundary) return { line: pos.line, ch: stepLeft(line, pos.ch, boundary) };
     if (lineIndex > 0) {
       const prevLine = node.lines[lineIndex - 1] ?? '';
@@ -266,7 +285,7 @@ export function planHorizontal(
   if (pos.ch < line.length) return { line: pos.line, ch: stepRight(line, pos.ch) };
   if (lineIndex < node.lines.length - 1) {
     const nextLine = node.lines[lineIndex + 1] ?? '';
-    return { line: pos.line + 1, ch: contentBoundaryCh(node, nextLine) };
+    return { line: pos.line + 1, ch: caretFloorCh(doc, node, pos.line + 1, nextLine) };
   }
   const next = nextNodeInOrder(doc, node);
   return next ? nodeContentStart(doc, next) : 'noop';

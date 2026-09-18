@@ -27,11 +27,38 @@ export function indentWidth(line: string): number {
   return width;
 }
 
+/**
+ * How many leading CHARACTERS of `line` fall inside its first `columns`
+ * columns — the string index that splits a line's own structural indentation
+ * from everything it holds after it.
+ *
+ * A character counts only if it fits WHOLE: a tab that would straddle the
+ * boundary belongs to what follows, since half a tab is not a position the
+ * document has. Stops at the first non-whitespace character, so a line
+ * indented less than `columns` gives up its whole run and no more.
+ *
+ * Characters, not columns, for the reason `parseListMarker` records for its own
+ * pair: a tab is one character and one to `TAB_WIDTH` columns, and only the
+ * character count is a valid index into the string.
+ */
+export function indentPrefixCh(line: string, columns: number): number {
+  let width = 0;
+  let ch = 0;
+  for (const c of line) {
+    if (c !== ' ' && c !== '\t') break;
+    const next = c === '\t' ? width + TAB_WIDTH - (width % TAB_WIDTH) : width + 1;
+    if (next > columns) break;
+    width = next;
+    ch += 1;
+  }
+  return ch;
+}
+
 const isBlank = (line: string): boolean => line.trim() === '';
 
 const ATX_RE = /^ {0,3}(#{1,6})(?:[ \t]|$)/;
 const FENCE_OPEN_RE = /^([ \t]*)(`{3,}|~{3,})/;
-const LIST_ITEM_RE = /^([ \t]*)([-+*]|\d{1,9}[.)])([ \t]+|$)/;
+const LIST_ITEM_RE = /^([ \t]*)([-+*]|\d{1,9}[.)])([ \t]+)/;
 const QUOTE_RE = /^ {0,3}>/;
 const CALLOUT_RE = /^ {0,3}>\s*\[!/;
 const HR_RE = /^ {0,3}(?:(?:\* *){3,}|(?:- *){3,}|(?:_ *){3,})$/;

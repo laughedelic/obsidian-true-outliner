@@ -29,6 +29,7 @@ import { taskMarkerLength } from './ops';
 import {
   contentBoundaryCh,
   isAddressable,
+  resolveMarkerPlacement,
   nodeContentEnd,
   nodeContentStart,
   nextNodeInOrder,
@@ -278,14 +279,25 @@ export function planCaret(op: CaretOp, facts: PlacementFacts): CaretPlan {
   let mapped = false;
 
   switch (op.kind) {
-    case 'derived':
+    case 'derived': {
       // The mapped position, but only where a caret may actually go. The
       // position being mapped is the main selection HEAD, which is a caret
       // only when the selection is empty — with a block cover active it is
       // the cover's end, and a cover ends on the trailing gap line it owns.
-      mapped = facts.mapped !== undefined && isAddressable(facts.after, facts.mapped);
-      caret = mapped ? facts.mapped! : subjectCaret(facts.after, facts.anchor);
+      //
+      // A position left of its own line's content start is RESOLVED to that
+      // start rather than dropped: the line is the one the user was working on,
+      // and dropping it sends the caret to the acted-on node's first line
+      // instead — measured on outdent, where the edit maps a column at a line's
+      // end onto the start of the line below. The marker half only, so a gap
+      // line (a block cover's end) still fails the test and takes the subject
+      // landing, which is the case the note above describes.
+      const resolved =
+        facts.mapped === undefined ? undefined : resolveMarkerPlacement(facts.after, facts.mapped);
+      mapped = resolved !== undefined && isAddressable(facts.after, resolved);
+      caret = mapped ? resolved! : subjectCaret(facts.after, facts.anchor);
       break;
+    }
     case 'subject':
       caret = subjectCaret(facts.after, facts.anchor);
       break;

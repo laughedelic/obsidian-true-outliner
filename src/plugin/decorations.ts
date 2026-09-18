@@ -821,6 +821,9 @@ export interface DecorationSource {
   readonly guideVisibility: GuideVisibility;
   /** Drop the outermost guide while the document has exactly one root. */
   readonly guideHideSingleRoot: boolean;
+  /** Collapse the blank separator rows between nodes. Read by
+   * `computeDecorations` alone; `renderInputs`' records do not depend on it. */
+  readonly hideGapLines: boolean;
 }
 
 const EMPTY_POSITION_TRAIL: PositionTrail = {
@@ -1472,16 +1475,33 @@ function lineDecoration(lineText: string, fact: LineDecorationFact, render: Line
   return Decoration.line({ class: cls, attributes: { style: chromeStyle(chrome) } });
 }
 
+/**
+ * The class a collapsed gap line carries (`hideGapLines`). The row keeps its
+ * element and its extent; the stylesheet takes its height to zero.
+ *
+ * Why a line decoration rather than the block replacement the zoom uses, and
+ * what that costs CodeMirror's height map: `hide-gap-lines` design D1 and
+ * docs/research/gap-line-hiding.
+ */
+export const HIDDEN_GAP_CLASS = 'to-decor-gap-hidden';
+
 // A blank trailingGap line carrying a guide (see computeLineGuides's doc
 // comment) has no decorate() fact at all — no depth, no kind, nothing to
 // indent — so it gets a minimal decoration with just the guide class/style,
 // not the full lineDecoration() treatment. A trail accent can land on such a
 // line too (a path segment passing through the gap between two blocks), and
 // the record's background already carries it.
-function gapLineDecoration(guides: string): Decoration {
+//
+// With `hideGapLines` on, a gap line carrying NO guide gets a decoration too:
+// a top-level gap has no guide to draw and still has to be collapsed, so
+// `guides` is optional and either half alone is a reason to emit.
+function gapLineDecoration(guides: string | undefined, hidden: boolean): Decoration {
+  const classes: string[] = [];
+  if (guides !== undefined) classes.push('to-decor-guides');
+  if (hidden) classes.push(HIDDEN_GAP_CLASS);
   return Decoration.line({
-    class: 'to-decor-guides',
-    attributes: { style: `--to-guides: ${guides}` },
+    class: classes.join(' '),
+    ...(guides === undefined ? {} : { attributes: { style: `--to-guides: ${guides}` } }),
   });
 }
 
@@ -1502,8 +1522,12 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
     if (!render.fact) {
       // A line with no fact is a gap line — the walks are in sync, so the
       // other case is defensive only — and draws its guides or nothing.
-      if (render.gap && render.guides !== undefined) {
-        builder.add(line.from, line.from, gapLineDecoration(render.guides));
+      if (render.gap && (render.guides !== undefined || modes.hideGapLines)) {
+        builder.add(
+          line.from,
+          line.from,
+          gapLineDecoration(render.guides, modes.hideGapLines),
+        );
       }
       continue;
     }
@@ -1933,6 +1957,7 @@ function clearWidgetPatch(el: HTMLElement): void {
   el.style.removeProperty('--to-own-shift');
   el.style.removeProperty('--to-selected-left');
   el.style.removeProperty('--to-selected-right');
+  el.style.removeProperty('--to-table-width');
   clearWidgetMarker(el);
 }
 
@@ -2258,6 +2283,143 @@ class SurplusMarkerSpacePlugin implements PluginValue {
     event.preventDefault();
     event.stopPropagation();
     if (event.type === 'click') this.consuming = false;
+  }
+}
+
+/**
+ * A line's own source indentation, taken out of the rendering.
+ *
+ * A MARK the stylesheet gives `display: none`, rather than a
+ * `Decoration.replace`. Both hide the characters; what separates them is what
+ * the caret finds beside itself at the boundary. CM6 pads a replacement with
+ * its own `cm-widgetBuffer` elements — measured, an `<img>` either side of an
+ * empty span — and the native caret drawn against one of those is a different
+ * height than the caret drawn against text, which the manual pass saw as the
+ * caret growing at the boundary. An undisplayed mark leaves no box at all, so
+ * the caret at the boundary stands against the line's own first character and
+ * measures what every other caret on the line measures.
+ *
+ * Not the zero-width mark two earlier versions carried: a box of no width still
+ * PAINTS, and its glyphs landed on top of the line's first word (clipping them
+ * instead hid the caret outright). `display: none` renders nothing and reserves
+ * nothing.
+ *
+ * What it covers is the node's OWN indentation and nothing past it — the
+ * distinction `indentCh` has carried from the start and the rendering lost
+ * twice. Those characters restate a depth the rules already state, so hiding
+ * them removes no content. What a line carries beyond them is ordinary text,
+ * visible and editable one character at a time, and it pushes the line's own
+ * text right, which is what a deeper line means.
+ */
+export const SOURCE_INDENT_OWN_CLASS = 'to-decor-indent-own';
+
+const SOURCE_INDENT_MARK = Decoration.mark({ class: SOURCE_INDENT_OWN_CLASS });
+
+/**
+ * The same indentation on a line that holds NOTHING else — the line Shift+Enter
+ * opens, which is the item's own indentation and no text.
+ *
+ * A mark there leaves the line with no displayed content at all, and the caret
+ * with nowhere to be drawn: measured, `coordsAtPos` returns null on such a line
+ * and the native caret disappears until a character is typed. A replacement
+ * draws nothing either, but CM6 gives it a buffer element the caret can stand
+ * against — measured at the line's own column, which is where a continuation
+ * begins. The height the buffer costs needs a boundary with text to show at, and
+ * this line has none.
+ */
+const SOURCE_INDENT_REPLACEMENT = Decoration.replace({});
+
+/**
+ * Set on a line whose own indentation is hidden, for the one rule that has to
+ * follow it: Obsidian's quantiser states a width for the span it wrapped the
+ * run in, and that width outlives the characters it was made from.
+ */
+export const SOURCE_INDENT_SIZED_CLASS = 'to-decor-indent-sized';
+
+/** The leading whitespace of a line, in characters. */
+const LEADING_RUN_RE = /^[ \t]*/;
+
+/**
+ * A line's own SOURCE INDENTATION, replaced so its depth is the one thing that
+ * positions it.
+ *
+ * The depth rules state where a line begins, and the whitespace the file wrote
+ * to express the same depth then renders on top of that as characters — a second
+ * visual column for one tree level, and one whose width depends on whether the
+ * file used a tab or spaces (issue #117).
+ * `docs/research/source-indentation-width` carries what each shape measured and
+ * what each earlier mechanism cost.
+ *
+ * `indentCh` (decorate.ts) is exactly the range to hide: the node's own
+ * indentation, reported only where it restates a depth the rules already state,
+ * capped at the node's first line and never splitting a tab. A line indented
+ * deeper keeps every character past it, rendered by Obsidian at whatever those
+ * characters measure — no width this layer states, so a tab and a code font's
+ * own advance need no exception.
+ *
+ * Marked rather than selected in CSS, because there is nothing dependable to
+ * select: which element holds the run depends on the shape and on the reader's
+ * own "Show indentation guides" setting.
+ */
+function computeSourceIndent(state: EditorState): DecorationSet {
+  if (!isOutlineMode(state)) return Decoration.none;
+
+  const totalLines = state.doc.lines;
+  const builder = new RangeSetBuilder<Decoration>();
+  const { facts } = factsFor(state);
+  for (const fact of facts) {
+    if (fact.indentCh === 0) continue;
+    if (fact.lineNumber >= totalLines) continue; // stale fact past a shrunk doc
+    const line = state.doc.line(fact.lineNumber + 1); // CM6 lines are 1-indexed
+    const run = LEADING_RUN_RE.exec(line.text)![0];
+    const own = Math.min(fact.indentCh, run.length);
+    if (own === 0) continue;
+    // A provisional position's fact is derived from the MATERIALIZED text
+    // rather than from this line, so the clamp is load-bearing rather than
+    // defensive: the probe's line is one character longer than the real one.
+    const to = Math.min(line.from + own, line.to);
+    if (to <= line.from) continue;
+    // The line decoration first: `RangeSetBuilder` wants ascending sides at the
+    // same position, and a line's own side is below a replacement's.
+    builder.add(line.from, line.from, Decoration.line({ class: SOURCE_INDENT_SIZED_CLASS }));
+    builder.add(line.from, to, to < line.to ? SOURCE_INDENT_MARK : SOURCE_INDENT_REPLACEMENT);
+  }
+  return builder.finish();
+}
+
+/** The source-indentation layer's own plugin, for the reason the digits and the
+ * surplus run each have one: CM6 merges decoration sets from separate sources
+ * rather than making one builder order them by hand. */
+class SourceIndentPlugin implements PluginValue {
+  decorations: DecorationSet;
+
+  constructor(private readonly view: EditorView) {
+    this.decorations = this.compute();
+  }
+
+  /** The hidden ranges, for `EditorView.atomicRanges`: a node's own indentation
+   * is one step to every motion and every deletion, never a sequence of
+   * positions sharing an x. The plugin's own arrow keys stop at the same floor
+   * by their own rule (`caret.ts`); this is what holds for every gesture that
+   * does not come through them.
+   *
+   * CM6 consults that facet for deletion as well as motion and the two cannot
+   * be scoped apart, so Backspace at such a line's text start removes the whole
+   * indentation in one press rather than one space at a time. That is the edit
+   * it stands for — the block leaving its parent — and it reaches only the
+   * characters this layer hides. A surplus past them deletes one character at a
+   * time, as stock does. */
+  atomic(): DecorationSet {
+    return this.decorations;
+  }
+
+  update(): void {
+    this.decorations = this.compute();
+  }
+
+  private compute(): DecorationSet {
+    if (isNestedEditor(this.view)) return Decoration.none;
+    return computeSourceIndent(this.view.state);
   }
 }
 
@@ -3409,6 +3571,32 @@ class MarginCompensation implements PluginValue {
           el.style.removeProperty('--to-own-shift');
         }
 
+        // A table's own width, for the two add buttons styles.css places
+        // against it. They are absolutely positioned inside `.table-wrapper`,
+        // which our own rule makes a scroll container, and a percentage inset
+        // resolves against a scroll container's VISIBLE padding box — so
+        // Obsidian's own `inset-inline-start: 100%` stops meaning "the table's
+        // right edge" and starts meaning "however wide the pane is", which is
+        // a length with no relation to the table (docs/research/table-scroll-region).
+        // There is no CSS length for what the buttons need, so it is measured
+        // here, where the chevron and the accent stops are already measured.
+        //
+        // The rect, not `offsetWidth`: a table's width is fractional and the
+        // buttons sit flush against it, so rounding would show. Republished on
+        // every render, which is when a column's width can have changed;
+        // a stale value costs placement, not correctness, and styles.css
+        // falls back to the native percentage while none is published.
+        if (fact.kind === 'table') {
+          const table = el.querySelector(':scope > .table-wrapper > table');
+          if (table) {
+            el.style.setProperty('--to-table-width', `${table.getBoundingClientRect().width}px`);
+          } else {
+            el.style.removeProperty('--to-table-width');
+          }
+        } else {
+          el.style.removeProperty('--to-table-width');
+        }
+
         if (rootTarget !== undefined) {
           el.style.setProperty(
             '--to-selected-left',
@@ -3613,6 +3801,14 @@ export function decorationsExtension(modes: DecorationSource): Extension {
     // have one.
     ViewPlugin.define((view) => new SurplusMarkerSpacePlugin(view), {
       decorations: (v) => v.decorations,
+    }),
+    // A non-list line's own source indentation, hidden so its depth is the one
+    // thing that positions it (`computeSourceIndent`). Its own plugin for the
+    // reason the two marks above have one.
+    ViewPlugin.define((view) => new SourceIndentPlugin(view), {
+      decorations: (v) => v.decorations,
+      provide: (plugin) =>
+        EditorView.atomicRanges.of((view) => view.plugin(plugin)?.atomic() ?? Decoration.none),
     }),
     // The fold affordance, drawn for every node we fold and hidden by CSS
     // wherever Obsidian's own indicator is present — see `FoldToggleWidget`.

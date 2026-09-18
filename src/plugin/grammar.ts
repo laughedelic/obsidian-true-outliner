@@ -7,7 +7,7 @@
 
 import type { OutlineDoc } from '../model';
 import { isAtom } from '../model';
-import { parse } from '../parse';
+import { indentWidth, parse, parseListMarker } from '../parse';
 import {
   contentColumnCh,
   deleteSubtreeGroups,
@@ -126,7 +126,32 @@ function offsetInNewText(newLines: readonly string[], pos: EditorPos): number {
   return offset + pos.ch;
 }
 
-const LIST_CONT_RE = /^([ \t]*)([-+*]|\d{1,9}[.)])([ \t]+)/;
+/**
+ * The whitespace a list item's continuation line begins with: the item's own
+ * indentation verbatim, padded with spaces out to the CONTENT COLUMN the
+ * parser reads for that item.
+ *
+ * Asking `parseListMarker` rather than matching a second marker regex is what
+ * keeps the two from measuring the run differently. The old prefix counted
+ * CHARACTERS — the marker's length plus its whitespace run's — where the
+ * content column counts COLUMNS, and the two part company twice. A tab inside
+ * the run: `-\tx` puts its content at column 4 while its marker and run are two
+ * characters, so the continuation landed two columns short and re-parsed as a
+ * top-level paragraph instead of the item's own second line. And an item whose
+ * run is all there is: `-\u2423\u2423` has content column 2, by the blank-start rule
+ * `parseListMarker` applies and a character count cannot, so the old prefix was
+ * a column wide of it.
+ *
+ * The indentation is kept verbatim and only the marker's width is replaced by
+ * spaces: the content column counts tab stops, which a tab-led item's own lead
+ * already occupies.
+ */
+function continuationPrefix(line: string): string {
+  const marker = parseListMarker(line);
+  if (!marker) return '';
+  const indentText = /^[ \t]*/.exec(line)?.[0] ?? '';
+  return indentText + ' '.repeat(Math.max(0, marker.contentCol - indentWidth(indentText)));
+}
 
 /** Offset → `{line, ch}` within an already-built lines array. */
 function posInLines(lines: readonly string[], offset: number): EditorPos {
@@ -773,12 +798,7 @@ export function planKey(
       // survived only by CommonMark's lazy-continuation rule.
       const prefix =
         node.kind === 'list-item' && onFirstLine
-          ? (() => {
-              const match = LIST_CONT_RE.exec(node.lines[0] ?? '');
-              return match
-                ? `${match[1]}${' '.repeat(match[2]!.length + match[3]!.length)}`
-                : '';
-            })()
+          ? continuationPrefix(node.lines[0] ?? '')
           : (/^[ \t]*/.exec(lineText)?.[0] ?? '');
       // A DISTINCT event, not the generic `input` this used to carry. It IS in
       // `classify.ts`'s plugin-own list — it was excluded at first, on the

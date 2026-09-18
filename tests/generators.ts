@@ -28,9 +28,11 @@ const arbGap: fc.Arbitrary<string[]> = fc.oneof(
   fc.constant<string[]>([' ']),
 );
 
-// Node text must not itself read as a block marker (a paragraph of "-" would
-// re-parse as an empty list item), so require an alphanumeric first char and
-// exclude ordered-marker prefixes like "1.".
+// Node text must not itself read as a block marker, so require an alphanumeric
+// first char and exclude ordered-marker prefixes like "1.". A lone "-" is no
+// longer among the shapes that would (`marker-without-trailing-space`), but
+// "1. " and its kind still re-parse as an item, which is what the filter is
+// for.
 const arbText: fc.Arbitrary<string> = fc
   .stringMatching(/^[a-zA-Z0-9][a-zA-Z0-9 .,!?'-]{0,29}$/)
   .filter((s) => s.trim().length > 0 && !/^\d+[.)]([ \t]|$)/.test(s.trim()));

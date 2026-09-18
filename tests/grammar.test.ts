@@ -218,6 +218,34 @@ describe('grammar planner: Shift+Enter (continue)', () => {
     expect([...walkNodes(parse(text))].length).toBe(1); // still one paragraph node
   });
 
+  it('a tab inside the marker run continues at the column, not the character count', () => {
+    // The case that separates the two arithmetics: `-\tx` puts its content at
+    // column 4, because the tab advances from column 1 to the next stop, while
+    // the marker and its run are two CHARACTERS. A prefix counted in characters
+    // left the continuation two columns short of the content it belongs to,
+    // where it re-parsed as a top-level paragraph.
+    const src = '-\tx\n';
+    const outcome = plan(src, { line: 0, ch: 3 }, 'continue');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
+    expect(applyPlan(src, outcome.plan).text).toBe('-\tx\n    \n');
+    const nodes = [...walkNodes(parse('-\tx\n    y\n'))];
+    expect(nodes.length).toBe(1);
+    expect(nodes[0]!.lines).toEqual(['-\tx', '    y']);
+  });
+
+  it('continues a bare marker as the paragraph it is, at column 0', () => {
+    // No marker, so no continuation indent: the line is a paragraph and its
+    // second line belongs at the paragraph's own indentation
+    // (`marker-without-trailing-space`). Typed on, the two are one node.
+    const src = '-\n';
+    const outcome = plan(src, { line: 0, ch: 1 }, 'continue');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
+    expect(applyPlan(src, outcome.plan).text).toBe('-\n\n');
+    const nodes = [...walkNodes(parse('-\ntyped\n'))];
+    expect(nodes.length).toBe(1);
+    expect(nodes[0]!.lines).toEqual(['-', 'typed']);
+  });
+
   it('declines inside atoms', () => {
     expect(plan('```\ncode\n```\n', { line: 1, ch: 0 }, 'continue')).toBeNull();
   });

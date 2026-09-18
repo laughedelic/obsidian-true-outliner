@@ -31,6 +31,7 @@ import type { NodeKind, OutlineDoc, OutlineNode } from '../model';
 import { isAtom, ownSpan } from '../model';
 import { nodeAtLine } from '../locate';
 import { parse } from '../parse';
+import { ownIndentCh } from '../own-indent';
 import { encode } from '../encode';
 import type { ZoomScope } from '../zoom';
 
@@ -90,6 +91,32 @@ export interface LineDecorationFact {
    * follow-up) to optionally hide markers on leaf nodes.
    */
   readonly hasChildren: boolean;
+  /**
+   * How many leading CHARACTERS of this line are the node's own source
+   * indentation — the run whose width the depth rules already state, and which
+   * therefore renders at no width of its own (see the
+   * `to-decor-source-indent` mark in decorations.ts).
+   *
+   * Measured against the node's FIRST line and capped there, so a line
+   * indented deeper than its node keeps the surplus: the second line of a
+   * paragraph, and every line inside a fence, hold their own relative
+   * indentation as content rather than as structure.
+   *
+   * Reported only for a node with a LIST-ITEM ANCESTOR, which is the one place
+   * a non-list line's indentation encodes its depth — it is written to the
+   * item's own content column, and the depth rules then state that column a
+   * second time. A line under a heading or after a paragraph carries its depth
+   * in the ancestor rather than in its own whitespace, so nothing there
+   * restates anything: those spaces are ordinary content, which is what the
+   * additive-only rules have always rendered them as, and at the top level they
+   * are the only thing telling a reader that a four-space line is an indented
+   * code block.
+   *
+   * Always 0 for a list item itself, whose leading whitespace is sized by the
+   * list rules instead (`--to-list-hang`), and 0 for any line that carries
+   * none.
+   */
+  readonly indentCh: number;
 }
 
 /**
@@ -102,7 +129,12 @@ export function decorate(doc: OutlineDoc): LineDecorationFact[] {
   const facts: LineDecorationFact[] = [];
   let current = doc.preamble.length;
 
-  const walk = (node: OutlineNode, depth: number, listRootDepth: number | null): void => {
+  const walk = (
+    node: OutlineNode,
+    depth: number,
+    listRootDepth: number | null,
+    underListItem: boolean,
+  ): void => {
     const atom = isAtom(node);
     const isListItem = node.kind === 'list-item';
     // Entering a new list-item chain (this node's parent wasn't one) roots
@@ -119,13 +151,14 @@ export function decorate(doc: OutlineDoc): LineDecorationFact[] {
         supplementalDepth: isListItem ? rootDepth! : 0,
         kind: node.kind,
         hasChildren: node.children.length > 0,
+        indentCh: ownIndentCh(node, node.lines[i]!, underListItem),
       });
     }
     current += ownSpan(node);
-    node.children.forEach((child) => walk(child, depth + 1, rootDepth));
+    node.children.forEach((child) => walk(child, depth + 1, rootDepth, underListItem || isListItem));
   };
 
-  doc.children.forEach((node) => walk(node, 0, null));
+  doc.children.forEach((node) => walk(node, 0, null, false));
   return facts;
 }
 
