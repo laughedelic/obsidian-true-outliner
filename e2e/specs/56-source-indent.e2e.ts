@@ -5,15 +5,16 @@
  * The depth rules state where such a line begins; the whitespace the file wrote
  * to express the same depth used to render on top of that as characters, so one
  * tree level showed two visual columns and the second one's width depended on
- * whether the file used a tab or spaces. What is asserted here is the
- * consequence a reader sees: every kind written under the same item begins on
- * the same column, that column is the grid's (`depth × unit + gutter`), and it
- * is the same column whichever whitespace the file used.
+ * whether the file used a tab or spaces. The node's OWN indentation is now
+ * undrawn and the caret treats it as chrome; what a line carries BEYOND it is
+ * ordinary text, and pushes the line's own text right.
  *
- * Measured rather than screenshotted, and against the SOURCE positions CM6
- * itself reports (`posToCoords`), for the reason the decoration postmortem
- * records: a class or a custom property only proves our code ran, never that
- * Obsidian's own rendering ended up where we said.
+ * Two questions, both asserted here: where a line's text lands, and what the
+ * caret does around characters that are not drawn. Measured rather than
+ * screenshotted, and against the SOURCE positions CM6 itself reports
+ * (`posToCoords`), for the reason the decoration postmortem records: a class or
+ * a custom property only proves our code ran, never that Obsidian's own
+ * rendering ended up where we said.
  */
 
 import { browser, expect } from '@wdio/globals';
@@ -47,6 +48,10 @@ const TABBED = ['- alpha', '', '\tchild paragraph', '', '\t```js', '\tfenced', '
   '\n',
 );
 
+/** A paragraph whose second line is indented deeper than the node it belongs
+ * to: two characters of the node's own indentation, four of its own. */
+const DEEPER = ['- alpha', '', '  first line', '      second deeper', ''].join('\n');
+
 /** Where line `i`'s own text begins, relative to the content's left edge. */
 async function textColumn(i: number, text: string): Promise<number> {
   const first = text.search(/\S/);
@@ -54,10 +59,40 @@ async function textColumn(i: number, text: string): Promise<number> {
   return +(coords.left - (await h.contentLeftAbsoluteX())).toFixed(2);
 }
 
-/** Where line `i` BEGINS — the caret's own column at its first character. */
-async function lineStartColumn(i: number): Promise<number> {
-  const coords = await h.posToCoords(i, 0);
-  return +(coords.left - (await h.contentLeftAbsoluteX())).toFixed(2);
+/** Where line `i`'s own BOX begins — an atom renders one, and it is the box
+ * that stands on the column, its content one padding inside. */
+async function boxColumn(i: number): Promise<number> {
+  const info = await h.getLineElementInfo(i);
+  return +(info.rect.left - (await h.contentLeftAbsoluteX())).toFixed(2);
+}
+
+/** The caret's own line, column and x — what a reader sees move, or not. */
+async function caret(): Promise<{ line: number; ch: number; x: number | null }> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+    const cm = (view.editor as any).cm;
+    const head = cm.state.selection.main.head;
+    const line = cm.state.doc.lineAt(head);
+    const coords = cm.coordsAtPos(head);
+    const left = cm.contentDOM.getBoundingClientRect().left;
+    return {
+      line: line.number - 1,
+      ch: head - line.from,
+      x: coords ? +(coords.left - left).toFixed(2) : null,
+    };
+  });
+}
+
+/** The caret after each of `presses` taps of `key`, the starting position
+ * first. */
+async function walk(key: string, presses: number): Promise<{ line: number; ch: number; x: number | null }[]> {
+  const seen = [await caret()];
+  for (let i = 0; i < presses; i++) {
+    await browser.keys([key]);
+    await browser.pause(70);
+    seen.push(await caret());
+  }
+  return seen;
 }
 
 const waitMs = 300;
@@ -93,49 +128,45 @@ describe('source indentation: one column per tree level', function () {
     // A fence renders a box of its own, so it is the BOX that begins on the
     // column; its code sits one code padding inside, asserted below.
     for (const i of [4, 5, 7]) {
-      const info = await h.getLineElementInfo(i);
-      expect(+(info.rect.left - (await h.contentLeftAbsoluteX())).toFixed(2)).toBeCloseTo(column, 1);
+      expect(await boxColumn(i)).toBeCloseTo(column, 1);
     }
   });
 
   it('gives an indented fence the internal padding an unindented one has', async function () {
     // Obsidian pads a top-level fence's code away from its own tinted box and
     // withholds that padding inside a list, where the source indentation used to
-    // stand in for it. Collapsed, the code would sit flush against the box.
+    // stand in for it. Undrawn, the code would sit flush against the box.
     await openOutlined('SourceIndent/topfence.md', ['```js', 'let x = 1;', '```', ''].join('\n'));
-    const topBox = await h.getLineElementInfo(1);
-    const topPad = (await textColumn(1, 'let x = 1;')) - (topBox.rect.left - (await h.contentLeftAbsoluteX()));
+    const topPad = (await textColumn(1, 'let x = 1;')) - (await boxColumn(1));
     await openOutlined('SourceIndent/spaced.md', SPACED);
-    const info = await h.getLineElementInfo(5);
-    const inset = (await textColumn(5, '  fenced')) - (info.rect.left - (await h.contentLeftAbsoluteX()));
-    expect(inset).toBeCloseTo(topPad, 1);
+    expect((await textColumn(5, '  fenced')) - (await boxColumn(5))).toBeCloseTo(topPad, 1);
   });
 
   it('keeps a fence’s interior indentation at the width of its own spaces', async function () {
+    // Four spaces past the fence's own two, rendered by Obsidian at whatever a
+    // space measures in the CODE font — which is not what one measures in the
+    // prose font, and is the reason this layer states no width at all. The same
+    // four spaces at the top level are the yardstick.
+    await openOutlined(
+      'SourceIndent/topdeep.md',
+      ['```js', 'flush', '    deeper', '```', ''].join('\n'),
+    );
+    const topSurplus = (await textColumn(2, '    deeper')) - (await textColumn(1, 'flush'));
     await openOutlined('SourceIndent/spaced.md', SPACED);
-    const flush = await textColumn(5, '  fenced');
-    // Four spaces past the fence's own two, stated from the measured space
-    // advance rather than left to Obsidian's quantiser — which sized the whole
-    // run, the fence's own indentation included, and rendered it half again too
-    // wide.
-    const advance = await h.publishedSpaceAdvance();
-    expect(await textColumn(6, '      deeper')).toBeCloseTo(flush + 4 * advance, 0);
+    const surplus = (await textColumn(6, '      deeper')) - (await textColumn(5, '  fenced'));
+    expect(surplus).toBeCloseTo(topSurplus, 1);
   });
 
   it('starts a widget-rendered callout child on the same column', async function () {
     await openOutlined('SourceIndent/spaced.md', SPACED);
     const column = (await h.publishedUnit()) + (await h.publishedGutter());
-    const info = await h.getLineElementInfo(15);
-    const left = info.rect.left - (await h.contentLeftAbsoluteX());
-    expect(+left.toFixed(2)).toBeCloseTo(column, 1);
+    expect(await boxColumn(15)).toBeCloseTo(column, 1);
   });
 
-  it('keeps a non-fence line indented deeper than its node', async function () {
-    // The wrapper Obsidian builds holds the WHOLE run, this line's surplus
-    // included, so collapsing it here would take indentation the node never
-    // claimed. The line therefore takes the mark alone.
-    const deeper = ['- alpha', '', '  first line', '      second deeper', ''].join('\n');
-    await openOutlined('SourceIndent/deeper.md', deeper);
+  it('keeps a line indented deeper than its node, at the width of its own spaces', async function () {
+    // The node's own indentation is hidden; what this line carries past it is
+    // its own, and states the one thing a deeper line says.
+    await openOutlined('SourceIndent/deeper.md', DEEPER);
     const flush = await textColumn(2, '  first line');
     const advance = await h.publishedSpaceAdvance();
     expect(await textColumn(3, '      second deeper')).toBeCloseTo(flush + 4 * advance, 0);
@@ -162,63 +193,93 @@ describe('source indentation: one column per tree level', function () {
   });
 
   it('puts a tab-indented child on the same column as a space-indented one', async function () {
+    // A tab used to be the worst case, quantised to a tab stop by Obsidian and
+    // to nothing by this layer. Hidden, it states no width to disagree about.
     await openOutlined('SourceIndent/spaced.md', SPACED);
     const spaced = await textColumn(2, '  child paragraph');
     await openOutlined('SourceIndent/tabbed.md', TABBED);
     expect(await textColumn(2, '\tchild paragraph')).toBeCloseTo(spaced, 1);
   });
 
-  it('collapses the run itself, so the line begins where its text does', async function () {
-    // A paragraph's CONTINUATION line: a first line carries the block marker,
-    // an inline widget its own position 0 sits left of, which would measure the
-    // marker rather than the run.
+  it('draws nothing at all for the run itself', async function () {
+    // The mechanism, asserted where it is visible from outside: a position
+    // inside the node's own indentation has no coordinates, because the
+    // characters have no box. Which is why the caret is floored past them —
+    // there is nowhere in there to draw one.
     const wrapped = ['- alpha', '', '  child paragraph', '  second line', ''].join('\n');
     await openOutlined('SourceIndent/wrapped.md', wrapped);
-    expect(await lineStartColumn(3)).toBeCloseTo(await textColumn(3, '  second line'), 1);
-  });
-
-  /** The classes of every ancestor between the caret's own position and the
-   * line that CLIPS — an empty string when nothing does. Obsidian draws the
-   * native caret, so a clipping ancestor hides it outright. */
-  const caretClipper = (): Promise<string> =>
-    browser.executeObsidian(({ app, obsidian }) => {
+    const drawn = await browser.executeObsidian(({ app, obsidian }) => {
       const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
       const cm = (view.editor as any).cm;
-      const dom = cm.domAtPos(cm.state.selection.main.head);
-      let el: HTMLElement | null =
-        dom.node.nodeType === 3 ? dom.node.parentElement : (dom.node as HTMLElement);
-      const clipping: string[] = [];
-      while (el && !el.classList?.contains('cm-content')) {
-        if (getComputedStyle(el).overflow !== 'visible') clipping.push(el.className);
-        el = el.parentElement;
-      }
-      return clipping.join(', ');
+      const line = cm.state.doc.line(4); // `  second line`, CM6 lines are 1-indexed
+      return [0, 1, 2].map((ch) => cm.coordsAtPos(line.from + ch) !== null);
     });
+    expect(drawn).toEqual([false, false, true]);
+  });
 
-  it('leaves the caret somewhere it can be drawn, inside a collapsed run', async function () {
-    // Obsidian draws the NATIVE caret, so a zero-width clipping box over the run
-    // hides it — measured on the manual pass, where the caret vanished wherever
-    // its position fell inside one and returned only once a character was typed
-    // past it.
-    const deeper = ['- alpha', '', '  first line', '      second deeper', ''].join('\n');
-    await openOutlined('SourceIndent/caret.md', deeper);
-    for (const ch of [0, 2, 6]) {
-      await h.setCursorSettled(3, ch);
-      expect(await caretClipper()).toBe('');
+  it('walks a line’s surplus one character at a time', async function () {
+    // Four presses, four steps of one space each: what a line carries past its
+    // node is ordinary text and moves the caret like ordinary text.
+    await openOutlined('SourceIndent/caret.md', DEEPER);
+    await h.setCursorSettled(3, 6);
+    const advance = await h.publishedSpaceAdvance();
+    const seen = await walk('ArrowLeft', 4);
+    expect(seen.map((s) => s.ch)).toEqual([6, 5, 4, 3, 2]);
+    for (let i = 1; i < seen.length; i++) {
+      expect(seen[i]!.x!).toBeCloseTo(seen[i - 1]!.x! - advance, 0);
     }
   });
 
-  it('leaves a line Shift+Enter opens uncollapsed, having no text to push', async function () {
-    // Shift+Enter writes the item's own indentation and nothing else. There is
-    // no text for a run to push right, and a collapsed line leaves the caret
-    // nowhere to stand.
+  it('crosses the node’s own indentation in one press, and draws the caret at both ends', async function () {
+    // Undrawn characters are chrome: a press that moved through them would look
+    // dead, every position among them rendering at one x. The floor is the same
+    // one a list marker gets (`caret.ts`), so the press that leaves the text
+    // start leaves the LINE.
+    await openOutlined('SourceIndent/caret.md', DEEPER);
+    const column = (await h.publishedUnit()) + (await h.publishedGutter());
+    await h.setCursorSettled(3, 2);
+    expect((await caret()).x).toBeCloseTo(column, 1);
+    const [, afterOne] = await walk('ArrowLeft', 1);
+    expect(afterOne!.line).toBe(2);
+    expect(afterOne!.ch).toBe('  first line'.length);
+    // And back: one press returns to the text start, never in front of it.
+    const [, back] = await walk('ArrowRight', 1);
+    expect(back!.line).toBe(3);
+    expect(back!.ch).toBe(2);
+    expect(back!.x).toBeCloseTo(column, 1);
+  });
+
+  it('leaves deletion to stock, in the surplus and in the run alike', async function () {
+    await openOutlined('SourceIndent/delete.md', DEEPER);
+    await h.setCursorSettled(3, 6);
+    await browser.keys(['Backspace']);
+    await browser.pause(waitMs);
+    // Obsidian's own editor deletes a whole indent unit inside leading
+    // whitespace — two spaces here, of the four this line carries past its
+    // node. Asserted so a change to what the decorations hide cannot quietly
+    // change what a press removes.
+    expect((await h.getBuffer()).split('\n')[3]).toBe('    second deeper');
+    await h.setCursorSettled(2, 2);
+    await browser.keys(['Backspace']);
+    await browser.pause(waitMs);
+    // At the text start the same press takes the node's own indentation whole,
+    // which is the edit it stands for: the block leaving its parent.
+    expect((await h.getBuffer()).split('\n')[2]).toBe('first line');
+  });
+
+  it('draws the caret on a line Shift+Enter opens, which is indentation alone', async function () {
+    // Such a line has no text for a run to push right, and nothing else to
+    // render: the caret needs somewhere to stand on the line's own column.
     const wrapped = ['- alpha', '', '  first line', ''].join('\n');
     await openOutlined('SourceIndent/shift-enter.md', wrapped);
+    const column = (await h.publishedUnit()) + (await h.publishedGutter());
     await h.setCursorSettled(2, '  first line'.length);
     await browser.keys(['Shift', 'Enter']);
     await browser.pause(waitMs);
     expect(await h.getBuffer()).toContain('  first line\n  \n');
-    expect(await caretClipper()).toBe('');
+    const at = await caret();
+    expect(at.line).toBe(3);
+    expect(at.x).toBeCloseTo(column, 1);
   });
 
   it('leaves the item’s own indentation to the list rules', async function () {
@@ -231,7 +292,7 @@ describe('source indentation: one column per tree level', function () {
     const rootMarker = await textColumn(0, '- alpha');
     expect(await textColumn(1, '  - nested')).toBeCloseTo(rootMarker + unit, 1);
     // The continuation belongs under its item's TEXT — its whitespace is SIZED
-    // to the stated hang, not collapsed.
+    // to the stated hang, not hidden.
     expect(await textColumn(2, '    continuation')).toBeCloseTo(unit + gutter, 1);
   });
 
@@ -243,6 +304,8 @@ describe('source indentation: one column per tree level', function () {
     await browser.pause(150);
     // Stock rendering: the two leading spaces are characters again, so the
     // line's text starts right of where the line itself starts.
-    expect(await textColumn(2, '  child paragraph')).toBeGreaterThan(await lineStartColumn(2));
+    const coords = await h.posToCoords(2, 0);
+    const start = +(coords.left - (await h.contentLeftAbsoluteX())).toFixed(2);
+    expect(await textColumn(2, '  child paragraph')).toBeGreaterThan(start);
   });
 });

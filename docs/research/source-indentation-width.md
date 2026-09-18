@@ -84,60 +84,52 @@ emits:
 | Three spaces under a heading | `.cm-indent-spacing` | 15.27 | the glyphs themselves |
 | Inside a fence | `.cm-hmd-codeblock`, sometimes over a `.cm-indent` | varies | a mix of both |
 
-Three findings decided the mechanism:
+Two findings decided the mechanism:
 
 - **Nothing selectable covers exactly the node's own indentation.** Inside a fence the whitespace
   can share a highlighting token with the code after it, and with the guide setting off the
-  quantiser does not run at all. A CM6 `Decoration.mark` covers exactly the characters, whatever
-  Obsidian made of them.
-- **A mark alone is not enough.** CM6 nests Obsidian's own span OUTSIDE the mark, and that span's
-  width is stated, so a zero-width mark inside it collapses nothing: measured with the mark
-  applied and no rule on the wrapper, 62px for two spaces and 82px for a tab, against the 46px
-  column. The wrapper has to be zeroed too, and by `width`, `min-width`, `padding` and `margin`
-  together — `.cm-indent-spacing` carries its width as `padding-left` on a `border-box` element,
-  where a zero width leaves the padding standing.
-- **A zero width is the only robust one.** A stated width would be paid once per piece wherever
-  CM6 splits the mark; zero survives the split. What the whitespace used to measure is supplied
-  by the depth rules instead, which is the same trade `lists-on-the-outline-grid` made for a list
-  item's own run — except that a list item's run is SIZED to its hang rather than collapsed,
-  because it carries the native marker.
+  quantiser does not run at all. A CM6 decoration covers exactly the characters, whatever Obsidian
+  made of them.
+- **Obsidian's own span has to be overridden too.** It sizes the span from the DOCUMENT rather
+  than from the DOM, so its stated width outlives the characters a decoration takes out —
+  measured, 62px of `.cm-indent` on a line whose whole run was replaced away. `width`, `min-width`,
+  `padding` and `margin` together, since `.cm-indent-spacing` carries its width as `padding-left`
+  on a `border-box` element, where a zero width leaves the padding standing.
 
-## What may be collapsed WITH the mark, and what may not
+## The node's own indentation, and the surplus
 
-The wrapper rule is keyed on whether the mark covers the whole leading run, not on the kind of
-line. Obsidian's span holds the run as it quantised it — the node's own indentation and anything
-past it together — so zeroing it on a line that carries more discards the surplus the mark
-deliberately left standing.
+The two are not the same characters and must not take the same treatment — the finding that cost
+this change four mechanisms. `indentCh` (`own-indent.ts`) is the node's OWN indentation: measured
+from its first line, in columns so a tab is taken whole, and only where a LIST ITEM is among the
+node's ancestors. What a line carries past it is its own, and states the one thing a deeper line
+says.
 
-Measured on `- alpha` / `` / `  first line` / `      second deeper`, with the rule keyed on the
-line's kind instead: the deeper line rendered at 46px, the same column as the flush line above it,
-all four surplus spaces gone. The same mechanism was first found inside a fence, where it took all
-six spaces of `      deeper`; keying on the mark's own coverage covers both, and a fence needs no
-exception of its own.
+Both earlier renderings lost the distinction the fact layer had from the start:
 
-## The surplus, stated rather than quantised
+- **The wrapper rule took the whole span.** Obsidian quantises the run into one span holding the
+  node's indentation and the surplus together, so zeroing it to hide the first discarded the rest:
+  measured, `      second deeper` at 46px, the same column as the flush line above it, all four
+  surplus spaces gone.
+- **The replacement was widened to the whole run**, to give the surplus positions distinct x
+  values — which they did not have while the wrapper was still zeroed. Every position in six
+  characters then rendered at one x, which reads as a caret standing still while the document
+  changes under it.
 
-A line carrying more than its node's own indentation keeps the difference, and what that
-difference MEASURES is stated here rather than left to Obsidian. Its quantiser sizes the whole
-run — the node's own indentation included — so leaving it to state the surplus renders a width
-that has no relation to the characters that survive. Measured on the manual pass's own shapes,
-with the wrapper left standing:
+Hiding the node's own indentation ALONE needs no width stated anywhere: the surplus renders as
+itself, in its own font. That is what fixed the two shapes a stated width could not. Measured, with
+`--to-space-advance` 5.08px in the prose font and a 46px column:
 
-| Line | Surplus | Rendered | Should be |
+| Line | Hidden | Surplus | Text lands at |
 |---|---|---|---|
-| `      second deeper` under `  first line` | 4 spaces | 62.2px | 20.4px |
-| `      deeper` inside a fence indented by two | 4 spaces | 48.4px | 20.4px |
+| `  first line` | 2 | — | 46.0 |
+| `      second deeper` | 2 | 4 spaces | 66.3 = 46 + 4 × 5.08 |
+| `  fenced` | 2 | — | 62 = the fence's box at 46, plus its code padding |
+| `      deeper` inside that fence | 2 | 4 spaces | 95.7 = 62 + 4 × 8.43, a space in the CODE font |
+| `\tchild paragraph` | 1 (a tab) | — | 46.0 |
 
-The layer knows the surplus in characters, so it states the width as
-`count × var(--to-space-advance)` — the space advance `MarginCompensation` already measures live
-for the marker rules, a space having no CSS unit of its own — publishes it as
-`--to-indent-surplus` on the line, and collapses every one of Obsidian's indent spans on that
-line rather than only the one holding the mark. Both rows then render at 20.4px, the width of
-four spaces.
-
-A surplus holding a TAB is the one shape left out: a tab renders to a tab stop rather than to a
-count of advances, so its width is not ours to state. There the wrapper stands and the
-quantisation residue with it.
+A stated width got the last two wrong by construction: one space advance is measured in the prose
+font and a fence's is not, and a tab renders to a tab stop rather than to a count of advances. The
+earlier version skipped a tab outright for that reason; this one has nothing to skip.
 
 ## A code block's own internal padding
 
@@ -151,29 +143,57 @@ unindented neighbour has rather than one this layer invents.
 The fence's box still begins on its depth's column. What sits one padding in is its CONTENT,
 which is what a box means.
 
-## What a zero-width run does to the caret
+## What an undrawn run does to the caret
 
-Obsidian draws the NATIVE caret — measured, there is no `.cm-cursor` element in the editor — so a
-collapsed run must not CLIP. The first version carried `overflow: hidden`, copied from the list
-item's own whitespace wrapper where the box has a width to keep its content inside, and the caret
-vanished wherever its position fell inside one: on every line whose run was collapsed, and on
-every line Shift+Enter opens, which is the item's own indentation and nothing else. It came back
-only once a character was typed past the run. Measured by walking the ancestors of
-`domAtPos(head)`: `.cm-hmd-list-indent | hidden | w=0`, on a line start, inside the run, and on
-the Shift+Enter line alike.
+Obsidian draws the NATIVE caret — measured, there is no `.cm-cursor` element in the editor — so
+every mechanism that took the run's width had to answer where the caret stands. Four did, in
+order, and each answer is why the next exists:
 
-Two things follow, and the change carries both. A run overflows rather than clips, whitespace
-having no ink to spill; and a line whose content is ONLY whitespace is not marked at all, since
-there is no text for a run to push right and nowhere else for the caret to stand.
+| Mechanism | What the caret did |
+|---|---|
+| Zero-width mark, `overflow: hidden` | Vanished on every line with a hidden run, and on every line Shift+Enter opens. Measured by walking the ancestors of `domAtPos(head)`: `.cm-hmd-list-indent \| hidden \| w=0`. |
+| Zero-width mark, overflowing | Visible, but the run's own glyphs painted over the line's first word and the caret hopped inside it under repeated presses. |
+| `Decoration.replace` over the whole run | Nothing to paint, but six positions rendering at one x: a press per character with the caret apparently still. Atomic instead made Backspace take all six in one press. |
+| Mark with `display: none`, over the node's own indentation only | Nothing painted, nothing reserved. The surplus keeps its own characters and its own motion. |
 
-What remains is that the characters stay addressable: `contentBoundaryCh` returns 0 for every
-non-list kind (`caret.ts`, D7), so Home, the arrows and a click can all land inside a run that now
-renders at no width. Home on `  child paragraph` no longer appears to move the caret, and typing
-there writes at column 0, which takes the paragraph out of its item.
+The last one still has two edges, and both are measured:
 
-Recorded rather than closed. Making the run non-addressable is a change to the caret's own
-contract — `content-space-caret`'s boundary rule, one capability over — and every shape that spec
-pins is a list item, whose run this change does not touch.
+- **The boundary between the hidden run and the text.** A replacement is padded by CM6 with its
+  own `cm-widgetBuffer` elements — an `<img>` either side of an empty span — and the native caret
+  drawn against one of those is a different height than the caret drawn against text, which the
+  manual pass saw as the caret growing there. An undisplayed mark leaves no box, so the caret at
+  the boundary stands against the line's own first character: measured, `beside=SPAN.cm-indent`
+  rather than an `img`.
+- **A line that is indentation and nothing else**, which Shift+Enter opens. Undisplayed, it leaves
+  the line with no rendered content at all: measured, `coordsAtPos` returns null and the caret is
+  gone until a character is typed. Such a line takes the REPLACEMENT instead, whose buffer element
+  the caret can stand against — measured at the line's own column, 46px. The height the buffer
+  costs needs a boundary with text, and this line has none.
+
+## Where the caret stops, and what a press deletes
+
+Hiding characters is not enough on its own: a press that walks through them looks dead, since
+every position among them renders at one x. `caret.ts` therefore floors motion and placement at
+the node's own indentation, exactly as it already does at a list marker — both are characters that
+state the tree's shape rather than the reader's text, and outline mode draws neither.
+`EditorView.atomicRanges` carries the same rule to every gesture that does not come through the
+plugin's own keys.
+
+The floor has to hold in the predicate, both resolvers and the motion planner together. With it in
+motion alone, a left-then-right round trip stopped returning where it started — caught by
+`caret.test.ts`'s own property, not by a shape anyone thought to write down.
+
+Measured on `- alpha` / `` / `  first line` / `      second deeper`, walking left from the text
+start of the deeper line: 84.5, 74.7, 66.3, 61.3, 56.2, 51.1, 46.0, then the previous line's end.
+Four steps of one space each through the surplus, one step over the hidden run, no press that
+appears to do nothing. Rightward returns to 46.0 — the text start, never in front of it — and Home
+lands there too.
+
+DELETION is stock and deliberately untouched. Obsidian's own editor removes a whole indent unit
+inside leading whitespace, so Backspace in a four-space surplus takes two of them; at the text
+start the same press takes the node's own indentation whole, which is the edit it stands for. The
+earlier atomic-over-the-whole-run version made that press take all six characters at once, a block
+leaving its parent where stock removes an indent unit.
 
 ## Obsidian's own indent aid, off a list
 
@@ -191,7 +211,7 @@ is the rule `10-editor.css` already carried, scoped where it should have been.
 
 ## What was left alone
 
-- **List items.** Their run is sized, not collapsed (`--to-list-hang`), and their geometry is
+- **List items.** Their run is sized, not hidden (`--to-list-hang`), and their geometry is
   unchanged by this pass: a nested item's marker stays one unit right of its parent's and a
   continuation line stays under its item's text.
 - **The parse.** Which levels exist is Markdown's business and was already decided by the time
