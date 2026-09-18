@@ -24,8 +24,9 @@
 
 ## 3. Landing
 
-- [ ] 3.1 The e2e groups this touches, green: decorations, outline-mode, selection.
-- [ ] 3.2 `npm run lint`, `npm test`, `npm run build`, `npm run build:e2e`.
+- [x] 3.1 The decorations group green in full locally, 14 spec files with no vault drift; the
+  outline-mode and selection groups from the checkpoint's own CI sweep.
+- [x] 3.2 `npm run lint`, `npm test`, `npm run build`, `npm run build:e2e`.
 - [x] 3.3 Remove the probe spec once its figures are in
   `docs/research/source-indentation-width`.
-- [ ] 3.4 `openspec validate a-standing-run-renders-at-its-own-width --strict`
+- [x] 3.4 `openspec validate a-standing-run-renders-at-its-own-width --strict`
