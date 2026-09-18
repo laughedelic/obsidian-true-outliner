@@ -88,12 +88,20 @@ part of its text can only be represented as its child.
 - **WHEN** a line holding only a marker is followed by a line of text at column 0
 - **THEN** the two parse as ONE paragraph of two lines
 
-#### Scenario: A bare marker inside a list splits it
+#### Scenario: A bare marker inside a list ends it, and the items below attach to it
 
-- **WHEN** a list item, a line holding only a marker, and a second list item follow one
+- **WHEN** a list item, a line holding only a marker, and two further list items follow one
   another at the same indentation
-- **THEN** they parse as an item, a paragraph and an item — two list runs rather than one,
-  which is what the editing surface itself renders
+- **THEN** the marker line is a paragraph that CLOSES the list, and the items below it become
+  that paragraph's children under the list-after-paragraph rule — rendered one level in,
+  under a paragraph's block marker, which is the feedback that says the shape is unfinished.
+  Typing the space restores the single list
+
+#### Scenario: The attachment happens only where a list stack can empty
+
+- **WHEN** the same three lines sit INSIDE an item's subtree, indented under a parent
+- **THEN** the items below the marker line stay its siblings: the list stack is not empty
+  there, so the section-level attachment rule never runs
 
 **Covered by**: `tests/corpus.test.ts` ("a marker needs whitespace after it to be a marker"
 suite); `tests/grammar.test.ts` ("continues a bare marker as the paragraph it is, at column 0");

@@ -88,11 +88,24 @@ so the dash was chrome the caret could not sit on. It requires whitespace now, w
 shape the node kind cannot — an item's continuation line reading exactly `␣␣-`, which is the item's
 own text.
 
-## The cost we accepted
+## What a bare marker does to a list around it
 
-A bare marker inside a list splits it: `- a` / `-` / `- b` is an item, a paragraph and an item,
-where CommonMark and reading mode read one list of three. Sibling operations and ordered
-renumbering see two runs. That is what Live Preview draws, so the tree agrees with the surface; a
-note authored elsewhere with an empty bullet mid-list will read differently here than it does in
-reading mode or on export. The shape is not one the outline's own grammar produces — the ladder
-writes `- `, with the space.
+It ends the list, and the items below it attach to it. `- a` / `- b` / `-` / `- c` / `- d` parses
+as two items, then a paragraph whose children are the last two — the list-after-paragraph rule
+(`src/rules.ts`) running because the marker line is now a paragraph. Measured, `- c` and `- d` come
+out at depth 1 where they were at depth 0, so they render one level in, under a paragraph's block
+marker.
+
+That is the behaviour rather than a cost to pay down. The reader gets told, in the outline's own
+vocabulary, that something on that line is unfinished: a paragraph marker where a bullet should be,
+and the items below visibly parented to it. Typing the space undoes all of it in one keystroke and
+the flat list of five comes back.
+
+It happens only where a list stack can empty, which is section level: the same three lines inside
+an item's subtree leave the items below as the paragraph's siblings, because the attachment rule
+never runs there. Both shapes are pinned in `tests/corpus.test.ts`.
+
+CommonMark and reading mode read one list of three throughout, so a note authored elsewhere with an
+empty bullet mid-list reads differently here than it does on export. The shape is not one the
+outline's own grammar produces — the ladder writes `- `, with the space — so reaching it means
+importing it, which is the case the feedback is for.

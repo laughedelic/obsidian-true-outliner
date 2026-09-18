@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
 import { treesEqual, walkNodes } from '../src/model';
+import type { OutlineNode } from '../src/model';
 
 const corpusDir = join(__dirname, 'corpus');
 const fixtures = readdirSync(corpusDir).filter((f) => f.endsWith('.md'));
@@ -75,10 +76,43 @@ describe('a marker needs whitespace after it to be a marker', () => {
     expect(nodes[0]!.lines).toEqual(['-', 'text']);
   });
 
-  it('splits a list a bare marker sits in the middle of', () => {
-    // Accepted consequence, and the one the surface already shows: Live
-    // Preview draws that line as text between two lists, and so do we.
-    expect(kinds('- a\n-\n- b\n')).toEqual(['list-item', 'paragraph', 'list-item']);
+  it('ends a list at a bare marker, and attaches what follows to it', () => {
+    // `kinds` alone cannot see this: the paragraph CLOSES the list, and the
+    // items below it become its children under the list-after-paragraph rule
+    // (`rules.ts`). One level in, under a paragraph's block marker, which is
+    // the feedback that says the shape is unfinished — and typing the space
+    // puts the single list back.
+    const doc = parse('- a\n- b\n-\n- c\n- d\n');
+    const shape = (n: OutlineNode): unknown => ({
+      kind: n.kind,
+      line: n.lines[0],
+      children: n.children.map(shape),
+    });
+    expect(doc.children.map(shape)).toEqual([
+      { kind: 'list-item', line: '- a', children: [] },
+      { kind: 'list-item', line: '- b', children: [] },
+      {
+        kind: 'paragraph',
+        line: '-',
+        children: [
+          { kind: 'list-item', line: '- c', children: [] },
+          { kind: 'list-item', line: '- d', children: [] },
+        ],
+      },
+    ]);
+    // The space restores one flat list of five.
+    expect(kinds('- a\n- b\n- \n- c\n- d\n')).toEqual(Array(5).fill('list-item'));
+  });
+
+  it('attaches only where the list stack can empty', () => {
+    // The rule that adopts them runs at SECTION level, so the same three lines
+    // inside a subtree leave the items below as the paragraph's siblings.
+    const doc = parse('- a\n  - b\n  -\n  - c\n');
+    expect(doc.children[0]!.children.map((n) => [n.kind, n.lines[0]])).toEqual([
+      ['list-item', '  - b'],
+      ['paragraph', '  -'],
+      ['list-item', '  - c'],
+    ]);
   });
 
   it("leaves an item's continuation line reading exactly a dash as its text", () => {

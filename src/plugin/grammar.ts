@@ -134,10 +134,13 @@ function offsetInNewText(newLines: readonly string[], pos: EditorPos): number {
  * Asking `parseListMarker` rather than matching a second marker regex is what
  * keeps the two from measuring the run differently. The old prefix counted
  * CHARACTERS — the marker's length plus its whitespace run's — where the
- * content column counts COLUMNS, and the two diverge wherever a tab sits
- * inside the run: `-\tx` puts its content at column 4 while its marker and run
- * are two characters, so the continuation landed two columns short and
- * re-parsed as a top-level paragraph instead of the item's own second line.
+ * content column counts COLUMNS, and the two part company twice. A tab inside
+ * the run: `-\tx` puts its content at column 4 while its marker and run are two
+ * characters, so the continuation landed two columns short and re-parsed as a
+ * top-level paragraph instead of the item's own second line. And an item whose
+ * run is all there is: `-\u2423\u2423` has content column 2, by the blank-start rule
+ * `parseListMarker` applies and a character count cannot, so the old prefix was
+ * a column wide of it.
  *
  * The indentation is kept verbatim and only the marker's width is replaced by
  * spaces: the content column counts tab stops, which a tab-led item's own lead
