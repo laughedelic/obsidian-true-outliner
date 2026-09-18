@@ -465,6 +465,12 @@ does, across the widths an interior place's content column takes. So the asymmet
 reported between the two keys is not there either: both keys are right on an interior place and
 both are wrong on a trailing one.
 
+Re-measuring that column today gives line 3 column 2 rather than column 0:
+`source-indentation-collapses` has since had `planCaret` resolve a mapped position that lands
+inside chrome, so the off-the-line column reaches the content start of `␣␣bar` instead of its line
+start. A different wrong answer to the same impossible question, and the reason the superseded
+entry's own figure no longer reproduces.
+
 What the off-the-line column did reach was a disagreement between two halves of one keypress.
 `materializeProbe` clamps the column into its line before resolving the tree the place stands for,
 while `dispatch.ts`'s flat `{line, ch}` → offset arithmetic read the same column as the start of
