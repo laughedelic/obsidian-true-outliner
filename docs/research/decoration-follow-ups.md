@@ -516,6 +516,36 @@ Both halves of the damage follow, and both were reported from the real app:
 | `- top` / `⇥- foo` / `⇥␣␣bar`, Shift+Enter, Shift+Tab, Tab | `- top` / `␣␣- foo` / `␣␣` / `␣␣␣␣bar`, caret 1:4 — the place keeps two columns while the item moves to four, and the caret is off it |
 | `- one` / `- foo` / `␣␣bar`, Shift+Enter, Tab, Shift+Tab | `- one` / `- foo` / `␣␣␣␣` / `␣␣bar`, caret 1:2 — the caret lands at the start of `foo`, and the place is left deeper than the item |
 
+**Re-measured in the real app** once `a-trailing-place-moves-with-its-node` was in, and only the
+SECOND row survives. The first row is closed by that change rather than by this entry: it fixed
+Shift+Tab's caret, which used to leave the place, and a caret that stays ON the place is what
+`recordablePlace` needs to re-establish the record for the `outdent` its event list already
+names. The Tab after it now acts on the place. Measured in Obsidian, indent unit a tab:
+`- top` / `⇥- foo` / `⇥␣␣` / `⇥␣␣bar` → Shift+Tab → caret 2:2 on the place → Tab →
+`- top` / `⇥- foo` / `␣␣␣␣␣␣` / `␣␣␣␣␣␣bar`, caret 2:6, which is the planner's own answer WITH the place
+line (without it the place stays two columns wide and the caret drops to 1:3).
+
+The second row reproduces unchanged, in the real app, on the same base: `- one` / `- foo` /
+`␣␣bar` → Shift+Enter → Tab → `- one` / `␣␣␣␣- foo` / `␣␣␣␣␣␣` / `␣␣␣␣␣␣bar` with the caret on the place
+— and then Shift+Tab → `- one` / `- foo` / `␣␣␣␣␣␣` / `␣␣bar`, caret 1:2. `indent` leaves no record,
+so the key after it reads an ordinary blank line.
+
+Which keys keep the record today, each measured with a place open on `- one` / `␣␣- foo` /
+`␣␣␣␣bar` / `␣␣- two`:
+
+| Key after a place | Caret after | Record after |
+|---|---|---|
+| Tab (`input.structure.indent`) | on the place | none — the event is in neither list |
+| Shift+Tab (`input.structure.outdent`) | on the place | the place |
+| Move up / down (`move.structure`) | the moved node's content start | none |
+
+The moves are a separate shape rather than a third case of this one. `caret-placement-policy`'s
+SUBJECT rule sends their caret to the node, not to the place, so there is no place at the caret
+for any record to be about — and `placeOutline` resolves only where the place line and the caret
+agree, so a record kept through a move would not be read either. A place the user left behind by
+moving its node is the parking-lot entry above ("A structural key pressed on a provisional
+position leaves the blank line in the file"), not this one.
+
 The grammar is right in both: handed the place line, `planKey` produces the correct document and
 caret for every step of both sequences. Only the live path differs, and only from the second
 keypress on, which is why a single-keypress measurement — the shape every entry here was taken
@@ -538,6 +568,12 @@ two questions above does not reach that one; giving `runOp` the plan's `abandon`
 
 Not caused by #129, which touches only `dispatch.ts`'s `{line, ch}` conversion: both sequences
 reproduce identically against `main`'s own `dispatch.ts`.
+
+Seen while re-measuring and unrelated to places: with the editor's indent unit set to a TAB,
+`indent` writes the unit on the node's first line and SPACES on its continuation lines — `- top` /
+`- foo` / `␣␣bar` becomes `- top` / `⇥- foo` / `␣␣␣␣␣␣bar`, a tab for the marker line and six
+spaces for the line below it. It reproduces with no place open, so it belongs to the indent
+operation rather than to anything here.
 
 ### The palette path does not resolve a place at all
 
