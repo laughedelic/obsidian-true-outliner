@@ -1039,6 +1039,30 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
       await browser.pause(150);
     });
 
+    it('shows no native guide off a list either', async function () {
+      // Obsidian draws the same aid from four columns of indentation on ANY
+      // line, list or not, and those columns are the file's rather than the
+      // tree's. Reported from the manual pass on issue #117, where the segment
+      // it drew on a line whose run outline mode collapses started inside the
+      // line's own text.
+      const note = 'Scratch/decorations-guide-nonlist.md';
+      await h.createNote(
+        note,
+        ['- alpha', '', '\tchild paragraph', '', '        eight spaces deep', ''].join('\n'),
+      );
+      await ensureOutlineMode(note);
+      await h.setIndentGuides(true); // the reader's own setting, deliberately ON
+      await browser.pause(150);
+
+      const nativeWidth = (line: number): Promise<string> =>
+        h.getLineComputedStyle(line, '--indentation-guide-width');
+      expect((await nativeWidth(2)).trim()).toBe('0px'); // a child of the item
+      expect((await nativeWidth(4)).trim()).toBe('0px'); // a top-level run, two aids deep
+
+      await h.openNote(NOTE);
+      await browser.pause(150);
+    });
+
     it('drops the outermost guide only where the note has a single root', async function () {
       // Two roots: the outermost guide names something, so it stays.
       await h.setPluginSetting('guideHideSingleRoot', true);

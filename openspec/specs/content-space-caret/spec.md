@@ -32,6 +32,15 @@ span `contentBoundaryCh` identifies as non-content — SHALL NOT be
 addressable, on the item's first line or as alignment whitespace on a continuation line. A
 heading's `#` prefix and an atom's own lines ARE content and remain fully addressable.
 
+A NODE'S OWN INDENTATION takes the same treatment, and for the same reason: the leading
+characters a non-list-item child of a list item repeats to stay inside its parent's content
+column state the tree's shape rather than the reader's text, and `outline-decorations` draws none
+of them. They SHALL NOT be addressable either — motion crosses them in one step and a placement
+inside them resolves to the line's own content start. What a line carries BEYOND that indentation
+is ordinary content and stays fully addressable, one character at a time. Outside a list nothing
+is hidden and nothing is added to the marker rule: whitespace under a heading or at the top level
+is content.
+
 **Provisional positions.** `outline-keyboard-grammar` defines a provisional position: the
 blank line an accepted Enter or Shift+Enter leaves the caret on, holding the place where a
 node or a continuation line materializes when text is typed. It is a gap line, and the caret

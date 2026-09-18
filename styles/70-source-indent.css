@@ -1,0 +1,62 @@
+/*
+ * A node's own source indentation, undrawn, and what Obsidian made of the span
+ * that held it (`SOURCE_INDENT_MARK`, decorations.ts).
+ *
+ * Only the node's own indentation is hidden — the characters that restate a
+ * depth the rules already state. What a line carries beyond them stays where it
+ * is, rendered by Obsidian at whatever those characters measure, and pushes the
+ * line's text right.
+ *
+ * `docs/research/source-indentation-width` carries the versions that hid the
+ * WHOLE run, or hid none of it, and what each cost the caret.
+ */
+
+/*
+ * The characters themselves: no box at all.
+ *
+ * `display: none` rather than a zero width, and rather than a
+ * `Decoration.replace`. A box of no width still paints, and its glyphs landed on
+ * the line's own first word; clipping them hid the native caret instead. A
+ * replacement draws nothing either, but CM6 pads one with `cm-widgetBuffer`
+ * elements, and the caret drawn against one of those is a different height than
+ * the caret drawn against text — the growing caret the manual pass saw at the
+ * boundary. Nothing displayed means nothing beside the caret but the line's own
+ * first character.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .cm-line .to-decor-indent-own {
+  display: none;
+}
+
+/*
+ * Obsidian's quantiser, overridden so the span measures what is left inside it.
+ *
+ * It sizes a leading run from `--list-indent` rather than from the characters —
+ * measured, 26.17px for two spaces, 36px for a tab, and a `border-box`
+ * `.cm-indent-spacing` carrying its width as `padding-left` — and it sizes from
+ * the document, so that width outlives the characters the mark undraws.
+ * Left standing it would put the line's text back in a second column.
+ *
+ * `width: auto` rather than zero: the span still holds the surplus, whose own
+ * glyphs are the width the line is owed. Every such span on the line, since
+ * Obsidian splits a run across several.
+ */
+.markdown-source-view.mod-cm6
+  .cm-content
+  > .cm-line.to-decor-indent-sized
+  :is(.cm-hmd-list-indent, .cm-indent, .cm-indent-spacing) {
+  width: auto !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/*
+ * A code line's own internal padding, which Obsidian gives a fence at the top
+ * level and withholds from one written inside a list — measured, 16px against
+ * 0. `--size-4-4` is what its own rule resolves to for a top-level fence, so an
+ * indented block takes the padding its unindented neighbour has rather than one
+ * this layer invents.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-atom.HyperMD-codeblock {
+  padding-inline-start: var(--size-4-4);
+}

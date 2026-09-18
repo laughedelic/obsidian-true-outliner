@@ -49,6 +49,11 @@ point.
 
 ### A non-list-item child of a list item is indented twice
 
+**Graduated** — closed by the `source-indentation-collapses` change (issue #117), which collapses
+a non-list line's own source indentation so the depth rules are the only thing positioning it.
+The geometry this entry left unmeasured is in `docs/research/source-indentation-width`, with the
+one residue the fix leaves inside an indented fence.
+
 Found while cataloguing Enter/Shift+Enter (2026-08-06,
 `enter-and-shift-enter-catalogue.md` E10/E11), from a real-vault report that indented
 text under a list item renders misaligned.
@@ -71,6 +76,13 @@ whitespace from its depth padding (the source whitespace already encodes the sam
 or render non-list children with the native regime the way list items are. Both need the
 guide-line and marker offsets re-derived, which is why this is a change of its own.
 
+**How it was closed.** Neither candidate below survived the measurement as written. Subtracting
+the run's width needs a width nothing can state — it is the file's, not the tree's — and the
+native regime for a non-list line is no indentation at all, so there was nothing to render it
+with. What the pass found instead is that markdown itself reads the run as structure and reading
+mode renders none of it: collapsing it to no width, and leaving the depth rules to supply the
+column, is the same trade `lists-on-the-outline-grid` made for a list item's own run.
+
 **Amended 2026-08-11** (`a-position-does-not-split-its-node`): the first measured shape above —
 a blank line followed by indented text under an item — had a TRANSIENT way in as well as the
 deliberate one. Shift+Enter at the end of a line that is not its node's last wrote exactly that
@@ -79,6 +91,33 @@ entry's double indentation for as long as the caret stayed there. That way in is
 rendering now reads the outline the position stands for. The entry itself stands unchanged for
 the deliberate shape — text the user themselves indented under an item, blank-separated — which
 is a real document rather than a place, and still renders with both indentations.
+
+### A replaced source-indentation run holds caret positions that share one x
+
+Left by `source-indentation-collapses` (issue #117), which takes a non-list child's own leading
+whitespace out of the rendering. The characters stay in the document and stay addressable —
+`contentBoundaryCh` returns 0 for every non-list kind (`caret.ts`, D7) — so Home and the arrows
+can still land inside a run that renders nothing, and every such position draws at the
+replacement's own edge.
+
+Measured on `      second deeper` under `  first line`, arrowing left from the text start: six
+presses at x=66.4 — ch 6, 5, 4, 3, 2, 1, 0, the caret never appearing to move — and the seventh
+reaching the previous line's end. Home lands at ch 0, also 66.4, so it appears not to move
+either; typing there writes at column 0, which takes the line out of its item
+(`x      second deeper`). Selection and deletion are stock: Shift+Left selects one space,
+Backspace at the text start removes one space.
+
+`EditorView.atomicRanges` would make the run one step for the arrows, and was measured doing
+exactly that — but CM6 consults the same facet for deletion, and the two cannot be scoped apart:
+Backspace at the text start then took all six spaces at once, a block leaving its parent in one
+press. The author's call was to keep editing stock and leave the caret as recorded here.
+
+What would close it is a rule about where the caret may stand, which is `content-space-caret`'s
+to make: its boundary rule returning the run's own length for a non-list node, with a Backspace
+that still removes one column. Every shape that spec pins today is a list item — whose run this
+layer does not touch — so the reading has to be extended rather than reused. Whoever picks it up
+should read a replaced run and a list item's marker prefix as the same kind of thing, and check
+what a click at the text's left edge resolves to.
 
 ### A provisional (gap) line has no decoration facts, so the caret visibly jumps
 
@@ -1024,3 +1063,17 @@ wait in the harness's per-spec-file setup, after the vault reset, with a budget 
 measured rate and the vault's file count — and a resolved-link count held still as the criterion,
 never a comparison to the file count. Parked: it is harness work with a cost on every spec file,
 and the case it fixes is one intermittent read.
+
+### A top-level leading run's caret positions are quantised, not measured
+
+Obsidian groups a leading run into `.cm-indent` spans of four columns each and sizes them from
+`--list-indent` rather than from the characters, so a caret position at a group's edge renders at
+the box's edge. Measured on `    four-space line,`: three steps of 5.08px — a space — and a fourth
+of 24.9px. A nine-space line jumps at the fourth and the eighth. At the seam between the last box
+and the text the caret can draw at either side, which reads as skipping the first letter.
+
+Stock, and measured identical with outline mode off but for the marker gutter's 14px. Nothing here
+touches a top-level run: `source-indentation-collapses` reports its fact only under a list item,
+where the run restates a depth. Fixing it would mean reaching `70-source-indent.css`'s override of
+that quantiser onto lines this layer otherwise leaves alone — worth it only if the stepping is
+reported as confusing in its own right. Issue #140.

@@ -81,6 +81,38 @@ from the item's own depth rather than accept whatever the leading whitespace mea
 two-space file, a three-space file and a tab file render the same grid, with that setting on or
 off.
 
+A line written UNDER A LIST ITEM and not itself a list item takes the same guarantee by the other
+half of the same rule. Its own source indentation is written to the item's content column, which
+the depth contribution states a second time, so that whitespace SHALL contribute no width to the
+rendered line. A paragraph, fence, table, quote or callout written as a child of a list item SHALL
+therefore begin on its own depth's column, and SHALL begin on the same column whether the file
+indented it with a tab or with any number of spaces.
+
+A run that states a depth rather than restating one SHALL be left as it is. A line under a heading
+or at the top level takes its depth from its ancestor, so its leading whitespace is ordinary
+content and SHALL render at its own width — at the top level it is also the only thing
+distinguishing an indented code block from a paragraph.
+
+What a line carries BEYOND its node's own indentation is not structure either and SHALL be left
+standing, as the characters it is: a line indented deeper than the node it belongs to — code
+inside an indented fence, a paragraph's own continuation line — SHALL keep the surplus, so its
+indentation relative to its own block survives, and SHALL render it at whatever those characters
+measure in that line's own font. The plugin SHALL state no width for it, which is what keeps a
+fence's own space advance and a tab correct without an exception for either.
+
+A node that renders a BOX of its own puts that box on its depth's column and its content inside:
+a fenced code block SHALL keep the internal padding Obsidian gives an unindented fence, which it
+withholds from one written inside a list.
+
+Obsidian draws the native caret, so every position a caret can reach SHALL remain drawable. A
+node's own indentation is not one of them: it renders nothing, so the caret SHALL treat it as
+chrome — motion and placement floored at it, exactly as they are at a list marker, and one step
+across it rather than one press per character standing at the same column. A line whose content is
+only that indentation SHALL still give the caret its own column to stand on, having no text to
+stand against. What a line carries past its node's own indentation SHALL keep stock motion and
+stock deletion, one character at a time. Where a caret lands otherwise is `content-space-caret`'s
+to state.
+
 What this does NOT change is the parse: which levels exist is Markdown's business and is
 already decided by the time this layer runs.
 
@@ -109,6 +141,43 @@ already decided by the time this layer runs.
   setting is turned off
 - **THEN** every level renders on exactly the columns it rendered on with the setting on
 
+#### Scenario: A non-list child of a list item stands in one column
+
+- **WHEN** a paragraph, a fenced code block, a table and a block quote are each written
+  blank-separated under a list item, so each parses as its child
+- **THEN** every one of them begins on that child depth's column — the same column a list item
+  at that depth would begin on — with no second column between the item's and its own
+
+#### Scenario: A tab-indented child and a space-indented child agree
+
+- **WHEN** the same child of the same list item is written once indented with a tab and once
+  with spaces
+- **THEN** both begin on the same column
+
+#### Scenario: A line indented deeper than its node keeps the surplus
+
+- **WHEN** a block written under a list item holds a line indented further than the block's own
+  first line — code inside a fence, or a paragraph's continuation line
+- **THEN** the block begins on its own depth's column, and that line renders indented relative to
+  the rest of the block by the width of its own surplus characters
+
+#### Scenario: An indented fence keeps a fence's internal padding
+
+- **WHEN** a fenced code block is written under a list item
+- **THEN** its code sits the same distance inside its own box as the code of a fence written at
+  the top level
+
+#### Scenario: The caret stays drawable on a collapsed line
+
+- **WHEN** the caret is placed at the start of a line whose run is collapsed, inside that run, or
+  on the line Shift+Enter opens inside a list item
+- **THEN** nothing between the caret's position and its line clips, so the native caret renders
+
+#### Scenario: A child of a heading keeps its own leading whitespace
+
+- **WHEN** a paragraph written with leading spaces sits under a heading, or at the top level
+- **THEN** its whitespace renders at its own width, as stock Obsidian renders it
+
 #### Scenario: Outline mode off is stock
 
 - **WHEN** outline mode is turned off on a note containing a nested list
@@ -119,6 +188,19 @@ already decided by the time this layer runs.
 
 - **WHEN** one note with outline mode on and one without are open at the same time
 - **THEN** the note without it renders its lists exactly as stock Obsidian does
+
+**Covered by**: `e2e/specs/56-list-grid.e2e.ts`; `e2e/specs/56-source-indent.e2e.ts` ("starts
+every kind written under an item on the item's child column", "gives an indented fence the
+internal padding an unindented one has", "keeps a fence's interior indentation at the width of its
+own spaces", "starts a widget-rendered callout child on the same column", "keeps a line indented
+deeper than its node, at the width of its own spaces", "leaves a child of a heading alone, whose
+depth its whitespace never stated", "holds with Obsidian's own indentation guides turned off",
+"puts a tab-indented child on the same column as a space-indented one", "draws nothing at all for
+the run itself", "walks a line's surplus one character at a time", "crosses the node's own
+indentation in one press, and draws the caret at both ends", "leaves deletion to stock, in the
+surplus and in the run alike", "draws the caret on a line Shift+Enter opens, which is indentation
+alone", "leaves the item's own indentation to the list rules", "touches nothing with outline mode
+off"); `tests/decorate.test.ts` ("decorate: source indentation (indentCh)").
 
 ### Requirement: One grid, one unit, from one declaration
 
@@ -364,9 +446,10 @@ marker or text SHALL move when a guide stops or starts being drawn, whether beca
 changed, the caret moved, or an edit made the document's root no longer single.
 
 The plugin SHALL own this rendering rather than share it: in outline mode it SHALL suppress
-Obsidian's own indent guide on every list line, whatever this layer itself draws there. A native
-guide is positioned by native list nesting, and outline mode does not use those columns — a list
-level renders at `depth × unit` like every other kind — so a native guide lands beside this grid
+Obsidian's own indent guide on every line it decorates, list or not, whatever this layer itself
+draws there. A native guide is positioned by the SOURCE indentation — by native list nesting on a
+list line, and from four columns of leading whitespace on any other — and outline mode does not
+use those columns: every level renders at `depth × unit`, so a native guide lands beside this grid
 rather than on it, and showing one is showing a ladder that does not match the content. Drawing
 no guides of our own is therefore not a reason to show Obsidian's; suppression SHALL NOT vary
 with the visibility setting, line by line, or with the caret. Guides SHALL render continuously
@@ -460,6 +543,11 @@ be the same either way.
 - **WHEN** the visibility setting is `none`, with Obsidian's own indentation-guide setting on
 - **THEN** no guide renders on any line in the editor, no line's geometry changes, and no native
   indent guide renders on a list line either
+
+#### Scenario: No native guide off a list either
+- **WHEN** a note holds a line indented four or more columns outside any list, with Obsidian's own
+  indentation-guide setting on
+- **THEN** no native indent guide renders on it in outline mode
 
 #### Scenario: The levels inside the current node
 - **WHEN** the visibility setting names the levels inside the current node
