@@ -456,3 +456,61 @@ Of design D2's three supports, one is measured false and one is untouched:
 Reversibility is therefore the whole of the remaining case for carrying the `#`, and it is a real
 one: the alternative loses the rank irretrievably. What is gone is the ergonomic argument the
 decision was originally made on.
+
+## Manual pass (2026-09-18): three reports from a real vault
+
+Driven against `test-vault/Journal/2026-07-10.md` — copying its `## Aurora review` section and
+pasting it in different places — through `classify` + `computeVerdict`, the same two gates the
+transaction filter uses. The section parses as `h2` → [a childless paragraph, a paragraph with
+three list children, a callout].
+
+### M1. Peers in the payload landed as two kinds of row
+
+Pasted inside `- one` / `  - two`, the section's first paragraph stayed a paragraph and its
+second became a list item:
+
+```tree
+list-item: "  - ## Aurora review"
+  paragraph: "    The review went better than the navigation…"   <- childless
+  list-item: "    - Decisions that came out of it:"              <- has children
+    list-item: "      - severity-first layout approved ✅"
+```
+
+`reencodeIntoListScope` read each node's own child count: `hasChildren ? 'list-item' : own`. The
+having-children half is forced (a paragraph below a list item has no expressible children); the
+childless half was a free choice, and it made two siblings of one copied section land as two
+different kinds of row. Every structural node in a list scope now converts.
+
+The same frame also fires P5: the section's callout lands at column 4 and comes back a
+paragraph. Untouched here, parked above.
+
+### M2. A paste on the blank line under the note's `h1` landed at the bottom
+
+Caret on line 1 — the blank line between `# Wednesday — review day` and the rest — the pasted
+copy appeared at line 23 of 37 as `# Aurora review`, promoted from `h2`, while nothing appeared
+where the caret was.
+
+`nodeAtLine` resolves a gap line to the node that PRECEDES it, and `computePasteVerdict` inserted
+`'after'` that node — meaning after its whole subtree, which for a note's `h1` is the end of the
+note. Root was then the destination, so `destinationHeadingLevel` answered 1 and the payload
+re-levelled to `h1`. The landing-at-the-bottom half is old; the promotion is this change's
+re-levelling arm faithfully serving a wrong anchor.
+
+A node's trailing gap sits immediately before its first child, so that blank line is the first
+child's `before`. `pasteAnchor` reads it that way when the caret's COLUMN is at or past the
+node's child column, and leaves the shallower reading as the `after` it always was.
+
+Measured after the fix: the copy lands at line 2, as the `h1`'s first child, still `## Aurora
+review`.
+
+### M3. Trailing gap lines: not reproduced
+
+Reported as happening "sometimes". Swept every caret position in the note at column 0 and at
+end-of-line, against the section payload and the same payload carrying one and two trailing blank
+lines, plus eleven synthetic documents (three of them already holding a double gap) at every
+position with five payloads — roughly 800 combinations. No blank run grew and no trailing blank
+was added in any of them.
+
+Whatever produces it is therefore not in the verdict layer. What remains unswept is the CM6
+adapter (`buildRewriteSpec` → `editsToChangeSpec`) and Obsidian's own paste handling; carried as
+an open question rather than guessed at.

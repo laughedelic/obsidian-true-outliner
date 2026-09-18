@@ -156,6 +156,50 @@ So the conversion is not a choice of style. **Below a list item, a node with chi
 list item**, and preserving the payload's tree requires re-encoding every node that has children,
 not only the root.
 
+### B3a — And the childless ones convert too
+
+Reading each node's own child count is what the rule first did, and a manual pass against a real
+note showed what that looks like from the outline: siblings of the payload landing as two
+different kinds of row.
+
+Payload `## H` / `First.` / `Second.` with `- child` under it, pasted below `  - two` — **while
+the child count decided**:
+
+```tree
+list-item: - one
+  list-item:   - two
+  list-item:   - ## H
+    paragraph:     First.      <- childless, stayed a paragraph
+    list-item:     - Second.   <- has a child, became an item
+      list-item:       - child
+```
+
+And as it lands now:
+
+```
+- one
+  - two
+  - ## H
+
+    - First.
+
+    - Second.
+
+      - child
+```
+
+```tree
+list-item: - one
+  list-item:   - two
+  list-item:   - ## H
+    list-item:     - First.
+    list-item:     - Second.
+      list-item:       - child
+```
+
+`First.` and `Second.` were peers in the copied section and are peers in the outline. Whether
+each of them happened to have children is not something the person pasting pointed at.
+
 ### B4 — The rank comes back
 
 The converted item, outdented back to a heading scope, strips its marker and re-parses as a real
@@ -502,3 +546,106 @@ The same payload, the same destination, differing only in what was selected:
 | type-over consuming the whole scope | `insertAsOnlyChildren` | **rewrite**, heading silently destroyed |
 
 One rule in one place is what collapses these three into one answer.
+
+---
+
+## F. The caret on a blank line
+
+Design D8. Measured through `classify` + `computeVerdict` like every other **today** frame, and
+the **intended** frames are buffers written out and re-parsed.
+
+### F1 — Today: the payload lands past the node's whole section
+
+```
+# Day
+|
+## First
+
+body
+```
+
+Pasting `## Notes` / `Some prose.` →
+
+```
+# Day
+
+## First
+
+body
+# Notes
+
+Some prose.
+```
+
+```tree
+h1: # Day
+  h2: ## First
+    paragraph: body
+h1: # Notes
+  paragraph: Some prose.
+```
+
+Two things at once, from one cause. `nodeAtLine` resolves the blank line to `# Day`, and
+inserting after `# Day` means after its whole section — the end of the note. Root is then the
+destination, so the payload re-levels to `h1`. From the editor nothing at all appears where the
+caret was.
+
+### F2 — Intended: the blank line is the first child's slot
+
+```
+# Day
+
+## Notes
+
+Some prose.
+## First
+
+body
+```
+
+```tree
+h1: # Day
+  h2: ## Notes
+    paragraph: Some prose.
+  h2: ## First
+    paragraph: body
+```
+
+`Some prose.` abutting `## First` is the insertion rule's own, unchanged: the block landing
+adjacent to the anchor carries no gap in either direction, and `normalizeBoundaries` adds one
+only where the parse needs it. The separation the caret's own line held is now above the payload
+rather than below it.
+
+### F3 — In a list scope the column carries the whole answer
+
+Same document, two columns.
+
+```
+- one
+|
+  - sub
+- two
+```
+
+At column 2 — at `- one`'s child column:
+
+```tree
+list-item: - one
+  list-item:   - ## Notes
+    list-item:     - Some prose.
+  list-item:   - sub
+list-item: - two
+```
+
+At column 0 — to the left of it, so a sibling, which is the reading `after` already gave:
+
+```tree
+list-item: - one
+  list-item:   - sub
+h1: # Notes
+  paragraph: Some prose.
+    list-item: - two
+```
+
+A heading's child column is 0, so in a heading scope every column takes the first reading. That
+is why F1's frame had no second answer to choose between.

@@ -47,11 +47,17 @@ same delta, so the payload's internal level relationships (skips included) survi
 normalizes to ATX on the way, because re-levelling routes through `headingWithLevel`, which
 already does that for Tab.
 
-**Into a list scope**, every node in the payload that has children becomes a list item. This arm
-is forced, not chosen: measured, a paragraph below a list item can have no children at all — not
-a list, not another paragraph, not an atom, at any indentation, because the attachment rule is
-applied at section level only. Converting the root alone and re-indenting the rest loses a level
-of the payload's tree. There is exactly one encoding that preserves it.
+**Into a list scope**, every structural node in the payload becomes a list item. For the nodes
+with children this arm is forced, not chosen: measured, a paragraph below a list item can have no
+children at all — not a list, not another paragraph, not an atom, at any indentation, because the
+attachment rule is applied at section level only. Converting the root alone and re-indenting the
+rest loses a level of the payload's tree. There is exactly one encoding that preserves it.
+
+The childless nodes convert with them. That part is a choice, and a manual pass against a real
+note is what settled it: a section whose first paragraph had no children and whose second had a
+list under it landed as a paragraph beside a list item, so two siblings of the payload became two
+different kinds of row over an accident of their own contents. A list scope is one list, and the
+node's own child count is not a property the person pasting pointed at.
 
 *Why the caret is the whole interface.* The two arms give the user both behaviours without a
 mode or a prompt: a caret at a heading level asks for a section there, a caret inside a list asks
@@ -170,6 +176,28 @@ quietly left in the tasks:
   atoms.
 - **Ordered-run renumbering and the setext-underline trap.** Both already handled, by
   `renumberOrderedAgainst` and by `normalizeBoundaries` respectively.
+
+### D8. The caret's COLUMN is part of where it points
+
+Added after a real-vault manual pass, which found the change's own thesis failing on the
+commonest caret position there is: the blank line under a note's top heading.
+
+`nodeAtLine` resolves a gap line to the node that PRECEDES it — right for every question the
+verdict layer asked of it before, since a caret there is inside that node's extent. For a paste
+it is not, because `insertSubtrees(..., 'after')` means after the node's whole SUBTREE. Measured,
+an `h2` pasted on that line came out at the bottom of the note, re-levelled to `h1` because root
+was the destination it reached, and nothing appeared where the caret was.
+
+A node's trailing gap sits immediately before its first child, so that line is the first child's
+`before`. What decides between the two readings is the COLUMN, the same thing that decides what
+typing there would parse as: at or past the node's child column the caret stands for a child,
+and to its left for a sibling.
+
+This is not the provisional-position machinery. `resolvedOutline` answers a different question —
+which tree a position that BISECTED a node stands for — and needs `createdPlaceLine` to tell a
+place from a blank line the user authored, which only the view knows. The anchor question needs
+neither: it reads the tree the verdict layer already has, and the reading is the same whoever
+put the caret there.
 
 ## Risks / Trade-offs
 

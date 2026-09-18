@@ -73,10 +73,30 @@
       since the Obsidian cache was repaired, in a local run of the whole spec too (51 passing)
 - [x] 6.2 E2E: undo restores the pre-paste buffer byte-identically in one step, for a converted
       paste and for an absorbing one
-- [ ] 6.3 Real-vault manual pass on the reporter's own shapes, plus the drag work's drop path
-      if it has landed by then
+- [x] 6.3 Real-vault manual pass on the reporter's own shapes, plus the drag work's drop path
+      if it has landed by then. Three reports, driven against `test-vault/Journal/2026-07-10.md`
+      and written up in `docs/research/paste-across-encoding-regimes` (M1–M3). The drop path has
+      not landed
 - [ ] 6.4 Record the findings in `docs/research/open-questions`, as the entry that settles the
       heading arm left open since Q2 follow-up #4
+
+## 6c. Manual pass (real vault, 2026-09-18)
+
+- [x] 6c.1 Every structural node in a list scope becomes a list item, not only the ones with
+      children — M1, where two siblings of one copied section landed as a paragraph and a list
+      item. Negative control: the regression test fails on the old `hasChildren` reading
+- [x] 6c.2 Read the paste anchor from the caret's COLUMN as well as its line, so a paste on the
+      blank line under a node lands as its first child rather than past its whole subtree — M2,
+      design D8. Negative control: both regression tests fail with the anchor forced back to
+      `after`
+- [x] 6c.3 E2E for both, through the real buffer: the M2 frame byte-for-byte, and the M1 peers
+      frame
+- [x] 6c.4 Hunt M3, the trailing gap lines. Not reproduced in ~800 (document, caret, payload)
+      combinations through both gates, nor in the e2e buffers. Carried as an open question with
+      what remains unswept named
+- [ ] 6c.5 Ask the reporter for M3's exact gesture — a Ctrl+V after an Enter, a drop, or a
+      right-click paste — since the verdict layer is ruled out and the remaining suspects are
+      the CM6 adapter and Obsidian's own handling
 
 ## 6b. Review round (independent review, 2026-09-16)
 

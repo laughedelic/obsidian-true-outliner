@@ -62,10 +62,12 @@ and every node in the payload SHALL be re-encoded for that regime, preserving th
 relative hierarchy exactly. No node SHALL retain an encoding that contradicts the regime its
 new position places it in.
 
-Into a LIST scope specifically, every node in the payload that HAS CHILDREN SHALL be encoded as
-a list item. This is required by the mapping rather than chosen: below a list item a paragraph
-has no expressible children at any indentation, so a payload whose interior nodes stay
-paragraphs loses a level of its own hierarchy.
+Into a LIST scope specifically, every structural node in the payload SHALL be encoded as a list
+item. For a node WITH CHILDREN this is required by the mapping rather than chosen: below a list
+item a paragraph has no expressible children at any indentation, so a payload whose interior
+nodes stay paragraphs loses a level of its own hierarchy. A CHILDLESS node converts with them
+because a list scope is one list — a leaf left as a paragraph is a different kind of row from
+the siblings it was copied beside, over an accident of whether each happened to have children.
 
 Into a HEADING-BEARING scope, only the payload's ROOTS take the destination's encoding; each
 root's descendants keep their own, as the existing reparenting rules already provide. A setext
@@ -79,6 +81,11 @@ SHALL live there with it, so no insertion path can reach the re-encode without i
   inside a list scope
 - **THEN** every node in the payload lands as a list item at its own relative depth, and the
   result re-parses to a tree with the same shape as the payload's
+
+#### Scenario: Peers in the payload land as the same kind of row
+- **WHEN** a payload whose siblings differ only in whether they have children is pasted inside
+  a list scope
+- **THEN** all of them land as list items, the childless ones included
 
 #### Scenario: A list subtree pasted into a heading section is unaffected
 - **WHEN** a list item with nested children is pasted into a heading's section after a paragraph

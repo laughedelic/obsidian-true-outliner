@@ -2018,30 +2018,33 @@ export function reindentSubtreeVerbatim(node: OutlineNode, indentText: string): 
  * A payload re-encoded for a LIST scope, every node in it, at the depth its
  * position in the payload gives it.
  *
- * Every node that HAS CHILDREN becomes a list item. That is forced by the
- * mapping rather than chosen: below a list item a paragraph has no expressible
- * children at any indentation, because the attachment rule is applied at
- * section level only (`parse.ts`). Converting the root alone and re-indenting
- * the rest — what the no-conversion path does — drops a level of the payload's
- * own hierarchy, which is the guarantee this whole step exists to keep.
+ * Every structural node becomes a list item. Having children forces it —
+ * below a list item a paragraph has no expressible children at any
+ * indentation, because the attachment rule is applied at section level only
+ * (`parse.ts`), so converting the root alone and re-indenting the rest drops a
+ * level of the payload's own hierarchy. Childless nodes convert with them
+ * because a scope is one list: leaving a leaf as a paragraph while its sibling
+ * becomes an item splits the payload's peers into two kinds of row over an
+ * accident of whether each happened to have children.
  *
  * A heading becomes a list item carrying its `#` run as text, whatever the
  * destination's context encoding says: a `#` run at a paragraph's own column
- * would re-parse as a heading and break out of the list. A childless paragraph
- * or list item keeps its kind, and its own marker with it, so an ordered
- * payload does not silently become bullets. Atoms move as units.
+ * would re-parse as a heading and break out of the list. A list item keeps its
+ * own marker, so an ordered payload does not silently become bullets. Atoms
+ * move as units.
  */
 function reencodeIntoListScope(node: OutlineNode, indentText: string): OutlineNode {
-  const hasChildren = node.children.length > 0;
   let encoded: OutlineNode;
   if (node.kind === 'heading') {
     encoded = headingAsListItem(node, indentText);
   } else if (isAtom(node)) {
     encoded = reencodeForDestination(node, undefined, indentText);
   } else {
-    const own = node.kind === 'list-item' ? 'list-item' : 'paragraph';
-    const wanted = hasChildren ? 'list-item' : own;
-    encoded = reencodeForDestination(node, wanted === own ? undefined : wanted, indentText);
+    encoded = reencodeForDestination(
+      node,
+      node.kind === 'list-item' ? undefined : 'list-item',
+      indentText,
+    );
   }
   // The child column is the item's own content column, as `childBaseCol` reads
   // it — padding AFTER the indentation, never before, so a space never

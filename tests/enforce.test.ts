@@ -980,6 +980,77 @@ describe('the insertion path does not change the answer', () => {
   });
 });
 
+describe('a paste on the blank line under a node lands in it', () => {
+  /** The whole tree, as the outline shows it. */
+  function shapeOf(doc: OutlineDoc): string {
+    const out: string[] = [];
+    const walk = (nodes: readonly OutlineNode[], depth: number): void => {
+      for (const node of nodes) {
+        const kind = node.kind === 'heading' ? `h${node.level}` : node.kind;
+        out.push(`${'  '.repeat(depth)}${kind}: ${(node.lines[0] ?? '').trim()}`);
+        walk(node.children, depth + 1);
+      }
+    };
+    walk(doc.children, 0);
+    return out.join('\n');
+  }
+
+  it('a section pasted under a note\'s h1 lands there, not past its subtree', () => {
+    // Negative control: anchoring on the gap's owner and inserting AFTER it
+    // put this at the END of the note, re-levelled to `h1` because root was
+    // the destination it reached — and nothing appeared where the caret was.
+    const verdict = pasteThroughBothGates(
+      '# Day\n\n## First\n\nbody\n', pos(1, 0), pos(1, 0), '## Notes\n\nSome prose.\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(shapeOf(verdict.after)).toBe(
+      [
+        'h1: # Day',
+        '  h2: ## Notes',
+        '    paragraph: Some prose.',
+        '  h2: ## First',
+        '    paragraph: body',
+      ].join('\n'),
+    );
+  });
+
+  it('under a list item it converts, at the item\'s own child depth', () => {
+    const verdict = pasteThroughBothGates(
+      '- one\n\n  - sub\n- two\n', pos(1, 2), pos(1, 2), '## Notes\n\nSome prose.\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(shapeOf(verdict.after)).toBe(
+      [
+        'list-item: - one',
+        '  list-item: - ## Notes',
+        '    list-item: - Some prose.',
+        '  list-item: - sub',
+        'list-item: - two',
+      ].join('\n'),
+    );
+  });
+
+  it('a caret left of the child column still means a sibling', () => {
+    // The column is the whole of what distinguishes the two readings, so the
+    // shallower one has to keep landing where it always did.
+    const verdict = pasteThroughBothGates(
+      '- one\n\n  - sub\n', pos(1, 0), pos(1, 0), '- alpha\n  - beta\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(shapeOf(verdict.after)).toBe(
+      [
+        'list-item: - one',
+        '  list-item: - sub',
+        'list-item: - alpha',
+        '  list-item: - beta',
+      ].join('\n'),
+    );
+  });
+});
+
 describe('an inexpressible paste is refused, never passed through', () => {
   it('a caret paste vetoes rather than leaving the buffer corrupted', () => {
     // Negative control: the old `return PASS` here let Obsidian concatenate

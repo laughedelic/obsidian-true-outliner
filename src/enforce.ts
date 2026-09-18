@@ -14,6 +14,7 @@
 import type { OutlineDoc, OutlineNode } from './model';
 import { childrenAt, findPath, nodeAt } from './model';
 import { nodeAtLine, nodeStartLine } from './locate';
+import { childBaseCol } from './reencode';
 import { coveredForestOf } from './escalate';
 import { coverGroupsOf, groupRootsByParent } from './operand';
 import type { LinePos, LineRange } from './line-pos';
@@ -466,6 +467,36 @@ function computeDeletionVerdict(
  * requires such a sequence to be "rejected rather than inserted in corrupted
  * form", and the type-over path has always vetoed it. One answer on all three.
  */
+/**
+ * Where a paste ANCHORS, and on which side.
+ *
+ * `nodeAtLine` resolves a gap line to the node that PRECEDES it, and inserting
+ * after that node means after its whole subtree. On a node's own lines that is
+ * what the caret means; on the blank line between a node's own lines and its
+ * FIRST CHILD it is not. The outline draws that line as a slot nested under the
+ * node, and measured, a paste there landed past the node's entire section — an
+ * `h2` pasted on the blank line under a note's `h1` came out at the bottom of
+ * the note, re-levelled to `h1` because root was the destination it reached.
+ * Nothing appeared where the caret was, which is the whole of what the user saw.
+ *
+ * A node's trailing gap sits immediately before its first child, so that slot
+ * is the first child's `before`. The caret's COLUMN is what says whether the
+ * slot was meant: at or past the node's child column it stands for a child, and
+ * to the left of it for a sibling, which is the reading `after` already gives.
+ */
+function pasteAnchor(
+  doc: OutlineDoc,
+  node: OutlineNode,
+  at: LinePos,
+): { readonly anchor: OutlineNode; readonly position: 'before' | 'after' } {
+  const after = { anchor: node, position: 'after' } as const;
+  const first = node.children[0];
+  if (!first) return after;
+  const start = nodeStartLine(doc, node.id);
+  if (start < 0 || at.line < start + node.lines.length) return after;
+  return at.ch >= childBaseCol(node) ? { anchor: first, position: 'before' } : after;
+}
+
 function computePasteVerdict(
   doc: OutlineDoc,
   edit: EditFact,
@@ -483,7 +514,8 @@ function computePasteVerdict(
     // empty anchor didn't work out for some reason (conservative bias).
   }
 
-  const inserted = insertSubtrees(doc, node.id, parsedBlocks, 'after', fallbackIndentUnit);
+  const { anchor, position } = pasteAnchor(doc, node, edit.from);
+  const inserted = insertSubtrees(doc, anchor.id, parsedBlocks, position, fallbackIndentUnit);
   if (!inserted.ok) return vetoFrom(inserted);
   const runEnd = endOfInsertedRun(inserted.value.doc, inserted.value.anchor, parsedBlocks.length);
   const { caret } = planCaret(

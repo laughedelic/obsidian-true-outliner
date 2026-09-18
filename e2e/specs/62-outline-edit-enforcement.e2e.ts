@@ -842,6 +842,32 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     expect(snap.verdictCounts.veto).toBeGreaterThan(0);
   });
 
+  it('a paste on the blank line under a heading lands there, not past its section (M2)', async function () {
+    await outlineNote('# Day\n\n## First\n\nbody\n');
+    await h.setCursor(1, 0);
+    await h.pasteText('## Notes\n\nSome prose.\n');
+    // The manual pass saw this land at the END of the note, promoted to `h1`,
+    // with nothing where the caret was: a gap line resolves to the node BEFORE
+    // it, and `after` that node is after its whole section.
+    expect(await h.getBuffer()).toBe(
+      '# Day\n\n## Notes\n\nSome prose.\n## First\n\nbody\n',
+    );
+    // `Some prose.` abutting `## First` is the insertion rule's own: the block
+    // landing adjacent to the anchor carries no gap in either direction, and
+    // `normalizeBoundaries` adds one only where the parse needs it.
+  });
+
+  it('peers in the payload land as the same kind of row (M1)', async function () {
+    await outlineNote('- one\n  - two\n');
+    await h.setCursor(1, '  - two'.length);
+    await h.pasteText('## H\n\nFirst.\n\nSecond.\n\n- child\n');
+    // `First.` is childless and `Second.` is not; the manual pass saw them
+    // land as a paragraph and a list item.
+    expect(await h.getBuffer()).toBe(
+      '- one\n  - two\n  - ## H\n\n    - First.\n\n    - Second.\n\n      - child\n',
+    );
+  });
+
   it('undo restores the pre-paste buffer byte-identically, in one step, for a CONVERTED paste', async function () {
     const md = '- one\n  - two\n';
     await outlineNote(md);

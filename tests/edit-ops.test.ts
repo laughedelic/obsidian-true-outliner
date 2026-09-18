@@ -518,7 +518,9 @@ describe('insertSubtrees', () => {
     if (!result.ok) return;
     // A heading cannot be a list item's child, so it takes the encoding the
     // destination permits and carries its own `#` run into the item's text.
-    expect(encode(result.value.doc)).toBe('- a\n  - b\n  - # New heading\n\n    Body.\n');
+    // Its paragraph child converts with it: a list scope is one list, and a
+    // leaf that stays a paragraph is a different kind of row from its peers.
+    expect(encode(result.value.doc)).toBe('- a\n  - b\n  - # New heading\n\n    - Body.\n');
   });
 
   it('rejects an empty block sequence', () => {
@@ -780,13 +782,36 @@ describe('a payload landing in a LIST scope converts, throughout', () => {
     expect(encode(result.value.doc)).toContain('- ### Deep');
   });
 
-  it('a childless node keeps its own kind, and an ordered payload keeps its markers', () => {
+  it('an ordered payload keeps its markers', () => {
     const result = insertAfter('- one\n  - two\n', '  - two', '## H\n\n1. first\n2. second\n');
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     const out = encode(result.value.doc);
     expect(out).toContain('1. first');
     expect(out).toContain('2. second');
+  });
+
+  it('peers in the payload land as the same kind of row, childless or not', () => {
+    // Negative control: while the conversion read each node's own child count,
+    // `First.` stayed a paragraph and `Second.` became an item, so two
+    // siblings of the payload landed as two different kinds of row.
+    const result = insertAfter(
+      '- one\n  - two\n',
+      '  - two',
+      '## H\n\nFirst.\n\nSecond.\n\n- child\n',
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(shape(encode(result.value.doc))).toBe(
+      [
+        'list-item: - one',
+        '  list-item: - two',
+        '  list-item: - ## H',
+        '    list-item: - First.',
+        '    list-item: - Second.',
+        '      list-item: - child',
+      ].join('\n'),
+    );
   });
 
   it('a setext heading is rewritten to ATX on the way in', () => {

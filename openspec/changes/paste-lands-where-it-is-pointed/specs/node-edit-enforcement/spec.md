@@ -19,10 +19,31 @@ reason, on every insertion path. It SHALL NOT fall through to the native inserti
 result concatenates the payload's first line onto the anchor's and leaves the remainder at its
 source indentation, which is not the "editable text" the conservative default assumes.
 
+The "nearest node boundary" a paste splices at SHALL be read from the caret's LINE and COLUMN
+together. On a node's own lines the boundary is after that node. On a BLANK LINE the node owns —
+which sits immediately before its first child, and which the outline draws as a slot nested under
+it — the boundary is BEFORE that first child when the caret's column is at or past the node's
+child column, and after the node itself when it is to the left of it. Resolving such a line to
+the node alone puts the payload after that node's whole subtree, which for a note's own top
+heading is the end of the note.
+
 *(Amendment 2026-09-16, `paste-lands-where-it-is-pointed`: the cross-regime case was assumed by
 this requirement's "preserving the copied content's own relative nesting exactly" but had no
 rule behind it, and the guard that refused what could not be expressed ran on two of the three
-insertion paths. Measured in `docs/research/paste-across-encoding-regimes`.)*
+insertion paths. Measured in `docs/research/paste-across-encoding-regimes`. Amendment 2026-09-18,
+real-vault manual pass: "the nearest node boundary" was read from the line alone, so a paste on
+the blank line under a note's `h1` landed at the bottom of the note, re-levelled to `h1`, with
+nothing where the caret was.)*
+
+#### Scenario: A paste on the blank line under a node lands inside it
+- **WHEN** a structural payload is pasted with the caret on the blank line between a node's own
+  lines and its first child, at or past that node's child column
+- **THEN** it lands as that node's first child — at the depth and, in a heading scope, the level
+  that position gives it — rather than after the node's whole subtree
+
+#### Scenario: A caret left of the child column still means a sibling
+- **WHEN** the caret is on the same blank line but to the left of the node's child column
+- **THEN** the payload lands after the node, the reading it has always had
 
 #### Scenario: A heading section pasted into a list lands coherently
 - **WHEN** a heading with its paragraphs and nested lists is pasted inside a list scope
