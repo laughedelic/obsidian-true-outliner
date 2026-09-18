@@ -351,4 +351,34 @@ describe('mapCursorForward agrees with CM6’s own forward mapping at assoc 1', 
     expect(theirs).toBe(0); // CM6 leaves it at the replacement's start…
     expect(mapCursorForward(lines, changes, cursorBefore)).toBe(theirs);
   });
+
+  /**
+   * The conversion's own boundary rather than the mapping's. A structural
+   * keypress reads one `{line, ch}` through two paths — the tree the
+   * provisional position under the caret resolves to, and the caret mapped
+   * forward through the edit that tree plans — and `decorate.ts`'s
+   * `materializeProbe` holds the column inside its line on the first. Flat
+   * arithmetic alone puts a column past the line's end on the line below,
+   * which answers about a different line than the one that resolved.
+   */
+  it('holds a column inside its own line', () => {
+    const lines = ['- top', '\t- foo', '\t  ', '\t  bar'];
+    const changes: EditorChange[] = [
+      { from: { line: 1, ch: 0 }, to: { line: 1, ch: 1 }, text: '' },
+      { from: { line: 2, ch: 0 }, to: { line: 2, ch: 1 }, text: '' },
+      { from: { line: 3, ch: 0 }, to: { line: 3, ch: 1 }, text: '' },
+    ];
+    // `\t  ` is three characters, so column 3 is the last one a caret takes.
+    const end = mapCursorForward(lines, changes, { line: 2, ch: 3 });
+    expect(mapCursorForward(lines, changes, { line: 2, ch: 4 })).toBe(end);
+    expect(mapCursorForward(lines, changes, { line: 3, ch: 0 })).not.toBe(end);
+
+    // A line the document does not have offers no length to clamp against, so
+    // the column stands and the position stays outside the text rather than
+    // being folded onto its last line. Nothing produces one; the guard is what
+    // keeps the clamp from answering as though something had.
+    expect(mapCursorForward(lines, [], { line: lines.length, ch: 2 })).toBeGreaterThan(
+      lines.join('\n').length,
+    );
+  });
 });
