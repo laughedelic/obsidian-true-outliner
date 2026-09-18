@@ -41,19 +41,19 @@ to reach.
 | 3 | Shift+Enter at the end of `-` (a marker with no trailing space) writes a column-0 line, so typing there makes a top-level paragraph belonging to no node | decoration-follow-ups; enter-and-shift-enter-catalogue S12 | verified live: `LIST_ITEM_RE` allows a marker at end-of-line, `LIST_CONT_RE` requires whitespace. Pinned by a test — **extracted to [#116](https://github.com/laughedelic/obsidian-true-outliner/issues/116)** |
 | 4 | A non-list-item child of a list item is indented twice — our depth padding plus the child's own literal leading whitespace | decoration-follow-ups | from a real-vault report; the fix is a decoration decision, not a parse one — **extracted to [#117](https://github.com/laughedelic/obsidian-true-outliner/issues/117)** |
 | 5 | Under the Minimal theme, indented callouts and code blocks overflow the reading column. Minimal sizes them with `max-width`, which does not recompute when our `margin-left` changes | decoration-follow-ups | measured live by computed style; bundled themes are unaffected because they use `width: auto` — **extracted to [#118](https://github.com/laughedelic/obsidian-true-outliner/issues/118)** |
-| 6 | Toggling outline mode jumps the view to the top of a long document | decoration-follow-ups, "Other design ideas" | no diagnosis yet beyond the symptom |
+| 6 | Toggling outline mode jumps the view to the top of a long document | decoration-follow-ups, "Other design ideas" | no diagnosis yet beyond the symptom — **extracted to [#143](https://github.com/laughedelic/obsidian-true-outliner/issues/143)** |
 | 7 | Shift+Tab on a provisional position leaves the caret on the line below the place it moved | decoration-follow-ups | measured, and asserted as-is in `tests/grammar.test.ts`, so a fix has to change that test deliberately — **extracted to [#119](https://github.com/laughedelic/obsidian-true-outliner/issues/119)** |
 | 8 | A structural key on a provisional position leaves the blank line in the file if the user then walks away | decoration-follow-ups | byte-identical to stock Obsidian; what makes it ours is that the model asserts something about that line |
 | 9 | Renumbering can push a marker past the parser's nine-digit ceiling (`999999999.` → `1000000000.`), which re-parses as a paragraph | enter-and-shift-enter-catalogue | verified live: `\d{1,9}` in both `LIST_ITEM_RE` and `LIST_CONT_RE`. Closing it means deciding what an operation does at the ceiling — **extracted to [#120](https://github.com/laughedelic/obsidian-true-outliner/issues/120)** |
 | 10 | Abandoning a position opened over a block selection leaves one stray blank line; after undo→redo the position returns unrecorded | enter-and-shift-enter-catalogue | two attempts to recognise a redo failed and were reverted; the recorded sequence was re-measured and corrected once already |
 | 11 | Node-granular selection halves a node a provisional position bisects | decoration-follow-ups | attempted and withdrawn: the one state where the fix would show is the one state where the cleanup record is gone. Needs a `StateField` carrying the place through undo/redo |
 | 12 | A node holding several references contributes its count to the header but one row to the footer, so the two disagree and the second reference has no place a reader can reach | decoration-follow-ups | verified live in `backlink-index.ts`; a model change, and the count/row contract belongs with `backlinks-controls`' counting rules — **extracted to [#121](https://github.com/laughedelic/obsidian-true-outliner/issues/121)** |
-| 13 | The footer's own controls are below a touch target — around 11px for a row fold, against the editor's 24px under a coarse pointer | decoration-follow-ups, "Left in the lot by `better-folding-ux`" | a phone reader meets it on every row |
-| 14 | A footer repaint replaces the control a keyboard reader has focused | decoration-follow-ups, same | measured; belongs with the footer's rendering model |
-| 15 | A lineage segment carries `role="link"` and may now contain a real `<a>`, which ARIA does not allow | structured-backlinks, open question 5 | behaviour is correct on both pointer and keyboard; the accessibility tree is not. Three ways out, none free |
-| 16 | Exiting a table's nested editor parks the caret on a gap line for one press | selection-follow-ups | the keypress never reaches our keymap; the obvious fix reopens a decided design point (D2's programmatic-placement exemption) |
-| 17 | Non-Latin IME input immediately after selecting a block loses its first keystroke to literal Latin insertion | selection-follow-ups | accepted limitation of the blur mechanism |
-| 18 | A residual flicker on the first switch into block-selection mode | selection-follow-ups, "KNOWN ISSUE" | two measurement-driven attempts did not reach it; the next instrument is named (observe when the raw-markdown reveal changes, not focus or class) |
+| 13 | The footer's own controls are below a touch target — around 11px for a row fold, against the editor's 24px under a coarse pointer | decoration-follow-ups, "Left in the lot by `better-folding-ux`" | a phone reader meets it on every row — **extracted to [#144](https://github.com/laughedelic/obsidian-true-outliner/issues/144)** |
+| 14 | ~~A footer repaint replaces the control a keyboard reader has focused~~ | decoration-follow-ups, same | **already closed.** `search-hits-and-footer-content-filter` met the same defect on the search field, where it cost every character after the first, and fixed it for every control: a stable `data-focus-key` and `rememberFocus`/`restoreFocus` follow the key rather than the element. Corrected in its note |
+| 15 | A lineage segment carries `role="link"` and may now contain a real `<a>`, which ARIA does not allow | structured-backlinks, open question 5 | behaviour is correct on both pointer and keyboard; the accessibility tree is not. Three ways out, none free — **extracted to [#145](https://github.com/laughedelic/obsidian-true-outliner/issues/145)** |
+| 16 | Exiting a table's nested editor parks the caret on a gap line for one press | selection-follow-ups | the keypress never reaches our keymap; the obvious fix reopens a decided design point (D2's programmatic-placement exemption) — **extracted to [#146](https://github.com/laughedelic/obsidian-true-outliner/issues/146)** |
+| 17 | Non-Latin IME input immediately after selecting a block loses its first keystroke to literal Latin insertion | selection-follow-ups | accepted limitation of the blur mechanism — **extracted to [#147](https://github.com/laughedelic/obsidian-true-outliner/issues/147)** |
+| 18 | A residual flicker on the first switch into block-selection mode | selection-follow-ups, "KNOWN ISSUE" | two measurement-driven attempts did not reach it; the next instrument is named (observe when the raw-markdown reveal changes, not focus or class) — **extracted to [#148](https://github.com/laughedelic/obsidian-true-outliner/issues/148)** |
 | 19 | A done task's strikethrough starts on the marker's own trailing space | decoration-follow-ups; marker-text-gap | closing it means a decoration that splits the content span |
 | 20 | A tab-separated list marker's text does not follow the gutter | decoration-follow-ups; marker-text-gap | the multi-space half of this closed with `list-marker-content-column`; the tab exclusion is still live, and `decorations.ts` records why — an adaptive rule needs the marker span to be a flex container, which moves the bullet's dot off its column |
 | 21 | Marker vertical alignment: an ordered item's fold chevron, and table/callout/embed markers that flex-centre against the whole block | decoration-follow-ups, "Vertical-alignment polish" | cosmetic; one of them needs ink extent no rect exposes |
@@ -151,9 +151,54 @@ the next reader. That is the trade, taken deliberately.
 | [#120](https://github.com/laughedelic/obsidian-true-outliner/issues/120) | Renumbering past nine digits re-parses the item as a paragraph | enter-and-shift-enter-catalogue |
 | [#121](https://github.com/laughedelic/obsidian-true-outliner/issues/121) | A node holding several references renders one footer row | decoration-follow-ups |
 
-Each of the seven was checked against the source before filing, and each issue names the file and
-line where the mechanism lives. Item 1 was checked the same way and came back closed, so it was
-corrected in its note instead of filed.
+Each of the seven was checked against the source before filing, and each issue names the file
+and line where the mechanism lives. Item 1 was checked the same way and came back closed, so it
+was corrected in its note instead of filed.
+
+### Extracted (2026-09-18)
+
+| Issue | Item | Was in |
+| --- | --- | --- |
+| [#143](https://github.com/laughedelic/obsidian-true-outliner/issues/143) | Toggling outline mode jumps the view to the top | decoration-follow-ups |
+| [#144](https://github.com/laughedelic/obsidian-true-outliner/issues/144) | The footer's controls are below a touch target | decoration-follow-ups |
+| [#145](https://github.com/laughedelic/obsidian-true-outliner/issues/145) | A lineage segment is a link that can contain links | structured-backlinks |
+| [#146](https://github.com/laughedelic/obsidian-true-outliner/issues/146) | Exiting a table's nested editor parks the caret on a gap line | selection-follow-ups |
+| [#147](https://github.com/laughedelic/obsidian-true-outliner/issues/147) | Non-Latin IME input loses its first keystroke after a block selection | selection-follow-ups |
+| [#148](https://github.com/laughedelic/obsidian-true-outliner/issues/148) | A residual flicker entering block-selection mode | selection-follow-ups |
+
+### What the two days between the batches changed
+
+Enough that the second batch had to be re-validated rather than filed from the first pass's
+reading, and the same will hold for the third.
+
+**Two extracted items closed.** [#116](https://github.com/laughedelic/obsidian-true-outliner/issues/116) dissolved: `a-marker-needs-a-space-to-be-a-marker`
+made a marker require trailing whitespace, so `LIST_CONT_RE` is gone from `grammar.ts` and the bare
+`-` line is a paragraph whose second line the keypress writes.
+[#117](https://github.com/laughedelic/obsidian-true-outliner/issues/117) was fixed by `source-indentation-collapses`, which collapses a non-list line's own
+source indentation so the depth rules position it alone. Both notes carry the closure with their
+measurements, which is the parking lots' own convention and the reason the extraction convention
+does not apply to a closed entry: there is no open issue for its detail to live in.
+
+**Two more items closed without being filed.** Item 1 in the first batch, and item 14 here — the
+footer's repaint dropping focus, fixed for every control by the search change that met it on the
+search field. Two of the fourteen rows this pass has reached for turned out already done, both
+found by validating rather than by reading.
+
+**One filed item was overtaken by better measurement.**
+[#119](https://github.com/laughedelic/obsidian-true-outliner/issues/119) named the outdent/place defect from this note's reading; #129 corrected that
+diagnosis and [#130](https://github.com/laughedelic/obsidian-true-outliner/issues/130) now pins the trailing-place shape as measured, with
+[#142](https://github.com/laughedelic/obsidian-true-outliner/issues/142) covering the record being single-shot. The tracker moved past the note, which is
+what extraction was for.
+
+**One Tier 2 decision shipped.** Item 35, collapsing gap lines, is in as an opt-in setting
+(`gap-line-hiding.md`), with its costs stated rather than solved — a run of blanks is
+indistinguishable from one, and the loose/tight distinction disappears from the editor while
+surviving in every other renderer of the file.
+
+**And one filed issue had gone stale on its own.** [#120](https://github.com/laughedelic/obsidian-true-outliner/issues/120) cited a regex that no longer
+exists; it is re-validated and rewritten around the ten places the nine-digit cap actually lives.
+The lesson generalises past this one: an issue is the authoritative home only while someone keeps
+it so, and the code moves underneath it either way.
 
 ### What the tracker buys, and what it does not
 
@@ -168,11 +213,15 @@ corrected in its note instead of filed.
 
 ### What to extract next, and what not to
 
-*The rest of Tier 1's user-visible half:* items 6, 13, 14, 15, 16, 17, 18. The footer and lineage
-rows (13–15) are one cluster and could be one issue or three; 17 and 18 are known limitations
-rather than fixable defects today, so they file as such or not at all.
+*Tier 1's user-visible half is now filed*, except items 8, 10 and 11 — the three provisional-place
+rows, which overlap [#130](https://github.com/laughedelic/obsidian-true-outliner/issues/130) and [#142](https://github.com/laughedelic/obsidian-true-outliner/issues/142) enough that they should be read against those
+two before anything is filed. Item 11 in particular wants the place-provenance `StateField` both of
+those issues circle, so it may be one change with them rather than an issue of its own.
 
-*The open decisions* (24, 25, 26, 33, 34) want a different shape. An issue that cannot close is
+*The open decisions* (24, 26, 33, 34) want a different shape. Item 25, Q35's unmodelled indented
+code block, is no longer among them — it was filed independently as [#138](https://github.com/laughedelic/obsidian-true-outliner/issues/138) off the
+`source-indentation-width` work, as a defect rather than a decision, which is a fair reading now
+that the write side is closed and only the read side disagrees with Obsidian. An issue that cannot close is
 tracker debt, and these do not close by being worked on. Discussions suit them better, and Q34
 already has a measured cost table and four readings ready to put in front of a reader.
 
@@ -183,7 +232,13 @@ since it unlocks four named things at once.
 *Leave in the notes:* the polish rows (19–23), all of Tier 4 except 46, and all of Tier 5. Tier 5
 especially: an issue reading "this flakes on CI and we do not know why" invites someone to close
 it with the most available story, which is exactly what `refused-commands-in-e2e` declined to do.
+One qualification on the polish rows: item 20's tab-marker half and item 23's caret measurement
+both sit in code that `source-indentation-collapses` and `a-marker-needs-a-space-to-be-a-marker`
+have since moved, so either wants re-measuring before it is filed rather than quoting the figures
+here.
 
-*Validate before each batch.* Item 1 is the precedent. The rows that rest on measurements against
-a running Obsidian — several against builds now two versions old — each want one reproduction
-against the current build before they become a claim about the plugin's behaviour.
+*Validate before each batch.* Three of the fourteen rows reached for so far were already fixed
+when checked — item 1, item 14, and #116's mechanism dissolving under a parser change — and none
+of the three announced itself in its note. The rows that rest on measurements against a running
+Obsidian, several against builds now several versions old, each want one reproduction against the
+current build before they become a claim about the plugin's behaviour.

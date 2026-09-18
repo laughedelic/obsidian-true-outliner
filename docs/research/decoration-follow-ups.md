@@ -1062,13 +1062,11 @@ pure `decorate()`/`computeLineGuides()` layer does.
   gap-line cursor/vertical-navigation transparency — a decoration that visually hides a
   gap but still lets the cursor rest inside it one arrow-press at a time would be a
   confusing half-measure.
-- **Preserve the viewport position when toggling outline mode.** In a long document,
-  toggling outline mode on or off currently jumps the view to the top — the user loses
-  their place exactly when comparing the two renderings. Best effort, on some consistent
-  logic: the cursor is a natural anchor in edit mode (reading mode, if it ever gets
-  outline rendering, needs a different one). Collapsing gap lines (above) would make
-  exact restoration harder — the anchor logic should be chosen to degrade gracefully
-  rather than promise pixel fidelity.
+- **Preserve the viewport position when toggling outline mode** — extracted to
+  [#143](https://github.com/laughedelic/obsidian-true-outliner/issues/143). The view jumps to the top of a long document, losing the reader's place at
+  the moment the toggle exists for. The anchor question, and the two interactions a fix has to
+  design around (gap-line concealment's collapsed rows, and what `foldKeepingPlace()` already
+  learned about CodeMirror's own scroll anchoring), are in the issue.
 
 ### Vertical-alignment polish (minor, recorded from real-vault use)
 
@@ -1127,14 +1125,16 @@ fix, one more kind to cover.
   is unbuilt, and which of the two a click performs is not configurable. The gesture is stated so
   a setting can be added later without changing what it means, and nobody has asked for the zoom
   form since click-to-zoom shipped on the mark.
-- **The footer's own controls are below a touch target.** The row fold and the header controls are
-  sized in `rem` against the footer's own column arithmetic — around 11px for the fold — where the
-  editor's affordance now gets a 24px hit area under a coarse pointer. It predates this change and
-  is the footer's sizing question rather than folding's, but a phone reader meets it on every row.
-- **A repaint drops focus inside the footer.** The footer rebuilds its whole tree on every render,
+- **The footer's own controls are below a touch target** — extracted to [#144](https://github.com/laughedelic/obsidian-true-outliner/issues/144).
+  Around 11px for the row fold, against the 24px hit area the editor's affordance gets under a
+  coarse pointer. The footer's sizing question rather than folding's.
+- ~~**A repaint drops focus inside the footer.**~~ — **closed** by
+  `search-hits-and-footer-content-filter`, which met the same defect on the search field, where it
+  cost every character after the first. Controls now carry a stable `data-focus-key` and
+  `rememberFocus`/`restoreFocus` follow the key rather than the element
+  (`backlinks-footer.ts`). The original note: the footer rebuilds its whole tree on every render,
   so a control a keyboard reader has focused is replaced under them — measured while testing the
-  row fold, where a press after a repaint landed on the body. It predates this change and belongs
-  with the footer's own rendering model rather than with folding.
+  row fold, where a press after a repaint landed on the body.
 - ~~**Fold state is per file, and zoom clears nothing on exit.**~~ — **decided** the other way
   (D7a): leaving a zoom folds again what entering it opened. The original note: Clearing a zoom leaves the folds
   that zoom opened open (`outline-zoom` states this deliberately). Whether entering and leaving a

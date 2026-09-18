@@ -325,7 +325,11 @@ itself**:
   exactly the kind of fragile-workaround-chasing this investigation already backed off
   from once with the CSS approach. Recorded as a known, accepted limitation: non-Latin
   IME input right after selecting a block will lose its first keystroke to literal
-  Latin insertion.
+  Latin insertion. Extracted to
+  [#147](https://github.com/laughedelic/obsidian-true-outliner/issues/147), which states what
+  closing it would take — the mode no longer depending on a blurred editor, the same territory as
+  the CSS approach above and as the remaining flicker in
+  [#148](https://github.com/laughedelic/obsidian-true-outliner/issues/148).
 
 **Current status**: kept as the shipped mechanism (`decorations.ts`), not reverted, now
 covering mouse AND keyboard-driven block selection consistently, correct across
@@ -457,48 +461,10 @@ version of that test passed against the pre-change build).
 
 ## KNOWN ISSUE: a residual flicker when ENTERING block-selection mode (2026-08-04, `node-selection-extension`)
 
-Reported after two rounds of fixes and still present: a brief flicker on the FIRST switch into
-block-selection mode, absent for mouse-driven selection. Both earlier causes were real and are
-fixed; this is what is left, and it is recorded rather than chased further because two
-measurement-driven attempts have not reached it.
-
-**Ruled out, with the evidence:**
-
-- *The class being clobbered.* `EditorView.updateAttrs` rewrites the editor's whole `class`
-  attribute on a focus change, dropping a class written with `classList`; the next update restored
-  it one frame later. Fixed by declaring the class through the `editorAttributes` facet.
-  Verified: the `class=off` mutation is simply absent afterward.
-- *The blur landing after a paint.* `applyFocusPolicy` deferred with `setTimeout(0)`, which only
-  guarantees running after the current task. Instrumented: `class=true paints=0` then
-  `BLUR paints=1`, i.e. one frame painted with chrome over a still-focused raw-markdown editor.
-  Switched to `requestAnimationFrame`, which is specified to run before the next paint. Kept
-  because that frame is a real defect independent of the symptom below — but it did NOT resolve
-  the report, so a third cause remains.
-- *The two-transaction escalation split*, which an older entry in this file named as the
-  confirmed root cause. It does not exist — see that entry's own correction.
-
-**The leading remaining hypothesis, untested:** the reveal is Obsidian's, not ours. Blurring is
-what returns Live Preview to its rendered form, and that re-render need not happen in the same
-frame the blur is applied — so the ordering we control (chrome, then blur, both before a paint)
-can be correct while Obsidian's own re-render lands a frame later, showing chrome over raw
-markdown regardless of our scheduling. If so it is not fixable from the focus policy at all, and
-the fix would be in the same territory as the abandoned CSS raw-mark-hiding approach above.
-
-**Why the mouse path has no equivalent:** its blur fires once at `mouseup`, after the gesture the
-user is already watching change, so any one-frame disagreement is hidden inside a transition they
-expect. The keyboard path enters the mode on a discrete keypress with nothing else moving.
-
-**To pick this up:** instrument WHEN the raw-markdown reveal actually changes — the presence of
-formatting marks in a covered `.cm-line`, observed with a `MutationObserver` — relative to the
-blur, rather than instrumenting focus and class as both previous attempts did. That distinguishes
-"our scheduling is still wrong" from "Obsidian re-renders a frame later", which is the question
-neither measurement so far has answered.
-
-**A non-caveat, recorded because it was first written up as one.** `requestAnimationFrame` does
-not fire in a hidden window, so a cover reached while Obsidian is minimised does not blur until it
-is shown. That has no consequence: the deferred work is purely visual, nothing interactive can
-happen in a hidden window, and on becoming visible rAF runs BEFORE the first painted frame — which
-is stricter than the timer it replaced, not looser.
+**Extracted to [#148](https://github.com/laughedelic/obsidian-true-outliner/issues/148).** Two earlier causes were real and are fixed; a third remains.
+The issue carries what was ruled out with its evidence — including the two-transaction split
+that was never real — the untested hypothesis that the reveal is Obsidian's own re-render, and
+the instrument that would distinguish the two.
 
 ## Track 1: Phase C (edit enforcement) inputs
 
@@ -770,45 +736,10 @@ building a second one.
 
 ## Parked: exiting a table's nested editor lands the caret on a gap line (found 2026-07-26, `content-space-caret` real-vault pass)
 
-Vertical motion INTO a table is correct — the gap is skipped, Obsidian's table widget takes the
-caret into a cell. Coming back OUT is not: the first press off the top (or bottom) row parks the
-caret on the surrounding gap line, and only the NEXT press moves it onto real content. A one-press
-lag, symmetric before and after the table.
-
-Measured, with a `cm.dispatch` monkey-patch recording a stack trace per call (pressing ArrowUp
-repeatedly from inside a table):
-
-```
-up#1  t.dispatchUpdate    → {4,2}   Obsidian, still inside the table
-up#2  t.dispatchUpdate    → {2,2}   Obsidian, still inside the table
-up#3  t.placeCursorAround → {1,0}   Obsidian — THE GAP LINE
-up#4  PLUGIN              → {0,0}   us, correcting only on the following press
-```
-
-The keypress never reaches our keymap: a table cell runs its own nested CM6 editor, which consumes
-the arrow and, on the way out, calls Obsidian's own `placeCursorAround` to hand focus back to the
-outer editor. Our handler only sees the press AFTER that, which is why the correction is late
-rather than absent.
-
-**Why the obvious fix is not available.** The filter does see that dispatch, and could rewrite it.
-It doesn't, because `resolveForeignCursors` (`transaction-filter.ts`, Q25) is deliberately scoped
-to the MARKER half of placement resolution and never the gap half — D2 scopes gap-line resolution
-to real user gestures, and `62-outline-edit-enforcement` asserts it directly ("a PROGRAMMATIC
-gap-line placement is untouched"). That same narrowing is what lets the checkbox fix coexist with
-five other tests. Widening it to gaps was tried and reverted: it broke those five across four spec
-files.
-
-**What picking this up would involve.** D2's exemption was written with a plugin calling
-`Editor.setSelection` in mind. `placeCursorAround` is a different animal: Obsidian moving the caret
-while servicing a keypress the user actually made. Distinguishing "another plugin placed this
-cursor" from "Obsidian moved it while servicing a user gesture" is the real question, and it means
-reopening a decided design point rather than patching a call site. Note also that a state-level
-`transactionFilter` cannot detect a nested editor at all — `isNestedEditor` needs DOM ancestry, and
-`editorInfoField` resolves to the same outer `MarkdownView` for both — so any rule here has to hold
-without knowing whether it is running in a cell.
-
-Related, and probably the same root: entering a table from a heading shows a brief caret flash on
-the gap line before the caret settles into the first cell.
+**Extracted to [#146](https://github.com/laughedelic/obsidian-true-outliner/issues/146).** The press never reaches our keymap — a cell's nested editor
+consumes it and calls Obsidian's own `placeCursorAround` on the way out — so our correction is
+late rather than absent. The dispatch trace, why `resolveForeignCursors`' marker-only scoping
+blocks the obvious fix, and what reopening D2 would involve are in the issue.
 
 ## Follow-up: "jump to block start/end" wants its own binding (opened 2026-07-26, `content-space-caret` close)
 
