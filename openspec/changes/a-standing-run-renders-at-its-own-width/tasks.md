@@ -8,14 +8,17 @@
 
 ## 2. What the rule has to hold
 
-- [x] 2.1 E2E: a top-level four-space line's text begins four space advances into the line, and the
-  nine-space line below it nine. Negative control: restoring the class-driven selector leaves them
-  at the quantiser's box edges and fails both.
+- [x] 2.1 E2E: a top-level nine-space line's text begins five space advances right of the
+  four-space line above it — their difference, since both carry Obsidian's own inline-code padding
+  onto their text and it cancels. Negative control: restoring the class-driven selector leaves both
+  at a box edge, 41.09px apart, and fails it.
 - [x] 2.2 E2E: walking the caret through a standing run steps one space advance per press, with no
   press landing on a box edge. Negative control: the same restoration reintroduces the 20.75px step.
-- [x] 2.3 E2E: a tab-indented top-level line renders its text on the same column as a four-space
+- [x] 2.3 E2E: a click inside a standing run puts the caret within one space advance of where it
+  pointed. Negative control: the same restoration lands it at the box's edge, three spaces right.
+- [x] 2.4 E2E: a tab-indented top-level line renders its text on the same column as a four-space
   one.
-- [x] 2.4 E2E: the lines whose run is HIDDEN are unmoved — the existing child-column, deeper-line,
+- [x] 2.5 E2E: the lines whose run is HIDDEN are unmoved — the existing child-column, deeper-line,
   Shift+Enter and list-continuation cases, which are also what would catch a hidden run left without
   a kind class.
 
