@@ -277,6 +277,48 @@ describe('node dragging: the press and the drag it can become', function () {
     expect(await h.getBuffer()).toBe(DOC);
   });
 
+  it('leaves no undo entry behind when it is cancelled', async function () {
+    // A write that is immediately reverted leaves the buffer identical and the
+    // history one entry longer, so the buffer alone cannot tell a cancel from
+    // a round trip. A known edit first gives the undo somewhere to land.
+    await h.setCursorSettled(5, '- three'.length);
+    await browser.keys('!');
+    await browser.pause(200);
+    const edited = await h.getBuffer();
+    expect(edited).toContain('- three!');
+
+    const mark = await markPoint(BULLET, 0);
+    await dragThenEscape(mark, [
+      { x: mark.x + 20, y: mark.y + 20 },
+      { x: mark.x + 50, y: mark.y + 40 },
+    ]);
+    await browser.pause(250);
+    expect(await h.getBuffer()).toBe(edited);
+
+    // ONE undo takes the typing back — not some state the cancelled drag left
+    // on the stack in front of it.
+    await h.keys.undo();
+    await browser.pause(300);
+    expect(await h.getBuffer()).toBe(DOC);
+  });
+
+  it('writes nothing when a drag is released with no destination', async function () {
+    // Every release resolves no destination until the drop is built, so this
+    // is the cancel path a release takes today — and the rule it will keep.
+    await h.setCursor(0, 3);
+    const mark = await markPoint(BULLET, 0);
+    await dragFrom(mark, [
+      { x: mark.x + 30, y: mark.y + 30 },
+      { x: mark.x + 80, y: mark.y + 60 },
+    ]);
+    await browser.pause(250);
+    expect(await h.getBuffer()).toBe(DOC);
+    expect(await h.getSelection()).toEqual({
+      anchor: { line: 0, ch: 3 },
+      head: { line: 0, ch: 3 },
+    });
+  });
+
   it('keeps hearing the pointer once it has left the editor', async function () {
     // Measured before this existed: a held drag's moves stop arriving at the
     // editor root the moment the pointer leaves its box — 2 of 6. The gesture
