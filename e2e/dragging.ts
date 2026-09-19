@@ -35,6 +35,10 @@ export interface MoveSample {
     readonly anchor: { readonly line: number; readonly ch: number };
     readonly head: { readonly line: number; readonly ch: number };
   };
+  /** The lines wearing the block-selection treatment at that move, 0-based.
+   * Empty wherever the plugin's decorations are not running at all, which is
+   * what a decline looks like from the outside. */
+  readonly selected: readonly number[];
 }
 
 /** The viewport centre of the nth mark matching a selector. */
@@ -93,6 +97,14 @@ export function startRecording(): Promise<void> {
         const line = cm.state.doc.lineAt(offset);
         return { line: line.number - 1, ch: offset - line.from };
       };
+      const selected: number[] = [];
+      for (const el of dom.querySelectorAll('.to-decor-node-selected')) {
+        try {
+          selected.push(cm.state.doc.lineAt(cm.posAtDOM(el)).number - 1);
+        } catch {
+          // An element the view has already moved past.
+        }
+      }
       w.__toDragSamples.push({
         x: event.clientX,
         y: event.clientY,
@@ -103,6 +115,7 @@ export function startRecording(): Promise<void> {
           event.clientY >= r.top &&
           event.clientY <= r.bottom,
         selection: { anchor: at(main.anchor), head: at(main.head) },
+        selected,
       });
     };
     dom.addEventListener('pointermove', w.__toDragRecorder, true);
