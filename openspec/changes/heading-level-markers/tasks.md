@@ -1,40 +1,40 @@
 ## 1. The level reaches the drawing inputs
 
-- [ ] 1.1 `LineDecorationFact` gains `level`, set from `OutlineNode.level` for a heading and absent
+- [x] 1.1 `LineDecorationFact` gains `level`, set from `OutlineNode.level` for a heading and absent
       for every other kind, constant across a node's lines. Verify with a `tests/decorate.test.ts`
       property over both generators: a fact has a level exactly when its kind is `heading`, and it
       equals the node's. Negative control: dropping the forward in `decorate()` fails it
-- [ ] 1.2 `rowFact` takes an optional level, and a lineage row's synthetic fact passes its chain's
+- [x] 1.2 `rowFact` takes an optional level, and a lineage row's synthetic fact passes its chain's
       first element's level, the element its kind already comes from (design D2). Every fact,
       projected or synthetic, then has a level exactly when its kind is `heading`. Verify with a
       `tests/footer-model.test.ts` case: a lineage row whose chain starts at an H2 has a fact of
       kind `heading` and level 2, and one starting at a paragraph has no level. Negative control:
       the current `rowFact(row.kind, row.depth)` leaves the heading row without a level, and the
       case fails
-- [ ] 1.3 `LineageSegment` gains the same `level`, and `lineageKey` joins it (design D4). Verify
+- [x] 1.3 `LineageSegment` gains the same `level`, and `lineageKey` joins it (design D4). Verify
       with a unit test that two segments differing only in level produce different keys. Negative
       control: leaving level out of the join makes them equal
 
 ## 2. The geometry, as a pure function
 
-- [ ] 2.1 New module (`src/plugin/marker-shapes.ts`): `markerShapes(subject)` returns the primitive
+- [x] 2.1 New module (`src/plugin/marker-shapes.ts`): `markerShapes(subject)` returns the primitive
       list for every kind (design D1). The drawing subject is the union in design D2, and the
       non-heading kinds keep their exact current shapes. Verify with a unit test that each
       non-heading kind's primitives equal the ones `buildMarkerIcon` draws today, copied into the
       test as fixtures, along with today's heading `H` for 2.4
-- [ ] 2.2 The heading glyphs (`H`, `#`), the six monoline digit paths and the placement helpers,
+- [x] 2.2 The heading glyphs (`H`, `#`), the six monoline digit paths and the placement helpers,
       exactly as in `docs/research/heading-level-markers.md` "Geometry" and "The digits". The
       digit stroke is scale-compensated (design D6). Verify with unit tests over all six styles ×
       six levels that every primitive's extent, stroke included, lies inside the viewBox
       (bounded by path control points), and that the six digit paths are pairwise distinct.
       Negative control: moving the twin digit box one unit right pushes a digit's stroke out of
       bounds, and the test fails
-- [ ] 2.3 The style → weights table, as the research note's "Decision" states it, and the `H`-beside
+- [x] 2.3 The style → weights table, as the research note's "Decision" states it, and the `H`-beside
       glyph box derived from the digit's ink (design D5). Verify with unit tests that each style
       draws at its table weights, and that the `H`-beside glyph's top and bottom equal the
       digit's ink extent to within 0.01 units. Negative control: a constant full-height `H` box
       fails the equality
-- [ ] 2.4 The two no-digit styles: the glyph alone, the same for every level. Verify with unit tests
+- [x] 2.4 The two no-digit styles: the glyph alone, the same for every level. Verify with unit tests
       that the six levels draw identical primitives under each, and that `H` alone equals the
       heading fixture from 2.1, today's mark. Negative control: drawing the `H`-alone glyph with
       the twin's derived box fails the fixture equality
@@ -45,7 +45,7 @@
 
 ## 3. The settings
 
-- [ ] 3.1 Declare `headingMarkerGlyph` (`H` | `hash`, default `H`) and `headingMarkerLevel`
+- [x] 3.1 Declare `headingMarkerGlyph` (`H` | `hash`, default `H`) and `headingMarkerLevel`
       (`beside` | `subscript` | `none`, default `beside`) as `choice` settings in
       `src/plugin/settings/appearance.ts`. Each option's label says what it draws; each row's
       description says it changes only heading marks. Verify with a unit test that
@@ -55,7 +55,7 @@
       `forceRedraw`, which reaches only the active view (design D9). A single
       `headingMarkerStyle` getter resolves both keys into the style value (design D3). Verify
       with the settings e2e in 6.3
-- [ ] 3.3 `DecorationSource`, `FooterSource` and `ZoomTrailSource` each gain `headingMarkerStyle`,
+- [x] 3.3 `DecorationSource`, `FooterSource` and `ZoomTrailSource` each gain `headingMarkerStyle`,
       read fresh per recompute. Verify with `npm run build` (the plugin implements all three)
 
 ## 4. The editor
@@ -69,7 +69,7 @@
 
 ## 5. The footer and the zoom trail
 
-- [ ] 5.1 `markerFor`, `segmentMarker` and `segmentGlyph` build their subject from the row's fact
+- [x] 5.1 `markerFor`, `segmentMarker` and `segmentGlyph` build their subject from the row's fact
       or the segment, level included, with the source's style. `segmentMarker`'s fallback takes
       the row's fact instead of a bare kind, and that fact carries the level after task 1.2
       (design D2). Verify with `npm run build`: a call site

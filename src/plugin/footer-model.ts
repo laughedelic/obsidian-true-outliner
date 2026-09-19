@@ -171,6 +171,9 @@ export interface LineageSegment {
   /** This element's own kind, so every ancestor on the line is named rather
    * than the chain standing for all of them under the first one's marker. */
   readonly kind: LineDecorationFact['kind'];
+  /** A heading ancestor's level, which its marker names — present exactly when
+   * `kind` is `'heading'`, as on a node's fact. */
+  readonly level?: number;
   /** A task ancestor's state, drawn in its marker's place — the same rule a node
    * row follows (D18). Without it a task ancestor took the generic bullet and
    * kept its `[x]` in the text: the state said twice, in the wrong channel. */
@@ -195,7 +198,9 @@ export interface LineageSegment {
  */
 export function lineageKey(segments: readonly LineageSegment[]): string {
   return segments
-    .map((s) => [s.markdown, s.render, s.kind, s.task ?? '', s.ordinal ?? '', s.shortened ?? ''].join('\u0000'))
+    .map((s) =>
+      [s.markdown, s.render, s.kind, s.level ?? '', s.task ?? '', s.ordinal ?? '', s.shortened ?? ''].join('\u0000'),
+    )
     .join('\u0001');
 }
 
@@ -309,8 +314,10 @@ export function buildRows(
         guideDepths: guideDepthsFor(row.depth),
         // A chain renders as one line of dim text whatever its elements were,
         // so it takes a plain block line's chrome even when its first element
-        // is an atom kind — a lineage row is never a callout box.
-        fact: rowFact(row.kind, row.depth),
+        // is an atom kind — a lineage row is never a callout box. Its kind is the
+        // first element's, so its level is too: a chain led by a heading is a
+        // heading fact, and a heading fact always names its level.
+        fact: rowFact(row.kind, row.depth, row.elements[0]?.level),
         // The same per-kind rule a node row's content comes from, so a segment
         // and a row naming the same node say the same thing. First line only:
         // continuation lines are context for reading a node, not for naming it
@@ -321,6 +328,7 @@ export function buildRows(
             ...segmentContent(n),
             nodeId: n.id,
             kind: n.kind,
+            ...(n.level === undefined ? {} : { level: n.level }),
           };
         }),
         kind: row.kind,
@@ -457,9 +465,14 @@ export function buildRows(
  * A plain block line of `kind` at `depth` — the fact for a row that is not a
  * projected node at all: a collapsed lineage chain, or a frontmatter property.
  * Never an atom and never a list item, because both of those describe how a
- * node's own box is rendered and such a row has no node.
+ * node's own box is rendered and such a row has no node. `level` is what a
+ * heading fact names, so a caller passing `'heading'` passes it too.
  */
-export function rowFact(kind: LineDecorationFact['kind'], depth: number): LineDecorationFact {
+export function rowFact(
+  kind: LineDecorationFact['kind'],
+  depth: number,
+  level?: number,
+): LineDecorationFact {
   return {
     lineNumber: 0,
     depth,
@@ -469,6 +482,7 @@ export function rowFact(kind: LineDecorationFact['kind'], depth: number): LineDe
     isListItem: false,
     supplementalDepth: 0,
     kind,
+    ...(level === undefined ? {} : { level }),
     hasChildren: false,
     // Both synthetic facts: a footer row renders its content inline, with no
     // source indentation of its own to state (D18).
@@ -480,8 +494,8 @@ export function rowFact(kind: LineDecorationFact['kind'], depth: number): LineDe
  * Facts for a descendant, which is not in the projection and so has no fact
  * from `decorate()`.
  *
- * Only the fields the footer's chrome reads are meaningful here — kind, atom
- * and list-item classification, and whether the node has children. Depth comes
+ * Only the fields the footer's chrome reads are meaningful here — kind and
+ * level, atom and list-item classification, and whether the node has children. Depth comes
  * from the caller because a descendant's depth is its position under the
  * reference, not in either tree. Deliberately NOT run through `decorate()` on a
  * one-node document: that would report a root-level node at depth 0 and claim
@@ -497,6 +511,7 @@ function syntheticFact(node: OutlineNode, depth: number): LineDecorationFact {
     isListItem: node.kind === 'list-item',
     supplementalDepth: 0,
     kind: node.kind,
+    ...(node.level === undefined ? {} : { level: node.level }),
     hasChildren: node.children.length > 0,
     indentCh: 0,
   };

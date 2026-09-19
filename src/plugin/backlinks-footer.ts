@@ -47,7 +47,8 @@ import { isOutlineMode } from './outline-state';
 import { nestedEditorField } from './nested-editor';
 import { contentEndAnchor } from './zoom-scope';
 import { buildMarkerIcon, FOLDED_NODE_CLASS } from './decorations';
-import { renderLineageContent } from './lineage-row';
+import { markSubject, type HeadingMarkerStyle } from './marker-shapes';
+import { renderLineageContent, type MarkedNode } from './lineage-row';
 import {
   MARKER_LEFT_SHIFT_EXPR,
   OWN_CHROME_CLASS,
@@ -94,7 +95,7 @@ import {
 import type { GuideVisibility } from './settings/appearance';
 import type { PlacedReference, PlacedSource, ReferenceKind } from './backlink-index';
 import type { BacklinkIndex } from './backlink-index';
-import type { NodeKind, OutlineNode } from '../model';
+import type { OutlineNode } from '../model';
 import { nodeStartLine } from '../locate';
 
 export const FOOTER_CLASS = 'to-backlinks';
@@ -120,6 +121,9 @@ export interface FooterSource {
   readonly backlinksSegmentIcons: SegmentIcons;
   readonly backlinksSeparator: LineageSeparator;
   readonly backlinksGuides: boolean;
+  /** How a heading's mark is drawn — the editor's own style, since a footer
+   * row's marker must be the one the editor draws (`heading-level-markers`). */
+  readonly headingMarkerStyle: HeadingMarkerStyle;
   /** The guide layer's own visibility. The footer keeps its own setting, and
    * additionally draws nothing while the layer is off — that switch is a
    * statement about the outline's chrome, not about one surface. Its other two
@@ -1476,9 +1480,9 @@ class FooterController {
       renderLineageContent(el, row.segments, {
         icons: this.source.backlinksSegmentIcons,
         separator: this.source.backlinksSeparator,
-        kind: row.kind,
-        marker: segmentMarker,
-        glyph: segmentGlyph,
+        fallback: row.fact,
+        marker: (segment, fallback) => segmentMarker(segment, fallback, this.source.headingMarkerStyle),
+        glyph: (segment) => segmentGlyph(segment, this.source.headingMarkerStyle),
         separatorGlyph,
         // Collected, not discarded. `render()` measures every group's height
         // once `pending` settles, to decide caps and "show more" — so a lineage
@@ -1543,7 +1547,7 @@ class FooterController {
     }
 
     // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
-    el.appendChild(markerFor(row));
+    el.appendChild(markerFor(row, this.source.headingMarkerStyle));
 
     const content = el.createSpan({ cls: 'to-backlinks-content' });
     // The rendered content gets its own span: `MarkdownRenderer` resolves
@@ -1711,10 +1715,10 @@ class FooterController {
  *   still `.cm-line`s; this renderer returns a block for every one of them.
  * - Everything else sits in the inline flow, beside the first text run.
  */
-function markerFor(row: Extract<FooterRow, { type: 'node' }>): HTMLElement {
+function markerFor(row: Extract<FooterRow, { type: 'node' }>, style: HeadingMarkerStyle): HTMLElement {
   if (row.task !== undefined) return markerSlot(checkboxGlyph(row.task));
   if (row.ordinal) return ordinalMarker(row.ordinal);
-  return markerSlot(buildMarkerIcon(row.fact.kind));
+  return markerSlot(buildMarkerIcon(markSubject(row.fact.kind, row.fact.level, style)));
 }
 
 /**
@@ -1722,23 +1726,28 @@ function markerFor(row: Extract<FooterRow, { type: 'node' }>): HTMLElement {
  * a task's checkbox and an ordered item's number replace the bullet, because
  * they are state the reader is looking for rather than presentation (D18).
  *
- * `fallbackKind` covers a chain with no elements, which the model does not
- * produce but the type permits.
+ * `fallback` covers a chain with no elements, which the model does not
+ * produce but the type permits: the row's own fact, whose kind is the chain's
+ * first element's, and so is its level.
  */
-export function segmentMarker(segment: LineageSegment | undefined, fallbackKind: NodeKind): HTMLElement {
-  if (!segment) return markerSlot(buildMarkerIcon(fallbackKind));
+export function segmentMarker(
+  segment: LineageSegment | undefined,
+  fallback: MarkedNode,
+  style: HeadingMarkerStyle,
+): HTMLElement {
+  if (!segment) return markerSlot(buildMarkerIcon(markSubject(fallback.kind, fallback.level, style)));
   if (segment.task !== undefined) return markerSlot(checkboxGlyph(segment.task));
   if (segment.ordinal) return ordinalMarker(segment.ordinal);
-  return markerSlot(buildMarkerIcon(segment.kind));
+  return markerSlot(buildMarkerIcon(markSubject(segment.kind, segment.level, style)));
 }
 
 /** The same choice as `segmentMarker`, as a bare glyph for an INLINE segment
  * icon — which sits in the text run and needs no gutter slot around it. An
  * ordered segment never reaches here: its number is drawn as text instead,
  * since no fixed-width icon box holds `10.`. */
-export function segmentGlyph(segment: LineageSegment): Element {
+export function segmentGlyph(segment: LineageSegment, style: HeadingMarkerStyle): Element {
   if (segment.task !== undefined) return checkboxGlyph(segment.task);
-  return buildMarkerIcon(segment.kind);
+  return buildMarkerIcon(markSubject(segment.kind, segment.level, style));
 }
 
 /**

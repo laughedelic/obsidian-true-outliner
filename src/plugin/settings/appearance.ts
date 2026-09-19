@@ -8,6 +8,7 @@
 
 import type { GuideHighlight, GuideVisibility, MarkerHighlight } from "../decorate";
 import type { GuideIntensity, OutlineUnit } from "../chrome-tokens";
+import type { HeadingMarkerGlyph, HeadingMarkerLevel } from "../marker-shapes";
 import { choice, toggle } from "./declare";
 
 /**
@@ -51,6 +52,14 @@ export type { GuideHighlight, MarkerHighlight } from "../decorate";
  * drawn: this one decides which exist to be accented at all.
  */
 export type { GuideVisibility } from "../decorate";
+
+/**
+ * A heading's marker style, on two axes (`heading-level-markers`): the glyph,
+ * and where the level digit sits against it, if anywhere. Declared in
+ * marker-shapes.ts beside the geometry each state draws, and re-exported here
+ * for the reason above.
+ */
+export type { HeadingMarkerGlyph, HeadingMarkerLevel } from "../marker-shapes";
 
 /**
  * The appearance a reader picks from a preset rather than a length
@@ -139,6 +148,33 @@ const MARKER_VISIBILITY = choice({
   },
 });
 
+const HEADING_MARKER_GLYPH = choice({
+  key: "headingMarkerGlyph",
+  default: "H",
+  options: {
+    H: "H",
+    hash: "#",
+  } satisfies Record<HeadingMarkerGlyph, string>,
+  row: {
+    name: "Heading marker glyph",
+    desc: "The glyph a heading’s marker is drawn with: the letter H, or #, the heading syntax markdown itself uses. Only heading markers change.",
+  },
+});
+
+const HEADING_MARKER_LEVEL = choice({
+  key: "headingMarkerLevel",
+  default: "beside",
+  options: {
+    beside: "Beside the glyph",
+    subscript: "As a subscript",
+    none: "Not shown",
+  } satisfies Record<HeadingMarkerLevel, string>,
+  row: {
+    name: "Heading level in the marker",
+    desc: "Whether a heading’s marker also shows its level, 1 to 6, and where: beside the glyph at the same height, or smaller, below and to its right. Not shown draws the same mark on every heading. Only heading markers change; the marker’s size and every line’s position stay the same.",
+  },
+});
+
 /** Collapse the blank separator lines between nodes, so every node's row sits
  * directly under the one before it. Paint only: the blank lines stay in the
  * file, stay owned by the node above them, and nothing the outline can do to
@@ -187,6 +223,8 @@ export const APPEARANCE_SETTINGS = [
   GUIDE_HIDE_SINGLE_ROOT,
   GUIDE_INTENSITY,
   MARKER_VISIBILITY,
+  HEADING_MARKER_GLYPH,
+  HEADING_MARKER_LEVEL,
   HIDE_GAP_LINES,
   GUIDE_HIGHLIGHT,
   MARKER_HIGHLIGHT,

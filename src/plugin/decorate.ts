@@ -83,6 +83,12 @@ export interface LineDecorationFact {
    */
   readonly kind: NodeKind;
   /**
+   * The heading's level, 1–6: present exactly when `kind` is `'heading'`, and
+   * constant across the node's own lines, like `kind`. What a heading's marker
+   * names.
+   */
+  readonly level?: number;
+  /**
    * True when the node has at least one child (`node.children.length > 0`),
    * constant across all of a node's own lines. Atom kinds are leaves by
    * construction (`ATOM_KINDS` never parse internals as nodes) so this is
@@ -150,6 +156,7 @@ export function decorate(doc: OutlineDoc): LineDecorationFact[] {
         isListItem,
         supplementalDepth: isListItem ? rootDepth! : 0,
         kind: node.kind,
+        ...(node.level === undefined ? {} : { level: node.level }),
         hasChildren: node.children.length > 0,
         indentCh: ownIndentCh(node, node.lines[i]!, underListItem),
       });

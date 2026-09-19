@@ -9,7 +9,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse } from '../src/parse';
-import { buildRows, splitPath, type FooterRow } from '../src/plugin/footer-model';
+import { buildRows, lineageKey, splitPath, type FooterRow } from '../src/plugin/footer-model';
 import type { OutlineNode } from '../src/model';
 import type { PlacedReference } from '../src/plugin/backlink-index';
 
@@ -134,6 +134,69 @@ describe('footer model', () => {
     // The row's own marker stays the FIRST element's: that is what puts segment
     // 0's icon in the gutter and leaves the rest to be drawn inline beside it.
     expect(mixed.kind).toBe('heading');
+  });
+
+  /**
+   * A lineage row's fact is synthetic, and its kind is the chain's first
+   * element's — so a chain led by a heading is a heading fact, and has to name
+   * that heading's level like any other (`heading-level-markers`, design D2).
+   *
+   * Negative control: build the row's fact as `rowFact(row.kind, row.depth)` and
+   * the heading-led row has no level.
+   */
+  it('gives a heading-led lineage row its first element’s level, and no other row one', () => {
+    const lineageOf = (md: string) => {
+      const row = buildRows(parse(md), referencesTarget, [], noRef, noneExpanded).find(
+        (r) => r.type === 'lineage',
+      );
+      if (row?.type !== 'lineage') throw new Error('expected a lineage row');
+      return row;
+    };
+
+    const headed = lineageOf('## Two\n\n- an ancestor\n\t- [[Aurora Dashboard]] the reference\n');
+    expect(headed.fact.kind).toBe('heading');
+    expect(headed.fact.level).toBe(2);
+    expect(headed.segments.map((seg) => seg.level)).toEqual([2, undefined]);
+
+    const prose = lineageOf('An ancestor paragraph.\n- an ancestor\n\t- [[Aurora Dashboard]] the reference\n');
+    expect(prose.fact.kind).toBe('paragraph');
+    expect(prose.fact.level).toBeUndefined();
+  });
+
+  /**
+   * The same invariant over every row the footer builds, whichever route made
+   * its fact: `decorate()` for a projected node, `rowFact` for a lineage row,
+   * `syntheticFact` for an emitted descendant.
+   *
+   * Negative control: drop the level from `syntheticFact`, and the heading
+   * descendant below loses it.
+   */
+  it('gives every heading row a level, whichever route made its fact', () => {
+    const everything = () => true;
+    const docs = [
+      '## [[Aurora Dashboard]] a referencing heading\n\n### a heading beneath it\n\n#### and one deeper\n',
+      ...fs
+        .readdirSync(path.join(vault, 'Backlinks'))
+        .filter((f) => f.endsWith('.md'))
+        .map((f) => read(`Backlinks/${f}`)),
+    ];
+    let headings = 0;
+    for (const md of docs) {
+      for (const row of buildRows(parse(md), referencesTarget, [], noRef, everything)) {
+        if (row.type === 'property') continue;
+        expect({ kind: row.fact.kind, hasLevel: row.fact.level !== undefined }).toEqual({
+          kind: row.fact.kind,
+          hasLevel: row.fact.kind === 'heading',
+        });
+        if (row.fact.kind === 'heading') headings++;
+      }
+    }
+    expect(headings).toBeGreaterThan(2);
+  });
+
+  it('keys a lineage on each segment’s level, so retyping a heading level rebuilds it', () => {
+    const segment = { markdown: 'Title', render: 'markdown', nodeId: 1, kind: 'heading' } as const;
+    expect(lineageKey([{ ...segment, level: 2 }])).not.toBe(lineageKey([{ ...segment, level: 3 }]));
   });
 
   it('renders a frontmatter reference as a property row with no lineage', () => {

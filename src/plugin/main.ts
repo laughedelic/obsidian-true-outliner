@@ -42,9 +42,12 @@ import type {
   GuideHighlight,
   GuideIntensity,
   GuideVisibility,
+  HeadingMarkerGlyph,
+  HeadingMarkerLevel,
   MarkerHighlight,
   OutlineUnit,
 } from './settings/appearance';
+import type { HeadingMarkerStyle } from './marker-shapes';
 import type { StatusBarMode } from './settings/mode';
 
 /** The `PluginData` keys the footer reads, so `setFooterSetting` can only be
@@ -56,7 +59,9 @@ type FooterSettingKey =
   | 'backlinksSuppressCore'
   | 'backlinksSegmentIcons'
   | 'backlinksSeparator'
-  | 'backlinksGuides';
+  | 'backlinksGuides'
+  | 'headingMarkerGlyph'
+  | 'headingMarkerLevel';
 import { planCaret, type CaretOp } from '../caret-policy';
 import { editsToChanges, mapCursorForward, type EditorChange } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
@@ -788,6 +793,35 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.forceRedraw();
   }
 
+  get headingMarkerGlyph(): HeadingMarkerGlyph {
+    return this.data.headingMarkerGlyph;
+  }
+
+  get headingMarkerLevel(): HeadingMarkerLevel {
+    return this.data.headingMarkerLevel;
+  }
+
+  /** Both axes as the one value every surface draws a heading's mark from. */
+  get headingMarkerStyle(): HeadingMarkerStyle {
+    return { glyph: this.data.headingMarkerGlyph, level: this.data.headingMarkerLevel };
+  }
+
+  /**
+   * A heading's mark is drawn on three surfaces, in every open pane, and the
+   * footer's writer reaches all three. Its nudge dispatches into every open
+   * editor, and the editor's markers and the zoom trail recompute on any
+   * transaction; `repaintFooters` then redraws the footers themselves.
+   * `forceRedraw` would reach the active pane alone, and it exists for widget
+   * atoms, which never carry a heading's mark.
+   */
+  async setHeadingMarkerGlyph(value: HeadingMarkerGlyph): Promise<void> {
+    await this.setFooterSetting('headingMarkerGlyph', value);
+  }
+
+  async setHeadingMarkerLevel(value: HeadingMarkerLevel): Promise<void> {
+    await this.setFooterSetting('headingMarkerLevel', value);
+  }
+
   get hideGapLines(): boolean {
     return this.data.hideGapLines;
   }
@@ -1506,6 +1540,8 @@ const WRITERS: {
   guideHideSingleRoot: (p, v) => p.setGuideHideSingleRoot(v),
   guideIntensity: (p, v) => p.setGuideIntensity(v),
   markerVisibility: (p, v) => p.setMarkerVisibility(v),
+  headingMarkerGlyph: (p, v) => p.setHeadingMarkerGlyph(v),
+  headingMarkerLevel: (p, v) => p.setHeadingMarkerLevel(v),
   hideGapLines: (p, v) => p.setHideGapLines(v),
   guideHighlight: (p, v) => p.setGuideHighlight(v),
   markerHighlight: (p, v) => p.setMarkerHighlight(v),
