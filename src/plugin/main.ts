@@ -1550,7 +1550,7 @@ const WRITERS: {
 
 const EXPERIMENTAL_CHIP_CLASS = 'to-setting-chip';
 
-const HEADING_PREVIEW_NAME = 'Heading marker preview';
+const HEADING_PREVIEW_NAME = 'Preview';
 
 /**
  * A setting's description as the tab renders it: the text itself, or a fragment
@@ -1590,10 +1590,10 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
     super(app, plugin);
   }
 
-  /** A heading's mark in each level, drawn in the chosen style, under the
-   * setting's name. Returns the row's cleanup. */
+  /** One heading's mark, drawn in the chosen style, where the row above it puts
+   * its dropdown. Returns the row's cleanup. */
   private renderHeadingPreview(setting: Setting): () => void {
-    const el = setting.descEl.createDiv();
+    const el = setting.controlEl.createSpan();
     const redraw = (): void => drawHeadingMarkerPreview(el, this.plugin.headingMarkerStyle);
     redraw();
     this.previews.add(redraw);

@@ -82,14 +82,17 @@ unchanged.
 
 ### Requirement: The settings tab previews a heading's mark
 The settings that choose a heading marker's style SHALL be accompanied by a preview of what they
-draw: every heading level, 1 to 6, drawn as that level's marker in the style currently chosen. A
-previewed mark SHALL be drawn exactly as the editor draws that level in that style, and SHALL be
-redrawn when either setting changes, while the settings remain on screen.
+draw: one heading's marker, in the style currently chosen. The previewed mark SHALL be drawn
+exactly as the editor draws that level in that style, and SHALL be redrawn when either setting
+changes while the settings are on screen.
 
-#### Scenario: The preview names every level in the chosen style
+The preview MAY be drawn larger than the editor's own marker. It is examined while a choice is
+made rather than read past beside a line of text, and a surface choosing its own marker size is
+what `Markers are fixed-size and coexist with native and guide chrome` already allows.
+
+#### Scenario: The preview draws the chosen style
 - **WHEN** the settings are shown with the glyph `H` and the digit beside it
-- **THEN** six marks are drawn, one per level, each identical to the marker the editor draws for
-  that level in that style
+- **THEN** the previewed mark is drawn exactly as the editor draws that level in that style
 
 #### Scenario: The preview follows a change
 - **WHEN** either setting is changed while the settings are on screen

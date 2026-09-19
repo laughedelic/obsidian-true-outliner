@@ -167,14 +167,19 @@ active-only behaviour is not in scope here.
 
 Obsidian 1.13's declarative settings take a `SettingDefinitionRender` item beside the control
 rows, which renders imperatively and may return a cleanup. The preview is one of those, placed
-after the level setting, and it draws the six levels with `buildMarkerIcon` — the editor's own
-builder, so the preview cannot show a mark the editor would not draw. The tab keeps the redraw of
+after the level setting, and it draws ONE level's mark with `buildMarkerIcon` — the editor's own
+builder, so the preview cannot show a mark the editor would not draw. One mark rather than all
+six, on the row's own control line rather than in a panel of its own: it answers "what does this
+choice draw", which one mark answers, and it costs the settings tab one row. It is drawn larger
+than the editor's, because it is examined rather than read past. The tab keeps the redraw of
 every mounted preview and calls them after a write, which is what makes the preview follow the
 dropdown that is sitting right above it. The pre-1.13 `display()` fallback renders the same row
 through the same function, for the reason that path exists at all.
 
-*Alternative.* Illustrating the styles with a static image or hand-written SVG in the tab. It
-would drift from the builder the moment a shape is tuned.
+*Alternatives.* Illustrating the styles with a static image or hand-written SVG would drift from
+the builder the moment a shape is tuned. Drawing all six levels as a small outline was tried
+first and withdrawn: it showed what the six digits look like, which the reader can see in their
+own note, and spent a panel's worth of the settings tab doing it.
 
 ## Risks / Trade-offs
 

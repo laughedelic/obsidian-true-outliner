@@ -34,8 +34,9 @@ of it, with exact geometry.
 - **Every surface that draws a heading's mark draws the same level mark**: the editor line, the
   backlinks footer's gutter and its inline lineage segments, and the zoom trail's segments. A
   style change repaints all three.
-- **The settings tab previews the style.** Beside the two settings, the six levels are drawn in
-  the chosen style by the editor's own builder, and redraw as either setting changes.
+- **The settings tab previews the style.** Beside the two settings, one heading's mark is drawn
+  in the chosen style by the editor's own builder, larger than the editor draws it, and redraws
+  as either setting changes.
 - **Markers say what they mark.** Every plain-line marker states its kind in `data-kind`, which
   the widget-atom markers already do, and a heading's marker also states `data-level`. This is a
   hook for snippets and for tests. It does not change how anything renders.

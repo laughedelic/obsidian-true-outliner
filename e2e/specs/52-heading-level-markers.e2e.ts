@@ -189,22 +189,31 @@ describe('heading level markers', function () {
   });
 
   /**
-   * The settings tab previews the six levels in the chosen style, beside the two
-   * settings, with the editor's own builder, and follows a change made while it
-   * is open — through the tab's own write path, the one its dropdowns take.
+   * The settings tab previews one heading's mark in the chosen style, beside the
+   * two settings, with the editor's own builder, and follows a change made while
+   * it is open — through the tab's own write path, the one its dropdowns take.
+   * It is drawn larger than the editor's own mark, so only the drawing is
+   * compared, not the box.
    *
    * Negative control: drop the preview redraw from the tab's `setControlValue`,
    * and the open preview keeps the style it opened with.
    */
   it('previews the chosen style in the settings tab, as the editor draws it, across a change', async function () {
     await openLevels();
-    const previewMarks = (): Promise<Array<{ level: string | null; svg: string }>> =>
+    const previewMark = (): Promise<{ level: string | null; svg: string; size: number } | null> =>
       browser.executeObsidian(({ app }) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const tab = (app as any).setting.pluginTabs.find((t: any) => t.id === 'true-outliner');
-        return Array.from(
-          tab.containerEl.querySelectorAll('.to-heading-marker-preview-mark') as NodeListOf<HTMLElement>,
-        ).map((el) => ({ level: el.dataset.level ?? null, svg: el.querySelector('svg')?.innerHTML ?? '' }));
+        const marks = tab.containerEl.querySelectorAll(
+          '.to-heading-marker-preview',
+        ) as NodeListOf<HTMLElement>;
+        if (marks.length !== 1) return null;
+        const el = marks[0]!;
+        return {
+          level: el.dataset.level ?? null,
+          svg: el.querySelector('svg')?.innerHTML ?? '',
+          size: +el.getBoundingClientRect().width.toFixed(2),
+        };
       });
 
     await browser.executeObsidian(({ app }) => {
@@ -221,10 +230,16 @@ describe('heading level markers', function () {
         ['hash', 'none'],
       ] as const) {
         await setStyle(style[0], style[1]);
-        const editor = headingsOf(await activeMarks()).map((m) => m.svg);
-        const preview = await previewMarks();
-        expect(preview.map((p) => p.level)).toEqual(['1', '2', '3', '4', '5', '6']);
-        expect({ style, preview: preview.map((p) => p.svg) }).toEqual({ style, preview: editor });
+        const editor = headingsOf(await activeMarks());
+        const preview = await previewMark();
+        const level = preview?.level ?? '';
+        expect({ style, svg: preview?.svg }).toEqual({
+          style,
+          svg: editor.find((m) => m.level === level)?.svg,
+        });
+        // Bigger than the mark it previews, which is the point of drawing it
+        // in a settings row rather than beside a line of text.
+        expect(preview!.size).toBeGreaterThan(editor[0]!.w);
       }
     } finally {
       await browser.executeObsidian(({ app }) => {

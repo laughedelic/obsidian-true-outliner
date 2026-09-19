@@ -102,16 +102,16 @@
 
 ## 7. The settings preview
 
-- [x] 7.1 `src/plugin/heading-marker-preview.ts`: the six levels as a small indented outline, each
-      mark from `buildMarkerIcon` in the given style (design D10), plus its rules in
-      `styles/80-settings.css` at the editor's own marker size and colour. Verify with 7.3
+- [x] 7.1 `src/plugin/heading-marker-preview.ts`: one level's mark from `buildMarkerIcon` in the
+      given style (design D10), plus its rules in `styles/80-settings.css`, drawn larger than the
+      editor's own mark. Verify with 7.3
 - [x] 7.2 The settings tab renders it as a `SettingDefinitionRender` row after
       `headingMarkerLevel`, in the declarative path and in the pre-1.13 `display()` fallback, and
       redraws every mounted preview after a write (design D10). Verify with 7.3
-- [x] 7.3 Same e2e spec: with the tab open, the preview draws six marks whose levels are 1–6 and
-      whose markup equals the editor's for each style, before and after a change written through
-      the tab. Negative control: a `setControlValue` without the redraw leaves the open preview on
-      the old style
+- [x] 7.3 Same e2e spec: with the tab open, the preview draws one mark whose markup equals the
+      editor's drawing of that level for each style, and whose box is larger, before and after a
+      change written through the tab. Negative control: a `setControlValue` without the redraw
+      leaves the open preview on the old style
 
 ## 8. Manual testing and landing
 
