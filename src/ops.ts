@@ -337,7 +337,13 @@ function documentFinalNode(doc: OutlineDoc): OutlineNode | undefined {
  * insertion is splitting — the next one up that is not the document's end. A
  * parent's own trailing gap answers where there is no such boundary, being its
  * separation from its first child; at the root there is neither and the answer
- * is none. */
+ * is none.
+ *
+ * A parent with NO children is the exception, and it is only reachable through
+ * a destination stated as a parent and an index: its trailing gap separates it
+ * from its next SIBLING, or is the file's terminating newline, and neither is a
+ * separation the scope imposes on children it does not have. A run arriving as
+ * its first child takes none. */
 function scopeSeparation(
   parent: OutlineNode | 'root',
   siblings: readonly OutlineNode[],
@@ -345,7 +351,17 @@ function scopeSeparation(
 ): readonly string[] {
   const above = insertIndex >= 2 ? siblings[insertIndex - 2] : undefined;
   if (above) return subtreeFinalNode(above).trailingGap;
-  return parent === 'root' ? [] : parent.trailingGap;
+  // Landing FIRST, there is no boundary above to read, and the parent's gap is
+  // the wrong kind of evidence: it separates a parent from its first child,
+  // which is a nesting boundary, and the run's own lower boundary is a sibling
+  // one. The scope's first boundary is a sibling boundary, so it answers where
+  // it exists — a run dropped at the top of a tight list stays tight, where the
+  // parent's gap would have loosened the list around it.
+  if (insertIndex === 0 && siblings.length >= 2) {
+    return subtreeFinalNode(siblings[0]!).trailingGap;
+  }
+  if (parent === 'root' || siblings.length === 0) return [];
+  return parent.trailingGap;
 }
 
 function needsBlankBetween(prev: OutlineNode, next: OutlineNode): boolean {
@@ -1757,6 +1773,52 @@ export function deleteSubtrees(
 }
 
 /**
+ * The removal every deletion and every move begins with: the groups lifted out
+ * of the tree, with no view taken on what the result should anchor at.
+ *
+ * Separated from `deleteSubtreeGroups` because a move needs the tree BETWEEN
+ * the removal and the insertion — the destination's sibling context is read
+ * from it, and reading the pre-removal one levels a run against a sibling the
+ * move itself took away.
+ */
+function removeGroups(
+  doc: OutlineDoc,
+  groups: readonly (readonly number[])[],
+): OpResult<{ readonly surgery: OutlineDoc; readonly resolved: readonly ResolvedGroup[] }> {
+  if (groups.length === 0) return reject('empty-selection');
+  const resolved: ResolvedGroup[] = [];
+  for (const ids of groups) {
+    const result = resolveContiguousGroup(doc, ids);
+    if (!result.ok) return result;
+    resolved.push(result.value);
+  }
+
+  // Same-parent groups must be removed in ONE filtering pass — a second
+  // `updateSiblings` call at the same path would see indices already
+  // shifted by the first.
+  const byParent = new Map<string, { parentPath: NodePath; ranges: { lo: number; hi: number }[] }>();
+  for (const g of resolved) {
+    const key = g.parentPath.join('/');
+    const entry = byParent.get(key) ?? { parentPath: g.parentPath, ranges: [] };
+    entry.ranges.push({ lo: g.lo, hi: g.hi });
+    byParent.set(key, entry);
+  }
+
+  let surgery = doc;
+  for (const { parentPath, ranges } of byParent.values()) {
+    surgery = updateSiblings(surgery, parentPath, (nodes) =>
+      // `nodes` is this parent's list as it entered the ONE filtering pass, so
+      // it is the pre-removal list for every range at once — not per range.
+      renumberOrderedAgainst(
+        nodes,
+        nodes.filter((_, i) => !ranges.some((r) => i >= r.lo && i <= r.hi)),
+      ),
+    );
+  }
+  return accept({ surgery, resolved });
+}
+
+/**
  * Multi-group subtree deletion (`fix-orphan-gap-on-node-deletion` D2): the
  * general form `deleteSubtrees` delegates to — removes SEVERAL contiguous
  * sibling runs (each independently subject to `resolveContiguousGroup`'s own
@@ -1796,36 +1858,10 @@ export function deleteSubtreeGroups(
   groups: readonly (readonly number[])[],
   spliceFollows = false,
 ): OpResult<OpOutput> {
-  if (groups.length === 0) return reject('empty-selection');
-  const resolved: ResolvedGroup[] = [];
-  for (const ids of groups) {
-    const result = resolveContiguousGroup(doc, ids);
-    if (!result.ok) return result;
-    resolved.push(result.value);
-  }
-
-  // Same-parent groups must be removed in ONE filtering pass — a second
-  // `updateSiblings` call at the same path would see indices already
-  // shifted by the first.
-  const byParent = new Map<string, { parentPath: NodePath; ranges: { lo: number; hi: number }[] }>();
-  for (const g of resolved) {
-    const key = g.parentPath.join('/');
-    const entry = byParent.get(key) ?? { parentPath: g.parentPath, ranges: [] };
-    entry.ranges.push({ lo: g.lo, hi: g.hi });
-    byParent.set(key, entry);
-  }
-
-  let surgery = doc;
-  for (const { parentPath, ranges } of byParent.values()) {
-    surgery = updateSiblings(surgery, parentPath, (nodes) =>
-      // `nodes` is this parent's list as it entered the ONE filtering pass, so
-      // it is the pre-removal list for every range at once — not per range.
-      renumberOrderedAgainst(
-        nodes,
-        nodes.filter((_, i) => !ranges.some((r) => i >= r.lo && i <= r.hi)),
-      ),
-    );
-  }
+  const removal = removeGroups(doc, groups);
+  if (!removal.ok) return removal;
+  const { resolved } = removal.value;
+  let surgery = removal.value.surgery;
 
   // A document's terminating newline is ONE EMPTY GAP LINE on its last node
   // rather than a property of the document, so a removal that takes the node
@@ -2222,6 +2258,13 @@ export function reencodeBlocksForDestination(
   parsedBlocks: readonly OutlineNode[],
   fallbackIndentUnit?: string,
 ): OpResult<readonly OutlineNode[]> {
+  // A leaf holds no children at any indentation, so there is no encoding for a
+  // payload placed inside one. `indent` refuses an atom as a target on the same
+  // terms; the guard sits here so that every insertion path runs it, rather
+  // than beside the one caller that can currently name such a destination.
+  if (parent !== 'root' && isAtom(parent)) {
+    return reject('not-expressible-under-target');
+  }
   // An atom below a paragraph is the one payload neither regime expresses: a
   // paragraph's children attach as a LIST, and an atom is not one. Mirrors
   // `indent`'s own rule. Everything else now has an encoding — a heading among
@@ -2294,12 +2337,42 @@ export function insertSubtrees(
   if (parsedBlocks.length === 0) return reject('empty-selection');
   const anchorPath = findPath(doc, anchorId);
   if (!anchorPath) return reject('node-not-found');
-  const parentPath = anchorPath.slice(0, -1);
   const anchorIndex = anchorPath[anchorPath.length - 1]!;
-  const parent = parentPath.length === 0 ? 'root' : nodeAt(doc, parentPath)!;
-  const siblings = childrenAt(doc, parentPath);
+  const spliced = spliceAtIndex(
+    doc,
+    anchorPath.slice(0, -1),
+    position === 'before' ? anchorIndex : anchorIndex + 1,
+    parsedBlocks,
+    fallbackIndentUnit,
+    inheritedSeparation,
+  );
+  if (!spliced.ok) return spliced;
+  return finalize(doc, spliced.value.surgery, spliced.value.firstId);
+}
 
-  const insertIndex = position === 'before' ? anchorIndex : anchorIndex + 1;
+/**
+ * The splice every insertion ends in: a parent, an index among its children,
+ * and the blocks that take that index.
+ *
+ * Stated as a parent and an index rather than against an anchor SIBLING,
+ * because the destination "the first child of a row that has none" has no
+ * sibling to state it against. `insertSubtrees` reaches it through the first
+ * child a node does have; a move can name it directly.
+ */
+function spliceAtIndex(
+  doc: OutlineDoc,
+  parentPath: NodePath,
+  insertIndex: number,
+  parsedBlocks: readonly OutlineNode[],
+  fallbackIndentUnit?: string,
+  inheritedSeparation?: readonly string[],
+): OpResult<{ readonly surgery: OutlineDoc; readonly firstId: number }> {
+  if (parsedBlocks.length === 0) return reject('empty-selection');
+  const parent = parentPath.length === 0 ? 'root' : nodeAt(doc, parentPath);
+  if (parent === undefined) return reject('node-not-found');
+  const siblings = childrenAt(doc, parentPath);
+  if (insertIndex < 0 || insertIndex > siblings.length) return reject('node-not-found');
+
   const precedingSiblings = siblings.slice(0, insertIndex);
   const followingSiblings = siblings.slice(insertIndex);
   const reencodedResult = reencodeBlocksForDestination(
@@ -2331,9 +2404,20 @@ export function insertSubtrees(
   // replacement should inherit.
   const above = insertIndex > 0 ? subtreeFinalNode(siblings[insertIndex - 1]!) : undefined;
   const scopeGap = blankGap(scopeSeparation(parent, siblings, insertIndex));
+  // Landing first under a parent that has NO children splits a boundary the
+  // parent owned alone: its trailing gap separates it from whatever follows its
+  // own lines, and the run now stands between the two. The run takes that gap
+  // over — the terminating newline included, where the parent ended the file —
+  // and the parent is left immediately followed by its first child, which is a
+  // nesting boundary it never separated before.
+  const adoptsParentGap = parent !== 'root' && siblings.length === 0;
   const sourceGap =
     inheritedSeparation ??
-    (above ? above.trailingGap : scopeSeparation(parent, siblings, insertIndex));
+    (adoptsParentGap
+      ? parent.trailingGap
+      : above
+        ? above.trailingGap
+        : scopeSeparation(parent, siblings, insertIndex));
   // A gap line's own whitespace is the document's, so it is blanked wherever
   // it lands — with ONE exception. The file's last line is not a separation:
   // where it carried whitespace and no newline followed it, blanking it ends
@@ -2367,7 +2451,14 @@ export function insertSubtrees(
     above !== undefined &&
     above.id === documentFinalNode(doc)?.id;
 
-  const surgery = updateSiblings(doc, parentPath, (nodes) => {
+  const withParentGapMoved =
+    adoptsParentGap && parent.trailingGap.length > 0
+      ? updateSiblings(doc, parentPath.slice(0, -1), (nodes) =>
+          nodes.map((n, i) => (i === parentPath[parentPath.length - 1] ? setFinalGap(n, []) : n)),
+        )
+      : doc;
+
+  const surgery = updateSiblings(withParentGapMoved, parentPath, (nodes) => {
     const withAbove = aboveAtDocEnd
       ? nodes.map((n, i) => (i === insertIndex - 1 ? setFinalGap(n, scopeGap) : n))
       : nodes;
@@ -2380,5 +2471,163 @@ export function insertSubtrees(
       ...withAbove.slice(insertIndex),
     ]);
   });
-  return finalize(doc, surgery, finalReencoded[0]!.id);
+  return accept({ surgery, firstId: finalReencoded[0]!.id });
+}
+
+/**
+ * Where a moved run lands: the parent it becomes children of, and the index it
+ * takes among them.
+ *
+ * A parent and an index rather than an anchor sibling, because "the first child
+ * of a row that has none" is the commonest reparenting destination there is and
+ * has no sibling to name it against — the deep bound of every seam a pointer
+ * gesture can resolve.
+ */
+export interface MoveDestination {
+  readonly parentId: number | 'root';
+  readonly index: number;
+}
+
+/**
+ * Moves a forest of whole subtrees to a named destination, as ONE operation.
+ *
+ * Not a removal followed by an insertion at the call site: both halves carry
+ * gap ownership and ordered-run renumbering, and the destination's index shifts
+ * when the run is removed from above it. A second call site that half-remembers
+ * those rules is the failure the shared re-encoding step exists to prevent.
+ *
+ * The run is re-encoded for its destination by the same call an insertion there
+ * makes, against the tree as it stands AFTER the removal — the run's own former
+ * siblings are gone by then, and levelling against them puts a heading at the
+ * depth of a node that is no longer there.
+ */
+export function moveSubtreesTo(
+  doc: OutlineDoc,
+  groups: readonly (readonly number[])[],
+  destination: MoveDestination,
+  fallbackIndentUnit?: string,
+): OpResult<OpOutput> {
+  if (groups.length === 0) return reject('empty-selection');
+
+  // Resolved against the ORIGINAL tree: these are the nodes to carry, and the
+  // removal below is what takes them out of it.
+  const roots: OutlineNode[] = [];
+  for (const ids of groups) {
+    const group = resolveContiguousGroup(doc, ids);
+    if (!group.ok) return group;
+    const siblings = childrenAt(doc, group.value.parentPath);
+    for (let i = group.value.lo; i <= group.value.hi; i++) roots.push(siblings[i]!);
+  }
+  if (roots.length === 0) return reject('empty-selection');
+
+  const destParentPath: NodePath | undefined =
+    destination.parentId === 'root' ? [] : findPath(doc, destination.parentId);
+  if (destParentPath === undefined) return reject('node-not-found');
+
+  // A run cannot land inside itself. Checked against the paths rather than the
+  // ids alone, because the destination can be any DESCENDANT of a moved node
+  // and not only a moved node itself.
+  let sameScope = true;
+  for (const root of roots) {
+    const rootPath = findPath(doc, root.id);
+    if (rootPath === undefined) return reject('node-not-found');
+    if (rootPath.every((step, i) => destParentPath[i] === step)) {
+      return reject('not-expressible-under-target');
+    }
+    const rootParentPath = rootPath.slice(0, -1);
+    if (
+      rootParentPath.length !== destParentPath.length ||
+      rootParentPath.some((step, i) => destParentPath[i] !== step)
+    ) {
+      sameScope = false;
+    }
+  }
+
+  const destSiblings = childrenAt(doc, destParentPath);
+  if (destination.index < 0 || destination.index > destSiblings.length) {
+    return reject('node-not-found');
+  }
+
+  // A move that begins and ends in ONE scope is a REORDER, and a reorder is
+  // already an operation of this algebra. Taking it here rather than through
+  // the removal and the insertion is not a shortcut: the composition reads the
+  // destination's context from the tree the removal left, and where the
+  // destination IS the scope the run came from, the run was part of that
+  // context. Measured on the generated corpus, composing the two halves
+  // rewrote a run that had not moved — a bullet among paragraphs came back a
+  // paragraph, because the regime rule read the siblings the run was the
+  // counter-evidence to, and a run returning to the top of a tight list came
+  // back loosened, because the boundary it had occupied was gone by then. A
+  // run that has not left its scope is already encoded for it.
+  //
+  // The gaps go with the SLOTS and not with the nodes, as `moveSurgery` has it:
+  // else the file's terminating newline travels into the middle of the
+  // document behind the run that used to end it. What the reorder implies for
+  // the tree — a run crossing a heading joins its section — is `finalize`'s
+  // re-parse to state, exactly as it is for every other operation.
+  if (sameScope) {
+    const movedIds = new Set(roots.map((root) => root.id));
+    const ordered = [...roots].sort(
+      (a, b) => destSiblings.indexOf(a) - destSiblings.indexOf(b),
+    );
+    const surgery = updateSiblings(doc, destParentPath, (nodes) => {
+      const gaps = nodes.map((node) => subtreeFinalNode(node).trailingGap);
+      const kept = nodes.filter((node) => !movedIds.has(node.id));
+      const removedAbove = nodes
+        .slice(0, destination.index)
+        .filter((node) => movedIds.has(node.id)).length;
+      const at = destination.index - removedAbove;
+      const reordered = [...kept.slice(0, at), ...ordered, ...kept.slice(at)];
+      return renumberOrderedAgainst(
+        nodes,
+        reordered.map((node, slot) => setFinalGap(node, gaps[slot]!)),
+      );
+    });
+    return finalize(doc, surgery, ordered[0]!.id);
+  }
+
+  const removal = removeGroups(doc, groups);
+  if (!removal.ok) return removal;
+  const { surgery: afterRemoval } = removal.value;
+
+  // The destination's PATH can move even when the destination itself does not:
+  // removing an earlier sibling of one of its ancestors renumbers every index
+  // above it. Re-resolve by id.
+  const destPathAfter: NodePath | undefined =
+    destination.parentId === 'root' ? [] : findPath(afterRemoval, destination.parentId);
+  if (destPathAfter === undefined) return reject('node-not-found');
+
+  // And the index shifts by whatever the removal took from ABOVE it under this
+  // same parent. Counted off the original sibling list, which still holds the
+  // moved nodes.
+  const movedIds = new Set(roots.map((r) => r.id));
+  const removedAbove = destSiblings
+    .slice(0, destination.index)
+    .filter((sibling) => movedIds.has(sibling.id)).length;
+
+  const spliced = spliceAtIndex(
+    afterRemoval,
+    destPathAfter,
+    destination.index - removedAbove,
+    roots,
+    fallbackIndentUnit,
+  );
+  if (!spliced.ok) return spliced;
+
+  // A move that begins and ends in ONE scope is a reorder, and this codebase
+  // already answers what a reorder does with the blank lines between slots:
+  // they are positional, not node-owned, so the gap that followed slot 2 still
+  // follows slot 2 (`moveSurgery`). Composing a removal with an insertion does
+  // not give that for free — each half reads the tree the other half left, and
+  // the boundary the run itself occupied is gone from it by then, so a run
+  // returning to the top of a tight list came back loosened. Restored here,
+  // where the two ends are known to be the same scope, and nowhere else: across
+  // scopes the removal and the insertion each own their side.
+  //
+  // Not where the count changed: a heading opens a section at the place it
+  // lands, and the slots it absorbed are no longer the slots that left.
+  // Against the ORIGINAL document, so the edits describe the whole move as one
+  // change rather than the insertion alone. A move that lands the run where it
+  // already was produces no edits at all, which is the honest answer.
+  return finalize(doc, spliced.value.surgery, spliced.value.firstId);
 }

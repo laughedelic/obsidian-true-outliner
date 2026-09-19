@@ -26,6 +26,12 @@ The result SHALL be rejected, rather than partially applied, whenever the destin
 the run: a destination inside the run's own subtrees, a destination the insertion rule declines,
 or a destination that no longer exists. A rejection SHALL leave the document untouched.
 
+A move that begins and ends in ONE scope SHALL be a reorder. The run SHALL keep its own encoding,
+because a run that has not left its scope is already encoded for it, and the blank lines between
+that scope's members SHALL stay with the POSITIONS rather than with the nodes — the last position
+ends the file whichever node occupies it. Re-encoding such a run against the siblings the removal
+leaves behind reads the scope's regime off the very evidence the run was counter-evidence to.
+
 A move whose destination is the run's CURRENT place SHALL produce no document change.
 
 #### Scenario: A run moves across the document as one result
@@ -82,6 +88,12 @@ A move whose destination is the run's CURRENT place SHALL produce no document ch
   DEEPEST heading would re-level past the last level markdown has
 - **THEN** the operation is rejected with the same reason the insertion gives, and the document is
   unchanged — including where the run's ROOT alone would have fitted
+
+#### Scenario: A run that does not leave its scope keeps its own encoding
+- **WHEN** a list item is moved to another position among the same parent's children, in a scope
+  whose other members are paragraphs
+- **THEN** it is still a list item, and the blank lines between the scope's members are where they
+  were — a tight list stays tight and the file's terminating newline stays at the end
 
 #### Scenario: A move to the current place changes nothing
 - **WHEN** a run is moved to the destination it already occupies

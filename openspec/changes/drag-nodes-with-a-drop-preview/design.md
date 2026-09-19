@@ -235,6 +235,18 @@ after an anchor's own lines, which for a node WITH children it names as that fir
 has none, that route is unavailable and the private variant is what answers. Two call sites now
 work around one absent destination, which is the argument for adding it rather than a third.
 
+One case is NOT the composition, and finding it is what the first implementation round cost: a
+move that begins and ends in the same scope. The composition reads the destination's context from
+the tree the removal left, and where the destination IS the scope the run came from, the run was
+part of that context. Measured over the generated corpus, three distinct rewrites followed from
+that — a bullet among paragraphs came back a paragraph, because the regime rule read the siblings
+the run was the counter-evidence to; a run returning to the top of a tight list came back loosened,
+because the boundary it had occupied was gone by then; and the file's terminating newline travelled
+into the middle of the document behind the run that used to end it. A same-scope move is a REORDER,
+which this algebra already has, and `moveSurgery` already states its rule: the gaps go with the
+slots. Taking that branch took the corpus from 1550 rewritten round trips in 23016 same-scope moves
+to none in 28579 (docs/research/node-drag-and-drop section 7b).
+
 ### D9a. The operand's selection is set at the threshold, not at the press
 
 D5 collapses the selection to the pressed node's cover when the press lands outside the current
