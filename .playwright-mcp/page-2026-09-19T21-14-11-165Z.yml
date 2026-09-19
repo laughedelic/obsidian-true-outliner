@@ -1,0 +1,394 @@
+- generic [active] [ref=f13e1]:
+  - generic [ref=f13e3]:
+    - link "Skip to content" [ref=f13e4] [cursor=pointer]:
+      - /url: "#VPContent"
+    - banner:
+      - generic:
+        - generic:
+          - generic:
+            - link "True Outliner" [ref=f13e6] [cursor=pointer]:
+              - /url: /obsidian-true-outliner/
+            - generic [ref=f13e8]:
+              - button "Search" [ref=f13e10] [cursor=pointer]:
+                - generic [aria-hidden] [ref=f13e13]:
+                  - generic [ref=f13e14]: ⌘
+                  - generic [ref=f13e15]: K
+              - navigation "Main Navigation" [ref=f13e16]:
+                - list [ref=f13e17]:
+                  - listitem [ref=f13e18]:
+                    - link "Guide" [ref=f13e19] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/guide/
+                  - listitem [ref=f13e21]:
+                    - link "Reference" [ref=f13e22] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/reference/settings
+                  - listitem [ref=f13e24]:
+                    - link "Compared" [ref=f13e25] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/
+                  - listitem [ref=f13e27]:
+                    - link "Releases ⁠" [ref=f13e28] [cursor=pointer]:
+                      - /url: https://github.com/laughedelic/obsidian-true-outliner/releases
+                      - generic [ref=f13e29]: Releases
+                      - text: ⁠
+              - switch "Appearance" [ref=f13e31] [cursor=pointer]
+              - list [ref=f13e36]:
+                - listitem [ref=f13e37]:
+                  - link "github" [ref=f13e38] [cursor=pointer]:
+                    - /url: https://github.com/laughedelic/obsidian-true-outliner
+    - complementary [ref=f13e40]:
+      - navigation "Sidebar Navigation" [ref=f13e42]:
+        - generic [ref=f13e45]:
+          - heading "Guide" [level=2] [ref=f13e48]
+          - list [ref=f13e49]:
+            - listitem [ref=f13e50]:
+              - link [ref=f13e54] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/
+                - paragraph [ref=f13e55]: Introduction
+              - generic [ref=f13e56]:
+                - heading "Start" [level=3] [ref=f13e59]
+                - list [ref=f13e60]:
+                  - listitem [ref=f13e61]:
+                    - link [ref=f13e65] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/guide/installation
+                      - paragraph [ref=f13e66]: Installation
+                    - link [ref=f13e70] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/guide/getting-started
+                      - paragraph [ref=f13e71]: Getting started
+              - generic [ref=f13e72]:
+                - heading "The outline" [level=3] [ref=f13e75]
+                - list [ref=f13e76]:
+                  - listitem [ref=f13e77]:
+                    - link [ref=f13e81] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/guide/how-notes-become-outlines
+                      - paragraph [ref=f13e82]: How a note becomes an outline
+                    - link [ref=f13e86] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/guide/outline-mode
+                      - paragraph [ref=f13e87]: Outline mode
+                    - link [ref=f13e91] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/guide/appearance
+                      - paragraph [ref=f13e92]: Appearance
+              - generic [ref=f13e93]:
+                - heading "Editing" [level=3] [ref=f13e96]
+                - list [ref=f13e97]:
+                  - listitem [ref=f13e98]:
+                    - link [ref=f13e102] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/guide/structural-editing
+                      - paragraph [ref=f13e103]: Structural editing
+                    - link [ref=f13e107] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/guide/selection-and-caret
+                      - paragraph [ref=f13e108]: Selection and the caret
+              - generic [ref=f13e109]:
+                - heading "Finding the way" [level=3] [ref=f13e112]
+                - list [ref=f13e113]:
+                  - listitem [ref=f13e114]:
+                    - link [ref=f13e118] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/guide/folding
+                      - paragraph [ref=f13e119]: Folding
+                    - link [ref=f13e123] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/guide/zoom
+                      - paragraph [ref=f13e124]: Zoom
+                    - link [ref=f13e128] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/guide/backlinks
+                      - paragraph [ref=f13e129]: Structured backlinks
+              - link [ref=f13e133] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/mobile
+                - paragraph [ref=f13e134]: Mobile
+        - generic [ref=f13e136]:
+          - heading "Compared to" [level=2] [ref=f13e139]
+          - list [ref=f13e140]:
+            - listitem [ref=f13e141]:
+              - link [ref=f13e145] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/
+                - paragraph [ref=f13e146]: Where we stand
+              - link [ref=f13e150] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/obsidian-plugins
+                - paragraph [ref=f13e151]: Obsidian's outliner plugins
+              - generic [ref=f13e152]:
+                - heading "Outliners" [level=3] [ref=f13e155]
+                - list [ref=f13e156]:
+                  - listitem [ref=f13e157]:
+                    - link [ref=f13e161] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/logseq
+                      - paragraph [ref=f13e162]: Logseq
+                    - link [ref=f13e166] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/workflowy
+                      - paragraph [ref=f13e167]: Workflowy and Dynalist
+                    - link [ref=f13e171] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/roam
+                      - paragraph [ref=f13e172]: Roam Research
+                    - link [ref=f13e176] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/tana
+                      - paragraph [ref=f13e177]: Tana
+                    - link [ref=f13e181] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/outl
+                      - paragraph [ref=f13e182]: outl
+                    - link [ref=f13e186] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/orca-note
+                      - paragraph [ref=f13e187]: Orca Note
+                    - link [ref=f13e191] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/thymer
+                      - paragraph [ref=f13e192]: Thymer
+                    - link [ref=f13e196] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/org-mode
+                      - paragraph [ref=f13e197]: Org-mode
+              - generic [ref=f13e198]:
+                - heading "Note apps" [level=3] [ref=f13e201]
+                - list [ref=f13e202]:
+                  - listitem [ref=f13e203]:
+                    - link [ref=f13e207] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/notion
+                      - paragraph [ref=f13e208]: Notion
+                    - link [ref=f13e212] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/capacities
+                      - paragraph [ref=f13e213]: Capacities
+                    - link [ref=f13e217] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/anytype
+                      - paragraph [ref=f13e218]: Anytype
+                    - link [ref=f13e222] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/reflect
+                      - paragraph [ref=f13e223]: Reflect
+        - generic [ref=f13e225]:
+          - heading "Reference" [level=2] [ref=f13e228]
+          - list [ref=f13e229]:
+            - listitem [ref=f13e230]:
+              - link [ref=f13e234] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/reference/settings
+                - paragraph [ref=f13e235]: Settings
+              - link [ref=f13e239] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/reference/commands-and-keys
+                - paragraph [ref=f13e240]: Commands and keys
+              - link [ref=f13e244] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/reference/css-variables
+                - paragraph [ref=f13e245]: CSS variables
+              - link [ref=f13e249] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/reference/limitations
+                - paragraph [ref=f13e250]: Known limitations
+    - generic [ref=f13e253]:
+      - navigation [ref=f13e258]:
+        - generic [ref=f13e259]:
+          - heading "On this page" [level=2] [ref=f13e261]
+          - list [ref=f13e262]:
+            - listitem [ref=f13e263]:
+              - link "The idea" [ref=f13e264] [cursor=pointer]:
+                - /url: "#the-idea"
+            - listitem [ref=f13e265]:
+              - link "What it looks like" [ref=f13e266] [cursor=pointer]:
+                - /url: "#what-it-looks-like"
+            - listitem [ref=f13e267]:
+              - link "Where it works" [ref=f13e268] [cursor=pointer]:
+                - /url: "#where-it-works"
+            - listitem [ref=f13e269]:
+              - link "Reading this guide" [ref=f13e270] [cursor=pointer]:
+                - /url: "#reading-this-guide"
+      - generic [ref=f13e273]:
+        - generic:
+          - button [aria-hidden] [ref=f13e274] [cursor=pointer]
+          - button [aria-hidden] [ref=f13e275] [cursor=pointer]
+          - button [aria-hidden] [ref=f13e276] [cursor=pointer]
+          - button [aria-hidden] [ref=f13e277] [cursor=pointer]
+          - button [aria-hidden] [ref=f13e278] [cursor=pointer]
+          - button [aria-hidden] [ref=f13e279] [cursor=pointer]
+          - button [aria-hidden] [ref=f13e280] [cursor=pointer]
+          - button [aria-hidden] [ref=f13e281] [cursor=pointer]
+          - button [aria-hidden] [ref=f13e282] [cursor=pointer]
+          - button [aria-hidden] [ref=f13e283] [cursor=pointer]
+          - button [aria-hidden] [ref=f13e284] [cursor=pointer]
+          - button [aria-hidden] [ref=f13e285] [cursor=pointer]
+          - button [aria-hidden] [ref=f13e286] [cursor=pointer]
+          - button [aria-hidden] [ref=f13e287] [cursor=pointer]
+          - button [aria-hidden] [ref=f13e288] [cursor=pointer]
+          - button [aria-hidden] [ref=f13e289] [cursor=pointer]
+          - button "Fold" [expanded] [ref=f13e290] [cursor=pointer]
+          - 'button "Zoom in to: Introduction" [ref=f13e293] [cursor=pointer]'
+          - 'button "Zoom in to: True Outliner turns any Obsidian note into an o…" [ref=f13e299] [cursor=pointer]'
+          - 'button "Zoom in to: Early previewTrue Outliner is under active deve…" [ref=f13e302] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f13e308] [cursor=pointer]
+          - 'button "Zoom in to: The idea" [ref=f13e311] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f13e317] [cursor=pointer]
+          - 'button "Zoom in to: Dedicated outliners such as Workflowy, Roam, Lo…" [ref=f13e320] [cursor=pointer]'
+          - 'button "Zoom in to: Typing, selecting, deleting, moving and pasting…" [ref=f13e323] [cursor=pointer]'
+          - 'button "Zoom in to: The structure cannot be malformed by a careless…" [ref=f13e327] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f13e331] [cursor=pointer]
+          - 'button "Zoom in to: Obsidian''s markdown lists have no such invarian…" [ref=f13e334] [cursor=pointer]'
+          - 'button "Zoom in to: A Backspace at the wrong column merges two item…" [ref=f13e337] [cursor=pointer]'
+          - 'button "Zoom in to: A paste lands half a subtree at the wrong depth." [ref=f13e341] [cursor=pointer]'
+          - 'button "Zoom in to: A drag leaves children orphaned." [ref=f13e345] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f13e349] [cursor=pointer]
+          - 'button "Zoom in to: True Outliner brings the enforced-tree invarian…" [ref=f13e352] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f13e355] [cursor=pointer]
+          - 'button "Zoom in to: Any note is an outline. Every note already has…" [ref=f13e358] [cursor=pointer]'
+          - 'button "Zoom in to: That structure maps losslessly onto a node tree…" [ref=f13e362] [cursor=pointer]'
+          - 'button "Zoom in to: The tree view is a way of looking at the notes…" [ref=f13e366] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f13e370] [cursor=pointer]
+          - 'button "Zoom in to: Editing works on the tree. Indent, outdent, mov…" [ref=f13e373] [cursor=pointer]'
+          - 'button "Zoom in to: A node carries its children." [ref=f13e377] [cursor=pointer]'
+          - 'button "Zoom in to: A selection covers whole nodes." [ref=f13e381] [cursor=pointer]'
+          - 'button "Zoom in to: An edit that would leave children without a par…" [ref=f13e385] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f13e389] [cursor=pointer]
+          - 'button "Zoom in to: The file stays clean. No front matter, IDs or h…" [ref=f13e392] [cursor=pointer]'
+          - 'button "Zoom in to: Parsing a note and encoding it back is byte-ide…" [ref=f13e396] [cursor=pointer]'
+          - 'button "Zoom in to: Every structural edit resolves to the smallest…" [ref=f13e400] [cursor=pointer]'
+          - 'button "Zoom in to: Notes keep working with every other tool, plugi…" [ref=f13e404] [cursor=pointer]'
+          - 'button "Zoom in to: Public APIs only. The plugin is built on Obsidi…" [ref=f13e408] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f13e412] [cursor=pointer]
+          - 'button "Zoom in to: What it looks like" [ref=f13e415] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f13e421] [cursor=pointer]
+          - 'button "Zoom in to: In outline mode a note is drawn on a single ind…" [ref=f13e424] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f13e427] [cursor=pointer]
+          - 'button "Zoom in to: The grid. Every node kind steps right by the sa…" [ref=f13e430] [cursor=pointer]'
+          - 'button "Zoom in to: Guide lines connect each node to its ancestors." [ref=f13e434] [cursor=pointer]'
+          - 'button "Zoom in to: A small marker in the gutter names each node''s…" [ref=f13e438] [cursor=pointer]'
+          - 'button "Zoom in to: The caret only ever sits on content, never on a…" [ref=f13e442] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f13e446] [cursor=pointer]
+          - 'button "Zoom in to: The keys act on whole nodes." [ref=f13e449] [cursor=pointer]'
+          - 'button "Zoom in to: Tab and Shift+Tab move whole subtrees." [ref=f13e453] [cursor=pointer]'
+          - 'button "Zoom in to: Enter splits a node into two." [ref=f13e457] [cursor=pointer]'
+          - 'button "Zoom in to: Shift+Arrow grows a selection one node at a tim…" [ref=f13e461] [cursor=pointer]'
+          - 'button "Zoom in to: Folding. Any node with children folds, and a fo…" [ref=f13e465] [cursor=pointer]'
+          - 'button "Zoom in to: Zoom. A click on a marker zooms into that node." [ref=f13e469] [cursor=pointer]'
+          - 'button "Zoom in to: Backlinks. Below the note, every reference to i…" [ref=f13e473] [cursor=pointer]'
+          - 'button "Zoom in to: The quickest way to see it is this site: the do…" [ref=f13e477] [cursor=pointer]'
+          - 'button "Zoom in to: This documentation is its own demo Every page o…" [ref=f13e480] [cursor=pointer]'
+          - 'button "Zoom in to: Switch outline mode off and the note is stock O…" [ref=f13e486] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f13e489] [cursor=pointer]
+          - 'button "Zoom in to: Where it works" [ref=f13e492] [cursor=pointer]'
+          - 'button "Zoom in to: Obsidian 1.5.0 or later, desktop and mobile." [ref=f13e498] [cursor=pointer]'
+          - 'button "Zoom in to: Live Preview and source mode. Reading view rend…" [ref=f13e502] [cursor=pointer]'
+          - 'button "Zoom in to: Every markdown note, in any folder, without any…" [ref=f13e506] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f13e510] [cursor=pointer]
+          - 'button "Zoom in to: Reading this guide" [ref=f13e513] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f13e519] [cursor=pointer]
+          - 'button "Zoom in to: The guide goes from a first session to one page…" [ref=f13e522] [cursor=pointer]'
+          - 'button "Zoom in to: Getting started covers the first five minutes." [ref=f13e525] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f13e529] [cursor=pointer]
+          - 'button "Zoom in to: How a note becomes an outline explains the mapp…" [ref=f13e532] [cursor=pointer]'
+          - 'button "Zoom in to: It is worth reading once, because it answers mo…" [ref=f13e536] [cursor=pointer]'
+          - 'button "Zoom in to: The remaining guide pages each take one feature." [ref=f13e540] [cursor=pointer]'
+          - 'button "Zoom in to: The reference section lists every setting, comm…" [ref=f13e544] [cursor=pointer]'
+        - main [ref=f13e548]:
+          - generic [ref=f13e550]:
+            - heading "Introduction" [level=1] [ref=f13e551]: "Introduction #"
+            - paragraph [ref=f13e552]: "True Outliner turns any Obsidian note into an outline: a tree of nodes that can be indented, moved, split, zoomed into and selected as whole units, with every operation working on the tree rather than on lines of text. The file on disk stays plain markdown."
+            - generic [ref=f13e553]:
+              - paragraph [ref=f13e554]: Early preview
+              - paragraph [ref=f13e555]:
+                - text: True Outliner is under active development. It is usable today and every feature on this site is real, but the plugin is not yet in Obsidian's community plugin directory, defaults may still change, and a few rough edges are listed under
+                - link "known limitations" [ref=f13e556] [cursor=pointer]:
+                  - /url: ./../reference/limitations
+                - text: . Keep backups of anything irreplaceable, as with any plugin that edits notes.
+            - heading "The idea" [level=2] [ref=f13e557]: "The idea #"
+            - paragraph [ref=f13e558]:
+              - text: "Dedicated outliners such as Workflowy, Roam, Logseq and Tana share one invariant: the document is a"
+              - strong [ref=f13e559]: tree of nodes
+              - text: ", and every operation respects node boundaries."
+            - list [ref=f13e560]:
+              - listitem [ref=f13e561]: Typing, selecting, deleting, moving and pasting all stay inside the tree.
+              - listitem [ref=f13e562]: The structure cannot be malformed by a careless keystroke.
+            - paragraph [ref=f13e563]: Obsidian's markdown lists have no such invariant. Plugins that add outliner keybindings work on flat text, so the structure is only as safe as the caret's position.
+            - list [ref=f13e564]:
+              - listitem [ref=f13e565]: A Backspace at the wrong column merges two items.
+              - listitem [ref=f13e566]: A paste lands half a subtree at the wrong depth.
+              - listitem [ref=f13e567]: A drag leaves children orphaned.
+            - paragraph [ref=f13e568]: True Outliner brings the enforced-tree invariant to Obsidian without leaving markdown behind.
+            - list [ref=f13e569]:
+              - listitem [ref=f13e570]:
+                - strong [ref=f13e571]: Any note is an outline.
+                - text: "Every note already has a block structure: headings, paragraphs, list items, code blocks, tables."
+                - list [ref=f13e572]:
+                  - listitem [ref=f13e573]: That structure maps losslessly onto a node tree, so nothing has to be converted and no note is "an outliner note".
+                  - listitem [ref=f13e574]: The tree view is a way of looking at the notes that already exist.
+              - listitem [ref=f13e575]:
+                - strong [ref=f13e576]: Editing works on the tree.
+                - text: Indent, outdent, move, split, merge, delete and paste all go through the tree.
+                - list [ref=f13e577]:
+                  - listitem [ref=f13e578]: A node carries its children.
+                  - listitem [ref=f13e579]: A selection covers whole nodes.
+                  - listitem [ref=f13e580]: An edit that would leave children without a parent, or text outside the tree, is rewritten into the well-formed equivalent or refused with a short cue.
+              - listitem [ref=f13e581]:
+                - strong [ref=f13e582]: The file stays clean.
+                - text: No front matter, IDs or hidden metadata are needed to make the outliner work.
+                - list [ref=f13e583]:
+                  - listitem [ref=f13e584]: Parsing a note and encoding it back is byte-identical.
+                  - listitem [ref=f13e585]: Every structural edit resolves to the smallest diff that expresses it.
+                  - listitem [ref=f13e586]: Notes keep working with every other tool, plugin and sync method.
+              - listitem [ref=f13e587]:
+                - strong [ref=f13e588]: Public APIs only.
+                - text: The plugin is built on Obsidian's documented editor and plugin APIs, with no patching of private internals.
+            - heading "What it looks like" [level=2] [ref=f13e589]: "What it looks like #"
+            - paragraph [ref=f13e590]: In outline mode a note is drawn on a single indentation grid, and the keys work on the tree.
+            - list [ref=f13e591]:
+              - listitem [ref=f13e592]:
+                - strong [ref=f13e593]: The grid.
+                - text: Every node kind steps right by the same amount per level.
+                - list [ref=f13e594]:
+                  - listitem [ref=f13e595]: Guide lines connect each node to its ancestors.
+                  - listitem [ref=f13e596]: A small marker in the gutter names each node's kind.
+              - listitem [ref=f13e597]:
+                - strong [ref=f13e598]: The caret
+                - text: only ever sits on content, never on a blank line or a list marker.
+              - listitem [ref=f13e599]:
+                - strong [ref=f13e600]: The keys
+                - text: act on whole nodes.
+                - list [ref=f13e601]:
+                  - listitem [ref=f13e602]: Tab and Shift+Tab move whole subtrees.
+                  - listitem [ref=f13e603]: Enter splits a node into two.
+                  - listitem [ref=f13e604]: Shift+Arrow grows a selection one node at a time.
+              - listitem [ref=f13e605]:
+                - strong [ref=f13e606]: Folding.
+                - text: Any node with children folds, and a fold follows the node when it moves.
+              - listitem [ref=f13e607]:
+                - strong [ref=f13e608]: Zoom.
+                - text: A click on a marker zooms into that node.
+              - listitem [ref=f13e609]:
+                - strong [ref=f13e610]: Backlinks.
+                - text: Below the note, every reference to it from elsewhere in the vault is listed in the tree of the note it came from.
+            - paragraph [ref=f13e611]: "The quickest way to see it is this site: the docs are written as outlines, and every page can be drawn as one."
+            - generic [ref=f13e612]:
+              - paragraph [ref=f13e613]: This documentation is its own demo
+              - paragraph [ref=f13e614]: "Every page of these docs can be read as an outline, drawn the way the plugin draws a note: one grid, a marker per block, guides, folding, zoom and a backlinks footer."
+              - paragraph [ref=f13e615]:
+                - button "Back to long-form" [pressed] [ref=f13e616] [cursor=pointer]
+                - text: The same switch sits at the bottom right of every page.
+              - paragraph [ref=f13e617]: The outline view here is a best-effort rendition in the browser, meant to give the idea. Details differ in Obsidian, where the outline is also editable.
+            - paragraph [ref=f13e618]: Switch outline mode off and the note is stock Obsidian again, byte for byte, as the long-form view here is the same page untouched.
+            - heading "Where it works" [level=2] [ref=f13e619]: "Where it works #"
+            - list [ref=f13e620]:
+              - listitem [ref=f13e621]:
+                - text: Obsidian
+                - strong [ref=f13e622]: 1.5.0 or later
+                - text: ", desktop and mobile."
+              - listitem [ref=f13e623]:
+                - strong [ref=f13e624]: Live Preview and source mode.
+                - text: Reading view renders exactly as Obsidian does; there is no outline chrome there.
+              - listitem [ref=f13e625]: Every markdown note, in any folder, without any preparation.
+            - heading "Reading this guide" [level=2] [ref=f13e626]: "Reading this guide #"
+            - paragraph [ref=f13e627]: The guide goes from a first session to one page per feature, with the reference section behind it.
+            - list [ref=f13e628]:
+              - listitem [ref=f13e629]:
+                - link "Getting started" [ref=f13e630] [cursor=pointer]:
+                  - /url: ./getting-started
+                - text: covers the first five minutes.
+              - listitem [ref=f13e631]:
+                - link "How a note becomes an outline" [ref=f13e632] [cursor=pointer]:
+                  - /url: ./how-notes-become-outlines
+                - text: explains the mapping the rest of the plugin is built on.
+                - list [ref=f13e633]:
+                  - listitem [ref=f13e634]: It is worth reading once, because it answers most "why did it do that?" questions.
+              - listitem [ref=f13e635]: The remaining guide pages each take one feature.
+              - listitem [ref=f13e636]: The reference section lists every setting, command, key and CSS variable.
+        - contentinfo [ref=f13e637]:
+          - region "Structured backlinks" [ref=f13e638]:
+            - button "Structured backlinks 0 references" [expanded] [ref=f13e639] [cursor=pointer]:
+              - generic [ref=f13e647]: Structured backlinks
+              - generic [ref=f13e648]: 0 references
+          - navigation "Pager" [ref=f13e649]:
+            - link "Next page Installation" [ref=f13e653] [cursor=pointer]:
+              - /url: /obsidian-true-outliner/guide/installation
+              - generic [ref=f13e654]: Next page
+              - generic [ref=f13e655]: Installation
+  - toolbar "Page view" [ref=f13e656]:
+    - button "Fold all" [ref=f13e657] [cursor=pointer]
+    - button "Unfold all" [disabled] [ref=f13e661]
+    - button "Outline view" [pressed] [ref=f13e666] [cursor=pointer]
+    - button "Long-form view" [ref=f13e670] [cursor=pointer]
+    - link "Edit this page on GitHub" [ref=f13e673] [cursor=pointer]:
+      - /url: https://github.com/laughedelic/obsidian-true-outliner/edit/main/website/guide/index.md

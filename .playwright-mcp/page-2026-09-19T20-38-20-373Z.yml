@@ -1,0 +1,453 @@
+- generic [active] [ref=f9e1]:
+  - generic [ref=f9e3]:
+    - link "Skip to content" [ref=f9e4] [cursor=pointer]:
+      - /url: "#VPContent"
+    - banner:
+      - generic:
+        - generic:
+          - generic:
+            - link "True Outliner" [ref=f9e6] [cursor=pointer]:
+              - /url: /obsidian-true-outliner/
+            - generic [ref=f9e8]:
+              - button "Search" [ref=f9e10] [cursor=pointer]:
+                - generic [aria-hidden] [ref=f9e13]:
+                  - generic [ref=f9e14]: ⌘
+                  - generic [ref=f9e15]: K
+              - navigation "Main Navigation" [ref=f9e16]:
+                - list [ref=f9e17]:
+                  - listitem [ref=f9e18]:
+                    - link "Guide" [ref=f9e19] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/guide/
+                  - listitem [ref=f9e21]:
+                    - link "Reference" [ref=f9e22] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/reference/settings
+                  - listitem [ref=f9e24]:
+                    - link "Compared" [ref=f9e25] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/
+                  - listitem [ref=f9e27]:
+                    - link "Releases ⁠" [ref=f9e28] [cursor=pointer]:
+                      - /url: https://github.com/laughedelic/obsidian-true-outliner/releases
+                      - generic [ref=f9e29]: Releases
+                      - text: ⁠
+              - switch "Appearance" [ref=f9e31] [cursor=pointer]
+              - list [ref=f9e36]:
+                - listitem [ref=f9e37]:
+                  - link "github" [ref=f9e38] [cursor=pointer]:
+                    - /url: https://github.com/laughedelic/obsidian-true-outliner
+    - complementary [ref=f9e40]:
+      - navigation "Sidebar Navigation" [ref=f9e42]:
+        - generic [ref=f9e45]:
+          - heading "Guide" [level=2] [ref=f9e48]
+          - list [ref=f9e49]:
+            - listitem [ref=f9e50]:
+              - link [ref=f9e54] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/
+                - paragraph [ref=f9e55]: Introduction
+              - generic [ref=f9e56]:
+                - heading "Start" [level=3] [ref=f9e59]
+                - list [ref=f9e60]:
+                  - listitem [ref=f9e61]:
+                    - link [ref=f9e65] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/guide/installation
+                      - paragraph [ref=f9e66]: Installation
+                    - link [ref=f9e70] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/guide/getting-started
+                      - paragraph [ref=f9e71]: Getting started
+              - generic [ref=f9e72]:
+                - heading "The outline" [level=3] [ref=f9e75]
+                - list [ref=f9e76]:
+                  - listitem [ref=f9e77]:
+                    - link [ref=f9e81] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/guide/how-notes-become-outlines
+                      - paragraph [ref=f9e82]: How a note becomes an outline
+                    - link [ref=f9e86] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/guide/outline-mode
+                      - paragraph [ref=f9e87]: Outline mode
+                    - link [ref=f9e91] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/guide/appearance
+                      - paragraph [ref=f9e92]: Appearance
+              - generic [ref=f9e93]:
+                - heading "Editing" [level=3] [ref=f9e96]
+                - list [ref=f9e97]:
+                  - listitem [ref=f9e98]:
+                    - link [ref=f9e102] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/guide/structural-editing
+                      - paragraph [ref=f9e103]: Structural editing
+                    - link [ref=f9e107] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/guide/selection-and-caret
+                      - paragraph [ref=f9e108]: Selection and the caret
+              - generic [ref=f9e109]:
+                - heading "Finding the way" [level=3] [ref=f9e112]
+                - list [ref=f9e113]:
+                  - listitem [ref=f9e114]:
+                    - link [ref=f9e118] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/guide/folding
+                      - paragraph [ref=f9e119]: Folding
+                    - link [ref=f9e123] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/guide/zoom
+                      - paragraph [ref=f9e124]: Zoom
+                    - link [ref=f9e128] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/guide/backlinks
+                      - paragraph [ref=f9e129]: Structured backlinks
+              - link [ref=f9e133] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/mobile
+                - paragraph [ref=f9e134]: Mobile
+        - generic [ref=f9e136]:
+          - heading "Compared to" [level=2] [ref=f9e139]
+          - list [ref=f9e140]:
+            - listitem [ref=f9e141]:
+              - link [ref=f9e145] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/
+                - paragraph [ref=f9e146]: Where we stand
+              - link [ref=f9e150] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/obsidian-plugins
+                - paragraph [ref=f9e151]: Obsidian's outliner plugins
+              - generic [ref=f9e152]:
+                - heading "Outliners" [level=3] [ref=f9e155]
+                - list [ref=f9e156]:
+                  - listitem [ref=f9e157]:
+                    - link [ref=f9e161] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/logseq
+                      - paragraph [ref=f9e162]: Logseq
+                    - link [ref=f9e166] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/workflowy
+                      - paragraph [ref=f9e167]: Workflowy and Dynalist
+                    - link [ref=f9e171] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/roam
+                      - paragraph [ref=f9e172]: Roam Research
+                    - link [ref=f9e176] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/tana
+                      - paragraph [ref=f9e177]: Tana
+                    - link [ref=f9e181] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/outl
+                      - paragraph [ref=f9e182]: outl
+                    - link [ref=f9e186] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/orca-note
+                      - paragraph [ref=f9e187]: Orca Note
+                    - link [ref=f9e191] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/thymer
+                      - paragraph [ref=f9e192]: Thymer
+                    - link [ref=f9e196] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/org-mode
+                      - paragraph [ref=f9e197]: Org-mode
+              - generic [ref=f9e198]:
+                - heading "Note apps" [level=3] [ref=f9e201]
+                - list [ref=f9e202]:
+                  - listitem [ref=f9e203]:
+                    - link [ref=f9e207] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/notion
+                      - paragraph [ref=f9e208]: Notion
+                    - link [ref=f9e212] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/capacities
+                      - paragraph [ref=f9e213]: Capacities
+                    - link [ref=f9e217] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/anytype
+                      - paragraph [ref=f9e218]: Anytype
+                    - link [ref=f9e222] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/reflect
+                      - paragraph [ref=f9e223]: Reflect
+        - generic [ref=f9e225]:
+          - heading "Reference" [level=2] [ref=f9e228]
+          - list [ref=f9e229]:
+            - listitem [ref=f9e230]:
+              - link [ref=f9e234] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/reference/settings
+                - paragraph [ref=f9e235]: Settings
+              - link [ref=f9e239] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/reference/commands-and-keys
+                - paragraph [ref=f9e240]: Commands and keys
+              - link [ref=f9e244] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/reference/css-variables
+                - paragraph [ref=f9e245]: CSS variables
+              - link [ref=f9e249] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/reference/limitations
+                - paragraph [ref=f9e250]: Known limitations
+    - generic [ref=f9e253]:
+      - generic [ref=f9e257]:
+        - navigation [ref=f9e258]:
+          - generic [ref=f9e259]:
+            - heading "On this page" [level=2] [ref=f9e261]
+            - list [ref=f9e262]:
+              - listitem [ref=f9e263]:
+                - link "Zooming in" [ref=f9e264] [cursor=pointer]:
+                  - /url: "#zooming-in"
+              - listitem [ref=f9e265]:
+                - link "While zoomed" [ref=f9e266] [cursor=pointer]:
+                  - /url: "#while-zoomed"
+              - listitem [ref=f9e267]:
+                - link "Zooming out" [ref=f9e268] [cursor=pointer]:
+                  - /url: "#zooming-out"
+              - listitem [ref=f9e269]:
+                - link "When zoom clears itself" [ref=f9e270] [cursor=pointer]:
+                  - /url: "#when-zoom-clears-itself"
+        - navigation "Backlinks" [ref=f9e271]:
+          - paragraph [ref=f9e272]:
+            - text: Backlinks
+            - generic [ref=f9e273]: "3"
+          - list [ref=f9e274]:
+            - listitem [ref=f9e275]:
+              - link "Appearance 1" [ref=f9e276] [cursor=pointer]:
+                - /url: "#backlinks"
+                - generic [ref=f9e277]: Appearance
+                - generic [ref=f9e278]: "1"
+            - listitem [ref=f9e279]:
+              - link "Folding 1" [ref=f9e280] [cursor=pointer]:
+                - /url: "#backlinks"
+                - generic [ref=f9e281]: Folding
+                - generic [ref=f9e282]: "1"
+            - listitem [ref=f9e283]:
+              - link "Structural editing 1" [ref=f9e284] [cursor=pointer]:
+                - /url: "#backlinks"
+                - generic [ref=f9e285]: Structural editing
+                - generic [ref=f9e286]: "1"
+      - generic [ref=f9e289]:
+        - generic:
+          - button [aria-hidden] [ref=f9e290] [cursor=pointer]
+          - button [aria-hidden] [ref=f9e291] [cursor=pointer]
+          - button [aria-hidden] [ref=f9e292] [cursor=pointer]
+          - button [aria-hidden] [ref=f9e293] [cursor=pointer]
+          - button [aria-hidden] [ref=f9e294] [cursor=pointer]
+          - button [aria-hidden] [ref=f9e295] [cursor=pointer]
+          - button [aria-hidden] [ref=f9e296] [cursor=pointer]
+          - button [aria-hidden] [ref=f9e297] [cursor=pointer]
+          - button [aria-hidden] [ref=f9e298] [cursor=pointer]
+          - button [aria-hidden] [ref=f9e299] [cursor=pointer]
+          - button [aria-hidden] [ref=f9e300] [cursor=pointer]
+          - button [aria-hidden] [ref=f9e301] [cursor=pointer]
+          - button [aria-hidden] [ref=f9e302] [cursor=pointer]
+          - button "Fold" [expanded] [ref=f9e303] [cursor=pointer]
+          - 'button "Zoom in to: Zoom" [ref=f9e306] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f9e312] [cursor=pointer]
+          - 'button "Zoom in to: Zoom shows one node and its subtree as if it we…" [ref=f9e315] [cursor=pointer]'
+          - 'button "Zoom in to: Everything outside the node disappears from vie…" [ref=f9e318] [cursor=pointer]'
+          - 'button "Zoom in to: A breadcrumb trail above the content says where…" [ref=f9e322] [cursor=pointer]'
+          - 'button "Zoom in to: Editing works exactly as before, confined to wh…" [ref=f9e326] [cursor=pointer]'
+          - 'button "Zoom in to: It works on any node: a heading with its sectio…" [ref=f9e330] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f9e334] [cursor=pointer]
+          - 'button "Zoom in to: Zoom is a view state, not an edit." [ref=f9e337] [cursor=pointer]'
+          - 'button "Zoom in to: It never changes the note." [ref=f9e340] [cursor=pointer]'
+          - 'button "Zoom in to: It is never saved: closing the tab or switching…" [ref=f9e344] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f9e348] [cursor=pointer]
+          - 'button "Zoom in to: Zooming in" [ref=f9e351] [cursor=pointer]'
+          - 'button "Zoom in to: HowWhereClick the node''s markerThe icon in the…" [ref=f9e357] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f9e361] [cursor=pointer]
+          - 'button "Zoom in to: A click on a marker only zooms: it does not mov…" [ref=f9e364] [cursor=pointer]'
+          - 'button "Zoom in to: Holding a modifier (Mod, Shift, Alt) while clic…" [ref=f9e367] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f9e371] [cursor=pointer]
+          - 'button "Zoom in to: Task items are the one exception: their mark is…" [ref=f9e374] [cursor=pointer]'
+          - 'button "Zoom in to: A task is zoomed from the command, the menu or…" [ref=f9e378] [cursor=pointer]'
+          - 'button "Zoom in to: The command zooms into the node the caret is in…" [ref=f9e382] [cursor=pointer]'
+          - 'button "Zoom in to: A click on a heading''s marker zooms to its sect…" [ref=f9e385] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f9e390] [cursor=pointer]
+          - 'button "Zoom in to: While zoomed" [ref=f9e393] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f9e399] [cursor=pointer]
+          - 'button "Zoom in to: The trail. Above the content, in the note''s own…" [ref=f9e402] [cursor=pointer]'
+          - 'button "Zoom in to: Each crumb shows that ancestor''s marker and its…" [ref=f9e406] [cursor=pointer]'
+          - 'button "Zoom in to: Clicking an ancestor re-zooms to it." [ref=f9e410] [cursor=pointer]'
+          - 'button "Zoom in to: Clicking the note''s name, or the small marker a…" [ref=f9e414] [cursor=pointer]'
+          - 'button "Zoom in to: Depth restarts. The zoomed node sits at the lef…" [ref=f9e418] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f9e422] [cursor=pointer]
+          - 'button "Zoom in to: Editing is confined. The caret, Shift+Arrow, Se…" [ref=f9e425] [cursor=pointer]'
+          - 'button "Zoom in to: A split, move, outdent or paste whose result wo…" [ref=f9e429] [cursor=pointer]'
+          - 'button "Zoom in to: Clicking below the last visible line puts the c…" [ref=f9e433] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f9e437] [cursor=pointer]
+          - 'button "Zoom in to: The view starts at the top, with the editor foc…" [ref=f9e440] [cursor=pointer]'
+          - 'button "Zoom in to: The caret stays where it was if that is still v…" [ref=f9e444] [cursor=pointer]'
+          - 'button "Zoom in to: A folded subtree is unfolded when it becomes th…" [ref=f9e448] [cursor=pointer]'
+          - 'button "Zoom in to: The backlinks footer keeps rendering under the…" [ref=f9e452] [cursor=pointer]'
+          - 'button "Zoom in to: Zoomed into Materials: the trail names the note…" [ref=f9e456] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f9e461] [cursor=pointer]
+          - 'button "Zoom in to: Zooming out" [ref=f9e464] [cursor=pointer]'
+          - 'button "Zoom in to: HowEffectZoom out one level (command)The parent…" [ref=f9e470] [cursor=pointer]'
+          - 'button "Zoom in to: Zooming out scrolls the node that was just left…" [ref=f9e474] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f9e477] [cursor=pointer]
+          - 'button "Zoom in to: When zoom clears itself" [ref=f9e480] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f9e486] [cursor=pointer]
+          - 'button "Zoom in to: Zoom clears on its own in three situations, so…" [ref=f9e489] [cursor=pointer]'
+          - 'button "Zoom in to: The zoomed node and its whole subtree are delet…" [ref=f9e492] [cursor=pointer]'
+          - 'button "Zoom in to: A change that did not come from this editor''s k…" [ref=f9e496] [cursor=pointer]'
+          - 'button "Zoom in to: Outline mode is switched off in that tab." [ref=f9e500] [cursor=pointer]'
+        - main [ref=f9e504]:
+          - generic [ref=f9e506]:
+            - heading "Zoom" [level=1] [ref=f9e507]: "Zoom #"
+            - paragraph [ref=f9e508]: Zoom shows one node and its subtree as if it were the whole note. It is the outliner gesture for "let me focus on this section" or "hoist this item".
+            - list [ref=f9e509]:
+              - listitem [ref=f9e510]: Everything outside the node disappears from view.
+              - listitem [ref=f9e511]: A breadcrumb trail above the content says where the view is.
+              - listitem [ref=f9e512]: Editing works exactly as before, confined to what is visible.
+              - listitem [ref=f9e513]: "It works on any node: a heading with its section, a list item with its children, a lone paragraph."
+            - paragraph [ref=f9e514]: Zoom is a view state, not an edit.
+            - list [ref=f9e515]:
+              - listitem [ref=f9e516]: It never changes the note.
+              - listitem [ref=f9e517]: "It is never saved: closing the tab or switching to another note forgets it."
+            - heading "Zooming in" [level=2] [ref=f9e518]: "Zooming in #"
+            - table [ref=f9e519]:
+              - rowgroup [ref=f9e520]:
+                - row [ref=f9e521]:
+                  - columnheader "How" [ref=f9e522]
+                  - columnheader "Where" [ref=f9e523]
+              - rowgroup [ref=f9e524]:
+                - row [ref=f9e525]:
+                  - cell [ref=f9e526]:
+                    - strong [ref=f9e527]: Click the node's marker
+                  - cell "The icon in the gutter beside a heading or paragraph, or a list item's bullet or number" [ref=f9e528]
+                - row [ref=f9e529]:
+                  - cell [ref=f9e530]:
+                    - strong [ref=f9e531]: Zoom in to node
+                  - cell "Command palette, or the editor's right-click menu" [ref=f9e532]
+                - row [ref=f9e533]:
+                  - cell "A hotkey" [ref=f9e534]
+                  - cell "None is assigned by default; every plausible one is already taken by Obsidian or a common plugin. Assign one under Settings → Hotkeys" [ref=f9e535]
+            - paragraph [ref=f9e536]: "A click on a marker only zooms: it does not move the caret, start a selection or fold."
+            - list [ref=f9e537]:
+              - listitem [ref=f9e538]: Holding a modifier (Mod, Shift, Alt) while clicking leaves the click to Obsidian, so link-following and multi-caret gestures keep working.
+              - listitem [ref=f9e539]:
+                - text: "Task items are the one exception: their mark is Obsidian's own checkbox, which keeps doing what a checkbox does."
+                - list [ref=f9e540]:
+                  - listitem [ref=f9e541]: A task is zoomed from the command, the menu or a hotkey.
+            - paragraph [ref=f9e542]: The command zooms into the node the caret is in. With a selection covering several nodes, it zooms into the first one.
+            - figure "A click on a heading's marker zooms to its section, a click on a bullet zooms to that item, and the commands step back out." [ref=f9e543]
+            - heading "While zoomed" [level=2] [ref=f9e546]: "While zoomed #"
+            - list [ref=f9e547]:
+              - listitem [ref=f9e548]:
+                - strong [ref=f9e549]: The trail.
+                - text: "Above the content, in the note's own text size: the note's name, then each ancestor of the zoomed node from the outermost inward."
+                - list [ref=f9e550]:
+                  - listitem [ref=f9e551]:
+                    - text: Each crumb shows that ancestor's marker and its text, rendered live, with heading
+                    - code [ref=f9e552]: "#"
+                    - text: ", quote"
+                    - code [ref=f9e553]: ">"
+                    - text: and task boxes stripped.
+                  - listitem [ref=f9e554]: Clicking an ancestor re-zooms to it.
+                  - listitem [ref=f9e555]: Clicking the note's name, or the small marker at the start of the trail, zooms all the way out.
+              - listitem [ref=f9e556]:
+                - strong [ref=f9e557]: Depth restarts.
+                - text: The zoomed node sits at the left edge and its children one level in, with guides drawn from there, so a deeply nested item reads like a top-level one.
+              - listitem [ref=f9e558]:
+                - strong [ref=f9e559]: Editing is confined.
+                - text: The caret, Shift+Arrow, Select All and every structural key stay inside the visible subtree.
+                - list [ref=f9e560]:
+                  - listitem [ref=f9e561]:
+                    - text: A split, move, outdent or paste whose result would fall outside it is refused with
+                    - emphasis [ref=f9e562]: That would move it outside the zoomed view
+                    - text: .
+                  - listitem [ref=f9e563]: Clicking below the last visible line puts the caret on the last visible line, not on hidden text.
+              - listitem [ref=f9e564]:
+                - strong [ref=f9e565]: The view starts at the top
+                - text: ", with the editor focused."
+                - list [ref=f9e566]:
+                  - listitem [ref=f9e567]: The caret stays where it was if that is still visible, otherwise it lands on the zoomed node.
+                  - listitem [ref=f9e568]: A folded subtree is unfolded when it becomes the zoom root; folds elsewhere are left alone.
+              - listitem [ref=f9e569]:
+                - strong [ref=f9e570]: The backlinks footer
+                - text: keeps rendering under the zoomed content.
+            - 'figure "Zoomed into Materials: the trail names the note and the heading above, and the section sits at the left edge." [ref=f9e571]':
+              - img "The Materials section zoomed in, with the breadcrumb trail above it" [ref=f9e572]
+            - heading "Zooming out" [level=2] [ref=f9e574]: "Zooming out #"
+            - table [ref=f9e575]:
+              - rowgroup [ref=f9e576]:
+                - row [ref=f9e577]:
+                  - columnheader "How" [ref=f9e578]
+                  - columnheader "Effect" [ref=f9e579]
+              - rowgroup [ref=f9e580]:
+                - row [ref=f9e581]:
+                  - cell [ref=f9e582]:
+                    - strong [ref=f9e583]: Zoom out one level
+                    - text: (command)
+                  - cell "The parent becomes the zoom root. From a top-level node it clears the zoom." [ref=f9e584]
+                - row [ref=f9e585]:
+                  - cell [ref=f9e586]:
+                    - strong [ref=f9e587]: Zoom out fully
+                    - text: (command, or the right-click menu while zoomed)
+                  - cell "Back to the whole note." [ref=f9e588]
+                - row [ref=f9e589]:
+                  - cell "Click the note's name in the trail" [ref=f9e590]
+                  - cell "Same as Zoom out fully." [ref=f9e591]
+                - row [ref=f9e592]:
+                  - cell "Click an ancestor in the trail" [ref=f9e593]
+                  - cell "Zoom to that ancestor." [ref=f9e594]
+            - paragraph [ref=f9e595]: Zooming out scrolls the node that was just left back into view.
+            - heading "When zoom clears itself" [level=2] [ref=f9e596]: "When zoom clears itself #"
+            - paragraph [ref=f9e597]: Zoom clears on its own in three situations, so the view never shows something that is no longer true.
+            - list [ref=f9e598]:
+              - listitem [ref=f9e599]: The zoomed node and its whole subtree are deleted.
+              - listitem [ref=f9e600]: A change that did not come from this editor's keyboard, such as an undo, sync from another device, an edit in another pane or in another app, puts content outside the zoomed subtree.
+              - listitem [ref=f9e601]: Outline mode is switched off in that tab.
+        - contentinfo [ref=f9e602]:
+          - region "Structured backlinks" [ref=f9e603]:
+            - button "Structured backlinks 3 references · 3 notes" [expanded] [ref=f9e604] [cursor=pointer]:
+              - generic [ref=f9e612]: Structured backlinks
+              - generic [ref=f9e613]: 3 references · 3 notes
+            - generic [ref=f9e614]:
+              - button "Appearance Guide 1" [expanded] [ref=f9e615] [cursor=pointer]:
+                - generic [ref=f9e619]: Appearance
+                - generic [ref=f9e620]: Guide
+                - generic [ref=f9e621]: "1"
+              - generic [ref=f9e622]:
+                - link "Markers" [ref=f9e623] [cursor=pointer]
+                - 'link "Each block''s first line carries a small icon in the gutter that names its kind: heading, paragraph, code, table, callout, quote and so on." [ref=f9e631] [cursor=pointer]'
+                - link [ref=f9e637] [cursor=pointer]:
+                  - generic [ref=f9e645]:
+                    - text: Clicking a marker
+                    - link "zooms into that node" [ref=f9e646]:
+                      - /url: /obsidian-true-outliner/guide/zoom
+                    - text: .
+            - generic [ref=f9e647]:
+              - button "Folding Guide 1" [expanded] [ref=f9e648] [cursor=pointer]:
+                - generic [ref=f9e652]: Folding
+                - generic [ref=f9e653]: Guide
+                - generic [ref=f9e654]: "1"
+              - generic [ref=f9e655]:
+                - link "The whole note" [ref=f9e656] [cursor=pointer]
+                - link [ref=f9e664] [cursor=pointer]:
+                  - generic [ref=f9e670]:
+                    - text: Four commands in the palette, without default hotkeys, fold across the whole note. While
+                    - link "zoomed in" [ref=f9e671]:
+                      - /url: /obsidian-true-outliner/guide/zoom
+                    - text: ", all four act inside the zoom only."
+                - link [ref=f9e672] [cursor=pointer]:
+                  - generic [ref=f9e680]:
+                    - strong [ref=f9e681]: Fold all nodes
+                    - text: and
+                    - strong [ref=f9e682]: Unfold all nodes
+                    - text: .
+                - link "Fold one level more and Fold one level less walk the outline's depth in either direction. …2" [ref=f9e683] [cursor=pointer]:
+                  - generic [ref=f9e690]:
+                    - generic [ref=f9e691]:
+                      - strong [ref=f9e692]: Fold one level more
+                      - text: and
+                      - strong [ref=f9e693]: Fold one level less
+                      - text: walk the outline's depth in either direction.
+                    - generic [ref=f9e694]: …2
+            - generic [ref=f9e695]:
+              - button "Structural editing Guide 1" [expanded] [ref=f9e696] [cursor=pointer]:
+                - generic [ref=f9e700]: Structural editing
+                - generic [ref=f9e701]: Guide
+                - generic [ref=f9e702]: "1"
+              - generic [ref=f9e703]:
+                - link "Inside a zoom" [ref=f9e704] [cursor=pointer]
+                - link [ref=f9e712] [cursor=pointer]:
+                  - generic [ref=f9e718]:
+                    - text: While
+                    - link "zoomed in" [ref=f9e719]:
+                      - /url: /obsidian-true-outliner/guide/zoom
+                    - text: ", every operation is confined to the visible subtree. A split, move, indent or paste whose result would land outside it is refused with"
+                    - emphasis [ref=f9e720]: That would move it outside the zoomed view
+                    - text: .
+          - navigation "Pager" [ref=f9e721]:
+            - link "Previous page Folding" [ref=f9e724] [cursor=pointer]:
+              - /url: /obsidian-true-outliner/guide/folding
+              - generic [ref=f9e725]: Previous page
+              - generic [ref=f9e726]: Folding
+            - link "Next page Structured backlinks" [ref=f9e728] [cursor=pointer]:
+              - /url: /obsidian-true-outliner/guide/backlinks
+              - generic [ref=f9e729]: Next page
+              - generic [ref=f9e730]: Structured backlinks
+  - toolbar "Page view" [ref=f9e731]:
+    - button "Fold all" [ref=f9e732] [cursor=pointer]
+    - button "Unfold all" [disabled] [ref=f9e736]
+    - button "Outline view" [pressed] [ref=f9e741] [cursor=pointer]
+    - button "Long-form view" [ref=f9e745] [cursor=pointer]
+    - link "Edit this page on GitHub" [ref=f9e748] [cursor=pointer]:
+      - /url: https://github.com/laughedelic/obsidian-true-outliner/edit/main/website/guide/zoom.md

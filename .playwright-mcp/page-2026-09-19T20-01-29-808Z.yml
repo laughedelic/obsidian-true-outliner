@@ -1,0 +1,259 @@
+- generic [active] [ref=f7e1]:
+  - generic [ref=f7e3]:
+    - link "Skip to content" [ref=f7e4] [cursor=pointer]:
+      - /url: "#VPContent"
+    - banner:
+      - generic:
+        - generic:
+          - generic:
+            - link "True Outliner" [ref=f7e6] [cursor=pointer]:
+              - /url: /obsidian-true-outliner/
+            - generic [ref=f7e8]:
+              - button "Search" [ref=f7e10] [cursor=pointer]:
+                - generic [aria-hidden] [ref=f7e13]:
+                  - generic [ref=f7e14]: ⌘
+                  - generic [ref=f7e15]: K
+              - navigation "Main Navigation" [ref=f7e16]:
+                - list [ref=f7e17]:
+                  - listitem [ref=f7e18]:
+                    - link "Guide" [ref=f7e19] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/guide/
+                  - listitem [ref=f7e21]:
+                    - link "Reference" [ref=f7e22] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/reference/settings
+                  - listitem [ref=f7e24]:
+                    - link "Compared" [ref=f7e25] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/
+                  - listitem [ref=f7e27]:
+                    - link "Releases ⁠" [ref=f7e28] [cursor=pointer]:
+                      - /url: https://github.com/laughedelic/obsidian-true-outliner/releases
+                      - generic [ref=f7e29]: Releases
+                      - text: ⁠
+              - switch "Appearance" [ref=f7e31] [cursor=pointer]
+              - list [ref=f7e36]:
+                - listitem [ref=f7e37]:
+                  - link "github" [ref=f7e38] [cursor=pointer]:
+                    - /url: https://github.com/laughedelic/obsidian-true-outliner
+    - complementary [ref=f7e40]:
+      - navigation "Sidebar Navigation" [ref=f7e42]:
+        - generic [ref=f7e45]:
+          - heading "Guide" [level=2] [ref=f7e48]
+          - list [ref=f7e49]:
+            - listitem [ref=f7e50]:
+              - link [ref=f7e54] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/
+                - paragraph [ref=f7e55]: Introduction
+              - link [ref=f7e59] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/installation
+                - paragraph [ref=f7e60]: Installation
+              - link [ref=f7e64] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/getting-started
+                - paragraph [ref=f7e65]: Getting started
+              - link [ref=f7e69] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/how-notes-become-outlines
+                - paragraph [ref=f7e70]: How a note becomes an outline
+              - link [ref=f7e74] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/outline-mode
+                - paragraph [ref=f7e75]: Outline mode
+              - link [ref=f7e79] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/structural-editing
+                - paragraph [ref=f7e80]: Structural editing
+              - link [ref=f7e84] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/selection-and-caret
+                - paragraph [ref=f7e85]: Selection and the caret
+              - link [ref=f7e89] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/appearance
+                - paragraph [ref=f7e90]: Appearance
+              - link [ref=f7e94] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/folding
+                - paragraph [ref=f7e95]: Folding
+              - link [ref=f7e99] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/zoom
+                - paragraph [ref=f7e100]: Zoom
+              - link [ref=f7e104] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/backlinks
+                - paragraph [ref=f7e105]: Structured backlinks
+              - link [ref=f7e109] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/mobile
+                - paragraph [ref=f7e110]: Mobile
+        - generic [ref=f7e112]:
+          - heading "Compared to" [level=2] [ref=f7e115]
+          - list [ref=f7e116]:
+            - listitem [ref=f7e117]:
+              - link [ref=f7e121] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/
+                - paragraph [ref=f7e122]: Where we stand
+              - link [ref=f7e126] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/obsidian-plugins
+                - paragraph [ref=f7e127]: Obsidian's outliner plugins
+              - link [ref=f7e131] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/logseq
+                - paragraph [ref=f7e132]: Logseq
+              - link [ref=f7e136] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/workflowy
+                - paragraph [ref=f7e137]: Workflowy and Dynalist
+              - link [ref=f7e141] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/roam
+                - paragraph [ref=f7e142]: Roam Research
+              - link [ref=f7e146] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/tana
+                - paragraph [ref=f7e147]: Tana
+              - link [ref=f7e151] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/outl
+                - paragraph [ref=f7e152]: outl
+              - link [ref=f7e156] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/orca-note
+                - paragraph [ref=f7e157]: Orca Note
+              - link [ref=f7e161] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/thymer
+                - paragraph [ref=f7e162]: Thymer
+              - link [ref=f7e166] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/notion
+                - paragraph [ref=f7e167]: Notion
+              - link [ref=f7e171] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/capacities
+                - paragraph [ref=f7e172]: Capacities
+              - link [ref=f7e176] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/anytype
+                - paragraph [ref=f7e177]: Anytype
+              - link [ref=f7e181] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/reflect
+                - paragraph [ref=f7e182]: Reflect
+              - link [ref=f7e186] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/org-mode
+                - paragraph [ref=f7e187]: Org-mode
+        - generic [ref=f7e189]:
+          - heading "Reference" [level=2] [ref=f7e192]
+          - list [ref=f7e193]:
+            - listitem [ref=f7e194]:
+              - link [ref=f7e198] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/reference/settings
+                - paragraph [ref=f7e199]: Settings
+              - link [ref=f7e203] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/reference/commands-and-keys
+                - paragraph [ref=f7e204]: Commands and keys
+              - link [ref=f7e208] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/reference/css-variables
+                - paragraph [ref=f7e209]: CSS variables
+              - link [ref=f7e213] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/reference/limitations
+                - paragraph [ref=f7e214]: Known limitations
+    - generic [ref=f7e217]:
+      - navigation [ref=f7e222]:
+        - generic [ref=f7e223]:
+          - heading "On this page" [level=2] [ref=f7e225]
+          - list [ref=f7e226]:
+            - listitem [ref=f7e227]:
+              - link "The grid" [ref=f7e228] [cursor=pointer]:
+                - /url: "#the-grid"
+            - listitem [ref=f7e229]:
+              - link "Guide lines" [ref=f7e230] [cursor=pointer]:
+                - /url: "#guide-lines"
+            - listitem [ref=f7e231]:
+              - link "Markers" [ref=f7e232] [cursor=pointer]:
+                - /url: "#markers"
+            - listitem [ref=f7e233]:
+              - link "Where the caret is" [ref=f7e234] [cursor=pointer]:
+                - /url: "#where-the-caret-is"
+            - listitem [ref=f7e235]:
+              - link "Folding" [ref=f7e236] [cursor=pointer]:
+                - /url: "#folding"
+            - listitem [ref=f7e237]:
+              - link "Themes and snippets" [ref=f7e238] [cursor=pointer]:
+                - /url: "#themes-and-snippets"
+            - listitem [ref=f7e239]:
+              - link "Off, and on again" [ref=f7e240] [cursor=pointer]:
+                - /url: "#off-and-on-again"
+      - generic [ref=f7e243]:
+        - generic:
+          - button [aria-hidden] [ref=f7e244] [cursor=pointer]
+          - button "Fold" [expanded] [ref=f7e245] [cursor=pointer]
+          - 'button "Zoom in to: Appearance" [ref=f7e248] [cursor=pointer]'
+          - button "Unfold" [ref=f7e254] [cursor=pointer]
+          - 'button "Zoom in to: In outline mode a note is drawn so that its str…" [ref=f7e257] [cursor=pointer]'
+          - 'button "Zoom in to: All of it is additive: the note''s own text, fon…" [ref=f7e260] [cursor=pointer]'
+          - 'button "Zoom in to: Guides from every parent to its children, a mar…" [ref=f7e263] [cursor=pointer]'
+          - button "Unfold" [ref=f7e268] [cursor=pointer]
+          - 'button "Zoom in to: The grid" [ref=f7e271] [cursor=pointer]'
+          - button "Unfold" [ref=f7e277] [cursor=pointer]
+          - 'button "Zoom in to: Guide lines" [ref=f7e280] [cursor=pointer]'
+          - button "Unfold" [ref=f7e286] [cursor=pointer]
+          - 'button "Zoom in to: Markers" [ref=f7e289] [cursor=pointer]'
+          - button "Unfold" [ref=f7e295] [cursor=pointer]
+          - 'button "Zoom in to: Where the caret is" [ref=f7e298] [cursor=pointer]'
+          - button "Unfold" [ref=f7e304] [cursor=pointer]
+          - 'button "Zoom in to: Folding" [ref=f7e307] [cursor=pointer]'
+          - button "Unfold" [ref=f7e313] [cursor=pointer]
+          - 'button "Zoom in to: Themes and snippets" [ref=f7e316] [cursor=pointer]'
+          - button "Unfold" [ref=f7e322] [cursor=pointer]
+          - 'button "Zoom in to: Off, and on again" [ref=f7e325] [cursor=pointer]'
+        - main [ref=f7e331]:
+          - generic [ref=f7e333]:
+            - heading "Appearance" [level=1] [ref=f7e334]: "Appearance #"
+            - paragraph [ref=f7e335]: In outline mode a note is drawn so that its structure is visible at a glance. … 4
+            - paragraph [ref=f7e336]: "All of it is additive: the note's own text, fonts and Obsidian theme are untouched, and every part of it can be tuned from the settings or overridden from a CSS snippet."
+            - figure "Guides from every parent to its children, a marker per block, and the caret's own guides and marker in the accent colour." [ref=f7e337]:
+              - img "A note with nested lists, showing guide lines, markers and the caret's lineage" [ref=f7e338]
+            - heading "The grid … 7" [level=2] [ref=f7e340]: "The grid # … 7"
+            - text: … 2 … 3
+            - heading "Guide lines … 14" [level=2] [ref=f7e341]: "Guide lines # … 14"
+            - text: … 3 … 9 … 4 … 1 … 1
+            - heading "Markers … 11" [level=2] [ref=f7e342]: "Markers # … 11"
+            - text: … 5 … 1 … 3
+            - heading "Where the caret is … 10" [level=2] [ref=f7e343]: "Where the caret is # … 10"
+            - text: … 9 … 3 … 1 … 4
+            - heading "Folding … 4" [level=2] [ref=f7e344]: "Folding # … 4"
+            - text: … 3
+            - heading "Themes and snippets … 6" [level=2] [ref=f7e345]: "Themes and snippets # … 6"
+            - text: … 2
+            - heading "Off, and on again … 1" [level=2] [ref=f7e346]: "Off, and on again # … 1"
+        - contentinfo [ref=f7e347]:
+          - region "Structured backlinks" [ref=f7e348]:
+            - button "Structured backlinks 2 references · 2 notes" [expanded] [ref=f7e349] [cursor=pointer]:
+              - generic [ref=f7e354]: Structured backlinks
+              - generic [ref=f7e355]: 2 references · 2 notes
+            - generic [ref=f7e356]:
+              - button "Getting started Guide 1" [expanded] [ref=f7e357] [cursor=pointer]:
+                - generic [ref=f7e361]: Getting started
+                - generic [ref=f7e362]: Guide
+                - generic [ref=f7e363]: "1"
+              - generic [ref=f7e364]:
+                - link "Where next" [ref=f7e365] [cursor=pointer]
+                - link [ref=f7e373] [cursor=pointer]:
+                  - generic [ref=f7e380]:
+                    - link "Appearance" [ref=f7e381]:
+                      - /url: /obsidian-true-outliner/guide/appearance
+                    - text: shows how to tune the grid, guides and markers, and how to override any of it from a CSS snippet.
+            - generic [ref=f7e382]:
+              - button "Settings Reference 1" [expanded] [ref=f7e383] [cursor=pointer]:
+                - generic [ref=f7e387]: Settings
+                - generic [ref=f7e388]: Reference
+                - generic [ref=f7e389]: "1"
+              - generic [ref=f7e390]:
+                - link "Appearance" [ref=f7e391] [cursor=pointer]
+                - link "What each one does:" [ref=f7e399] [cursor=pointer]
+                - link [ref=f7e405] [cursor=pointer]:
+                  - generic [ref=f7e413]:
+                    - strong [ref=f7e414]: Highlight guides
+                    - text: and
+                    - strong [ref=f7e415]: Highlight markers at the cursor's position
+                    - text: are the two position indicators described under
+                    - link "Appearance" [ref=f7e416]:
+                      - /url: /obsidian-true-outliner/guide/appearance#where-the-caret-is
+                    - text: .
+          - navigation "Pager" [ref=f7e417]:
+            - link "Previous page Selection and the caret" [ref=f7e420] [cursor=pointer]:
+              - /url: /obsidian-true-outliner/guide/selection-and-caret
+              - generic [ref=f7e421]: Previous page
+              - generic [ref=f7e422]: Selection and the caret
+            - link "Next page Folding" [ref=f7e424] [cursor=pointer]:
+              - /url: /obsidian-true-outliner/guide/folding
+              - generic [ref=f7e425]: Next page
+              - generic [ref=f7e426]: Folding
+  - toolbar "Page view" [ref=f7e427]:
+    - button "Fold all" [ref=f7e428] [cursor=pointer]
+    - button "Unfold all" [ref=f7e432] [cursor=pointer]
+    - button "Outline view" [pressed] [ref=f7e437] [cursor=pointer]
+    - button "Long-form view" [ref=f7e441] [cursor=pointer]
+    - link "Edit this page on GitHub" [ref=f7e444] [cursor=pointer]:
+      - /url: https://github.com/laughedelic/obsidian-true-outliner/edit/main/website/guide/appearance.md

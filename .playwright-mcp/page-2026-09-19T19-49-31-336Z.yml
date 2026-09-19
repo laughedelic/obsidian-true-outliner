@@ -1,0 +1,372 @@
+- generic [active] [ref=f5e1]:
+  - generic [ref=f5e3]:
+    - link "Skip to content" [ref=f5e4] [cursor=pointer]:
+      - /url: "#VPContent"
+    - banner:
+      - generic:
+        - generic:
+          - generic:
+            - link "True Outliner" [ref=f5e6] [cursor=pointer]:
+              - /url: /obsidian-true-outliner/
+            - generic [ref=f5e8]:
+              - button "Search" [ref=f5e10] [cursor=pointer]:
+                - generic [aria-hidden] [ref=f5e13]:
+                  - generic [ref=f5e14]: ⌘
+                  - generic [ref=f5e15]: K
+              - navigation "Main Navigation" [ref=f5e16]:
+                - list [ref=f5e17]:
+                  - listitem [ref=f5e18]:
+                    - link "Guide" [ref=f5e19] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/guide/
+                  - listitem [ref=f5e21]:
+                    - link "Reference" [ref=f5e22] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/reference/settings
+                  - listitem [ref=f5e24]:
+                    - link "Compared" [ref=f5e25] [cursor=pointer]:
+                      - /url: /obsidian-true-outliner/compare/
+                  - listitem [ref=f5e27]:
+                    - link "Releases ⁠" [ref=f5e28] [cursor=pointer]:
+                      - /url: https://github.com/laughedelic/obsidian-true-outliner/releases
+                      - generic [ref=f5e29]: Releases
+                      - text: ⁠
+              - switch "Appearance" [ref=f5e31] [cursor=pointer]
+              - list [ref=f5e36]:
+                - listitem [ref=f5e37]:
+                  - link "github" [ref=f5e38] [cursor=pointer]:
+                    - /url: https://github.com/laughedelic/obsidian-true-outliner
+    - complementary [ref=f5e40]:
+      - navigation "Sidebar Navigation" [ref=f5e42]:
+        - generic [ref=f5e45]:
+          - heading "Guide" [level=2] [ref=f5e48]
+          - list [ref=f5e49]:
+            - listitem [ref=f5e50]:
+              - link [ref=f5e54] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/
+                - paragraph [ref=f5e55]: Introduction
+              - link [ref=f5e59] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/installation
+                - paragraph [ref=f5e60]: Installation
+              - link [ref=f5e64] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/getting-started
+                - paragraph [ref=f5e65]: Getting started
+              - link [ref=f5e69] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/how-notes-become-outlines
+                - paragraph [ref=f5e70]: How a note becomes an outline
+              - link [ref=f5e74] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/outline-mode
+                - paragraph [ref=f5e75]: Outline mode
+              - link [ref=f5e79] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/structural-editing
+                - paragraph [ref=f5e80]: Structural editing
+              - link [ref=f5e84] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/selection-and-caret
+                - paragraph [ref=f5e85]: Selection and the caret
+              - link [ref=f5e89] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/appearance
+                - paragraph [ref=f5e90]: Appearance
+              - link [ref=f5e94] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/folding
+                - paragraph [ref=f5e95]: Folding
+              - link [ref=f5e99] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/zoom
+                - paragraph [ref=f5e100]: Zoom
+              - link [ref=f5e104] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/backlinks
+                - paragraph [ref=f5e105]: Structured backlinks
+              - link [ref=f5e109] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/guide/mobile
+                - paragraph [ref=f5e110]: Mobile
+        - generic [ref=f5e112]:
+          - heading "Compared to" [level=2] [ref=f5e115]
+          - list [ref=f5e116]:
+            - listitem [ref=f5e117]:
+              - link [ref=f5e121] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/
+                - paragraph [ref=f5e122]: Where we stand
+              - link [ref=f5e126] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/obsidian-plugins
+                - paragraph [ref=f5e127]: Obsidian's outliner plugins
+              - link [ref=f5e131] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/logseq
+                - paragraph [ref=f5e132]: Logseq
+              - link [ref=f5e136] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/workflowy
+                - paragraph [ref=f5e137]: Workflowy and Dynalist
+              - link [ref=f5e141] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/roam
+                - paragraph [ref=f5e142]: Roam Research
+              - link [ref=f5e146] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/tana
+                - paragraph [ref=f5e147]: Tana
+              - link [ref=f5e151] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/outl
+                - paragraph [ref=f5e152]: outl
+              - link [ref=f5e156] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/orca-note
+                - paragraph [ref=f5e157]: Orca Note
+              - link [ref=f5e161] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/thymer
+                - paragraph [ref=f5e162]: Thymer
+              - link [ref=f5e166] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/notion
+                - paragraph [ref=f5e167]: Notion
+              - link [ref=f5e171] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/capacities
+                - paragraph [ref=f5e172]: Capacities
+              - link [ref=f5e176] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/anytype
+                - paragraph [ref=f5e177]: Anytype
+              - link [ref=f5e181] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/reflect
+                - paragraph [ref=f5e182]: Reflect
+              - link [ref=f5e186] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/compare/org-mode
+                - paragraph [ref=f5e187]: Org-mode
+        - generic [ref=f5e189]:
+          - heading "Reference" [level=2] [ref=f5e192]
+          - list [ref=f5e193]:
+            - listitem [ref=f5e194]:
+              - link [ref=f5e198] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/reference/settings
+                - paragraph [ref=f5e199]: Settings
+              - link [ref=f5e203] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/reference/commands-and-keys
+                - paragraph [ref=f5e204]: Commands and keys
+              - link [ref=f5e208] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/reference/css-variables
+                - paragraph [ref=f5e209]: CSS variables
+              - link [ref=f5e213] [cursor=pointer]:
+                - /url: /obsidian-true-outliner/reference/limitations
+                - paragraph [ref=f5e214]: Known limitations
+    - generic [ref=f5e217]:
+      - navigation [ref=f5e222]:
+        - generic [ref=f5e223]:
+          - heading "On this page" [level=2] [ref=f5e225]
+          - list [ref=f5e226]:
+            - listitem [ref=f5e227]:
+              - link "Per tab, not per note" [ref=f5e228] [cursor=pointer]:
+                - /url: "#per-tab-not-per-note"
+            - listitem [ref=f5e229]:
+              - link "The default" [ref=f5e230] [cursor=pointer]:
+                - /url: "#the-default"
+            - listitem [ref=f5e231]:
+              - link "Four ways to toggle" [ref=f5e232] [cursor=pointer]:
+                - /url: "#four-ways-to-toggle"
+              - list [ref=f5e233]:
+                - listitem [ref=f5e234]:
+                  - link "From reading view" [ref=f5e235] [cursor=pointer]:
+                    - /url: "#from-reading-view"
+            - listitem [ref=f5e236]:
+              - link "What the status bar shows" [ref=f5e237] [cursor=pointer]:
+                - /url: "#what-the-status-bar-shows"
+            - listitem [ref=f5e238]:
+              - link "Where outline mode applies" [ref=f5e239] [cursor=pointer]:
+                - /url: "#where-outline-mode-applies"
+      - generic [ref=f5e242]:
+        - generic:
+          - button [aria-hidden] [ref=f5e243] [cursor=pointer]
+          - button [aria-hidden] [ref=f5e244] [cursor=pointer]
+          - button [aria-hidden] [ref=f5e245] [cursor=pointer]
+          - button [aria-hidden] [ref=f5e246] [cursor=pointer]
+          - button [aria-hidden] [ref=f5e247] [cursor=pointer]
+          - button [aria-hidden] [ref=f5e248] [cursor=pointer]
+          - button [aria-hidden] [ref=f5e249] [cursor=pointer]
+          - button [aria-hidden] [ref=f5e250] [cursor=pointer]
+          - button [aria-hidden] [ref=f5e251] [cursor=pointer]
+          - button [aria-hidden] [ref=f5e252] [cursor=pointer]
+          - button [aria-hidden] [ref=f5e253] [cursor=pointer]
+          - button [aria-hidden] [ref=f5e254] [cursor=pointer]
+          - button [aria-hidden] [ref=f5e255] [cursor=pointer]
+          - button [aria-hidden] [ref=f5e256] [cursor=pointer]
+          - button [aria-hidden] [ref=f5e257] [cursor=pointer]
+          - button "Fold" [expanded] [ref=f5e258] [cursor=pointer]
+          - 'button "Zoom in to: Outline mode" [ref=f5e261] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f5e267] [cursor=pointer]
+          - 'button "Zoom in to: Outline mode is the switch that turns everythin…" [ref=f5e270] [cursor=pointer]'
+          - 'button "Zoom in to: On: the note is drawn on the outline grid, the…" [ref=f5e273] [cursor=pointer]'
+          - 'button "Zoom in to: Off: the note is stock Obsidian." [ref=f5e277] [cursor=pointer]'
+          - 'button "Zoom in to: One tab, toggled off and on. Only the rendering…" [ref=f5e281] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f5e286] [cursor=pointer]
+          - 'button "Zoom in to: Per tab, not per note" [ref=f5e289] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f5e295] [cursor=pointer]
+          - 'button "Zoom in to: Outline mode is a property of the tab, not of t…" [ref=f5e298] [cursor=pointer]'
+          - 'button "Zoom in to: Two panes showing the same note can be in diffe…" [ref=f5e301] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f5e305] [cursor=pointer]
+          - 'button "Zoom in to: Switching a tab to another note resets it to th…" [ref=f5e308] [cursor=pointer]'
+          - 'button "Zoom in to: There is no per-note memory: a note reopened to…" [ref=f5e312] [cursor=pointer]'
+          - 'button "Zoom in to: The mode survives a round trip through reading…" [ref=f5e316] [cursor=pointer]'
+          - 'button "Zoom in to: Closing the tab forgets it." [ref=f5e320] [cursor=pointer]'
+          - 'button "Zoom in to: The mode is never written to the note, its fron…" [ref=f5e324] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f5e327] [cursor=pointer]
+          - 'button "Zoom in to: The default" [ref=f5e330] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f5e336] [cursor=pointer]
+          - 'button "Zoom in to: Open new tabs in outline mode (on by default) d…" [ref=f5e339] [cursor=pointer]'
+          - 'button "Zoom in to: On treats every note as an outline." [ref=f5e342] [cursor=pointer]'
+          - 'button "Zoom in to: Off keeps stock Obsidian by default, and indivi…" [ref=f5e346] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f5e350] [cursor=pointer]
+          - 'button "Zoom in to: Changing the setting only reaches forward." [ref=f5e353] [cursor=pointer]'
+          - 'button "Zoom in to: It affects notes opened from then on, in a new…" [ref=f5e356] [cursor=pointer]'
+          - 'button "Zoom in to: It never retoggles a tab that is already open,…" [ref=f5e360] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f5e364] [cursor=pointer]
+          - 'button "Zoom in to: Four ways to toggle" [ref=f5e367] [cursor=pointer]'
+          - 'button "Zoom in to: All four do the same thing to the active tab." [ref=f5e373] [cursor=pointer]'
+          - 'button "Zoom in to: WhereWhatCommand paletteToggle outline mode. Av…" [ref=f5e376] [cursor=pointer]'
+          - 'button "Zoom in to: Toggling shows no notice: the ribbon icon and t…" [ref=f5e380] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f5e383] [cursor=pointer]
+          - 'button "Zoom in to: From reading view" [ref=f5e386] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f5e392] [cursor=pointer]
+          - 'button "Zoom in to: Reading view never draws outline chrome, so a t…" [ref=f5e395] [cursor=pointer]'
+          - 'button "Zoom in to: Toggling on also switches the tab into its edit…" [ref=f5e398] [cursor=pointer]'
+          - 'button "Zoom in to: Toggling off changes nothing visible." [ref=f5e402] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f5e406] [cursor=pointer]
+          - 'button "Zoom in to: What the status bar shows" [ref=f5e409] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f5e415] [cursor=pointer]
+          - 'button "Zoom in to: Show outline mode in the status bar chooses wha…" [ref=f5e418] [cursor=pointer]'
+          - 'button "Zoom in to: An icon, the default." [ref=f5e421] [cursor=pointer]'
+          - 'button "Zoom in to: Words: \"Outline on\" or \"Outline off\"." [ref=f5e425] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f5e429] [cursor=pointer]
+          - 'button "Zoom in to: Nothing." [ref=f5e432] [cursor=pointer]'
+          - 'button "Zoom in to: Obsidian lets the ribbon icon be hidden from th…" [ref=f5e436] [cursor=pointer]'
+          - 'button "Zoom in to: There is no status bar on mobile, so the settin…" [ref=f5e440] [cursor=pointer]'
+          - button "Fold" [expanded] [ref=f5e443] [cursor=pointer]
+          - 'button "Zoom in to: Where outline mode applies" [ref=f5e446] [cursor=pointer]'
+          - 'button "Zoom in to: Live Preview and source mode, in the main edito…" [ref=f5e452] [cursor=pointer]'
+          - 'button "Zoom in to: Not in reading view. Reading view renders exact…" [ref=f5e456] [cursor=pointer]'
+          - 'button "Zoom in to: Not inside the cell editor of a table. The smal…" [ref=f5e460] [cursor=pointer]'
+          - 'button "Zoom in to: Turning outline mode off in a tab that is zoome…" [ref=f5e464] [cursor=pointer]'
+        - main [ref=f5e467]:
+          - generic [ref=f5e469]:
+            - heading "Outline mode" [level=1] [ref=f5e470]: "Outline mode #"
+            - paragraph [ref=f5e471]: Outline mode is the switch that turns everything else on.
+            - list [ref=f5e472]:
+              - listitem [ref=f5e473]:
+                - strong [ref=f5e474]: "On"
+                - text: ": the note is drawn on the outline grid, the keyboard grammar and selection rules apply, zoom is available and the backlinks footer renders."
+              - listitem [ref=f5e475]:
+                - strong [ref=f5e476]: "Off"
+                - text: ": the note is stock Obsidian."
+            - figure "One tab, toggled off and on. Only the rendering changes; the note does not." [ref=f5e477]
+            - heading "Per tab, not per note" [level=2] [ref=f5e480]: "Per tab, not per note #"
+            - paragraph [ref=f5e481]:
+              - text: Outline mode is a property of the
+              - strong [ref=f5e482]: tab
+              - text: ", not of the note or the vault."
+            - list [ref=f5e483]:
+              - listitem [ref=f5e484]: Two panes showing the same note can be in different modes.
+              - listitem [ref=f5e485]:
+                - text: Switching a tab to another note resets it to the default.
+                - list [ref=f5e486]:
+                  - listitem [ref=f5e487]: "There is no per-note memory: a note reopened tomorrow starts from the default like any other."
+              - listitem [ref=f5e488]: "The mode survives a round trip through reading view: toggling reading view on and off keeps the tab's outline mode."
+              - listitem [ref=f5e489]: Closing the tab forgets it.
+            - paragraph [ref=f5e490]: The mode is never written to the note, its front matter or its metadata.
+            - heading "The default" [level=2] [ref=f5e491]: "The default #"
+            - paragraph [ref=f5e492]:
+              - strong [ref=f5e493]: Open new tabs in outline mode
+              - text: (on by default) decides how a freshly opened note starts.
+            - list [ref=f5e494]:
+              - listitem [ref=f5e495]:
+                - strong [ref=f5e496]: "On"
+                - text: treats every note as an outline.
+              - listitem [ref=f5e497]:
+                - strong [ref=f5e498]: "Off"
+                - text: keeps stock Obsidian by default, and individual tabs are opted in.
+            - paragraph [ref=f5e499]: Changing the setting only reaches forward.
+            - list [ref=f5e500]:
+              - listitem [ref=f5e501]: It affects notes opened from then on, in a new tab or in an existing tab that switches notes.
+              - listitem [ref=f5e502]: It never retoggles a tab that is already open, which is how Obsidian's own default view mode setting behaves too.
+            - heading "Four ways to toggle" [level=2] [ref=f5e503]: "Four ways to toggle #"
+            - paragraph [ref=f5e504]: All four do the same thing to the active tab.
+            - table [ref=f5e505]:
+              - rowgroup [ref=f5e506]:
+                - row [ref=f5e507]:
+                  - columnheader "Where" [ref=f5e508]
+                  - columnheader "What" [ref=f5e509]
+              - rowgroup [ref=f5e510]:
+                - row [ref=f5e511]:
+                  - cell [ref=f5e512]:
+                    - strong [ref=f5e513]: Command palette
+                  - cell [ref=f5e514]:
+                    - strong [ref=f5e515]: Toggle outline mode
+                    - text: . Available whenever a markdown note is active, in any view mode. No default hotkey; assign one under Settings → Hotkeys.
+                - row [ref=f5e516]:
+                  - cell [ref=f5e517]:
+                    - strong [ref=f5e518]: Editor right-click menu
+                  - cell [ref=f5e519]:
+                    - strong [ref=f5e520]: Enable outline mode
+                    - text: or
+                    - strong [ref=f5e521]: Disable outline mode
+                    - text: ", named for the state of the editor that was right-clicked."
+                - row [ref=f5e522]:
+                  - cell [ref=f5e523]:
+                    - strong [ref=f5e524]: Ribbon
+                  - cell [ref=f5e525]:
+                    - text: The list-tree icon. Its tooltip is
+                    - strong [ref=f5e526]: Toggle outline mode
+                    - text: ", and it is highlighted while the active tab is in outline mode. Present on desktop and mobile."
+                - row [ref=f5e527]:
+                  - cell [ref=f5e528]:
+                    - strong [ref=f5e529]: Status bar
+                  - cell "A chip on the right of the status bar, click or focus-and-press-Enter to toggle. Desktop only." [ref=f5e530]
+            - paragraph [ref=f5e531]: "Toggling shows no notice: the ribbon icon and the status bar chip already say what state the tab is in. When no markdown tab is active both indicators go blank."
+            - heading "From reading view" [level=3] [ref=f5e532]: "From reading view #"
+            - paragraph [ref=f5e533]: Reading view never draws outline chrome, so a toggle made from it shows differently in each direction.
+            - list [ref=f5e534]:
+              - listitem [ref=f5e535]:
+                - text: Toggling
+                - strong [ref=f5e536]: "on"
+                - text: also switches the tab into its editing mode (Live Preview or source, whichever the tab was last in), so the outline is visible immediately.
+              - listitem [ref=f5e537]:
+                - text: Toggling
+                - strong [ref=f5e538]: "off"
+                - text: changes nothing visible.
+            - heading "What the status bar shows" [level=2] [ref=f5e539]: "What the status bar shows #"
+            - paragraph [ref=f5e540]:
+              - strong [ref=f5e541]: Show outline mode in the status bar
+              - text: chooses what the chip shows.
+            - list [ref=f5e542]:
+              - listitem [ref=f5e543]:
+                - strong [ref=f5e544]: An icon
+                - text: ", the default."
+              - listitem [ref=f5e545]:
+                - strong [ref=f5e546]: Words
+                - text: ": \"Outline on\" or \"Outline off\"."
+              - listitem [ref=f5e547]:
+                - strong [ref=f5e548]: Nothing
+                - text: .
+                - list [ref=f5e549]:
+                  - listitem [ref=f5e550]: Obsidian lets the ribbon icon be hidden from the ribbon's own right-click menu but has no equivalent for a plugin's status bar item, so this setting is where the chip is turned off.
+            - paragraph [ref=f5e551]: There is no status bar on mobile, so the setting has no effect there.
+            - heading "Where outline mode applies" [level=2] [ref=f5e552]: "Where outline mode applies #"
+            - list [ref=f5e553]:
+              - listitem [ref=f5e554]:
+                - strong [ref=f5e555]: Live Preview
+                - text: and
+                - strong [ref=f5e556]: source mode
+                - text: ", in the main editor, in split panes, and in pop-out windows."
+              - listitem [ref=f5e557]:
+                - text: Not in
+                - strong [ref=f5e558]: reading view
+                - text: . Reading view renders exactly as stock Obsidian.
+              - listitem [ref=f5e559]:
+                - text: Not inside the
+                - strong [ref=f5e560]: cell editor of a table
+                - text: ". The small editor Obsidian opens for a table cell is left alone entirely: no grid, no keys, no zoom."
+            - paragraph [ref=f5e561]: Turning outline mode off in a tab that is zoomed in also clears the zoom.
+        - contentinfo [ref=f5e562]:
+          - link "Edit this page on GitHub ⁠" [ref=f5e565] [cursor=pointer]:
+            - /url: https://github.com/laughedelic/obsidian-true-outliner/edit/main/website/guide/outline-mode.md
+          - navigation "Pager" [ref=f5e567]:
+            - link "Previous page How a note becomes an outline" [ref=f5e570] [cursor=pointer]:
+              - /url: /obsidian-true-outliner/guide/how-notes-become-outlines
+              - generic [ref=f5e571]: Previous page
+              - generic [ref=f5e572]: How a note becomes an outline
+            - link "Next page Structural editing" [ref=f5e574] [cursor=pointer]:
+              - /url: /obsidian-true-outliner/guide/structural-editing
+              - generic [ref=f5e575]: Next page
+              - generic [ref=f5e576]: Structural editing
+  - toolbar "Page view" [ref=f5e577]:
+    - button "Fold all" [ref=f5e578] [cursor=pointer]
+    - button "Unfold all" [disabled] [ref=f5e582]
+    - button "Outline view" [pressed] [ref=f5e587] [cursor=pointer]
+    - button "Long-form view" [ref=f5e591] [cursor=pointer]
