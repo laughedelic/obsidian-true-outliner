@@ -7,6 +7,8 @@ Outline mode is the switch that turns everything else on.
 
 <Clip name="outline-toggle" caption="One tab, toggled off and on. Only the rendering changes; the note does not." />
 
+<TryOutline>The switch at the bottom right of this page is the same idea in miniature: one page, drawn as long-form prose or as the outline it is, with nothing about the page changing.</TryOutline>
+
 ## Per tab, not per note
 
 Outline mode is a property of the **tab**, not of the note or the vault.

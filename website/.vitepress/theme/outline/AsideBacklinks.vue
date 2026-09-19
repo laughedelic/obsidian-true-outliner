@@ -14,6 +14,11 @@ const groups = computed<BacklinkGroup[]>(() => data[key.value] ?? []);
 const total = computed(() => groups.value.reduce((n, g) => n + g.count, 0));
 const shown = computed(() => outlineOn.value && frontmatter.value.outlineView !== false && groups.value.length > 0);
 
+function revealFooter() {
+  footerOpen.value = true;
+  void nextTick(() => document.querySelector('.to-o-backlinks')?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+}
+
 function reveal(group: BacklinkGroup) {
   footerOpen.value = true;
   closedGroups.delete(group.url);
@@ -30,7 +35,9 @@ function reveal(group: BacklinkGroup) {
 
 <template>
   <nav v-if="shown" class="to-o-aside-bl" aria-label="Backlinks">
-    <p class="to-o-aside-title">Backlinks <span class="to-o-aside-count">{{ total }}</span></p>
+    <a class="to-o-aside-title" href="#backlinks" @click.prevent="revealFooter">
+      Backlinks <span class="to-o-aside-count">{{ total }}</span>
+    </a>
     <ul>
       <li v-for="g in groups" :key="g.url">
         <a :href="`#backlinks`" @click.prevent="reveal(g)">

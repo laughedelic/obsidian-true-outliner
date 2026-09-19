@@ -1,3 +1,7 @@
+---
+tryHint: fold
+---
+
 # Folding
 
 Any node with children folds: a heading with its section, a list item with its nested items, a paragraph with the list it adopted.
@@ -8,6 +12,8 @@ Any node with children folds: a heading with its section, a list item with its n
 - Folds are remembered per note without a byte written to the file.
 
 Obsidian's own folding works on headings and list items. Outline mode uses the same underlying mechanism and Obsidian's own chevron, but on the outline's tree, so the rule is the same for every kind of block.
+
+<TryOutline>Folding works on this page. In outline view every section, paragraph and item with something under it folds from the arrow beside its marker, a guide line folds a whole branch, and the bar at the bottom right folds and unfolds everything.</TryOutline>
 
 ## Folding a node
 

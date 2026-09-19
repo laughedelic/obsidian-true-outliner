@@ -348,23 +348,20 @@
   background: var(--vp-c-brand-soft);
   box-shadow: 0 0 0 1px var(--vp-c-brand-2);
   pointer-events: none;
-  animation: to-o-flash 1.8s ease-out forwards;
+  animation: to-o-flash 1.5s ease-out forwards;
 }
 @keyframes to-o-flash {
-  0%,
-  30%,
-  60% {
-    opacity: 1;
+  0% {
+    opacity: 0;
   }
-  15%,
-  45% {
-    opacity: 0.15;
+  12%,
+  55% {
+    opacity: 1;
   }
   100% {
     opacity: 0;
   }
 }
-
 @keyframes to-o-flash-still {
   0%,
   85% {
@@ -410,9 +407,10 @@
   text-align: left;
 }
 .to-o-bl-header {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0;
   width: 100%;
   margin-bottom: 0.6rem;
   color: var(--vp-c-text-2);
@@ -423,6 +421,21 @@
   height: 0.9rem;
   flex: none;
   color: var(--vp-c-text-3);
+}
+.to-o-bl-header .to-o-bl-icon {
+  box-sizing: content-box;
+  padding: 0 calc((var(--to-o-gutter) - 0.9rem) / 2);
+}
+.to-o-bl-header .to-o-bl-chevron {
+  position: absolute;
+  left: calc(var(--to-o-gutter) / 2 - var(--to-o-unit) / 2);
+  top: 50%;
+  translate: -50% -50%;
+  opacity: 0;
+}
+.to-o-bl-header:is(:hover, :focus-visible) .to-o-bl-chevron,
+.to-o-backlinks.is-folded .to-o-bl-header .to-o-bl-chevron {
+  opacity: 1;
 }
 .to-o-bl-title {
   font-weight: 600;
@@ -557,6 +570,13 @@
   border-left: 1px solid var(--vp-c-divider);
   font-size: 13px;
 }
+.to-o-aside-bl a.to-o-aside-title {
+  font-style: normal;
+  color: var(--vp-c-text-1);
+}
+.to-o-aside-bl a.to-o-aside-title:hover {
+  color: var(--vp-c-brand-1);
+}
 .to-o-aside-title {
   display: flex;
   align-items: baseline;
@@ -598,6 +618,139 @@
   color: var(--vp-c-text-3);
 }
 
+/* While zoomed, the table of contents says where the view is. */
+.VPDocAsideOutline.to-o-zoomed .outline-link {
+  opacity: 0.4;
+}
+.VPDocAsideOutline.to-o-zoomed .outline-link:is(.to-o-in-zoom, .to-o-zoom-here) {
+  opacity: 1;
+}
+.VPDocAsideOutline.to-o-zoomed .outline-link.to-o-zoom-here {
+  color: var(--vp-c-brand-1);
+  font-weight: 600;
+}
+.VPDocAsideOutline.to-o-zoomed .outline-marker {
+  display: none;
+}
+
+/* A zoom into a table takes the aside's width. */
+html.to-o-wide .VPDoc .aside {
+  display: none;
+}
+html.to-o-wide .vp-doc :is(th, td) {
+  padding: 8px 10px;
+}
+html.to-o-wide .VPDoc .content,
+html.to-o-wide .VPDoc.has-aside .content-container {
+  max-width: none;
+}
+
+/* ---- Invitations ----------------------------------------------------- */
+
+.to-o-invite-btn {
+  margin-right: 0.75rem;
+  padding: 0.3rem 0.9rem;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--vp-button-brand-text);
+  background: var(--vp-button-brand-bg);
+  transition: background-color 0.2s;
+}
+.to-o-invite-btn:hover {
+  background: var(--vp-button-brand-hover-bg);
+}
+.to-o-invite-where,
+.vp-doc .custom-block.to-o-invite .to-o-invite-note {
+  font-size: 13px;
+  color: var(--vp-c-text-2);
+}
+
+.to-o-nudge,
+.to-o-try {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 5px 6px 5px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--vp-c-white);
+  background: var(--vp-c-brand-3);
+  box-shadow: var(--vp-shadow-2);
+}
+.to-o-nudge::after,
+.to-o-try::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  border: 6px solid transparent;
+  border-top-color: var(--vp-c-brand-3);
+}
+.to-o-nudge button,
+.to-o-layer .to-o-try button {
+  position: static;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 4px;
+  font-size: 15px;
+  line-height: 1;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.8;
+}
+.to-o-nudge button:hover,
+.to-o-layer .to-o-try button:hover {
+  opacity: 1;
+  background: rgb(255 255 255 / 0.18);
+}
+.to-o-nudge {
+  position: fixed;
+  right: 8px;
+  bottom: 46px;
+  z-index: 21;
+  max-width: calc(100vw - 16px);
+}
+/* Over the outline icon, third from the right of the bar. */
+.to-o-nudge::after {
+  right: 66px;
+}
+.to-o-try {
+  position: absolute;
+  pointer-events: auto;
+  white-space: nowrap;
+  transform: translate(-16px, calc(-100% - 16px));
+}
+.to-o-try.is-fold {
+  transform: translate(calc(-16px - var(--to-o-unit) / 2), calc(-100% - 16px));
+}
+.to-o-try::after {
+  left: 10px;
+}
+.vp-doc .to-o-on .to-o-hinted.to-o-node {
+  margin-top: 3.4rem;
+}
+.to-o-status button.is-nudged,
+.to-o-chevron.is-hinted,
+.to-o-mark.is-hinted {
+  color: var(--vp-c-brand-1);
+  border-radius: 4px;
+  animation: to-o-pulse 1.6s ease-out infinite;
+}
+.to-o-chevron.is-hinted {
+  opacity: 1;
+}
+@keyframes to-o-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--vp-c-brand-1) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 9px transparent;
+  }
+}
+
 /* ---- The sidebar as a tree ------------------------------------------ */
 
 .VPSidebar .VPSidebarItem.level-1 > .items,
@@ -622,6 +775,11 @@
   .to-o-flash {
     animation-name: to-o-flash-still;
   }
+  .to-o-status button.is-nudged,
+  .to-o-chevron.is-hinted,
+  .to-o-mark.is-hinted {
+    animation: none;
+  }
   .to-o-chevron,
   .to-o-bl-chevron,
   .to-o-status :is(button, a)::after {
@@ -630,6 +788,8 @@
 }
 @media print {
   .to-o-status,
+  .to-o-nudge,
+  .to-o-invite,
   .to-o-trail,
   .to-o-tip,
   .to-o-backlinks,

@@ -4,6 +4,8 @@ Everything the plugin does rests on one mapping: a markdown note is parsed into 
 
 This page explains the mapping. It is short, and it answers most of the "why did it do that?" questions that come up in the first week.
 
+<TryOutline>The mapping can be seen on this page itself. In outline view its headings, paragraphs, lists and tables become nodes by the rules described below, each with the marker of its kind.</TryOutline>
+
 ## Nodes
 
 Every block in a note is exactly one node. The kinds are:

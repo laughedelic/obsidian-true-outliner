@@ -6,13 +6,12 @@
  * custom property per block are all it gains, so switching back to long-form
  * is removing one class.
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import { onContentUpdated, useData } from 'vitepress';
 import { ancestors, buildTree, descendants, labelOf, type ONode, type OTree } from './tree';
 import { ICONS } from './icons';
-import { outlineOn, pendingFlash } from './state';
+import { loadView, markSeen, outlineOn, pendingFlash, seen, setView, type Hint } from './state';
 
-const STORAGE_KEY = 'true-outliner:docs-view';
 const STATE_KEY = 'true-outliner:docs-state:';
 const EDIT_ROOT = 'https://github.com/laughedelic/obsidian-true-outliner/edit/main/website/';
 
@@ -76,6 +75,23 @@ const path = computed(() => {
 // The page's title stands for its top heading, as the file's name does in
 // the plugin's own trail.
 const trail = computed(() => (zoomRoot.value ? ancestors(zoomRoot.value).filter((a) => a.parent) : []));
+// A page about a gesture names it in its front matter, and the first section
+// with something under it carries the invitation to try it.
+const TRY_TEXT: Record<'fold' | 'zoom', string> = {
+  fold: 'Try it here: this arrow folds the section.',
+  zoom: 'Try it here: a click on a marker zooms in.',
+};
+const tryKind = computed<'fold' | 'zoom' | null>(() => {
+  const kind = frontmatter.value.tryHint as Hint | undefined;
+  return (kind === 'fold' || kind === 'zoom') && !seen[kind] && outline.value && !zoomRoot.value ? kind : null;
+});
+const tryNode = computed(() => {
+  if (!tryKind.value) return null;
+  return tree.value?.nodes.find((n) => n.kind === 'heading' && n.parent && n.children.length) ?? null;
+});
+const tryMark = computed(() => (tryNode.value ? (marks.value.find((m) => m.node === tryNode.value) ?? null) : null));
+const nudge = computed(() => enabled.value && !outline.value && !seen.view);
+
 const anyFolded = computed(() => {
   version.value;
   return !!tree.value?.nodes.some((n) => n.folded);
@@ -131,6 +147,34 @@ function applyVisibility() {
   }
   const base = root && root.kind !== 'item' ? root.depth : 0;
   content.style.setProperty('--to-o-base', String(base));
+  for (const n of t.nodes) n.el.classList.toggle('to-o-hinted', n === tryNode.value);
+  // A table wants the width the aside takes, and a zoom into one says the
+  // rest of the page is not being read.
+  const wide = !!root && outline.value && [root, ...descendants(root)].some((n) => n.kind === 'table');
+  document.documentElement.classList.toggle('to-o-wide', wide);
+  markAside();
+}
+
+/** While zoomed, the table of contents shows where the view is: the nearest
+ * heading it lists stands out, headings inside the view stay as they are, and
+ * the rest step back. */
+function markAside() {
+  const aside = document.querySelector('.VPDocAsideOutline');
+  if (!aside) return;
+  const links = Array.from(aside.querySelectorAll<HTMLAnchorElement>('a.outline-link'));
+  for (const a of links) a.classList.remove('to-o-in-zoom', 'to-o-zoom-here');
+  const root = outline.value ? zoomRoot.value : null;
+  aside.classList.toggle('to-o-zoomed', !!root);
+  if (!root) return;
+  const byId = new Map(links.map((a) => [decodeURIComponent(a.hash.slice(1)), a]));
+  for (const n of descendants(root)) if (n.kind === 'heading') byId.get(n.el.id)?.classList.add('to-o-in-zoom');
+  for (let n: ONode | null = root; n; n = n.parent) {
+    const link = n.kind === 'heading' ? byId.get(n.el.id) : undefined;
+    if (link) {
+      link.classList.add('to-o-zoom-here');
+      break;
+    }
+  }
 }
 
 function visible(node: ONode): boolean {
@@ -336,20 +380,17 @@ function rebuild() {
   }
 }
 
-function setOutline(on: boolean) {
-  outline.value = on;
-  try {
-    localStorage.setItem(STORAGE_KEY, on ? 'outline' : 'long-form');
-  } catch {
-    // A private window keeps the choice for the page only.
-  }
+// The switch is also thrown from inside a page, by its invitation.
+watch(outline, (on) => {
   content?.classList.toggle('to-o-on', on);
-  void nextTick(schedule);
-}
+  refresh(false);
+});
+watch(tryNode, () => refresh(false));
 
 function toggleFold(node: ONode) {
   if (!node.children.length) return;
   node.folded = !node.folded;
+  markSeen('fold');
   refresh();
   keepInView(node);
 }
@@ -381,6 +422,7 @@ function zoomTo(node: ONode | null) {
   }
   const from = zoomRoot.value;
   const to = node && node.parent ? node : null;
+  if (to) markSeen('zoom');
   zoomRoot.value = to;
   refresh();
   // After the render, so the trail appearing above the page is already in
@@ -395,6 +437,7 @@ function zoomTo(node: ONode | null) {
 function onPop() {
   restore = { path: location.pathname, state: saved() };
   clearTimeout(restoreTimer);
+  document.documentElement.classList.remove('to-o-wide');
   restoreTimer = window.setTimeout(() => (restore = null), 1500);
 }
 
@@ -413,11 +456,7 @@ function onOver(event: Event) {
 }
 
 onMounted(() => {
-  try {
-    outline.value = localStorage.getItem(STORAGE_KEY) !== 'long-form';
-  } catch {
-    outline.value = true;
-  }
+  loadView();
   // A reload or a return from another site comes back to the page as it was
   // left, as going back within the site does.
   const entry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
@@ -470,14 +509,15 @@ onBeforeUnmount(() => {
         type="button"
         aria-label="Outline view"
         :aria-pressed="outline"
-        @click="setOutline(true)"
+        :class="{ 'is-nudged': nudge }"
+        @click="setView(true)"
         v-html="ICONS.outline"
       ></button>
       <button
         type="button"
         aria-label="Long-form view"
         :aria-pressed="!outline"
-        @click="setOutline(false)"
+        @click="setView(false)"
         v-html="ICONS.longForm"
       ></button>
       <span class="to-o-status-sep" aria-hidden="true"></span>
@@ -488,6 +528,10 @@ onBeforeUnmount(() => {
         aria-label="Edit this page on GitHub"
         v-html="ICONS.edit"
       ></a>
+    </div>
+    <div v-if="nudge" class="to-o-nudge" role="status">
+      <span>These docs are an outline too. Try the outline view.</span>
+      <button type="button" aria-label="Dismiss" @click="markSeen('view')">×</button>
     </div>
     <div v-if="tip" class="to-o-tip" :class="`is-${tip.side}`" :style="{ left: `${tip.x}px`, top: `${tip.y}px` }" role="tooltip">
       {{ tip.text }}
@@ -509,6 +553,16 @@ onBeforeUnmount(() => {
         :style="{ left: `${flash.x}px`, top: `${flash.y}px`, width: `${flash.w}px`, height: `${flash.h}px` }"
         @animationend="flash = null"
       ></div>
+      <div
+        v-if="tryKind && tryMark"
+        class="to-o-try"
+        :class="`is-${tryKind}`"
+        :style="{ left: `${tryMark.x}px`, top: `${tryMark.y}px` }"
+        role="status"
+      >
+        <span>{{ TRY_TEXT[tryKind] }}</span>
+        <button type="button" aria-label="Dismiss" @click="markSeen(tryKind)">×</button>
+      </div>
       <button
         v-for="g in guides"
         :key="`g${g.node.id}`"
@@ -526,7 +580,7 @@ onBeforeUnmount(() => {
           v-if="m.foldable"
           type="button"
           class="to-o-chevron"
-          :class="{ 'is-folded': m.node.folded, 'is-active': active === m.node }"
+          :class="{ 'is-folded': m.node.folded, 'is-active': active === m.node, 'is-hinted': tryKind === 'fold' && m.node === tryNode }"
           :style="{ left: `${m.x}px`, top: `${m.y}px` }"
           :aria-label="m.node.folded ? 'Unfold' : 'Fold'"
           :aria-expanded="!m.node.folded"
@@ -537,7 +591,7 @@ onBeforeUnmount(() => {
         <button
           type="button"
           class="to-o-mark"
-          :class="[`is-${m.node.kind}`, { 'is-path': path.has(m.node.id), 'is-current': active === m.node, 'is-folded': m.node.folded, 'is-ordinal': !!m.node.ordinal }]"
+          :class="[`is-${m.node.kind}`, { 'is-path': path.has(m.node.id), 'is-current': active === m.node, 'is-folded': m.node.folded, 'is-ordinal': !!m.node.ordinal, 'is-hinted': tryKind === 'zoom' && m.node === tryNode }]"
           :style="{ left: `${m.x}px`, top: `${m.y}px` }"
           :aria-label="`Zoom in to: ${labelOf(m.node)}`"
           :data-tip="m.node === zoomRoot ? undefined : 'Zoom in'"

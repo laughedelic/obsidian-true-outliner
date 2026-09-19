@@ -50,11 +50,11 @@ In outline mode a note is drawn on a single indentation grid, and the keys work 
 - **Zoom.** A click on a marker zooms into that node.
 - **Backlinks.** Below the note, every reference to it from elsewhere in the vault is listed in the tree of the note it came from.
 
-<Shot name="hero-outline" alt="The Kitchen Renovation note in outline mode" caption="The same note, in outline mode: one grid, guides from each heading to its section, a marker per block." />
+The quickest way to see it is this site: the docs are written as outlines, and every page can be drawn as one.
 
-Switch outline mode off and the note is stock Obsidian again, byte for byte.
+<TryOutline />
 
-<Shot name="hero-stock" alt="The Kitchen Renovation note with outline mode off, rendered by stock Obsidian" caption="Outline mode off. Nothing was written to the file." />
+Switch outline mode off and the note is stock Obsidian again, byte for byte, as the long-form view here is the same page untouched.
 
 ## Where it works
 

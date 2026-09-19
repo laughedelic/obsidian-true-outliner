@@ -1,3 +1,7 @@
+---
+tryHint: zoom
+---
+
 # Zoom
 
 Zoom shows one node and its subtree as if it were the whole note. It is the outliner gesture for "let me focus on this section" or "hoist this item".
@@ -11,6 +15,8 @@ Zoom is a view state, not an edit.
 
 - It never changes the note.
 - It is never saved: closing the tab or switching to another note forgets it.
+
+<TryOutline>Zoom works on this page. In outline view a click on any marker zooms into that node, and the trail above the page leads back out.</TryOutline>
 
 ## Zooming in
 

@@ -9,6 +9,8 @@ In outline mode a note is drawn so that its structure is visible at a glance.
 
 All of it is additive: the note's own text, fonts and Obsidian theme are untouched, and every part of it can be tuned from the settings or overridden from a CSS snippet.
 
+<TryOutline>The grid, the guides, the markers and the highlighted path are all drawn on this page in outline view, where the pointer stands in for the caret.</TryOutline>
+
 <Shot name="guides-markers" alt="A note with nested lists, showing guide lines, markers and the caret's lineage" caption="Guides from every parent to its children, a marker per block, and the caret's own guides and marker in the accent colour." />
 
 ## The grid

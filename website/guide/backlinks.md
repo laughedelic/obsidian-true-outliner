@@ -8,6 +8,8 @@ Below every note in outline mode, a **Structured backlinks** section lists every
 
 This is the backlinks view that outliners such as Roam, Logseq and Tana are known for, built on Obsidian's own link index. It works with every note, needs no IDs or properties, and never writes anything.
 
+<TryOutline>These docs carry a footer of their own. In outline view, the bottom of this page lists the pages that link here, each reference in its lineage, and a click on a row leads to that node.</TryOutline>
+
 <Shot name="backlinks-footer" alt="The structured backlinks footer, with two referencing notes and their lineage rows" caption="Two referencing notes: one carrying subtrees, folded past a depth; one with a reference of every kind." />
 
 ## What counts as a reference
