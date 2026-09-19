@@ -1,5 +1,13 @@
 # Agent instructions
 
+## Showing the user an edit
+
+**Load the `presenting-examples` skill before any message to the user that shows or describes an
+edit** — what a keystroke does, a bug, a test case, a proposed behaviour, manual-test steps. In
+this project a behaviour is explained by drawing it: the document before, the keystrokes, the
+document after, caret included. Reach for a drawn example first, wherever prose alone would leave
+the user rebuilding the editor state in their head.
+
 ## Branching and PR stacks
 
 Every change gets a branch (`feat/`, `fix/`, `chore/`), usually a worktree, and one PR that
@@ -132,10 +140,11 @@ A cloud session needs its VM provisioned before any of this runs:
 
 ## Agent files
 
-`.agents/skills/` is the only real copy of the OpenSpec skills; `.claude/skills/` and
+`.agents/skills/` is the only real copy of the project's skills; `.claude/skills/` and
 `.github/skills/` hold symlinks into it, because neither Claude Code nor Copilot reads
-`.agents/` itself. Regenerate with `openspec update`, which rewrites the real tree and leaves the
-symlinks alone, rather than editing a skill by hand.
+`.agents/` itself. A skill of our own is a directory there plus a symlink in each of the other
+two. Regenerate the OpenSpec skills with `openspec update`, which rewrites its own tree and leaves
+the symlinks alone, rather than editing one by hand.
 
 `scripts/agent-setup.sh` is the one list of what an agent session needs — the project's
 dependencies, the OpenSpec CLI, the `gh-stack` extension. The `SessionStart` hook in
