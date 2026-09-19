@@ -100,7 +100,19 @@ A cloud session needs its VM provisioned before any of this runs:
   choice already made.
 - **No agent attribution trailers** in commit messages or PR descriptions; `.claude/settings.json`
   enforces this for Claude Code wherever a session runs.
-- **Deferred ideas go to the parking lots** under `docs/research/`, not into new OpenSpec changes.
+- **A follow-up is an issue, not a parking-lot entry.** When research or a change turns up a defect
+  or a gap outside its own scope, file it as a GitHub issue in the same session — with the user's
+  go-ahead — and leave a one-line mention and the link where it was found. The issue carries the
+  diagnosis, the measurements it rests on and what closing it would involve, and is the copy kept
+  current; the note keeps the research those measurements were taken for. Deferred ideas still
+  never become new OpenSpec changes. **Validate before filing**: a claim written against code that
+  has since moved is a claim about nothing — the sweep that produced
+  `docs/research/follow-up-inventory.md` found three of fourteen rows already fixed and one
+  disproved by re-measurement. Two things are not issues: a question that does not close by being
+  worked on goes to Discussions, and a measurement that is reference rather than work stays in its
+  note. The parking lots (`decoration-follow-ups.md`, `selection-follow-ups.md`) are **closed to
+  new entries**; what is still live in them moves out as it is touched, and an entry that closes
+  keeps its measurements in place rather than pointing at a dead issue.
 - **Read the relevant `docs/research/` notes before touching decorations, selection, or CM6
   extensions.** They exist so a diagnosis is not paid for twice.
 - **A research note is named for its subject, with no numeric prefix**, and takes exactly one row

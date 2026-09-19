@@ -12,40 +12,22 @@ When an item graduates to real work, it should get its own openspec change (or f
 one), not be patched ad hoc — several of these touch the model or are design decisions,
 not bug fixes.
 
+**This lot is closed to new entries.** A follow-up found today is filed as a GitHub issue in the
+session that found it and linked from the note that records it (AGENTS.md, "A follow-up is an
+issue"). What is still live here moves out as it is touched; an entry marked **Extracted to #N**
+has already moved, and keeps only enough to say what it is and where it went, with its heading left
+in place so citations still resolve. An entry that CLOSED keeps its measurements here rather than
+pointing at a dead issue — that is what this file was always for, and it does not change.
+
 ## Known gaps (diagnosed, deferred)
 
 ### Under the Minimal theme, boxed atoms (callouts, code blocks) overflow the reading column when indented
 
-Found during the selection-visual-treatment change's manual visual pass (activating the
-real Minimal theme, kepano's, already present in the test vault via the existing e2e
-infrastructure — `obsidianPage.setTheme('Minimal')`). Toggling outline mode on a note with
-a callout or code block nested under a heading: the box's LEFT edge correctly shifts
-right by our own `margin-left` (additive indentation, Experiment 1), but its RIGHT edge
-stays exactly where it was — the box doesn't shrink, it just moves, so it now overflows
-past the reading column's right edge by exactly our own margin contribution. Confirmed
-live via computed style: Minimal sizes these boxed elements with `max-width: 88%` (of
-some ancestor), which resolves to a fixed pixel `width` that does NOT recompute when
-`margin-left` changes — unlike the bundled themes, where the same elements apparently use
-`width: auto` (so the browser recomputes width as "available space minus margins,"
-correctly shrinking to accommodate our added margin). A depth-1 callout measured: bundled
-theme's heading sibling had `marginLeft: 40.8px, marginRight: 40.8px` (symmetric, native
-centering); the callout with our own indentation added had `marginLeft: 84.8px,
-marginRight: -3.2px` — a negative right margin is the tell: the box's fixed width plus
-the new left margin already exceeds the centering container's width, so the right edge
-is forced outward to compensate.
-
-This is a base-indentation issue (`MarginCompensation`, Experiment 1), not a
-selection-visual-treatment one — the escalated-selection chrome merely inherits whatever
-box width these atoms end up with, and was found while manually reviewing that change's
-own screenshots, not caused by it. **Not an obvious/low-risk fix**: closing it properly
-means live-measuring, per widget-atom kind, what width the box would have BEFORE our own
-margin contribution (mirroring `nativeMarginBasePx`'s "read the native value live, don't
-assume" pattern, but for `max-width`-based sizing instead of `margin-inline: auto`), then
-explicitly constraining `width`/`max-width` to compensate — and verifying that fix doesn't
-regress the bundled-theme case (which already works via a completely different sizing
-mechanism, `width: auto`). Needs its own investigation with Minimal (and ideally another
-max-width-style theme) actually installed and screenshotted, not a guess from one data
-point.
+**Extracted to [#118](https://github.com/laughedelic/obsidian-true-outliner/issues/118).** A
+`max-width`-sized box moves right with our own `margin-left` without shrinking, so it overflows
+the reading column by exactly our contribution. A base-indentation issue
+(`MarginCompensation`, Experiment 1), not a selection-chrome one. The measurements, the
+bundled-theme contrast and what a fix has to do are in the issue.
 
 ### A non-list-item child of a list item is indented twice
 
@@ -1082,13 +1064,11 @@ pure `decorate()`/`computeLineGuides()` layer does.
   gap-line cursor/vertical-navigation transparency — a decoration that visually hides a
   gap but still lets the cursor rest inside it one arrow-press at a time would be a
   confusing half-measure.
-- **Preserve the viewport position when toggling outline mode.** In a long document,
-  toggling outline mode on or off currently jumps the view to the top — the user loses
-  their place exactly when comparing the two renderings. Best effort, on some consistent
-  logic: the cursor is a natural anchor in edit mode (reading mode, if it ever gets
-  outline rendering, needs a different one). Collapsing gap lines (above) would make
-  exact restoration harder — the anchor logic should be chosen to degrade gracefully
-  rather than promise pixel fidelity.
+- **Preserve the viewport position when toggling outline mode** — extracted to
+  [#143](https://github.com/laughedelic/obsidian-true-outliner/issues/143). The view jumps to the top of a long document, losing the reader's place at
+  the moment the toggle exists for. The anchor question, and the two interactions a fix has to
+  design around (gap-line concealment's collapsed rows, and what `foldKeepingPlace()` already
+  learned about CodeMirror's own scroll anchoring), are in the issue.
 
 ### Vertical-alignment polish (minor, recorded from real-vault use)
 
@@ -1130,16 +1110,11 @@ fix, one more kind to cover.
   hover-revealed — and it stays a real `button` with a label and an `aria-expanded`, because what
   the two surfaces share is chrome and never semantics.
 
-- **A node holding several references renders one row.** `place()` keeps the FIRST
-  reference per node, so a table with mentions in two different cells, or a code
-  fence with two, contributes 2 to the count and one row to the footer. The count
-  and the rows then disagree, and the second reference has no place a reader can
-  reach. Two honest resolutions: emit one row per reference (which means a row
-  key that is not the node id, and a decision about how two rows of the same node
-  order against its siblings), or define node-level deduplication explicitly and
-  count nodes rather than references. Found in review; deferred because it is a
-  model change rather than a rendering one, and the count/row contract should be
-  decided with `backlinks-controls`' counting rules rather than ahead of them.
+- **A node holding several references renders one row** — extracted to
+  [#121](https://github.com/laughedelic/obsidian-true-outliner/issues/121). `place()` keeps
+  the FIRST reference per node, so the header's count and the footer's rows disagree. A
+  model change rather than a rendering one; the two resolutions and why the contract belongs
+  with `backlinks-controls`' counting rules are in the issue.
 
 - ~~**A footer row's fold only goes one way.**~~ — **done** (`better-folding-ux`, section 8),
   and by exactly the fix this entry predicted: the row model now carries `foldable` — whether the
@@ -1152,14 +1127,16 @@ fix, one more kind to cover.
   is unbuilt, and which of the two a click performs is not configurable. The gesture is stated so
   a setting can be added later without changing what it means, and nobody has asked for the zoom
   form since click-to-zoom shipped on the mark.
-- **The footer's own controls are below a touch target.** The row fold and the header controls are
-  sized in `rem` against the footer's own column arithmetic — around 11px for the fold — where the
-  editor's affordance now gets a 24px hit area under a coarse pointer. It predates this change and
-  is the footer's sizing question rather than folding's, but a phone reader meets it on every row.
-- **A repaint drops focus inside the footer.** The footer rebuilds its whole tree on every render,
+- **The footer's own controls are below a touch target** — extracted to [#144](https://github.com/laughedelic/obsidian-true-outliner/issues/144).
+  Around 11px for the row fold, against the 24px hit area the editor's affordance gets under a
+  coarse pointer. The footer's sizing question rather than folding's.
+- ~~**A repaint drops focus inside the footer.**~~ — **closed** by
+  `search-hits-and-footer-content-filter`, which met the same defect on the search field, where it
+  cost every character after the first. Controls now carry a stable `data-focus-key` and
+  `rememberFocus`/`restoreFocus` follow the key rather than the element
+  (`backlinks-footer.ts`). The original note: the footer rebuilds its whole tree on every render,
   so a control a keyboard reader has focused is replaced under them — measured while testing the
-  row fold, where a press after a repaint landed on the body. It predates this change and belongs
-  with the footer's own rendering model rather than with folding.
+  row fold, where a press after a repaint landed on the body.
 - ~~**Fold state is per file, and zoom clears nothing on exit.**~~ — **decided** the other way
   (D7a): leaving a zoom folds again what entering it opened. The original note: Clearing a zoom leaves the folds
   that zoom opened open (`outline-zoom` states this deliberately). Whether entering and leaving a

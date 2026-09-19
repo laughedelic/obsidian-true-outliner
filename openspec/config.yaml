@@ -56,3 +56,10 @@ operations:
     guidance:
       - Archive on the change's own branch, before the PR merges.
       - Bump the version in the same PR, and check the test vault for drift.
+      - Before archiving, take stock of what this change found and deliberately
+        left. A defect or an actionable gap becomes a GitHub issue, with the
+        user's go-ahead, linked from the note that records it; a question that
+        does not close by being worked on goes to Discussions instead, and a
+        measurement that is reference rather than work stays in its note. See
+        AGENTS.md, "A follow-up is an issue", which governs. Re-check each
+        claim against the code first - this change may already have moved it.

@@ -16,6 +16,13 @@ Phase C doesn't scope-creep:
   keymap/decoration work, independent of edit rewriting; it does not need to wait for
   Phase C, nor Phase C for it.
 
+**This lot is closed to new entries.** A follow-up found today is filed as a GitHub issue in the
+session that found it and linked from the note that records it (AGENTS.md, "A follow-up is an
+issue"). What is still live here moves out as it is touched; an entry marked **Extracted to #N**
+has already moved, and keeps only enough to say what it is and where it went, with its heading left
+in place so citations still resolve. An entry that CLOSED keeps its measurements here rather than
+pointing at a dead issue — that is what this file was always for, and it does not change.
+
 ## Resolved by amendment in the same change (2026-07-20)
 
 Two of the original findings were adopted as D4 amendments rather than deferred —
@@ -320,7 +327,11 @@ itself**:
   exactly the kind of fragile-workaround-chasing this investigation already backed off
   from once with the CSS approach. Recorded as a known, accepted limitation: non-Latin
   IME input right after selecting a block will lose its first keystroke to literal
-  Latin insertion.
+  Latin insertion. Extracted to
+  [#147](https://github.com/laughedelic/obsidian-true-outliner/issues/147), which states what
+  closing it would take — the mode no longer depending on a blurred editor, the same territory as
+  the CSS approach above and as the remaining flicker in
+  [#148](https://github.com/laughedelic/obsidian-true-outliner/issues/148).
 
 **Current status**: kept as the shipped mechanism (`decorations.ts`), not reverted, now
 covering mouse AND keyboard-driven block selection consistently, correct across
@@ -452,48 +463,10 @@ version of that test passed against the pre-change build).
 
 ## KNOWN ISSUE: a residual flicker when ENTERING block-selection mode (2026-08-04, `node-selection-extension`)
 
-Reported after two rounds of fixes and still present: a brief flicker on the FIRST switch into
-block-selection mode, absent for mouse-driven selection. Both earlier causes were real and are
-fixed; this is what is left, and it is recorded rather than chased further because two
-measurement-driven attempts have not reached it.
-
-**Ruled out, with the evidence:**
-
-- *The class being clobbered.* `EditorView.updateAttrs` rewrites the editor's whole `class`
-  attribute on a focus change, dropping a class written with `classList`; the next update restored
-  it one frame later. Fixed by declaring the class through the `editorAttributes` facet.
-  Verified: the `class=off` mutation is simply absent afterward.
-- *The blur landing after a paint.* `applyFocusPolicy` deferred with `setTimeout(0)`, which only
-  guarantees running after the current task. Instrumented: `class=true paints=0` then
-  `BLUR paints=1`, i.e. one frame painted with chrome over a still-focused raw-markdown editor.
-  Switched to `requestAnimationFrame`, which is specified to run before the next paint. Kept
-  because that frame is a real defect independent of the symptom below — but it did NOT resolve
-  the report, so a third cause remains.
-- *The two-transaction escalation split*, which an older entry in this file named as the
-  confirmed root cause. It does not exist — see that entry's own correction.
-
-**The leading remaining hypothesis, untested:** the reveal is Obsidian's, not ours. Blurring is
-what returns Live Preview to its rendered form, and that re-render need not happen in the same
-frame the blur is applied — so the ordering we control (chrome, then blur, both before a paint)
-can be correct while Obsidian's own re-render lands a frame later, showing chrome over raw
-markdown regardless of our scheduling. If so it is not fixable from the focus policy at all, and
-the fix would be in the same territory as the abandoned CSS raw-mark-hiding approach above.
-
-**Why the mouse path has no equivalent:** its blur fires once at `mouseup`, after the gesture the
-user is already watching change, so any one-frame disagreement is hidden inside a transition they
-expect. The keyboard path enters the mode on a discrete keypress with nothing else moving.
-
-**To pick this up:** instrument WHEN the raw-markdown reveal actually changes — the presence of
-formatting marks in a covered `.cm-line`, observed with a `MutationObserver` — relative to the
-blur, rather than instrumenting focus and class as both previous attempts did. That distinguishes
-"our scheduling is still wrong" from "Obsidian re-renders a frame later", which is the question
-neither measurement so far has answered.
-
-**A non-caveat, recorded because it was first written up as one.** `requestAnimationFrame` does
-not fire in a hidden window, so a cover reached while Obsidian is minimised does not blur until it
-is shown. That has no consequence: the deferred work is purely visual, nothing interactive can
-happen in a hidden window, and on becoming visible rAF runs BEFORE the first painted frame — which
-is stricter than the timer it replaced, not looser.
+**Extracted to [#148](https://github.com/laughedelic/obsidian-true-outliner/issues/148).** Two earlier causes were real and are fixed; a third remains.
+The issue carries what was ruled out with its evidence — including the two-transaction split
+that was never real — the untested hypothesis that the reveal is Obsidian's own re-render, and
+the instrument that would distinguish the two.
 
 ## Track 1: Phase C (edit enforcement) inputs
 
@@ -765,45 +738,10 @@ building a second one.
 
 ## Parked: exiting a table's nested editor lands the caret on a gap line (found 2026-07-26, `content-space-caret` real-vault pass)
 
-Vertical motion INTO a table is correct — the gap is skipped, Obsidian's table widget takes the
-caret into a cell. Coming back OUT is not: the first press off the top (or bottom) row parks the
-caret on the surrounding gap line, and only the NEXT press moves it onto real content. A one-press
-lag, symmetric before and after the table.
-
-Measured, with a `cm.dispatch` monkey-patch recording a stack trace per call (pressing ArrowUp
-repeatedly from inside a table):
-
-```
-up#1  t.dispatchUpdate    → {4,2}   Obsidian, still inside the table
-up#2  t.dispatchUpdate    → {2,2}   Obsidian, still inside the table
-up#3  t.placeCursorAround → {1,0}   Obsidian — THE GAP LINE
-up#4  PLUGIN              → {0,0}   us, correcting only on the following press
-```
-
-The keypress never reaches our keymap: a table cell runs its own nested CM6 editor, which consumes
-the arrow and, on the way out, calls Obsidian's own `placeCursorAround` to hand focus back to the
-outer editor. Our handler only sees the press AFTER that, which is why the correction is late
-rather than absent.
-
-**Why the obvious fix is not available.** The filter does see that dispatch, and could rewrite it.
-It doesn't, because `resolveForeignCursors` (`transaction-filter.ts`, Q25) is deliberately scoped
-to the MARKER half of placement resolution and never the gap half — D2 scopes gap-line resolution
-to real user gestures, and `62-outline-edit-enforcement` asserts it directly ("a PROGRAMMATIC
-gap-line placement is untouched"). That same narrowing is what lets the checkbox fix coexist with
-five other tests. Widening it to gaps was tried and reverted: it broke those five across four spec
-files.
-
-**What picking this up would involve.** D2's exemption was written with a plugin calling
-`Editor.setSelection` in mind. `placeCursorAround` is a different animal: Obsidian moving the caret
-while servicing a keypress the user actually made. Distinguishing "another plugin placed this
-cursor" from "Obsidian moved it while servicing a user gesture" is the real question, and it means
-reopening a decided design point rather than patching a call site. Note also that a state-level
-`transactionFilter` cannot detect a nested editor at all — `isNestedEditor` needs DOM ancestry, and
-`editorInfoField` resolves to the same outer `MarkdownView` for both — so any rule here has to hold
-without knowing whether it is running in a cell.
-
-Related, and probably the same root: entering a table from a heading shows a brief caret flash on
-the gap line before the caret settles into the first cell.
+**Extracted to [#146](https://github.com/laughedelic/obsidian-true-outliner/issues/146).** The press never reaches our keymap — a cell's nested editor
+consumes it and calls Obsidian's own `placeCursorAround` on the way out — so our correction is
+late rather than absent. The dispatch trace, why `resolveForeignCursors`' marker-only scoping
+blocks the obvious fix, and what reopening D2 would involve are in the issue.
 
 ## Follow-up: "jump to block start/end" wants its own binding (opened 2026-07-26, `content-space-caret` close)
 
@@ -959,29 +897,15 @@ replay path for Backspace, Delete, Tab and the arrows.
 
 ### Follow-up: the modifier-key guard has no automated regression net (opened 2026-07-28, PR #32 review)
 
-Raised by automated review, and correct: the fix above is a one-line early return with nothing
-asserting it. Someone deleting that line reintroduces the bug silently.
-
-Not closed in the same PR, for reasons worth stating rather than leaving as an omission:
-
-- **No e2e in this repo asserts focus or blur at all** (`grep activeElement|hasFocus|blur e2e/`
-  is empty). This mechanism's own design note already says why — "focus/blur timing interacting
-  with real keyboard input is exactly the kind of thing unlikely to test reliably through the
-  automated e2e harness" — and the blur is additionally deferred through `setTimeout(0)`, with
-  the refocus happening on a `keydown` the harness would have to synthesise.
-- **A test that cannot be negative-controlled is worse than none here.** Q28 records three tests
-  in this project written to prove a fix that could not fail, every one of them a case where the
-  negative control was skipped. An e2e added blind, verifiable only by pushing to CI, is that
-  same shape.
-- **A unit test would guard the wrong thing.** The rule is a `Set` membership check; the real
-  regression risk is the early return being removed, which set-membership assertions cannot see.
-  `decorations.ts` imports `obsidian`, so the listener itself is not unit-testable without a DOM
-  environment the project does not have.
-
-What would actually close it: a DOM-level test environment (jsdom) for the view-plugin layer,
-which would also unlock `history-caret.ts`'s ViewPlugin wiring, `MarginCompensation`, and the
-`onDocumentKeyDown` replay path — all currently tested only through their pure cores. That is a
-harness change worth doing deliberately, not a test to bolt onto this PR.
+**Extracted to [#156](https://github.com/laughedelic/obsidian-true-outliner/issues/156).** The guard is a one-line early return with nothing asserting it, and
+closing that needs a DOM test environment for the view-plugin layer rather than a test bolted onto
+the listener — which would also reach `history-caret.ts`'s ViewPlugin wiring, `MarginCompensation`
+and the `onDocumentKeyDown` replay path. Two claims this entry carried were stale by the time it was
+filed, and the issue records both: e2e specs DO assert `document.activeElement` now
+(`75-footer-behaviour`, `00-smoke`), and the blur is deferred through `requestAnimationFrame`
+(`decorations.ts:2509`), not the `setTimeout(0)` written here. What survives unchanged is the reason
+not to add a test blind: Q28 records three tests in this project written to prove a fix that could
+not fail, every one a case where the negative control was skipped.
 
 ## Measured: only `table` captures focus, and structural keys are not gated against it (2026-07-29, `caret-placement-policy` task 1.3/1.4)
 
@@ -1044,6 +968,15 @@ This affects every key routed through `makeHandler` — Tab, Shift+Tab, Alt+Arro
 and it is quiet rather than loud, because it produces a plausible outline rejection instead
 of an error.
 
+**CLOSED since, and the entry above is stale (re-read 2026-09-16 against `03f83b5`).**
+`makeHandler` now opens with `if (!outlinePathOf(view)) return false;` (`keymap.ts:83`), and
+`outlinePathOf` itself now opens with `if (isNestedEditor(view)) return undefined;`
+(`keymap.ts:491`) — so the structural keys carry the same nested-editor guard the motion
+handlers do, and none of them plans against a cell's document any more. `nested-editor.ts`'s
+own docstring records the change and cites Q27 for the measurement behind it, which dates the
+fix to that work rather than to a change of its own. What survives is the paragraph below: the
+D5 subject case is still reachable through the command path, and still scoped out on its merits.
+
 *(An earlier version of this entry claimed "a table cannot be moved by keyboard at all
 today." That was too strong: it was measured only through the Alt+Arrow binding, and the
 exposed commands were never tried. Corrected after a real-vault report.)*
@@ -1065,15 +998,10 @@ about the keymap path. Corrected in the same review round that corrected the cla
 
 ## Parked: an exact subtree cover is read off a caret-derived range (opened 2026-09-12, `delete-to-content-start`)
 
+**Extracted to [#115](https://github.com/laughedelic/obsidian-true-outliner/issues/115).**
 `node-edit-enforcement` reads a deletion whose range exactly covers a node's subtree as a
-structural deletion of that node. The requirement was written for a SELECTION that covers the
-node, but classification sees only the range: a "delete to the start of the line" from the end
-of a childless paragraph that owns no trailing gap — a paragraph followed directly by another
-node — produces the same range as selecting the line, and the paragraph is removed with its line
-and its gap, the caret landing at the previous node's content end, where the user expected an
-empty line under the caret. `delete-to-content-start` moved the list-item case out of reach by
-starting its range at the content start, which is never column 0; a paragraph's content start is
-column 0, so the key stays stock there and the reading still applies
-(`docs/research/delete-to-content-start`). Whether an exact cover should require a non-empty
-selection before the edit, or a `userEvent` the caret-derived commands do not carry, is the
-open question.
+structural deletion of that node, and classification sees only the range — so a caret-derived
+"delete to the start of the line" from the end of a childless paragraph produces the same range
+as selecting the line, and the paragraph is removed. Whether an exact cover should require a
+non-empty selection, or a `userEvent` the caret-derived commands do not carry, is the open
+question; both readings are in the issue.
