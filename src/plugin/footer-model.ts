@@ -13,6 +13,7 @@
 
 import { ATOM_KINDS, type OutlineDoc, type OutlineNode } from '../model';
 import { decorate, type LineDecorationFact } from './decorate';
+import { nodeMark, type NodeMark } from './marker-shapes';
 import { collapseLineage } from '../lineage';
 import { project, type NodePredicate } from '../project';
 import { nodeContent, segmentContent, type ContentRef, type NodeRender } from '../node-text';
@@ -149,8 +150,11 @@ export interface FooterModel {
  * follows. */
 export type RowRender = NodeRender;
 
-/** One element of a collapsed lineage chain. */
-export interface LineageSegment {
+/** One element of a collapsed lineage chain: the node's kind and a heading's
+ * level (`NodeMark`), and what the segment draws. */
+export type LineageSegment = LineageSegmentFields & NodeMark;
+
+interface LineageSegmentFields {
   /** The element's own text, with its block syntax already removed — including
    * the checkbox and the ordered number, which are drawn as the marker. Stripped
    * here rather than in the renderer so a segment and a node row of the same
@@ -168,15 +172,26 @@ export interface LineageSegment {
    * to mark nothing while zoom's trail appended an ellipsis. */
   readonly shortened?: boolean | undefined;
   readonly nodeId: number;
-  /** This element's own kind, so every ancestor on the line is named rather
-   * than the chain standing for all of them under the first one's marker. */
-  readonly kind: LineDecorationFact['kind'];
   /** A task ancestor's state, drawn in its marker's place — the same rule a node
    * row follows (D18). Without it a task ancestor took the generic bullet and
    * kept its `[x]` in the text: the state said twice, in the wrong channel. */
   readonly task?: boolean | undefined;
   /** An ordered ancestor's own label, likewise drawn as its marker. */
   readonly ordinal?: string | undefined;
+}
+
+/**
+ * A node as one element of a lineage: the footer's collapsed chains and the zoom
+ * trail's crumbs alike. One constructor for both, because a field one of them
+ * forgets is a mark the two surfaces draw differently — or, for a heading's
+ * level, a mark that cannot be drawn at all.
+ */
+export function lineageSegment(node: OutlineNode): LineageSegment {
+  return {
+    ...segmentContent(node),
+    nodeId: node.id,
+    ...nodeMark(node),
+  };
 }
 
 /**
@@ -195,7 +210,9 @@ export interface LineageSegment {
  */
 export function lineageKey(segments: readonly LineageSegment[]): string {
   return segments
-    .map((s) => [s.markdown, s.render, s.kind, s.task ?? '', s.ordinal ?? '', s.shortened ?? ''].join('\u0000'))
+    .map((s) =>
+      [s.markdown, s.render, s.kind, s.level ?? '', s.task ?? '', s.ordinal ?? '', s.shortened ?? ''].join('\u0000'),
+    )
     .join('\u0001');
 }
 
@@ -266,7 +283,7 @@ export function buildRows(
       type: 'property',
       depth: 0,
       guideDepths: [],
-      fact: rowFact('paragraph', 0),
+      fact: rowFact({ kind: 'paragraph' }, 0),
       property: ref.property ?? '',
       markdown: ref.original,
     });
@@ -309,19 +326,17 @@ export function buildRows(
         guideDepths: guideDepthsFor(row.depth),
         // A chain renders as one line of dim text whatever its elements were,
         // so it takes a plain block line's chrome even when its first element
-        // is an atom kind — a lineage row is never a callout box.
-        fact: rowFact(row.kind, row.depth),
+        // is an atom kind — a lineage row is never a callout box. Its kind is the
+        // first element's, so its level is too: a chain led by a heading is a
+        // heading fact, and a heading fact always names its level.
+        fact: rowFact(nodeMark(row.elements[0]!), row.depth),
         // The same per-kind rule a node row's content comes from, so a segment
         // and a row naming the same node say the same thing. First line only:
         // continuation lines are context for reading a node, not for naming it
         // (docs/research/structured-backlinks, D5).
         segments: row.elements.map((n) => {
           visible.add(n.id);
-          return {
-            ...segmentContent(n),
-            nodeId: n.id,
-            kind: n.kind,
-          };
+          return lineageSegment(n);
         }),
         kind: row.kind,
       });
@@ -457,9 +472,10 @@ export function buildRows(
  * A plain block line of `kind` at `depth` — the fact for a row that is not a
  * projected node at all: a collapsed lineage chain, or a frontmatter property.
  * Never an atom and never a list item, because both of those describe how a
- * node's own box is rendered and such a row has no node.
+ * node's own box is rendered and such a row has no node. A heading's `mark`
+ * carries its level, which is what a heading fact names.
  */
-export function rowFact(kind: LineDecorationFact['kind'], depth: number): LineDecorationFact {
+export function rowFact(mark: NodeMark, depth: number): LineDecorationFact {
   return {
     lineNumber: 0,
     depth,
@@ -468,7 +484,7 @@ export function rowFact(kind: LineDecorationFact['kind'], depth: number): LineDe
     isAtom: false,
     isListItem: false,
     supplementalDepth: 0,
-    kind,
+    ...mark,
     hasChildren: false,
     // Both synthetic facts: a footer row renders its content inline, with no
     // source indentation of its own to state (D18).
@@ -480,8 +496,8 @@ export function rowFact(kind: LineDecorationFact['kind'], depth: number): LineDe
  * Facts for a descendant, which is not in the projection and so has no fact
  * from `decorate()`.
  *
- * Only the fields the footer's chrome reads are meaningful here — kind, atom
- * and list-item classification, and whether the node has children. Depth comes
+ * Only the fields the footer's chrome reads are meaningful here — kind and
+ * level, atom and list-item classification, and whether the node has children. Depth comes
  * from the caller because a descendant's depth is its position under the
  * reference, not in either tree. Deliberately NOT run through `decorate()` on a
  * one-node document: that would report a root-level node at depth 0 and claim
@@ -496,7 +512,7 @@ function syntheticFact(node: OutlineNode, depth: number): LineDecorationFact {
     isAtom: ATOM_KINDS.has(node.kind),
     isListItem: node.kind === 'list-item',
     supplementalDepth: 0,
-    kind: node.kind,
+    ...nodeMark(node),
     hasChildren: node.children.length > 0,
     indentCh: 0,
   };

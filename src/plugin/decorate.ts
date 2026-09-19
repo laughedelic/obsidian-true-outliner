@@ -27,15 +27,27 @@
  * grid; `outline-decorations` replaced it with the one-grid requirement.
  */
 
-import type { NodeKind, OutlineDoc, OutlineNode } from '../model';
+import type { OutlineDoc, OutlineNode } from '../model';
 import { isAtom, ownSpan } from '../model';
 import { nodeAtLine } from '../locate';
 import { parse } from '../parse';
 import { ownIndentCh } from '../own-indent';
 import { encode } from '../encode';
 import type { ZoomScope } from '../zoom';
+import { nodeMark, type NodeMark } from './marker-shapes';
 
-export interface LineDecorationFact {
+/**
+ * What `decorate()` knows about one line, besides the node's kind and level.
+ *
+ * The node's own kind (Experiment 5, see
+ * docs/research/experiment-5-block-markers.md) and, for a heading, its level
+ * come from `NodeMark`, constant across all of a node's own lines (first +
+ * continuation). They pick a per-kind block marker, and a heading's level
+ * mark; Experiment 1/2b's own indentation/guide logic does not read them.
+ */
+export type LineDecorationFact = LineDecorationFields & NodeMark;
+
+interface LineDecorationFields {
   /** 0-indexed absolute line number in the document. */
   readonly lineNumber: number;
   /** Distance from the document root; top-level nodes are depth 0. */
@@ -74,14 +86,6 @@ export interface LineDecorationFact {
    * position shifts by its non-list ancestors' contribution.
    */
   readonly supplementalDepth: number;
-  /**
-   * The node's own kind (Experiment 5, see
-   * docs/research/experiment-5-block-markers.md) — populated straight
-   * from `node.kind`, constant across all of a node's own lines (first +
-   * continuation). Used to pick a per-kind block marker; not consumed by
-   * Experiment 1/2b's own indentation/guide logic.
-   */
-  readonly kind: NodeKind;
   /**
    * True when the node has at least one child (`node.children.length > 0`),
    * constant across all of a node's own lines. Atom kinds are leaves by
@@ -149,7 +153,7 @@ export function decorate(doc: OutlineDoc): LineDecorationFact[] {
         isAtom: atom,
         isListItem,
         supplementalDepth: isListItem ? rootDepth! : 0,
-        kind: node.kind,
+        ...nodeMark(node),
         hasChildren: node.children.length > 0,
         indentCh: ownIndentCh(node, node.lines[i]!, underListItem),
       });
