@@ -2541,3 +2541,104 @@ next reader does not re-diagnose them:
   stay plain `.cm-line`s. Obsidian's own table widget does not run in that position.
 - **A tab-indented quote is mis-rendered by Live Preview itself**, independently of the parse
   above: the line takes `HyperMD-quote-lazy` and a padding of its own.
+
+## Q39. `paste-lands-where-it-is-pointed` implementation findings (2026-09-19)
+
+The change that settles the heading arm Q2's follow-up 4 left open — a paste CAN put a heading
+under a list item, and the correction above says what happens there. Everything below is the
+reusable part of getting it right: what the measurements cost when they were skipped, and which
+tests could not have caught what they were written for. The frames themselves live in
+[paste-across-encoding-regimes.md](paste-across-encoding-regimes.md).
+
+### A rule with an unreachable arm is not a rule with an exception
+
+`Context-determined encoding on reparent` excluded headings because no reparenting operation can
+reach one. A paste is not a reparent — its payload is parsed markdown — so the exclusion was a gap
+rather than a bound, and three insertion paths filled it three different ways: one vetoed, one
+rewrote the heading out of existence, and one passed the payload to Obsidian, which concatenated
+its first line onto the anchor's. The arm was written as part of the same rule rather than beside
+it, which is why the veto, the conversion and the re-levelling all came out of one function.
+
+Worth carrying: an exclusion justified by "no operation can attempt it" holds only for the
+operations that existed when it was written.
+
+### A guard on one call site is not a guard
+
+The expressibility guard lived in `insertSubtrees`. A later change added a second insertion path
+that did not call it, so the shape the guard existed to refuse became a silent rewrite. Moving it
+into the shared re-encode step — which every path must run to produce anything at all — is what
+makes "all three paths" true by construction. The same second-call-site failure had already
+happened once in this codebase, to the re-indent.
+
+### A property that re-checks a round trip cannot see a bad surgery
+
+`finalize` returns `parse(encode(surgery))`, so asserting `treesEqual(result.doc,
+parse(encode(result.doc)))` asks whether `parse ∘ encode` has a fixed point on a tree that is
+already a parse output. It passes whatever the surgery did. Replaced with a property that can
+fail — every node the payload carried is still a node afterwards — it failed on its sixth
+generated case.
+
+This is Q33's lesson arriving a second time, in a different file. Assert the promise.
+
+### A generator that cannot build the destination cannot find the defect
+
+That payload-survival property was still blind to the defect that reached users first: its
+`arbTree` emits only paragraphs, list items and code, and the seam that loses a node is a quote,
+callout or table meeting another of its kind. The property was right and its corpus could not
+express the failure. Adding two arbitraries made it fail on a `quote` counterexample immediately.
+
+When a property passes, ask what its generator cannot produce.
+
+### The verdict layer is not the gesture
+
+One manual-pass report — extra blank lines after a paste — did not reproduce in ~800 (document,
+caret, payload) combinations driven through `classify` and `computeVerdict`. It reproduced on the
+first try through the real editor, because the gesture is Enter and THEN Ctrl+V: the structural
+Enter opens a place and widens the gap by two before the paste is classified at all. A pure-layer
+sweep cannot see a defect whose cause is in the transaction before it.
+
+### Measure the real instance before writing down what it does
+
+Two claims in this change were argued rather than measured, and both were wrong:
+
+- "Live Preview gives `- ## Notes` no heading styling" — the probe read `getComputedStyle` on the
+  `.cm-line`, which keeps the list's own 16px because the line box holds the list chrome. The
+  heading treatment is on the text span inside it, at the real `h2`'s size and weight.
+- A review round reported a paste swallowing a note's body into frontmatter. It reproduces, and
+  Obsidian's own metadata cache reads that note exactly as we do — one `yaml` section, no body.
+  Nothing to fix, and it would have been filed as a bug.
+
+Measuring the instance is cheap; both errors were one probe away.
+
+### Columns and characters are not the same number
+
+`pasteAnchor` compared `LinePos.ch`, a character index, against `childBaseCol`, a display column.
+In a space-indented vault the two agree and every test passed; in a tab-indented vault — a
+supported configuration — the child reading became unreachable. Two units that agree in the
+common case need a conversion at the boundary and a test in the other case.
+
+### A gap is a boundary's separation, and the last one is not a gap at all
+
+A node owns the blank lines below it, so an insertion turns one boundary into two and both take
+that separation — stripping it left a pasted run flush against the next node wherever the parse
+required no blank line. The exception is the document's last node, whose "gap" is the file's
+terminating newline: a run landing at the end takes it over rather than copying it. The deletion
+side of that same reading is not fixed here and is filed as
+[#160](https://github.com/laughedelic/obsidian-true-outliner/issues/160).
+
+### Two pre-existing mechanisms this change widened the reach of
+
+Filed rather than parked, per AGENTS.md's routing rule, and re-validated against `main` first:
+[#158](https://github.com/laughedelic/obsidian-true-outliner/issues/158) (an atom re-indented past
+column 3 loses its kind, and in a heading scope takes the next node with it) and
+[#159](https://github.com/laughedelic/obsidian-true-outliner/issues/159) (a bullet inserted into an
+ordered run renumbers the tail). Validating the first turned up the mechanism its parked entry
+never had: `finalize` normalizes boundaries BEFORE encoding, so a seam is judged on the node's
+current kind while the parse sees the kind its new column gives it.
+
+### Still open
+
+Absorption from a caret ON a heading is accepted and worth watching: the payload lands before that
+heading's own content, which is therefore inside the pasted subsection. Measured on a real
+heading-less note, a paste near the top takes 12 of 13 nodes into its section — as one pure
+insertion, with no existing line rewritten and one undo to reverse it.

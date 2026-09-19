@@ -259,6 +259,24 @@ everything below the caret is absorbed — measured, a whole flat note becomes o
 children. And paste-then-cut is not the identity there: cutting the pasted section back out
 takes the absorbed content with it, because that content is inside the section now.
 
+**The magnitude on a real note** (task 2.1). `test-vault/Journal/2026-07-08.md` is a heading-less
+journal entry: 20 lines, 13 nodes, five of them at the root. Pasting the `## Aurora review`
+section — 7 nodes — with the caret at the end of its first paragraph re-levels the payload to
+`# Aurora review` and takes the remaining 12 nodes into it. Every node in the note but the one
+the caret sat on is inside the pasted section, and the root goes from five children to two.
+
+The other half of the magnitude is what does NOT happen. The verdict is ONE edit, a pure
+insertion of the payload's 14 lines at the boundary after the caret's paragraph: no existing line
+is rewritten, re-indented or moved. The reparenting is the outline's reading of bytes that did
+not change, and one undo takes the insertion back out. So the cost is a view that draws the rest
+of the note under the pasted heading until a heading of the user's own ends the section — not
+content the paste has taken away.
+
+That is what makes the unbounded case acceptable where a rewrite of the same magnitude would not
+be. It is also why the risk stays on the record rather than closing: the outline is what the user
+edits through, and a section that swallows the note is wrong-looking even when every byte is
+intact.
+
 ### What the options would have cost
 
 Kept for the record, since the decision reads as obvious only with them in view.

@@ -547,6 +547,14 @@ among siblings, splitting, merging, pasting and deleting inside the subtree all 
 they do unzoomed — including an edit that APPENDS a new last child of the zoom root, which is
 inside the scope however far down the document the text lands.
 
+*(Amendment 2026-09-18, `paste-lands-where-it-is-pointed`: the paste scenarios below named a
+GESTURE — the caret at the zoom root's content start — as the one whose splice lands beside the
+root. That is no longer what the splice rule does there: a paste now anchors at the boundary
+immediately after the anchor's own lines, which is the first child's `before` wherever the anchor
+has children, so a caret on a zoom root WITH children splices inside the scope. The ground is
+unchanged; the gestures that fall on each side of it are not. A caret on a CHILDLESS root still
+names that root's next-sibling slot, which is where the refusal is stated from now.)*
+
 #### Scenario: Outdenting a direct child of the zoom root is refused
 - **WHEN** the selection covers a direct child of the zoom root and the user outdents
 - **THEN** the document is unchanged and a rejection cue explains that the result would leave the
@@ -607,9 +615,14 @@ inside the scope however far down the document the text lands.
   removing it moves nothing out of the subtree, however close to the scope's edge it sits
 
 #### Scenario: A paste that would splice outside the subtree is refused
-- **WHEN** the user pastes a structural block at the zoom root's content start, where the splice
-  rule would place it as a sibling of the root
+- **WHEN** the user pastes a structural block with the caret on a CHILDLESS zoom root's own line,
+  where the splice rule places it as a sibling of the root
 - **THEN** nothing is inserted, the document is unchanged, and the cue is shown
+
+#### Scenario: A paste at a root WITH children lands in its child scope
+- **WHEN** the user pastes a structural block with the caret on a zoom root that HAS children
+- **THEN** it is inserted as that root's first child — inside the scope, so the zoom rule has
+  nothing to refuse — and the zoom stays active
 
 #### Scenario: A paste that splices inside the subtree is allowed
 - **WHEN** the user pastes the same block at the end of the zoom root's last visible content line,

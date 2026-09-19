@@ -11,8 +11,11 @@
 
 ## 2. Measurements still owed
 
-- [ ] 2.1 Record the root-level absorption magnitude on a real note in the dev vault, so
-      design D3's accepted case is judged against a real document rather than a fixture
+- [x] 2.1 Record the root-level absorption magnitude on a real note in the dev vault, so
+      design D3's accepted case is judged against a real document rather than a fixture.
+      Measured on `test-vault/Journal/2026-07-08.md`, a heading-less 13-node entry: a section
+      pasted at the end of its first paragraph takes the other 12 nodes into itself, root
+      children 5 → 2 — as ONE edit, a pure insertion, with no existing line rewritten
 - [x] 2.2 Confirm in a real instance that Obsidian renders `- ## Notes` with heading styling
       at depth, in outline mode and out of it — measured: yes in both reading mode and Live
       Preview, the item's TEXT at the real `h2`'s size and weight. Recorded in
@@ -78,8 +81,11 @@
       if it has landed by then. Four reports, driven against `test-vault/Journal/2026-07-10.md`
       and written up in `docs/research/paste-across-encoding-regimes` (M1–M3). The drop path has
       not landed
-- [ ] 6.4 Record the findings in `docs/research/open-questions`, as the entry that settles the
-      heading arm left open since Q2 follow-up #4
+- [x] 6.4 Record the findings in `docs/research/open-questions`, as the entry that settles the
+      heading arm left open since Q2 follow-up #4 — Q39, with the reusable half of each finding:
+      an unreachable arm is not an exception, a guard on one call site is not a guard, a property
+      that re-checks a round trip, a generator that cannot build the destination, the verdict
+      layer not being the gesture, and the two unit confusions
 
 ## 6c. Manual pass (real vault, 2026-09-18)
 
@@ -171,4 +177,4 @@
 
 ## 7. Land
 
-- [ ] 7.1 `openspec validate paste-lands-where-it-is-pointed --strict`
+- [x] 7.1 `openspec validate paste-lands-where-it-is-pointed --strict`
