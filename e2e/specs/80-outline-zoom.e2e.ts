@@ -111,8 +111,8 @@ function trail(): Promise<string[]> {
     const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
     const el = view?.containerEl.querySelector('.to-zoom-trail');
     if (!el) return [];
-    return Array.from(el.querySelectorAll('.to-backlinks-seg')).map((seg) => {
-      const ord = seg.querySelector('.to-backlinks-seg-ord')?.textContent ?? '';
+    return Array.from(el.querySelectorAll('.to-lineage-seg')).map((seg) => {
+      const ord = seg.querySelector('.to-lineage-seg-ord')?.textContent ?? '';
       const text = (seg as HTMLElement).innerText.trim();
       return (ord && text.startsWith(ord) ? text.slice(ord.length) : text).trim();
     });
@@ -125,8 +125,8 @@ function trailOrdinals(): Promise<string[]> {
     const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
     const el = view?.containerEl.querySelector('.to-zoom-trail');
     if (!el) return [];
-    return Array.from(el.querySelectorAll('.to-backlinks-seg')).map(
-      (seg) => seg.querySelector('.to-backlinks-seg-ord')?.textContent ?? '',
+    return Array.from(el.querySelectorAll('.to-lineage-seg')).map(
+      (seg) => seg.querySelector('.to-lineage-seg-ord')?.textContent ?? '',
     );
   });
 }
@@ -135,7 +135,7 @@ function trailOrdinals(): Promise<string[]> {
 function trailIsLineageRow(): Promise<boolean> {
   return browser.executeObsidian(({ app, obsidian }) => {
     const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
-    const row = view?.containerEl.querySelector('.to-zoom-trail .to-backlinks-row');
+    const row = view?.containerEl.querySelector('.to-zoom-trail .to-lineage-row');
     return !!row && row.classList.contains('is-lineage');
   });
 }
@@ -156,7 +156,7 @@ function chromeVisible(): Promise<{ title: boolean; properties: boolean }> {
 function clickCrumb(index: number): Promise<void> {
   return browser.executeObsidian(({ app, obsidian }, i) => {
     const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
-    const crumbs = view?.containerEl.querySelectorAll('.to-zoom-trail .to-backlinks-seg');
+    const crumbs = view?.containerEl.querySelectorAll('.to-zoom-trail .to-lineage-seg');
     const el = crumbs?.[i] as HTMLElement | undefined;
     if (!el) throw new Error(`no crumb at ${i}`);
     el.click();
@@ -502,7 +502,7 @@ describe('outline zoom', function () {
   it('renders the trail as a footer lineage row, not a primitive of its own', async function () {
     await openZoomable();
     await zoomAt(DOC, '  - nested');
-    // The row IS `.to-backlinks-row.is-lineage` — the same markup the footer's
+    // The row IS `.to-lineage-row.is-lineage` — the same markup the footer's
     // squashed ancestor chains use, so the two surfaces cannot drift apart
     // visually. A zoom-specific class here would mean the shared language broke.
     expect(await trailIsLineageRow()).toBe(true);
@@ -511,8 +511,8 @@ describe('outline zoom', function () {
       const el = view?.containerEl.querySelector('.to-zoom-trail');
       return {
         gutterMarker: !!el?.querySelector('.to-backlinks-marker, .to-backlinks-ord'),
-        content: !!el?.querySelector('.to-backlinks-content'),
-        segments: el?.querySelectorAll('.to-backlinks-seg').length ?? 0,
+        content: !!el?.querySelector('.to-lineage-content'),
+        segments: el?.querySelectorAll('.to-lineage-seg').length ?? 0,
       };
     });
     expect(marks.content).toBe(true);
@@ -560,7 +560,7 @@ describe('outline zoom', function () {
     const seps = await browser.executeObsidian(({ app, obsidian }) => {
       const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
       const el = view?.containerEl.querySelector('.to-zoom-trail');
-      return el?.querySelectorAll('.to-backlinks-seg-sep').length ?? 0;
+      return el?.querySelectorAll('.to-lineage-seg-sep').length ?? 0;
     });
     // Four segments (file plus three ancestors) means three joins.
     expect(seps).toBe(3);
@@ -926,7 +926,7 @@ describe('outline zoom', function () {
           .map((leaf) => {
             const el = leaf.view.containerEl.querySelector('.to-zoom-trail');
             if (!el) return [];
-            return Array.from(el.querySelectorAll('.to-backlinks-seg')).map((seg) =>
+            return Array.from(el.querySelectorAll('.to-lineage-seg')).map((seg) =>
               (seg as HTMLElement).innerText.trim(),
             );
           });
@@ -1341,10 +1341,10 @@ describe('outline zoom', function () {
       const el = view?.containerEl.querySelector('.to-zoom-trail');
       if (!el) return null;
       return {
-        strong: el.querySelector('.to-backlinks-seg strong') !== null,
-        code: el.querySelector('.to-backlinks-seg code') !== null,
-        anchor: el.querySelector('.to-backlinks-seg a') !== null,
-        blocks: el.querySelectorAll('.to-backlinks-seg p, .to-backlinks-seg ul, .to-backlinks-seg li').length,
+        strong: el.querySelector('.to-lineage-seg strong') !== null,
+        code: el.querySelector('.to-lineage-seg code') !== null,
+        anchor: el.querySelector('.to-lineage-seg a') !== null,
+        blocks: el.querySelectorAll('.to-lineage-seg p, .to-lineage-seg ul, .to-lineage-seg li').length,
         text: (el as HTMLElement).innerText,
       };
     });
@@ -1381,7 +1381,7 @@ describe('outline zoom', function () {
     // suppressed here; what this asserts is that the SEGMENT did not also act.
     await browser.executeObsidian(({ app, obsidian }) => {
       const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
-      const a = view?.containerEl.querySelector('.to-zoom-trail .to-backlinks-seg a') as HTMLElement | null;
+      const a = view?.containerEl.querySelector('.to-zoom-trail .to-lineage-seg a') as HTMLElement | null;
       if (!a) throw new Error('no link inside a crumb');
       a.addEventListener('click', (e) => e.preventDefault(), { once: true });
       a.click();
@@ -1412,7 +1412,7 @@ describe('outline zoom', function () {
     // around it — so keydown needs the same guard the click has.
     await browser.executeObsidian(({ app, obsidian }) => {
       const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
-      const a = view?.containerEl.querySelector('.to-zoom-trail .to-backlinks-seg a') as HTMLElement | null;
+      const a = view?.containerEl.querySelector('.to-zoom-trail .to-lineage-seg a') as HTMLElement | null;
       if (!a) throw new Error('no link inside a crumb');
       a.focus();
       a.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
@@ -1801,7 +1801,7 @@ describe('outline zoom: the enforced path with a zoom active', function () {
           ({ app, obsidian }) =>
             (app.workspace
               .getActiveViewOfType(obsidian.MarkdownView)
-              ?.containerEl.querySelectorAll('.to-zoom-trail .to-backlinks-seg').length ?? 0) > 1,
+              ?.containerEl.querySelectorAll('.to-zoom-trail .to-lineage-seg').length ?? 0) > 1,
         ),
       { timeout: 5000, timeoutMsg: 'the trail never showed an ancestor crumb' },
     );
@@ -1813,9 +1813,9 @@ describe('outline zoom: the enforced path with a zoom active', function () {
         return el ? parseFloat(getComputedStyle(el).fontSize) : 0;
       };
       return {
-        trail: px('.to-zoom-trail .to-backlinks-content'),
+        trail: px('.to-zoom-trail .to-lineage-content'),
         line: px('.cm-content .cm-line'),
-        trailCode: px('.to-zoom-trail .to-backlinks-content code'),
+        trailCode: px('.to-zoom-trail .to-lineage-content code'),
       };
     });
 
@@ -1843,16 +1843,16 @@ describe('outline zoom: the enforced path with a zoom active', function () {
           ({ app, obsidian }) =>
             (app.workspace
               .getActiveViewOfType(obsidian.MarkdownView)
-              ?.containerEl.querySelectorAll('.to-zoom-trail .to-backlinks-seg-icon').length ?? 0) > 0,
+              ?.containerEl.querySelectorAll('.to-zoom-trail .to-lineage-seg-icon').length ?? 0) > 0,
         ),
       { timeout: 5000, timeoutMsg: 'the trail never drew a crumb icon' },
     );
 
     const marks = await browser.executeObsidian(({ app, obsidian }) => {
       const v = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
-      const segs = Array.from(v.containerEl.querySelectorAll('.to-zoom-trail .to-backlinks-seg'));
+      const segs = Array.from(v.containerEl.querySelectorAll('.to-zoom-trail .to-lineage-seg'));
       const read = (seg: Element) => {
-            const icon = seg.querySelector('.to-backlinks-seg-icon');
+            const icon = seg.querySelector('.to-lineage-seg-icon');
             if (!icon) return null;
             // A zero-size inline-block on the baseline: its box edge IS the
             // baseline of the line it sits in, which is what "the lower edge of

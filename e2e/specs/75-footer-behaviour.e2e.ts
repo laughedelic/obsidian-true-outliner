@@ -62,11 +62,11 @@ function rows(): Promise<string[]> {
   return browser.executeObsidian(() => {
     const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
     if (!root) return [];
-    return Array.from(root.querySelectorAll<HTMLElement>('.to-backlinks-row')).map((el) => {
+    return Array.from(root.querySelectorAll<HTMLElement>('.to-lineage-row')).map((el) => {
       const roles = ['is-lineage', 'is-hit'].filter((c) => el.classList.contains(c));
       const depth = el.style.getPropertyValue('--to-depth') || '0';
       return `${depth}${roles.length ? `:${roles.join(',')}` : ''} ${(
-        el.querySelector('.to-backlinks-content')?.textContent ?? ''
+        el.querySelector('.to-lineage-content')?.textContent ?? ''
       ).trim()}`;
     });
   });
@@ -262,8 +262,8 @@ describe('backlinks footer: behaviour', function () {
     const chained = await browser.executeObsidian(
       () =>
         Array.from(
-          document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-row.is-lineage'),
-        ).filter((row) => row.querySelectorAll('.to-backlinks-seg').length > 1).length,
+          document.querySelectorAll('.workspace-leaf.mod-active .to-lineage-row.is-lineage'),
+        ).filter((row) => row.querySelectorAll('.to-lineage-seg').length > 1).length,
     );
     expect(chained).toBeGreaterThan(0);
 
@@ -287,10 +287,10 @@ describe('backlinks footer: behaviour', function () {
       const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
       if (!root) return ['<no footer>'];
       const out: string[] = [];
-      root.querySelectorAll('.to-backlinks-group').forEach((group) => {
-        const name = group.querySelector('.to-backlinks-group-name')?.textContent ?? '?';
+      root.querySelectorAll('.to-lineage-group').forEach((group) => {
+        const name = group.querySelector('.to-lineage-group-name')?.textContent ?? '?';
         const seen = new Set<string>();
-        group.querySelectorAll('.to-backlinks-row.is-lineage').forEach((row) => {
+        group.querySelectorAll('.to-lineage-row.is-lineage').forEach((row) => {
           const key = `${row.getAttribute('style') ?? ''}|${(row.textContent ?? '').trim()}`;
           if (seen.has(key)) out.push(`${name}: ${key.slice(0, 60)}`);
           seen.add(key);
@@ -324,8 +324,8 @@ describe('backlinks footer: behaviour', function () {
       if (!root) return null;
       return {
         totals: root.querySelector('.to-backlinks-totals')?.textContent ?? '',
-        resolving: root.querySelectorAll('.to-backlinks-resolving').length,
-        rows: root.querySelectorAll('.to-backlinks-row').length,
+        resolving: root.querySelectorAll('.to-lineage-resolving').length,
+        rows: root.querySelectorAll('.to-lineage-row').length,
       };
     });
 
@@ -341,8 +341,8 @@ describe('backlinks footer: behaviour', function () {
     const settled = await browser.executeObsidian(() => {
       const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
       return {
-        resolving: root?.querySelectorAll('.to-backlinks-resolving').length ?? -1,
-        rows: root?.querySelectorAll('.to-backlinks-row').length ?? -1,
+        resolving: root?.querySelectorAll('.to-lineage-resolving').length ?? -1,
+        rows: root?.querySelectorAll('.to-lineage-row').length ?? -1,
       };
     });
     expect(settled.resolving).toBe(0);
@@ -359,7 +359,7 @@ describe('backlinks footer: behaviour', function () {
    */
   it('follows a link inside a mention to the link’s own target', async function () {
     await openFooter(TARGET);
-    const linkSel = `${FOOTER} .to-backlinks-row.is-hit a.internal-link`;
+    const linkSel = `${FOOTER} .to-lineage-row.is-hit a.internal-link`;
     const href = await (await $(linkSel)).getAttribute('data-href');
     expect(href).toBeTruthy();
 
@@ -383,10 +383,10 @@ describe('backlinks footer: behaviour', function () {
    */
   it('reveals hidden descendants when a row’s fold is used', async function () {
     await openFooter(TARGET);
-    expect(await (await $(`${FOOTER} .to-backlinks-fold`)).isExisting()).toBe(true);
+    expect(await (await $(`${FOOTER} .to-lineage-fold`)).isExisting()).toBe(true);
 
     const before = (await rows()).length;
-    await h.clickClear(`${FOOTER} .to-backlinks-fold`);
+    await h.clickClear(`${FOOTER} .to-lineage-fold`);
     await browser.pause(400);
     const after = (await rows()).length;
 
@@ -406,12 +406,12 @@ describe('backlinks footer: behaviour', function () {
     // a test, the same way the section's own collapse does (see `openFooter`).
     // What this asserts is the round trip, from wherever it starts.
     const start = await rows();
-    await h.clickClear(`${FOOTER} .to-backlinks-fold`);
+    await h.clickClear(`${FOOTER} .to-lineage-fold`);
     await browser.pause(400);
     const flipped = await rows();
     expect(flipped.length).not.toBe(start.length);
 
-    await h.clickClear(`${FOOTER} .to-backlinks-fold`);
+    await h.clickClear(`${FOOTER} .to-lineage-fold`);
     await browser.pause(400);
     expect(await rows()).toEqual(start);
   });
@@ -426,7 +426,7 @@ describe('backlinks footer: behaviour', function () {
     await openFooter(TARGET);
     const points = await browser.executeObsidian(() => {
       const d = document
-        .querySelector('.workspace-leaf.mod-active .to-backlinks-fold svg path')
+        .querySelector('.workspace-leaf.mod-active .to-lineage-fold svg path')
         ?.getAttribute('d');
       if (!d) throw new Error('no fold glyph in the footer');
       const nums = (d.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
@@ -457,7 +457,7 @@ describe('backlinks footer: behaviour', function () {
     await openFooter(TARGET);
     const read = () =>
       browser.executeObsidian(() => {
-        const el = document.querySelector('.workspace-leaf.mod-active .to-backlinks-fold');
+        const el = document.querySelector('.workspace-leaf.mod-active .to-lineage-fold');
         return el
           ? {
               tag: el.tagName,
@@ -473,7 +473,7 @@ describe('backlinks footer: behaviour', function () {
       await browser.pause(800);
       await browser.executeObsidian(() => {
         document
-          .querySelector<HTMLElement>('.workspace-leaf.mod-active .to-backlinks-fold')
+          .querySelector<HTMLElement>('.workspace-leaf.mod-active .to-lineage-fold')
           ?.focus();
       });
       await browser.keys([key]);
@@ -503,8 +503,8 @@ describe('backlinks footer: behaviour', function () {
     const read = () =>
       browser.executeObsidian(() => {
         const row = document
-          .querySelector('.workspace-leaf.mod-active .to-backlinks-fold')
-          ?.closest('.to-backlinks-row');
+          .querySelector('.workspace-leaf.mod-active .to-lineage-fold')
+          ?.closest('.to-lineage-row');
         const icon = row?.querySelector<HTMLElement>('.to-decor-marker-icon');
         return {
           folded: row?.classList.contains('to-decor-folded') ?? null,
@@ -513,7 +513,7 @@ describe('backlinks footer: behaviour', function () {
       });
 
     const before = await read();
-    await h.clickClear(`${FOOTER} .to-backlinks-fold`);
+    await h.clickClear(`${FOOTER} .to-lineage-fold`);
     await browser.pause(400);
     const after = await read();
 
@@ -535,7 +535,7 @@ describe('backlinks footer: behaviour', function () {
   it('drops a source’s group when that source stops referencing', async function () {
     await openFooter(TARGET);
     const groupsBefore = await browser.executeObsidian(
-      () => document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group').length,
+      () => document.querySelectorAll('.workspace-leaf.mod-active .to-lineage-group').length,
     );
     expect(groupsBefore).toBeGreaterThan(1);
 
@@ -554,7 +554,7 @@ describe('backlinks footer: behaviour', function () {
         async () =>
           (await browser.executeObsidian(
             () =>
-              document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group').length,
+              document.querySelectorAll('.workspace-leaf.mod-active .to-lineage-group').length,
           )) < groupsBefore,
         { timeout: 8000, timeoutMsg: 'the group never went away' },
       );
@@ -599,7 +599,7 @@ describe('backlinks footer: behaviour', function () {
     const groupNames = (): Promise<string[]> =>
       browser.executeObsidian(() =>
         Array.from(
-          document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group-name'),
+          document.querySelectorAll('.workspace-leaf.mod-active .to-lineage-group-name'),
         ).map((el) => el.textContent ?? ''),
       );
 
@@ -645,7 +645,7 @@ describe('backlinks footer: behaviour', function () {
       if (!root) return null;
       return {
         dormant: root.classList.contains('is-dormant'),
-        groups: root.querySelectorAll('.to-backlinks-group').length,
+        groups: root.querySelectorAll('.to-lineage-group').length,
         totals: root.querySelector('.to-backlinks-totals')?.textContent ?? '',
       };
     });
@@ -695,11 +695,11 @@ describe('backlinks footer: behaviour', function () {
         const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
         if (!root) return null;
         const toggle = root.querySelector<HTMLElement>('.to-backlinks-more');
-        const card = toggle?.closest('.to-backlinks-group');
+        const card = toggle?.closest('.to-lineage-group');
         if (!toggle || !card) return null;
-        const body = card.querySelector('.to-backlinks-rows');
+        const body = card.querySelector('.to-lineage-rows');
         return {
-          name: card.querySelector('.to-backlinks-group-name')?.textContent ?? '',
+          name: card.querySelector('.to-lineage-group-name')?.textContent ?? '',
           hidden: body ? body.scrollHeight - body.clientHeight : 0,
           height: body?.getBoundingClientRect().height ?? 0,
           toggles: root.querySelectorAll('.to-backlinks-more').length,
@@ -759,10 +759,10 @@ describe('backlinks footer: behaviour', function () {
     await openFooter(HUB);
 
     const groups = await browser.executeObsidian(() => {
-      const cards = document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group');
+      const cards = document.querySelectorAll('.workspace-leaf.mod-active .to-lineage-group');
       return Array.from(cards).map((card) => {
-        const body = card.querySelector('.to-backlinks-rows');
-        const name = card.querySelector('.to-backlinks-group-name')?.textContent ?? '';
+        const body = card.querySelector('.to-lineage-rows');
+        const name = card.querySelector('.to-lineage-group-name')?.textContent ?? '';
         if (!body) return { name, sliced: 0, truncated: false, hasControl: false };
         const edge = body.getBoundingClientRect().bottom;
         return {
@@ -770,7 +770,7 @@ describe('backlinks footer: behaviour', function () {
           // Rows the body's own bottom edge passes THROUGH: starting above it and
           // ending below. Half a pixel of tolerance, since a row that merely ends
           // flush with the edge is not cut.
-          sliced: Array.from(body.querySelectorAll('.to-backlinks-row')).filter((r) => {
+          sliced: Array.from(body.querySelectorAll('.to-lineage-row')).filter((r) => {
             const rb = r.getBoundingClientRect();
             return rb.top < edge - 0.5 && rb.bottom > edge + 0.5;
           }).length,
@@ -802,20 +802,20 @@ describe('backlinks footer: behaviour', function () {
     const shape = await browser.executeObsidian(() => {
       const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
       if (!root) return null;
-      const rows = Array.from(root.querySelectorAll<HTMLElement>('.to-backlinks-row'));
+      const rows = Array.from(root.querySelectorAll<HTMLElement>('.to-lineage-row'));
       return {
         total: rows.length,
-        tagged: rows.filter((r) => r.querySelector('.to-backlinks-tag')).length,
+        tagged: rows.filter((r) => r.querySelector('.to-lineage-tag')).length,
         tagText: [
           ...new Set(
             rows
-              .map((r) => r.querySelector('.to-backlinks-tag')?.textContent ?? '')
+              .map((r) => r.querySelector('.to-lineage-tag')?.textContent ?? '')
               .filter(Boolean),
           ),
         ],
         // A tag belongs to a reference row, never to a lineage row.
         onLineage: rows.filter(
-          (r) => r.classList.contains('is-lineage') && r.querySelector('.to-backlinks-tag'),
+          (r) => r.classList.contains('is-lineage') && r.querySelector('.to-lineage-tag'),
         ).length,
       };
     });
@@ -842,7 +842,7 @@ describe('backlinks footer: behaviour', function () {
     await openFooter(TARGET);
     const text = await browser.executeObsidian(() => {
       const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
-      const row = Array.from(root?.querySelectorAll('.to-backlinks-row') ?? []).find((r) =>
+      const row = Array.from(root?.querySelectorAll('.to-lineage-row') ?? []).find((r) =>
         (r.textContent ?? '').includes('An HTML block mentions'),
       );
       return row?.textContent ?? '<no html row>';
@@ -862,10 +862,10 @@ describe('backlinks footer: behaviour', function () {
     await openFooter(HUB);
 
     const focused = await browser.executeObsidian((_ctx, groupName: string) => {
-      const cards = document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group');
+      const cards = document.querySelectorAll('.workspace-leaf.mod-active .to-lineage-group');
       for (const card of Array.from(cards)) {
-        if (card.querySelector('.to-backlinks-group-name')?.textContent !== groupName) continue;
-        const rows = card.querySelectorAll<HTMLElement>('.to-backlinks-row');
+        if (card.querySelector('.to-lineage-group-name')?.textContent !== groupName) continue;
+        const rows = card.querySelectorAll<HTMLElement>('.to-lineage-row');
         const row = rows[rows.length - 1];
         if (!row) return null;
         return {
@@ -905,11 +905,11 @@ describe('backlinks footer: behaviour', function () {
     await openFooter(HUB);
 
     const ready = await browser.executeObsidian((_ctx, groupName: string) => {
-      const cards = document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group');
+      const cards = document.querySelectorAll('.workspace-leaf.mod-active .to-lineage-group');
       for (const card of Array.from(cards)) {
-        if (card.querySelector('.to-backlinks-group-name')?.textContent !== groupName) continue;
+        if (card.querySelector('.to-lineage-group-name')?.textContent !== groupName) continue;
         const segs = card.querySelectorAll<HTMLElement>(
-          '.to-backlinks-row.is-lineage .to-backlinks-seg',
+          '.to-lineage-row.is-lineage .to-lineage-seg',
         );
         const last = segs[segs.length - 1];
         if (!last) return null;
@@ -947,10 +947,10 @@ describe('backlinks footer: behaviour', function () {
   /** The rows of one named group in the open footer, as element indices. */
   async function groupRowCount(name: string): Promise<number> {
     return browser.executeObsidian((_ctx, groupName: string) => {
-      const cards = document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group');
+      const cards = document.querySelectorAll('.workspace-leaf.mod-active .to-lineage-group');
       for (const card of Array.from(cards)) {
-        if (card.querySelector('.to-backlinks-group-name')?.textContent !== groupName) continue;
-        return card.querySelectorAll('.to-backlinks-row').length;
+        if (card.querySelector('.to-lineage-group-name')?.textContent !== groupName) continue;
+        return card.querySelectorAll('.to-lineage-row').length;
       }
       return 0;
     }, name);
@@ -987,14 +987,14 @@ describe('backlinks footer: behaviour', function () {
 
     const stamped = await browser.executeObsidian(
       (_ctx, args: { groupName: string; row: number; seg: number }) => {
-        const cards = document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group');
+        const cards = document.querySelectorAll('.workspace-leaf.mod-active .to-lineage-group');
         for (const card of Array.from(cards)) {
-          if (card.querySelector('.to-backlinks-group-name')?.textContent !== args.groupName)
+          if (card.querySelector('.to-lineage-group-name')?.textContent !== args.groupName)
             continue;
-          const row = card.querySelectorAll<HTMLElement>('.to-backlinks-row')[args.row];
+          const row = card.querySelectorAll<HTMLElement>('.to-lineage-row')[args.row];
           if (!row) return false;
           const el =
-            args.seg >= 0 ? row.querySelectorAll<HTMLElement>('.to-backlinks-seg')[args.seg] : row;
+            args.seg >= 0 ? row.querySelectorAll<HTMLElement>('.to-lineage-seg')[args.seg] : row;
           if (!el) return false;
           el.setAttribute('data-e2e-target', 'yes');
           return true;
@@ -1072,11 +1072,11 @@ describe('backlinks footer: behaviour', function () {
     // reach: it and the first element differ, so landing on either proves which
     // handler ran.
     const segments = await browser.executeObsidian((_ctx, groupName: string) => {
-      const cards = document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group');
+      const cards = document.querySelectorAll('.workspace-leaf.mod-active .to-lineage-group');
       for (const card of Array.from(cards)) {
-        if (card.querySelector('.to-backlinks-group-name')?.textContent !== groupName) continue;
-        const row = card.querySelector('.to-backlinks-row.is-lineage');
-        return row?.querySelectorAll('.to-backlinks-seg').length ?? 0;
+        if (card.querySelector('.to-lineage-group-name')?.textContent !== groupName) continue;
+        const row = card.querySelector('.to-lineage-row.is-lineage');
+        return row?.querySelectorAll('.to-lineage-seg').length ?? 0;
       }
       return 0;
     }, DEEP_GROUP);

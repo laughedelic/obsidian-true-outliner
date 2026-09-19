@@ -74,6 +74,7 @@ import { BUILD_STAMP } from 'virtual:build-stamp';
 import { decorationsExtension, type MarkerVisibility } from './decorations';
 import { transactionFilterExtension } from './transaction-filter';
 import { viewRegistryExtension } from './view-registry';
+import { SearchPalette } from './search-palette';
 import { zoomStateExtension } from './zoom-state';
 import { guideHoverExtension } from './guide-hover';
 import { isOutlineMode, outlineStateExtension, outlineToggled } from './outline-state';
@@ -528,6 +529,31 @@ export default class TrueOutlinerPlugin extends Plugin {
     // paste, structural delete) so redo restores it — history recomputes a
     // cursor by mapping, which cannot reproduce a choice (history-caret.ts).
     this.registerEditorExtension(historyCaretExtension());
+
+    // A plain `callback`, not `editorCheckCallback`: search is navigation, so
+    // the command is offered in every view and whether or not the active tab is
+    // in outline mode. The mode gate on the structural commands is about
+    // editing a tree, which this does not do.
+    this.addCommand({
+      id: 'search-outline',
+      name: 'Search outline',
+      callback: () => {
+        const palette = new SearchPalette({
+          app: this.app,
+          // The index's own cache, so a note either surface has resolved is not
+          // read and parsed again — and so a node id means the same thing to
+          // both, which two parses of one file would not.
+          trees: this.backlinks.treeCache,
+          backlinksSegmentIcons: this.backlinksSegmentIcons,
+          backlinksSeparator: this.backlinksSeparator,
+        });
+        // A modal open across a disable or a reload would be a window onto a
+        // plugin that is no longer there, with a sweep still walking the vault
+        // behind it. Closing it runs `onClose`, which cancels that walk.
+        this.register(() => palette.close());
+        palette.open();
+      },
+    });
 
     this.addCommand({
       id: 'print-transaction-stats',

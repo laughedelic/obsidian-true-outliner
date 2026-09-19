@@ -63,7 +63,7 @@ function tail(): Promise<{ rung: boolean; shortfall: string; fading: number }> {
     return {
       rung: root?.querySelector('.to-backlinks-load-more') !== null,
       shortfall: root?.querySelector('.to-backlinks-shortfall')?.textContent ?? '',
-      fading: root?.querySelectorAll('.to-backlinks-group.is-fading').length ?? -1,
+      fading: root?.querySelectorAll('.to-lineage-group.is-fading').length ?? -1,
     };
   });
 }
@@ -151,11 +151,11 @@ describe('the overall cap and the per-note bound', function () {
         await new Promise((resolve) => setTimeout(resolve, 6000));
         const shownPaths = Array.from(
           document.querySelectorAll<HTMLElement>(
-            '.workspace-leaf.mod-active .to-backlinks-group-head',
+            '.workspace-leaf.mod-active .to-lineage-group-head',
           ),
         ).map((head) => {
-          const name = head.querySelector('.to-backlinks-group-name')?.textContent ?? '';
-          const folder = head.querySelector('.to-backlinks-group-folder')?.textContent ?? '';
+          const name = head.querySelector('.to-lineage-group-name')?.textContent ?? '';
+          const folder = head.querySelector('.to-lineage-group-folder')?.textContent ?? '';
           return folder ? `${folder}/${name}.md` : `${name}.md`;
         });
         return {
@@ -220,14 +220,14 @@ describe('the overall cap and the per-note bound', function () {
         const truth = new Map(index.summaries(target).map((s) => [s.path, s.count]));
         return Array.from(
           document.querySelectorAll<HTMLElement>(
-            '.workspace-leaf.mod-active .to-backlinks-group-head',
+            '.workspace-leaf.mod-active .to-lineage-group-head',
           ),
         ).map((head) => {
-          const name = head.querySelector('.to-backlinks-group-name')?.textContent ?? '';
-          const folder = head.querySelector('.to-backlinks-group-folder')?.textContent ?? '';
+          const name = head.querySelector('.to-lineage-group-name')?.textContent ?? '';
+          const folder = head.querySelector('.to-lineage-group-folder')?.textContent ?? '';
           const path = folder ? `${folder}/${name}.md` : `${name}.md`;
           return {
-            drawn: Number(head.querySelector('.to-backlinks-group-count')?.textContent ?? '0'),
+            drawn: Number(head.querySelector('.to-lineage-group-count')?.textContent ?? '0'),
             actual: truth.get(path) ?? -1,
           };
         });
@@ -270,7 +270,7 @@ describe('the overall cap and the per-note bound', function () {
     // dissolving, not every card being marked.
     expect(capped.fading).toBe(1);
     const lastFades = await browser.executeObsidian(() => {
-      const cards = document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group');
+      const cards = document.querySelectorAll('.workspace-leaf.mod-active .to-lineage-group');
       return cards.item(cards.length - 1)?.classList.contains('is-fading') ?? false;
     });
     expect(lastFades).toBe(true);
@@ -324,7 +324,7 @@ describe('the overall cap and the per-note bound', function () {
     browser.executeObsidian(() =>
       Array.from(
         document.querySelectorAll<HTMLElement>(
-          '.workspace-leaf.mod-active .to-backlinks-group-count',
+          '.workspace-leaf.mod-active .to-lineage-group-count',
         ),
       ).reduce((sum, el) => sum + Number((el.textContent ?? '0').replace(/\D+/g, '')), 0),
     );
@@ -393,10 +393,10 @@ describe('the overall cap and the per-note bound', function () {
     const geometry = await readStable(() =>
       browser.executeObsidian(() => {
         const card = document.querySelector<HTMLElement>(
-          '.workspace-leaf.mod-active .to-backlinks-group',
+          '.workspace-leaf.mod-active .to-lineage-group',
         );
         const rung = card?.querySelector<HTMLElement>('.to-backlinks-more.to-backlinks-rung');
-        const body = card?.querySelector<HTMLElement>('.to-backlinks-rows');
+        const body = card?.querySelector<HTMLElement>('.to-lineage-rows');
         if (!card || !rung || !body) return null;
         const c = card.getBoundingClientRect();
         const r = rung.getBoundingClientRect();
@@ -428,7 +428,7 @@ describe('the overall cap and the per-note bound', function () {
     // a pointer cannot be moved to a point outside the window.
     await browser.executeObsidian(() => {
       document
-        .querySelector('.workspace-leaf.mod-active .to-backlinks-group')
+        .querySelector('.workspace-leaf.mod-active .to-lineage-group')
         ?.scrollIntoView({ block: 'center' });
     });
     await settle();
@@ -486,11 +486,11 @@ describe('the overall cap and the per-note bound', function () {
     const rungs = await readStable(() =>
       browser.executeObsidian(() =>
         Array.from(
-          document.querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .to-backlinks-group'),
+          document.querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .to-lineage-group'),
         )
           .map((card) => {
             const rung = card.querySelector<HTMLElement>('.to-backlinks-more.to-backlinks-rung');
-            const body = card.querySelector<HTMLElement>('.to-backlinks-rows.is-capped');
+            const body = card.querySelector<HTMLElement>('.to-lineage-rows.is-capped');
             if (!rung || !body) return null;
             const limit = body.getBoundingClientRect().top + body.clientHeight;
             const clipped = Array.from(body.children as HTMLCollectionOf<HTMLElement>).filter(
@@ -524,7 +524,7 @@ describe('the overall cap and the per-note bound', function () {
       browser.executeObsidian(() =>
         Math.round(
           document
-            .querySelector('.workspace-leaf.mod-active .to-backlinks-group')
+            .querySelector('.workspace-leaf.mod-active .to-lineage-group')
             ?.getBoundingClientRect().height ?? 0,
         ),
       );
@@ -672,12 +672,12 @@ describe('a node carrying references of more than one kind', function () {
     const shape = (): Promise<{ count: string; rows: number } | null> =>
       browser.executeObsidian(() => {
         const card = document.querySelector<HTMLElement>(
-          '.workspace-leaf.mod-active .to-backlinks-group',
+          '.workspace-leaf.mod-active .to-lineage-group',
         );
         if (!card) return null;
         return {
-          count: card.querySelector('.to-backlinks-group-count')?.textContent ?? '',
-          rows: card.querySelectorAll('.to-backlinks-row').length,
+          count: card.querySelector('.to-lineage-group-count')?.textContent ?? '',
+          rows: card.querySelectorAll('.to-lineage-row').length,
         };
       });
 

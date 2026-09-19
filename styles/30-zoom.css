@@ -1,7 +1,7 @@
 /*
  * Zoom's breadcrumb trail (`outline-zoom` D10).
  *
- * Almost nothing here, on purpose. The row inside is a `.to-backlinks-row
+ * Almost nothing here, on purpose. The row inside is a `.to-lineage-row
  * .is-lineage` built by the shared lineage primitive, so it already carries the
  * footer's marker gutter, segment icons, separators and hover — one visual
  * language for a squashed ancestor chain, wherever one is shown. The first
@@ -26,7 +26,7 @@
   padding-bottom: 0.85rem;
 }
 
-.to-zoom-trail .to-backlinks-row.is-lineage {
+.to-zoom-trail .to-lineage-row.is-lineage {
   padding-bottom: 0.4rem;
   border-bottom: 1px solid var(--background-modifier-border);
 }
@@ -35,7 +35,7 @@
  * context, not chrome, and the footer's 0.92em left it smaller than the outline
  * it belongs to. Set on the ROW so the mark's own `ex` correction resolves
  * against the same font as the text beside it. */
-.to-zoom-trail .to-backlinks-row {
+.to-zoom-trail .to-lineage-row {
   font-size: 1em;
   cursor: default;
 }
@@ -78,13 +78,13 @@
   transition: transform 120ms ease-out;
 }
 
-.to-zoom-trail .to-backlinks-row:has(.to-backlinks-seg:first-child:hover) .to-zoom-out-tl,
+.to-zoom-trail .to-lineage-row:has(.to-lineage-seg:first-child:hover) .to-zoom-out-tl,
 .to-zoom-trail .to-zoom-out:hover .to-zoom-out-tl,
 .to-zoom-trail .to-zoom-out:focus-visible .to-zoom-out-tl {
   transform: translate(-1.1px, -1.1px);
 }
 
-.to-zoom-trail .to-backlinks-row:has(.to-backlinks-seg:first-child:hover) .to-zoom-out-br,
+.to-zoom-trail .to-lineage-row:has(.to-lineage-seg:first-child:hover) .to-zoom-out-br,
 .to-zoom-trail .to-zoom-out:hover .to-zoom-out-br,
 .to-zoom-trail .to-zoom-out:focus-visible .to-zoom-out-br {
   transform: translate(1.1px, 1.1px);
@@ -110,7 +110,7 @@
  * sized for equal INK height and the stroke restated for equal weight; both
  * numbers are the 16-unit ones scaled by 24/16.
  */
-.to-zoom-trail .to-backlinks-seg-sep {
+.to-zoom-trail .to-lineage-seg-sep {
   width: 0.8em;
   height: 0.8em;
   color: var(--text-faint);
@@ -120,12 +120,12 @@
 }
 
 @supports (top: 1cap) {
-  .to-zoom-trail .to-backlinks-seg-sep {
+  .to-zoom-trail .to-lineage-seg-sep {
     top: calc(0.4em - 0.5cap);
   }
 }
 
-.to-zoom-trail .to-backlinks-seg-sep svg * {
+.to-zoom-trail .to-lineage-seg-sep svg * {
   stroke-width: 2.75;
 }
 

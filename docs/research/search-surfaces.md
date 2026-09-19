@@ -166,6 +166,42 @@ The source, its styles, the command block, the capture spec and the screenshots 
 it again, copy the module into `src/plugin/`, the command block into `TrueOutlinerPlugin.onload`
 and the CSS to the end of `styles.css`, then `npm run vault:install`.
 
+### What the feature changed about it
+
+Six things, of which the first four were planned and the last two were found while building:
+
+- **The renderer is shared rather than copied.** The prototype duplicated the footer's row
+  drawing; the feature moved it out into `lineage-list.ts`, with the segment level below it split
+  between `lineage-row.ts` (the marks), `inline-render.ts` (the markdown and the term's marks) and
+  `chrome-controls.ts` (the SVG builder and the disclosure). The classes those emit were renamed
+  `to-lineage-*` with their rules: a scope class alone would not have contained them, because most
+  of the footer's selectors were bare element classes, which reach any surface rendering the
+  element whatever scope wraps it.
+- **One tree cache**, the backlink index's own, rather than a second. The cost is not only the
+  memory a second would double: node ids are allocated per parse, so two caches over one unchanged
+  file hold trees whose ids do not correspond, and landing on a hit resolves an id against a tree.
+- **The row model is asked for no descendants** rather than having them filtered out afterwards.
+  The two are not the same rows — the model puts the nodes BETWEEN two hits on screen, and the
+  prototype's hit-or-lineage filter discarded exactly those, leaving a nested hit indented under
+  nothing.
+- **Landing takes the leaf** with `getLeaf` and opens the file on it. `openLinkText`, which the
+  prototype used, answers `Promise<void>` and hands back neither leaf nor view, so the landing
+  could only ask what happened to be active afterwards. A freshly created tab has not registered
+  its editor by the time the file opens, so the zoom waits a bounded number of frames for it.
+- **A hit carries the line it is on.** The prototype passed node ids alone, and a row's text is
+  `nodeContent(node, hitOf(node))`, whose per-kind rule needs telling which line: a hit in a
+  fence's third line rendered the fence's first, with nothing marked. The walk reports the line and
+  the occurrence as written, read off `matchRanges` rather than by changing the matcher.
+- **The ends of the hit list stop rather than wrap**, which this note asked for above, and the
+  walk's generation guard ends a superseded sweep rather than only silencing its callbacks — the
+  prototype checked the generation once, after awaiting the whole search, which left one
+  whole-vault sweep in flight per keystroke.
+
+Two of the note's own findings were settled rather than carried: the leaf-hit zoom rule became
+"the hit when it has children, its parent when it does not, and no zoom at all when it has
+neither", and the repeated-note-name question moved to the parking list below, since the footer
+does the same thing and it belongs to the shared renderer.
+
 Captured with the query `layout` and one ArrowDown, open on `Projects/Aurora Dashboard.md`:
 
 | | |
@@ -297,7 +333,9 @@ two are one surface with two data sources. Not planned further here.
 **Later layers**, in no committed order, parked here rather than in new changes: fuzziness with
 quoted exact terms and `-` exclusion; an ancestor operator (`A > B`); ranking; unfolding a hit's
 children in the palette; RemNote's Tab-to-descend into a hit's subtree; the `obsidian://search`
-hand-off command for anyone who wants core's operators.
+hand-off command for anyone who wants core's operators; suppressing a lineage segment that repeats
+the note's own name, which the footer does today and the palette inherits — a rule for the shared
+renderer, wherever it is taken up, rather than for one surface.
 
 ## Open questions
 

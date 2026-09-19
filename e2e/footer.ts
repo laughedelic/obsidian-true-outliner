@@ -36,12 +36,12 @@ export async function settle(budgetMs = 20000): Promise<void> {
         if (!root) return null;
         return {
           shape: [
-            root.querySelectorAll('.to-backlinks-group').length,
-            root.querySelectorAll('.to-backlinks-row').length,
+            root.querySelectorAll('.to-lineage-group').length,
+            root.querySelectorAll('.to-lineage-row').length,
             root.querySelectorAll('.to-backlinks-more').length,
           ].join('/'),
           // A group still showing its placeholder has not resolved.
-          resolving: root.querySelectorAll('.to-backlinks-resolving').length,
+          resolving: root.querySelectorAll('.to-lineage-resolving').length,
         };
       });
       if (!now || now.resolving > 0) {
@@ -401,7 +401,7 @@ export async function chooseFacetValue(label: string): Promise<void> {
 export function groupNames(): Promise<string[]> {
   return browser.executeObsidian(() =>
     Array.from(
-      document.querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .to-backlinks-group-name'),
+      document.querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .to-lineage-group-name'),
     ).map((n) => (n.textContent ?? '').trim()),
   );
 }
