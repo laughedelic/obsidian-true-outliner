@@ -199,11 +199,11 @@ column the caret stands for a child, to its left for a sibling — which is the 
 decides what typing there would parse as. On the node's own lines there is no such choice to
 express, because the column there is a position in the node's text.
 
-This is not the provisional-position machinery. `resolvedOutline` answers a different question —
-which tree a position that BISECTED a node stands for — and needs `createdPlaceLine` to tell a
-place from a blank line the user authored, which only the view knows. The anchor question needs
-neither: it reads the tree the verdict layer already has, and the reading is the same whoever
-put the caret there.
+This is not the provisional-position machinery. `placeOutline` answers a different question —
+which tree a position that JOINED a node stands for — and has to be TOLD the place's line, because
+nothing in the document tells a place from a blank line the user authored. The anchor question
+needs neither: it reads the tree the verdict layer already has, and the reading is the same
+whoever put the caret there.
 
 ### D9. The gap the caret sat in collapses to one blank line
 
