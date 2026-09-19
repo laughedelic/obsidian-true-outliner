@@ -74,6 +74,21 @@ import { isOutlineMode } from './outline-state';
  */
 const MARK_SELECTOR = '.to-decor-marker-icon, .list-bullet, .list-number, .to-decor-ol-digits';
 
+/**
+ * A task's mark, which is Obsidian's own checkbox.
+ *
+ * Kept apart from the marks above because the claim on it is NARROWER. Its
+ * click already means something — toggling the task — and this gesture does
+ * not contest it: measured, a press that leaves the box produces no click on
+ * it at all, so the browser never runs the input's activation behaviour and a
+ * drag can start there with nothing suppressed. So the press is watched for
+ * movement rather than taken, and a press that never moves reaches the
+ * checkbox and toggles it exactly as it always has. The zoom half of that
+ * question stays where `outline-zoom` left it: a task is not zoomed by its
+ * mark.
+ */
+const TASK_MARK_SELECTOR = '.task-list-item-checkbox';
+
 /** On the editor root while the pointer rests on a guide: the one place the
  * cursor can be set that every element under the pointer inherits, and that
  * no line decoration rewrites. */
@@ -102,6 +117,9 @@ interface MarkPress {
   /** Set once the press has moved past the threshold, and never unset: a
    * gesture that wanders and comes back is still a drag. */
   dragging: boolean;
+  /** Whether a release in place zooms. False for a task's checkbox, whose
+   * press was never taken from it. */
+  readonly zooms: boolean;
   /** What the drag picked up, once it became one. */
   groups: readonly (readonly number[])[] | undefined;
   /** The selection as it was BEFORE the drag collapsed it — what a cancel
@@ -341,7 +359,7 @@ class ZoomClickPlugin implements PluginValue {
       this.restoreSelection(press);
       return;
     }
-    this.zoomToMark(press.mark);
+    if (press.zooms) this.zoomToMark(press.mark);
   }
 
   /** Every path that ends a press without resolving it: a cancelled pointer,
@@ -578,6 +596,33 @@ class ZoomClickPlugin implements PluginValue {
     return true;
   }
 
+  /**
+   * A press on a task's checkbox: recorded so the threshold can turn it into a
+   * drag, and otherwise left entirely alone.
+   *
+   * Nothing is prevented and nothing is swallowed. The toggle is Obsidian's,
+   * with its own states and its own plugins, and claiming the press to replay
+   * it as a document write is explicitly not the mechanism — a gesture that
+   * leaves the box produces no click on it, which is the whole reason this
+   * costs the toggle nothing.
+   */
+  private watchTaskPress(event: PointerEvent, checkbox: HTMLElement): boolean {
+    if (checkbox.closest(`.${OWN_CHROME_CLASS}`)) return false;
+    if (isNestedEditor(this.view)) return false;
+    if (!isOutlineMode(this.view.state)) return false;
+    this.press = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      mark: checkbox,
+      dragging: false,
+      zooms: false,
+      groups: undefined,
+      selectionBefore: undefined,
+    };
+    return true;
+  }
+
   private handle(event: PointerEvent): void {
     // A fresh gesture starting is also the only reliable point to notice a
     // PREVIOUS one that dragged off the mark and never produced its `click` —
@@ -597,12 +642,18 @@ class ZoomClickPlugin implements PluginValue {
     // comment on pop-out windows.
     const target = event.target instanceof this.Element ? event.target : null;
     const mark = target?.closest<HTMLElement>(MARK_SELECTOR);
-    // No mark under the press: the other thing this gutter offers is a guide
-    // column, which folds the branch it belongs to. Marks win, because a mark
-    // is the smaller target and the more specific claim — and because the two
-    // gestures have to be ordered somewhere, which is why they share a listener
-    // rather than racing in two.
     if (!mark) {
+      // A task's checkbox is a drag source too, and the only one whose press
+      // stays its own: watched for movement, never taken. Before the guide,
+      // because a checkbox sits where a mark sits and is the more specific
+      // claim on that point.
+      const checkbox = target?.closest<HTMLElement>(TASK_MARK_SELECTOR);
+      if (checkbox && this.watchTaskPress(event, checkbox)) return;
+      // No mark under the press: the other thing this gutter offers is a guide
+      // column, which folds the branch it belongs to. Marks win, because a mark
+      // is the smaller target and the more specific claim — and because the two
+      // gestures have to be ordered somewhere, which is why they share a listener
+      // rather than racing in two.
       if (this.handleGuide(event, target)) {
         event.preventDefault();
         event.stopPropagation();
@@ -647,6 +698,7 @@ class ZoomClickPlugin implements PluginValue {
       startY: event.clientY,
       mark,
       dragging: false,
+      zooms: true,
       groups: undefined,
       selectionBefore: undefined,
     };

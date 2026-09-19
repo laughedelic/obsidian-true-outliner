@@ -126,7 +126,7 @@
       change height — verify the destination resolved on the first move after the threshold
       matches the one resolved on the second, with no shift; negative control: resolving on the
       same frame as the collapse reads pre-mode row geometry and the two disagree by a row
-- [ ] 3.5 Make a task's checkbox a drag source, and verify its own click still toggles — the two
+- [x] 3.5 Make a task's checkbox a drag source, and verify its own click still toggles — the two
       halves measured in docs/research/node-drag-and-drop section 4; negative control: swallowing
       the checkbox's click along with the press stops the toggle and fails
 - [ ] 3.6 Cancel paths: Escape, a release with no destination, lost capture, a document change

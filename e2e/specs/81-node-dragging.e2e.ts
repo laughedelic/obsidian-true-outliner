@@ -37,6 +37,13 @@ const NOTE = 'Scratch/dragging.md';
     6 |                                                                        */
 const DOC = ['# Top', '', '- one', '  - nested', '- two', '- three', ''].join('\n');
 
+/*  0 | # Top
+    1 |
+    2 | - [ ] an open task
+    3 | - plain
+    4 |                                                                        */
+const TASKS = ['# Top', '', '- [ ] an open task', '- plain', ''].join('\n');
+
 /** The bullet of a top-level list item, by its position among rendered marks. */
 const BULLET = '.list-bullet';
 
@@ -172,6 +179,45 @@ describe('node dragging: the press and the drag it can become', function () {
       expect(sample.selection).toEqual(before);
     }
     expect(await h.getBuffer()).toBe(DOC);
+  });
+
+  describe('a task is dragged by its own checkbox', function () {
+    beforeEach(async function () {
+      await h.createNote(NOTE, TASKS);
+      await h.openNote(NOTE);
+      await h.setOutlineMode(true);
+      await h.setBuffer(TASKS);
+      await browser.pause(200);
+    });
+
+    it('drags without toggling', async function () {
+      // The one mark whose press this gesture does not take. A press that
+      // leaves the box produces no click on it, so the toggle needs nothing
+      // suppressed — and gets nothing suppressed.
+      const box = await markPoint('.task-list-item-checkbox', 0);
+      await startRecording();
+      await dragFrom(box, [
+        { x: box.x + 20, y: box.y + 20 },
+        { x: box.x + 50, y: box.y + 50 },
+      ]);
+      await browser.pause(250);
+      // It was picked up: the task's own cover is what is in flight.
+      const covers = (await recorded()).filter(
+        (sample) => sample.selection.anchor.line === 2 && sample.selection.head.line === 2,
+      );
+      expect(covers.length).toBeGreaterThan(0);
+      // And its checked state is untouched.
+      expect(await h.getBuffer()).toBe(TASKS);
+    });
+
+    it('still toggles on its own click', async function () {
+      const box = await markPoint('.task-list-item-checkbox', 0);
+      await h.clickAtPoint(box.x, box.y);
+      await browser.pause(300);
+      expect(await h.getBuffer()).toContain('- [x] an open task');
+      // And no zoom: a task's mark is not this gesture's route to one.
+      expect(await zoomed()).toBe(false);
+    });
   });
 
   it('keeps hearing the pointer once it has left the editor', async function () {

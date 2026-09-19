@@ -127,6 +127,12 @@ export function recorded(): Promise<MoveSample[]> {
  * auto-released and would cancel nothing — which is the measurement this shape
  * exists to work around. The pointer is deliberately left held: what the drag
  * does with the release is a different question.
+ *
+ * That auto-release is not inert, though. Observed: a gesture driven this way
+ * from a task's CHECKBOX toggles it, where the same gesture given an explicit
+ * release far from the box does not. A case about what a press leaves the
+ * checkbox alone to do therefore uses `dragFrom`, which releases where the
+ * pointer actually is.
  */
 export async function dragThenEscape(from: Point, through: readonly Point[]): Promise<void> {
   const pointer = browser

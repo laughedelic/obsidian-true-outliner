@@ -162,6 +162,13 @@ into a reading taken after a single uninterrupted `perform()`. Escape mid-drag i
 same way, as a key source and a pointer source ticking together inside one call, with the
 recording again standing in for the assertion that cannot be made in between.
 
+**The auto-release is not inert either.** Driving a gesture that ends without an explicit release —
+the shape an Escape-mid-drag case needs, since the key and the pointer have to tick together in one
+call — toggles a task whose CHECKBOX the gesture started on, where the same gesture given an
+explicit release far from the box leaves it alone (section 4). Observed rather than explained: what
+the auto-release does with the click target was not measured. A case about what a press leaves the
+checkbox alone to do therefore releases explicitly.
+
 ## 6. A mark survives a decoration rebuild
 
 Whether the element a gesture started on is still there after the view re-renders decides whether
