@@ -5,7 +5,7 @@ import type { RejectionReason } from '../result';
 export const REJECTION_MESSAGES: Record<RejectionReason, string> = {
   'node-not-found': 'No outline node at the cursor.',
   'at-h1-bound': "Can't outdent past heading level 1.",
-  'at-h6-bound': "Can't indent past heading level 6.",
+  'at-h6-bound': 'Heading level 6 is as deep as Markdown goes.',
   'no-previous-sibling': 'Nothing above to indent under.',
   'at-top-level': 'Already at the top level.',
   'no-sibling-above': 'Nothing above to move past.',

@@ -1,0 +1,114 @@
+/**
+ * The probe behind docs/research/paste-across-encoding-regimes' "What Obsidian
+ * does with a heading inside a list item" (tasks 2.2 and 2.3).
+ *
+ * To re-run it: copy to `e2e/specs/62-probe-heading-in-list.e2e.ts` and
+ *   sh e2e/docker/start-xvfb-and-run.sh npm run test:e2e:narrow -- 62-probe-heading-in-list
+ * It asserts nothing — it prints one PROBE_RESULT line and is kept out of the
+ * suite for that reason.
+ */
+
+import { browser, expect } from '@wdio/globals';
+import { obsidianPage } from 'wdio-obsidian-service';
+import * as h from '../helpers.js';
+
+const NOTE = 'Scratch/heading-in-list.md';
+const LINKER = 'Scratch/heading-in-list-linker.md';
+
+describe('probe: a heading inside a list item', function () {
+  before(async function () {
+    await obsidianPage.resetVault();
+    await h.resetPluginState();
+  });
+
+  it('measures the metadata cache and the rendering', async function () {
+    // A converted payload, exactly as the paste now produces it, beside a real
+    // heading of the same text so the two can be told apart in the cache.
+    await h.createNote(
+      NOTE,
+      '# Top\n\n- one\n  - two\n  - ## Notes\n\n    - Some prose.\n\n## RealHeading\n\nbody\n',
+    );
+    await h.createNote(LINKER, `[[${NOTE.replace(/^.*\//, '').replace(/\.md$/, '')}#Notes]]\n`);
+    await h.openNote(NOTE);
+    await h.setOutlineMode(true);
+    await h.waitForMetadataCache();
+
+    const cache = await browser.executeObsidian(({ app }, p) => {
+      const file = app.vault.getAbstractFileByPath(p);
+      const fc = file ? app.metadataCache.getFileCache(file as never) : null;
+      return {
+        headings: (fc?.headings ?? []).map((x: { heading: string; level: number }) => ({
+          heading: x.heading,
+          level: x.level,
+        })),
+        listItems: (fc?.listItems ?? []).length,
+      };
+    }, NOTE);
+
+    // Does `[[note#Notes]]` resolve? Read the link's own resolution, which is
+    // what a reader actually depends on.
+    const linkResolves = await browser.executeObsidian(({ app }, p) => {
+      const file = app.vault.getAbstractFileByPath(p);
+      const fc = file ? app.metadataCache.getFileCache(file as never) : null;
+      const link = (fc?.links ?? [])[0];
+      if (!link) return { link: null, resolvedTo: null };
+      const dest = app.metadataCache.getFirstLinkpathDest(
+        (link as { link: string }).link.split('#')[0]!,
+        p,
+      );
+      return { link: (link as { link: string }).link, resolvedTo: dest ? dest.path : null };
+    }, LINKER);
+
+    // Rendering, measured line by line: the converted item, a plain item, and
+    // a REAL heading of the same rank, so the comparison is against the thing
+    // it is claimed to look like.
+    const rendering = await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) return [];
+      const root = (view as unknown as { contentEl: HTMLElement }).contentEl;
+      return (Array.from(root.querySelectorAll('.cm-line')) as HTMLElement[]).map((l) => {
+        const cs = getComputedStyle(l);
+        // The LINE and every element inside it. Reading the line alone is what
+        // made the first pass report this as unstyled: a converted item's line
+        // box keeps the list's own 16px while the heading treatment sits on the
+        // text span within it.
+        return {
+          text: (l.textContent ?? '').slice(0, 40),
+          cls: l.className,
+          fontPx: parseFloat(cs.fontSize),
+          weight: cs.fontWeight,
+          spans: (Array.from(l.querySelectorAll('*')) as HTMLElement[])
+            .filter((e) => (e.textContent ?? '').trim() !== '')
+            .map((e) => {
+              const k = getComputedStyle(e);
+              return {
+                cls: typeof e.className === 'string' ? e.className : String(e.className),
+                text: (e.textContent ?? '').slice(0, 24),
+                fontPx: parseFloat(k.fontSize),
+                weight: k.fontWeight,
+              };
+            }),
+        };
+      });
+    });
+
+    // Reading mode too — Live Preview and the rendered view can differ.
+    await browser.executeObsidian(async ({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (view) await (view as unknown as { setState: (s: unknown, r: unknown) => Promise<void> })
+        .setState({ mode: 'preview' }, { history: false });
+    });
+    await browser.pause(700);
+    const reading = await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) return [];
+      const root = (view as unknown as { contentEl: HTMLElement }).contentEl;
+      return (Array.from(root.querySelectorAll('.markdown-preview-view h1, .markdown-preview-view h2, .markdown-preview-view h3')) as HTMLElement[])
+        .map((e) => ({ tag: e.tagName, text: (e.textContent ?? '').slice(0, 30) }));
+    });
+
+    // eslint-disable-next-line no-console
+    console.log('PROBE_RESULT ' + JSON.stringify({ cache, linkResolves, rendering, reading }));
+    expect(true).toBe(true);
+  });
+});

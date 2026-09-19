@@ -1,0 +1,158 @@
+/**
+ * The paste probe behind docs/research/paste-across-encoding-regimes.md.
+ *
+ * Drives a paste through the SAME two gates the editor uses — `classify`
+ * then `computeVerdict` — and reports the class, the verdict and the buffer
+ * the verdict produces. A `pass` verdict is Obsidian's own raw insertion,
+ * which the probe reproduces verbatim so a native fall-through is visible as
+ * text rather than as the absence of a rewrite.
+ *
+ * To re-run it: copy this file to `tests/paste-probe.test.ts` and
+ * `npx vitest run tests/paste-probe.test.ts`. It is kept out of the suite on
+ * purpose — it asserts nothing, it records.
+ */
+
+import { describe, it } from 'vitest';
+import { writeFileSync } from 'node:fs';
+import { parse } from '../src/parse';
+import { applyEdits } from '../src/result';
+import { computeVerdict, type EditFact } from '../src/enforce';
+import { classify, type TransactionFacts } from '../src/classify';
+import type { OutlineNode } from '../src/model';
+
+const LOG: string[] = [];
+const log = (s: string) => LOG.push(s);
+
+type Pos = { line: number; ch: number };
+
+function run(md: string, from: Pos, to: Pos, payload: string) {
+  const doc = parse(md);
+  const facts: TransactionFacts = {
+    userEvent: 'input.paste',
+    isComposition: false,
+    changedLineSpans: [
+      {
+        fromLine: from.line,
+        toLine: to.line,
+        insertedText: payload,
+        fromCh: from.ch,
+        toCh: to.ch,
+        rangeEnd: to,
+      },
+    ],
+    cursorBefore: from,
+  };
+  const cls = classify(facts, doc);
+  const verdict = computeVerdict(cls, doc, { from, to, insert: payload, cursorBefore: from });
+  const lines = md === '' ? [] : md.split('\n');
+  let after: string;
+  if (verdict.kind === 'rewrite') {
+    after = applyEdits(lines, verdict.edits).join('\n');
+  } else if (verdict.kind === 'veto') {
+    after = `<<VETO: ${verdict.reason}>>`;
+  } else {
+    // Native: the raw text insertion CM6 would apply, so the fall-through's
+    // real cost is on the page next to the rewrites.
+    const head = lines[from.line] ?? '';
+    const tail = lines[to.line] ?? '';
+    const spliced = head.slice(0, from.ch) + payload + tail.slice(to.ch);
+    after = [...lines.slice(0, from.line), ...spliced.split('\n'), ...lines.slice(to.line + 1)].join('\n');
+  }
+  return { cls, verdict: verdict.kind, after };
+}
+
+function tree(md: string): string {
+  const out: string[] = [];
+  const walk = (nodes: readonly OutlineNode[], depth: number) => {
+    for (const n of nodes) {
+      const kind = n.kind === 'heading' ? `h${n.level}` : n.kind;
+      out.push(`${'  '.repeat(depth)}- ${kind}: ${JSON.stringify(n.lines)}`);
+      walk(n.children, depth + 1);
+    }
+  };
+  walk(parse(md).children, 0);
+  return out.join('\n');
+}
+
+function show(title: string, md: string, from: Pos, to: Pos, payload: string) {
+  const r = run(md, from, to, payload);
+  log(`\n########## ${title}`);
+  log(`--- before ---\n${md}`);
+  log(`--- payload ---\n${payload}`);
+  log(`--- class: ${r.cls} | verdict: ${r.verdict} ---`);
+  log(`--- after ---\n${r.after}`);
+  if (r.verdict !== 'veto') log(`--- after, re-parsed ---\n${tree(r.after)}`);
+}
+
+const caret = (title: string, md: string, at: Pos, payload: string) =>
+  show(title, md, at, at, payload);
+
+describe('paste probe', () => {
+  it('records', () => {
+    const SECTION = '## Section\n\nA paragraph.\n\n- alpha\n  - beta\n';
+
+    // Caret pastes: the destination varies, the payload mostly does not.
+    caret('1. heading section -> top-level list, anchor has a following sibling',
+      '- one\n- two\n- three\n', { line: 1, ch: 5 }, SECTION);
+    caret('2. heading section -> list item nested under a list item',
+      '- one\n  - two\n    - three\n', { line: 2, ch: 11 }, SECTION);
+    caret('3. list subtree -> heading section after a paragraph',
+      '# Title\n\nSome prose.\n\n## Sub\n\nMore prose.\n', { line: 6, ch: 10 }, '- alpha\n  - beta\n');
+    caret('4. h2 section -> under an h3',
+      '# One\n\n## Two\n\n### Three\n\nprose\n', { line: 6, ch: 5 }, SECTION);
+    caret('5. code block + list -> children of a paragraph',
+      'Intro paragraph.\n\n- alpha\n  - beta\n', { line: 2, ch: 7 }, '```js\nx\n```\n\n- gamma\n');
+    caret('6. CONTROL: paragraph subtree -> top-level list',
+      '- one\n- two\n', { line: 0, ch: 5 }, 'Para.\n\n- a\n  - b\n');
+    caret('7. setext heading section -> top-level list',
+      '- one\n- two\n', { line: 0, ch: 5 }, 'Section\n=======\n\nbody\n');
+    caret('8. nested heading section -> top-level list',
+      '- one\n- two\n', { line: 0, ch: 5 }, '## Outer\n\ntext\n\n### Inner\n\nmore\n');
+    caret('9. heading section -> root, between two h1 sections',
+      '# One\n\nprose\n\n# Two\n\nprose\n', { line: 2, ch: 5 }, SECTION);
+    caret('10. heading section -> after the last list item',
+      '- one\n- two\n', { line: 1, ch: 5 }, SECTION);
+    caret('11. paragraph-then-heading payload -> top-level list',
+      '- one\n- two\n- three\n', { line: 1, ch: 5 }, 'Lead-in.\n\n## Later\n\nbody\n');
+    caret('12. heading section -> empty list item',
+      '- one\n- \n- three\n', { line: 1, ch: 2 }, SECTION);
+    caret('13. code block + list -> nested list',
+      '- one\n  - two\n', { line: 1, ch: 7 }, '```js\nx\n```\n\n- gamma\n');
+    caret('14. callout + list -> nested list',
+      '- one\n  - two\n', { line: 1, ch: 7 }, '> [!note] Hi\n> body\n\n- gamma\n');
+    caret('15. heading section -> list under a heading',
+      '# Title\n\n- one\n- two\n', { line: 2, ch: 5 }, SECTION);
+    caret('16. heading section -> tab-indented nested list',
+      '- one\n\t- two\n', { line: 1, ch: 7 }, SECTION);
+    caret('17. hr + text -> top-level list',
+      '- one\n- two\n', { line: 0, ch: 5 }, '---\n\nafter the rule\n');
+    caret('18. ordered subtree -> ordered run',
+      '1. one\n2. two\n3. three\n', { line: 1, ch: 6 }, '5. five\n   1. sub\n');
+    caret('19. hr + text -> after a paragraph',
+      'Intro.\n\nMore.\n', { line: 0, ch: 3 }, '---\n\nafter the rule\n');
+    caret('20. h1 section -> under an h5',
+      '# a\n\n## b\n\n### c\n\n#### d\n\n##### e\n\nprose\n', { line: 10, ch: 3 },
+      '# Top\n\nbody\n\n## Mid\n\nmore\n');
+    caret('21. single h2 subtree -> mid-paragraph at root',
+      'Alpha text.\n\nBeta text.\n', { line: 0, ch: 5 }, '## Only\n\nchild para\n');
+    caret('22. list subtree -> heading section',
+      '# Title\n\ncontent\n\n## Empty\n', { line: 2, ch: 3 }, '- alpha\n  - beta\n');
+    caret('23. heading section -> depth-2 list under a heading',
+      '# Title\n\n- one\n  - two\n', { line: 3, ch: 7 }, SECTION);
+
+    // Type-overs: the same payloads pasted OVER a selection, which reaches
+    // the two insert paths a caret paste never does.
+    show('T1. heading section over the SOLE child of a nested item',
+      '- one\n  - two\n    - three\n', { line: 2, ch: 6 }, { line: 2, ch: 11 }, SECTION);
+    show('T2. heading section over a top-level item with survivors',
+      '- one\n- two\n- three\n', { line: 1, ch: 2 }, { line: 1, ch: 5 }, SECTION);
+    show('T3. code block over the sole list child of a paragraph',
+      'Intro.\n\n- alpha\n  - beta\n', { line: 2, ch: 2 }, { line: 2, ch: 7 }, '```js\nx\n```\n\n- g\n');
+    show('T4. heading section over a nested item WITH a surviving sibling',
+      '- one\n  - two\n    - a\n    - b\n', { line: 2, ch: 6 }, { line: 2, ch: 7 }, SECTION);
+    show('T5. the same shape, caret paste instead of type-over',
+      '- one\n  - two\n    - a\n    - b\n', { line: 2, ch: 7 }, { line: 2, ch: 7 }, SECTION);
+
+    writeFileSync('/tmp/paste-probe.txt', LOG.join('\n'));
+  });
+});

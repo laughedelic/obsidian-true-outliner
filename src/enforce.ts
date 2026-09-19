@@ -13,7 +13,9 @@
 
 import type { OutlineDoc, OutlineNode } from './model';
 import { childrenAt, findPath, nodeAt } from './model';
-import { nodeAtLine, nodeStartLine } from './locate';
+import { forEachNodeWithLine, nodeAtLine, nodeStartLine } from './locate';
+import { childBaseCol } from './reencode';
+import { TAB_WIDTH } from './parse';
 import { coveredForestOf } from './escalate';
 import { coverGroupsOf, groupRootsByParent } from './operand';
 import type { LinePos, LineRange } from './line-pos';
@@ -28,6 +30,7 @@ import {
   isContentStartCh,
   mergeNodes,
   reencodeBlocksForDestination,
+  setFinalGap,
   type OpOutput,
 } from './ops';
 import type { Edit, OpResult, RejectionReason } from './result';
@@ -286,9 +289,19 @@ function insertAsOnlyChildren(
   parentPath: readonly number[],
   parsedBlocks: readonly OutlineNode[],
   fallbackIndentUnit: string | undefined,
+  displacedGap: readonly string[] | undefined,
 ): OpResult<OpOutput> {
   const parent = parentPath.length === 0 ? 'root' : nodeAt(doc, parentPath)!;
-  const reencoded = reencodeBlocksForDestination(doc, parent, [], [], parsedBlocks, fallbackIndentUnit);
+  const result = reencodeBlocksForDestination(doc, parent, [], [], parsedBlocks, fallbackIndentUnit);
+  if (!result.ok) return result;
+  // A replacement inherits the separation of what it replaced (D10), which the
+  // deletion took with the nodes and the caller reads off the tree before it.
+  // Left to the payload's own gap, a section copied out of a note carried that
+  // note's blank line into a tight list.
+  const value = result.value;
+  const reencoded = displacedGap
+    ? [...value.slice(0, -1), setFinalGap(value[value.length - 1]!, displacedGap)]
+    : value;
   const rebuild = (nodes: readonly OutlineNode[], depth: number): readonly OutlineNode[] => {
     if (depth === parentPath.length) return reencoded;
     const index = parentPath[depth]!;
@@ -305,34 +318,56 @@ function deepestLastDescendant(node: OutlineNode): OutlineNode {
   return last ? deepestLastDescendant(last) : node;
 }
 
-function endOfSubtree(doc: OutlineDoc, node: OutlineNode): { line: number; ch: number } {
-  const leaf = deepestLastDescendant(node);
-  const leafStart = nodeStartLine(doc, leaf.id);
-  const lastLine = leaf.lines[leaf.lines.length - 1] ?? '';
-  return { line: leafStart + leaf.lines.length - 1, ch: lastLine.length };
-}
-
 /**
- * End position of the LAST of `blockCount` contiguous top-level blocks that
- * were just inserted starting at `firstBlockAnchor` (the FIRST block's own
- * content-start — `insertSubtrees`/`finalize`'s anchor convention) — the
- * cursor spot that makes continued typing (or a follow-up single-key
- * type-over keystroke) land AFTER the just-inserted content instead of
- * before it. `doc` is the op's returned tree, which `finalize` always
- * FRESH-reparses (new node ids) — so the inserted blocks are located by
- * LINE and sibling OFFSET from the first one, never by id.
+ * End position of the last node the PAYLOAD contributed, starting from
+ * `firstBlockAnchor` (the FIRST block's own content-start —
+ * `insertSubtrees`/`finalize`'s anchor convention) — the cursor spot that
+ * makes continued typing (or a follow-up single-key type-over keystroke) land
+ * AFTER the just-inserted content instead of before it. `doc` is the op's
+ * returned tree, which `finalize` always FRESH-reparses (new node ids) — so
+ * the inserted content is located by LINE and by COUNT from the first one,
+ * never by id.
+ *
+ * Counting the payload's own NODES rather than taking its last top-level
+ * block's subtree end, because after an insertion that block's subtree is not
+ * the payload. A pasted heading opens a section that takes the anchor's
+ * following siblings into it (design D3), and the attachment rule can put what
+ * it absorbs BELOW the payload's own last node rather than beside it — so a
+ * subtree end lands the caret on content the user never pasted. Measured:
+ * `## Notes` / `Some prose.` pasted with the caret on `## First` left the
+ * caret on `body`, the paragraph the new section had just absorbed.
+ *
+ * Counting is enough because anything absorbed FOLLOWED the anchor, so it
+ * follows the payload in document order too; the payload's own nodes are the
+ * first `payloadNodes` from the anchor. That the count is the payload's own is
+ * what the payload-survival property pins (`tests/edit-ops.test.ts`).
  */
 function endOfInsertedRun(
   doc: OutlineDoc,
   firstBlockAnchor: { line: number; ch: number },
-  blockCount: number,
+  payloadNodes: number,
 ): { line: number; ch: number } {
   const firstNode = nodeAtLine(doc, firstBlockAnchor.line);
   if (!firstNode) return firstBlockAnchor; // defensive: shouldn't happen
-  const path = findPath(doc, firstNode.id)!;
-  const siblings = childrenAt(doc, path.slice(0, -1));
-  const lastNode = siblings[path[path.length - 1]! + blockCount - 1] ?? firstNode;
-  return endOfSubtree(doc, lastNode);
+  let seen = 0;
+  let last: { node: OutlineNode; startLine: number } | undefined;
+  let reached = false;
+  forEachNodeWithLine(doc, (node, startLine) => {
+    if (node.id === firstNode.id) reached = true;
+    if (!reached) return true;
+    seen += 1;
+    last = { node, startLine };
+    return seen < payloadNodes;
+  });
+  if (!last) return firstBlockAnchor;
+  const lastLine = last.node.lines[last.node.lines.length - 1] ?? '';
+  return { line: last.startLine + last.node.lines.length - 1, ch: lastLine.length };
+}
+
+/** How many nodes a parsed payload carries, its descendants included — the
+ * unit `endOfInsertedRun` counts in. */
+function payloadNodeCount(blocks: readonly OutlineNode[]): number {
+  return blocks.reduce((total, block) => total + 1 + payloadNodeCount(block.children), 0);
 }
 
 /**
@@ -359,6 +394,11 @@ function deleteAndSplice(
 
   const { parentPath, before, after } = survivorsOf(doc, ids);
   const doc2 = deletion.value.doc;
+  // What the deleted run was separated from what follows it BY: the deletion
+  // takes a node's owned gap with it, so this is read from the tree before it.
+  const lastDeletedPath = findPath(doc, ids[ids.length - 1]!);
+  const lastDeleted = lastDeletedPath ? nodeAt(doc, lastDeletedPath) : undefined;
+  const displacedGap = lastDeleted ? deepestLastDescendant(lastDeleted).trailingGap : undefined;
   // `before`/`after` carry ids from the PRE-deletion `doc` — `deleteSubtrees`
   // (like every op) returns a tree from a FRESH `finalize` reparse, which
   // assigns all-new ids. The survivor's identity only survives the crossing
@@ -372,18 +412,22 @@ function deleteAndSplice(
 
   let inserted: OpResult<OpOutput>;
   if (after && survivorInDoc2) {
-    inserted = insertSubtrees(doc2, survivorInDoc2.id, parsedBlocks, 'before', fallbackIndentUnit);
+    inserted = insertSubtrees(
+      doc2, survivorInDoc2.id, parsedBlocks, 'before', fallbackIndentUnit, displacedGap,
+    );
   } else if (before && survivorInDoc2) {
-    inserted = insertSubtrees(doc2, survivorInDoc2.id, parsedBlocks, 'after', fallbackIndentUnit);
+    inserted = insertSubtrees(
+      doc2, survivorInDoc2.id, parsedBlocks, 'after', fallbackIndentUnit, displacedGap,
+    );
   } else {
-    inserted = insertAsOnlyChildren(doc2, parentPath, parsedBlocks, fallbackIndentUnit);
+    inserted = insertAsOnlyChildren(doc2, parentPath, parsedBlocks, fallbackIndentUnit, displacedGap);
   }
   if (!inserted.ok) return vetoFrom(inserted);
 
   const finalText = encode(inserted.value.doc);
   const finalLines = finalText === '' ? [] : finalText.split('\n');
   const finalEdits = diffLines(encodeLines(doc), finalLines);
-  const runEnd = endOfInsertedRun(inserted.value.doc, inserted.value.anchor, parsedBlocks.length);
+  const runEnd = endOfInsertedRun(inserted.value.doc, inserted.value.anchor, payloadNodeCount(parsedBlocks));
   const { caret } = planCaret(
     { kind: 'exact' },
     { before: doc, after: inserted.value.doc, anchor: runEnd },
@@ -453,11 +497,106 @@ function computeDeletionVerdict(
  * AFTER that node — UNLESS that node is an empty placeholder (a freshly-
  * split/created list item with no content and no children, D14), in which
  * case the paste REPLACES it rather than leaving it stranded next to the
- * pasted content. Conservative on failure: an inexpressible sequence (or
- * ambiguous shape) stays native rather than surprising the user with a
- * veto — "a wrong pass is editable text; a wrong rewrite is surprising
- * relocation."
+ * pasted content.
+ *
+ * An inexpressible sequence is VETOED, with the cue naming the reason. This
+ * path used to pass it through on the conservative default — "a wrong pass is
+ * editable text; a wrong rewrite is surprising relocation" — which measurement
+ * does not bear out here: what lands natively is the payload's first line
+ * concatenated onto the anchor's, with the remainder at its source
+ * indentation. That is not editable text, `structural-operations` already
+ * requires such a sequence to be "rejected rather than inserted in corrupted
+ * form", and the type-over path has always vetoed it. One answer on all three.
  */
+/**
+ * Where a paste ANCHORS, on which side, and whether the caret was in the
+ * anchor's trailing GAP.
+ *
+ * `nodeAtLine` resolves a gap line to the node that PRECEDES it, and inserting
+ * after that node means after its whole SUBTREE — for a note's own top heading,
+ * the end of the note. That is not where any caret on or under that node's row
+ * points. The boundary a paste wants is the next one after the anchor's own
+ * lines, which is its first child's `before` whenever it has children.
+ *
+ * Measured, both readings of the old one were wrong in the same way: an `h2`
+ * pasted on the blank line under a note's `h1` came out at the bottom of the
+ * note, re-levelled to `h1` because root was the destination it reached; and a
+ * paste with the caret ON a heading's own line landed past that heading's whole
+ * section. Nothing appeared where the caret was, which is the whole of what the
+ * user saw in either case.
+ *
+ * On a GAP line the caret's COLUMN can still ask for the shallower reading: at
+ * or past the node's child column it stands for a child, and to the left of it
+ * for a sibling, which is what `after` gives. On the node's OWN lines there is
+ * no such choice to express — the column there is a position in the node's text
+ * and says nothing about depth.
+ *
+ * `childBaseCol` answers in COLUMNS and `LinePos.ch` counts CHARACTERS, so the
+ * caret is converted before the two are compared. A tab is one character and up
+ * to `TAB_WIDTH` columns: in a tab-indented vault the child column of `\t- one`
+ * is 6 while its gap line holds two characters, so comparing the two directly
+ * put every reachable caret on the sibling side and the child reading became
+ * unreachable. `indentPrefixCh` is the converter for the other direction and
+ * clamps BELOW its column, which answers a different question than this one.
+ *
+ * `fillsGap` says whether the payload lands IN the gap the caret sat in — it
+ * does for the child reading, and for the sibling reading only when the node
+ * has no children to be placed past. That is what may be collapsed; a gap the
+ * insertion jumps over belongs to the document.
+ */
+/** The display COLUMN a caret at character index `ch` sits at, tabs expanded —
+ * the unit `childBaseCol` and every other depth in the mapping are stated in. */
+function columnAtCh(line: string, ch: number): number {
+  let width = 0;
+  for (const c of line.slice(0, ch)) {
+    width += c === '\t' ? TAB_WIDTH - (width % TAB_WIDTH) : 1;
+  }
+  return width;
+}
+
+function pasteAnchor(
+  doc: OutlineDoc,
+  node: OutlineNode,
+  at: LinePos,
+): {
+  readonly anchor: OutlineNode;
+  readonly position: 'before' | 'after';
+  readonly fillsGap: boolean;
+} {
+  const start = nodeStartLine(doc, node.id);
+  const gapIndex = start < 0 ? -1 : at.line - (start + node.lines.length);
+  const inGap = gapIndex >= 0 && gapIndex < node.trailingGap.length;
+  const first = node.children[0];
+  if (!first || start < 0) return { anchor: node, position: 'after', fillsGap: inGap };
+  const gapLine = node.trailingGap[gapIndex] ?? '';
+  const wantsChild = !inGap || columnAtCh(gapLine, at.ch) >= childBaseCol(node);
+  return wantsChild
+    ? { anchor: first, position: 'before', fillsGap: inGap }
+    : { anchor: node, position: 'after', fillsGap: false };
+}
+
+/**
+ * `doc` with one node's trailing gap collapsed to a single blank line.
+ *
+ * A gap is one separation however wide it is, and a structural Enter widens the
+ * one it opens a place in by two — a separator on each side, which is what
+ * makes the place parse as a node of its own rather than a continuation line.
+ * Measured: Enter at the end of a heading, then Ctrl+V, left three blank lines
+ * above the pasted content, because nothing consumed the place the paste filled.
+ *
+ * Only a gap the caret was actually in, and only one already wider than a
+ * single line — a gap of none or one is the separation the document already had
+ * and the paste has no business rewriting it.
+ */
+function withGapCollapsed(doc: OutlineDoc, id: number): OutlineDoc {
+  const map = (node: OutlineNode): OutlineNode => ({
+    ...node,
+    trailingGap: node.id === id && node.trailingGap.length > 1 ? [''] : node.trailingGap,
+    children: node.children.map(map),
+  });
+  return { ...doc, children: doc.children.map(map) };
+}
+
 function computePasteVerdict(
   doc: OutlineDoc,
   edit: EditFact,
@@ -475,16 +614,25 @@ function computePasteVerdict(
     // empty anchor didn't work out for some reason (conservative bias).
   }
 
-  const inserted = insertSubtrees(doc, node.id, parsedBlocks, 'after', fallbackIndentUnit);
-  if (!inserted.ok) return PASS;
-  const runEnd = endOfInsertedRun(inserted.value.doc, inserted.value.anchor, parsedBlocks.length);
+  const { anchor, position, fillsGap } = pasteAnchor(doc, node, edit.from);
+  // The gap the caret sat in is the place the paste fills, so it collapses
+  // with the insertion. `insertSubtrees` runs against that collapsed tree and
+  // the edits are re-diffed against the real one below, the same crossing
+  // `deleteAndSplice` makes.
+  const source = fillsGap ? withGapCollapsed(doc, node.id) : doc;
+  const inserted = insertSubtrees(source, anchor.id, parsedBlocks, position, fallbackIndentUnit);
+  if (!inserted.ok) return vetoFrom(inserted);
+  const runEnd = endOfInsertedRun(inserted.value.doc, inserted.value.anchor, payloadNodeCount(parsedBlocks));
   const { caret } = planCaret(
     { kind: 'exact' },
     { before: doc, after: inserted.value.doc, anchor: runEnd },
   );
   return {
     kind: 'rewrite',
-    edits: inserted.value.edits,
+    edits:
+      source === doc
+        ? inserted.value.edits
+        : diffLines(encodeLines(doc), encodeLines(inserted.value.doc)),
     cursor: caret,
     userEvent: 'input.paste.structural',
     after: inserted.value.doc,

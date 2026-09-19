@@ -335,12 +335,17 @@ describe('node-selection-enforcement: Phase B', function () {
     await h.setCursor(1, '  - d1'.length);
     await h.keys.end();
     await h.keys.enter();
+    // The Enter leaves the note's own terminating newline below the new item,
+    // which is what the replacement inherits from it below.
+    expect(await h.getBuffer()).toBe('- DEST\n  - d1\n  - \n');
     await h.pasteText('  - c2\n- S\n  - t1\n  - t2\n');
 
     // Both roots land as SIBLINGS at the destination depth, and S keeps its
     // own children one level below it rather than flattened alongside it
-    // (`selection-as-subtree-set` D3, structural-operations delta).
-    expect(await h.getBuffer()).toBe('- DEST\n  - d1\n  - c2\n  - S\n    - t1\n    - t2');
+    // (`selection-as-subtree-set` D3, structural-operations delta). The file
+    // still ends in a newline: the run replacing the empty item takes over the
+    // separation that item held, which here is the note's terminator.
+    expect(await h.getBuffer()).toBe('- DEST\n  - d1\n  - c2\n  - S\n    - t1\n    - t2\n');
   });
 
   it('Select All without frontmatter eventually reaches stock (expand-only)', async function () {

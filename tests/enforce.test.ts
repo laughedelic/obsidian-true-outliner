@@ -882,3 +882,458 @@ describe('computeVerdictForRanges: multi-range deletion of mixed-depth covers (t
     expect(verdict.kind).not.toBe('veto');
   });
 });
+
+// ------------------------------------------- paste-lands-where-it-is-pointed
+
+/** One paste, through BOTH gates the editor puts it through. `to` equal to
+ * `from` is a caret paste; a wider range is a type-over, which reaches the two
+ * insert paths a caret never does. */
+function pasteThroughBothGates(
+  md: string,
+  from: { line: number; ch: number },
+  to: { line: number; ch: number },
+  payload: string,
+): Verdict {
+  const doc = parse(md);
+  const facts: TransactionFacts = {
+    userEvent: 'input.paste',
+    isComposition: false,
+    changedLineSpans: [
+      {
+        fromLine: from.line,
+        toLine: to.line,
+        insertedText: payload,
+        fromCh: from.ch,
+        toCh: to.ch,
+        rangeEnd: to,
+      },
+    ],
+    cursorBefore: from,
+  };
+  const edit: EditFact = { from, to, insert: payload, cursorBefore: from };
+  return computeVerdict(classify(facts, doc), doc, edit);
+}
+
+/** The pasted subtree's own shape, relative to its root — so results landing at
+ * different depths, or in different documents, are still comparable. */
+function pastedSubtreeShape(doc: OutlineDoc): string {
+  const root = [...walkNodes(doc)].find((n) => (n.lines[0] ?? '').trimStart().startsWith('- ## Notes'));
+  if (!root) return '<no pasted subtree>';
+  const out: string[] = [];
+  const walk = (node: OutlineNode, depth: number): void => {
+    const kind = node.kind === 'heading' ? `h${node.level}` : node.kind;
+    out.push(`${'  '.repeat(depth)}${kind}: ${(node.lines[0] ?? '').trim()}`);
+    for (const child of node.children) walk(child, depth + 1);
+  };
+  walk(root, 0);
+  return out.join('\n');
+}
+
+const SECTION_PAYLOAD = '## Notes\n\nSome prose.\n\n- alpha\n  - beta\n';
+const ATOM_PAYLOAD = '```\ncode\n```\n\n- gamma\n';
+
+describe('the insertion path does not change the answer', () => {
+  // Negative control for this whole block: before the guard moved into the
+  // shared re-encode step, one payload at one destination got three different
+  // answers — a native pass at a caret, a veto over a selection with a
+  // survivor, and an unguarded rewrite over a selection consuming the scope.
+
+  it('a heading payload converts on all three paths, to the same text', () => {
+    const caret = pasteThroughBothGates('- one\n  - a\n  - b\n', pos(1, 5), pos(1, 5), SECTION_PAYLOAD);
+    const typeOverWithSurvivor = pasteThroughBothGates(
+      '- one\n  - a\n  - b\n', pos(1, 4), pos(1, 5), SECTION_PAYLOAD,
+    );
+    const typeOverWholeScope = pasteThroughBothGates('- one\n  - a\n', pos(1, 4), pos(1, 5), SECTION_PAYLOAD);
+
+    const shapes: string[] = [];
+    for (const verdict of [caret, typeOverWithSurvivor, typeOverWholeScope]) {
+      expect(verdict.kind).toBe('rewrite');
+      if (verdict.kind !== 'rewrite') continue;
+      shapes.push(pastedSubtreeShape(verdict.after));
+    }
+    // The same tree, compared as a tree — not three documents that each happen
+    // to contain a substring. The whole-scope path lands in a document of its
+    // own by construction (it has no surviving sibling), so what is compared is
+    // the pasted subtree, which is what "the same resulting tree" means here.
+    expect(shapes).toHaveLength(3);
+    expect(shapes[1]).toBe(shapes[0]);
+    expect(shapes[2]).toBe(shapes[0]);
+    expect(shapes[0]).toBe(
+      [
+        'list-item: - ## Notes',
+        '  list-item: - Some prose.',
+        '    list-item: - alpha',
+        '      list-item: - beta',
+      ].join('\n'),
+    );
+  });
+
+  it('an atom below a paragraph is refused on all three paths', () => {
+    const caret = pasteThroughBothGates('Intro.\n\n- a\n- b\n', pos(2, 3), pos(2, 3), ATOM_PAYLOAD);
+    const typeOverWithSurvivor = pasteThroughBothGates('Intro.\n\n- a\n- b\n', pos(2, 2), pos(2, 3), ATOM_PAYLOAD);
+    const typeOverWholeScope = pasteThroughBothGates('Intro.\n\n- a\n', pos(2, 2), pos(2, 3), ATOM_PAYLOAD);
+
+    for (const verdict of [caret, typeOverWithSurvivor, typeOverWholeScope]) {
+      expect(verdict.kind).toBe('veto');
+      if (verdict.kind === 'veto') expect(verdict.reason).toBe('insertion-not-expressible');
+    }
+  });
+});
+
+describe('a paste on the blank line under a node lands in it', () => {
+  /** The whole tree, as the outline shows it. */
+  function shapeOf(doc: OutlineDoc): string {
+    const out: string[] = [];
+    const walk = (nodes: readonly OutlineNode[], depth: number): void => {
+      for (const node of nodes) {
+        const kind = node.kind === 'heading' ? `h${node.level}` : node.kind;
+        out.push(`${'  '.repeat(depth)}${kind}: ${(node.lines[0] ?? '').trim()}`);
+        walk(node.children, depth + 1);
+      }
+    };
+    walk(doc.children, 0);
+    return out.join('\n');
+  }
+
+  it('a section pasted under a note\'s h1 lands there, not past its subtree', () => {
+    // Negative control: anchoring on the gap's owner and inserting AFTER it
+    // put this at the END of the note, re-levelled to `h1` because root was
+    // the destination it reached — and nothing appeared where the caret was.
+    const verdict = pasteThroughBothGates(
+      '# Day\n\n## First\n\nbody\n', pos(1, 0), pos(1, 0), '## Notes\n\nSome prose.\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(shapeOf(verdict.after)).toBe(
+      [
+        'h1: # Day',
+        '  h2: ## Notes',
+        '    paragraph: Some prose.',
+        '  h2: ## First',
+        '    paragraph: body',
+      ].join('\n'),
+    );
+  });
+
+  it('under a list item it converts, at the item\'s own child depth', () => {
+    // The place line carries its indentation, which is the only way a caret
+    // reaches a column past zero on one: an EMPTY line has no column but zero,
+    // whatever `ch` a test hands it.
+    const verdict = pasteThroughBothGates(
+      '- one\n  \n  - sub\n- two\n', pos(1, 2), pos(1, 2), '## Notes\n\nSome prose.\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(shapeOf(verdict.after)).toBe(
+      [
+        'list-item: - one',
+        '  list-item: - ## Notes',
+        '    list-item: - Some prose.',
+        '  list-item: - sub',
+        'list-item: - two',
+      ].join('\n'),
+    );
+  });
+
+  it('a caret left of the child column still means a sibling', () => {
+    // The column is the whole of what distinguishes the two readings, so the
+    // shallower one has to keep landing where it always did. The gap line
+    // carries whitespace because that is the only way a caret reaches a column
+    // past zero on one — an EMPTY line has no column but zero.
+    const verdict = pasteThroughBothGates(
+      '- one\n  \n  - sub\n', pos(1, 0), pos(1, 0), '- alpha\n  - beta\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(shapeOf(verdict.after)).toBe(
+      [
+        'list-item: - one',
+        '  list-item: - sub',
+        'list-item: - alpha',
+        '  list-item: - beta',
+      ].join('\n'),
+    );
+  });
+
+  it('at the child column on that same line it means a child', () => {
+    const verdict = pasteThroughBothGates(
+      '- one\n  \n  - sub\n', pos(1, 2), pos(1, 2), '- alpha\n  - beta\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(shapeOf(verdict.after)).toBe(
+      [
+        'list-item: - one',
+        '  list-item: - alpha',
+        '    list-item: - beta',
+        '  list-item: - sub',
+      ].join('\n'),
+    );
+  });
+
+  it('a tab-indented vault reaches the child reading too', () => {
+    // Negative control: while the caret's CHARACTER index was compared against
+    // `childBaseCol`'s COLUMN, `\t- one`'s child column of 6 was unreachable on
+    // a two-character gap line and every caret took the sibling reading.
+    const child = pasteThroughBothGates(
+      '\t- one\n\t\t\n\t\t- sub\n', pos(1, 2), pos(1, 2), '- alpha\n  - beta\n',
+    );
+    expect(child.kind).toBe('rewrite');
+    if (child.kind !== 'rewrite') return;
+    expect(encode(child.after)).toBe('\t- one\n\t\t\n\t\t- alpha\n\t\t  - beta\n\n\t\t- sub\n');
+
+    // One tab in is column 4, short of 6, so it is still the sibling reading —
+    // the comparison is columns against columns, not characters against either.
+    const sibling = pasteThroughBothGates(
+      '\t- one\n\t\t\n\t\t- sub\n', pos(1, 1), pos(1, 1), '- alpha\n  - beta\n',
+    );
+    expect(sibling.kind).toBe('rewrite');
+    if (sibling.kind !== 'rewrite') return;
+    expect(encode(sibling.after)).toBe('\t- one\n\t\t\n\t\t- sub\n\t- alpha\n\t  - beta\n');
+  });
+
+  it('a gap the payload lands PAST is left alone', () => {
+    // Negative control: while the collapse keyed on "the caret was in a gap"
+    // rather than on "the payload fills it", the shallow reading rewrote a gap
+    // two lines above content the insertion never touched.
+    const verdict = pasteThroughBothGates(
+      '- one\n  \n  \n  - sub\n- two\n', pos(1, 0), pos(1, 0), '- alpha\n  - beta\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(encode(verdict.after)).toBe('- one\n  \n  \n  - sub\n- alpha\n  - beta\n- two\n');
+  });
+
+  it('the gap the caret sat in collapses to one blank line', () => {
+    // Negative control: without the collapse the three blank lines a
+    // structural Enter leaves — a separator on each side of the place —
+    // survive above the pasted content, which is what the manual pass saw.
+    const verdict = pasteThroughBothGates(
+      '# Day\n\n\n\n## First\n\nbody\n', pos(2, 0), pos(2, 0), '## Notes\n\nSome prose.\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(encode(verdict.after)).toBe('# Day\n\n## Notes\n\nSome prose.\n\n## First\n\nbody\n');
+  });
+
+  it('a gap of one is the document\'s own separation and is left alone', () => {
+    const verdict = pasteThroughBothGates(
+      '# Day\n\n## First\n\nbody\n', pos(1, 0), pos(1, 0), '## Notes\n\nSome prose.\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(encode(verdict.after)).toBe('# Day\n\n## Notes\n\nSome prose.\n\n## First\n\nbody\n');
+  });
+});
+
+describe('a paste with the caret ON a node lands at its next boundary', () => {
+  function shapeOf(doc: OutlineDoc): string {
+    const out: string[] = [];
+    const walk = (nodes: readonly OutlineNode[], depth: number): void => {
+      for (const node of nodes) {
+        const kind = node.kind === 'heading' ? `h${node.level}` : node.kind;
+        out.push(`${'  '.repeat(depth)}${kind}: ${(node.lines[0] ?? '').trim()}`);
+        walk(node.children, depth + 1);
+      }
+    };
+    walk(doc.children, 0);
+    return out.join('\n');
+  }
+
+  it('a heading\'s own line anchors inside its section, not past it', () => {
+    // Negative control: anchoring `after` the heading put this past the whole
+    // section — `### Notes` landed below `beta` as an `h2` sibling of `## Two`.
+    const verdict = pasteThroughBothGates(
+      '# One\n\n## Two\n\nalpha\n\nbeta\n\n## Three\n', pos(2, 6), pos(2, 6),
+      '## Notes\n\nSome prose.\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(shapeOf(verdict.after)).toBe(
+      [
+        'h1: # One',
+        '  h2: ## Two',
+        '    h3: ### Notes',
+        '      paragraph: Some prose.',
+        '      paragraph: alpha',
+        '      paragraph: beta',
+        '  h2: ## Three',
+      ].join('\n'),
+    );
+  });
+
+  it('a list item\'s own line anchors among its children', () => {
+    const verdict = pasteThroughBothGates(
+      '- one\n  - a\n  - b\n- two\n', pos(0, 5), pos(0, 5), '- alpha\n  - beta\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(shapeOf(verdict.after)).toBe(
+      [
+        'list-item: - one',
+        '  list-item: - alpha',
+        '    list-item: - beta',
+        '  list-item: - a',
+        '  list-item: - b',
+        'list-item: - two',
+      ].join('\n'),
+    );
+  });
+
+  it('the caret lands at the end of what was PASTED, not of what the section absorbed', () => {
+    // Negative control: while the caret took the inserted block's SUBTREE end,
+    // this left it on `body` — the paragraph the new `### Notes` section had
+    // just absorbed, two nodes past anything the user pasted.
+    const verdict = pasteThroughBothGates(
+      '# Day\n\n## First\n\nbody\n', pos(2, 8), pos(2, 8), '## Notes\n\nSome prose.\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    const lines = encode(verdict.after).split('\n');
+    expect(lines[verdict.cursor.line]).toBe('Some prose.');
+    expect(verdict.cursor.ch).toBe('Some prose.'.length);
+    // The absorbed paragraph is still there, just not where the caret is.
+    expect(lines).toContain('body');
+  });
+
+  it('a childless node still splices after it', () => {
+    const verdict = pasteThroughBothGates(
+      '- one\n- two\n', pos(0, 5), pos(0, 5), '- alpha\n  - beta\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(shapeOf(verdict.after)).toBe(
+      [
+        'list-item: - one',
+        'list-item: - alpha',
+        '  list-item: - beta',
+        'list-item: - two',
+      ].join('\n'),
+    );
+  });
+});
+
+describe('a pasted run keeps the separation of the boundary it landed in', () => {
+  it('separates the run from what follows it, where the parse requires no blank', () => {
+    // The manual pass: a section ending in a callout, pasted under a heading,
+    // ran straight into the paragraph that followed. A blank is added by
+    // `normalizeBoundaries` only where the PARSE needs one, and a callout
+    // followed by a paragraph needs none, so the seam came out flush.
+    const verdict = pasteThroughBothGates(
+      '## Kitchen\n\nTile shop.\n',
+      pos(0, 10),
+      pos(0, 10),
+      '## Notes\n\n> [!warning] Heads up\n> Legal wants a look.\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(encode(verdict.after)).toBe(
+      '## Kitchen\n\n### Notes\n\n> [!warning] Heads up\n> Legal wants a look.\n\nTile shop.\n',
+    );
+  });
+
+  it('adds nothing where the boundary had no separation', () => {
+    // Negative control: the separation is the destination's own, not a blank
+    // line the paste brings with it. A tight list stays tight.
+    const verdict = pasteThroughBothGates(
+      '- one\n- two\n', pos(0, 5), pos(0, 5), '- alpha\n  - beta\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(encode(verdict.after)).toBe('- one\n- alpha\n  - beta\n- two\n');
+  });
+
+  it('a replacement inherits the separation of what it replaced', () => {
+    // The type-over path reaches its destination through a deletion, which
+    // takes the replaced run's own gap with it, so the separation is read off
+    // the tree before that. Left to the payload's, a section copied out of a
+    // note carried that note's blank line into a tight list.
+    const tight = pasteThroughBothGates(
+      '- one\n  - a\n- three\n', pos(1, 4), pos(1, 5), '- x\n  - y\n',
+    );
+    expect(tight.kind).toBe('rewrite');
+    if (tight.kind !== 'rewrite') return;
+    expect(encode(tight.after)).toBe('- one\n  - x\n    - y\n- three\n');
+
+    const loose = pasteThroughBothGates(
+      '- one\n  - a\n\n- three\n', pos(1, 4), pos(1, 5), '- x\n  - y\n',
+    );
+    expect(loose.kind).toBe('rewrite');
+    if (loose.kind !== 'rewrite') return;
+    expect(encode(loose.after)).toBe('- one\n  - x\n    - y\n\n- three\n');
+
+    // And the terminating newline where the replaced run ended the file.
+    const atEnd = pasteThroughBothGates(
+      '- one\n  - a\n', pos(1, 4), pos(1, 5), '- x\n  - y\n',
+    );
+    expect(atEnd.kind).toBe('rewrite');
+    if (atEnd.kind !== 'rewrite') return;
+    expect(encode(atEnd.after)).toBe('- one\n  - x\n    - y\n');
+  });
+
+  it('a replacement inherits that separation on every insertion path', () => {
+    // The second review round: the inherited separation reached only the path
+    // that replaces a whole scope. With a surviving sibling the run took the
+    // tree's own reading, which by then no longer held what the deletion had
+    // removed — the blank line below a replaced first item, and the
+    // terminating newline where the replaced run ended the file.
+    const survivorBelow = pasteThroughBothGates(
+      '- a\n\n- b\n', pos(0, 0), pos(0, 3), '- x\n  - y\n',
+    );
+    expect(survivorBelow.kind).toBe('rewrite');
+    if (survivorBelow.kind !== 'rewrite') return;
+    expect(encode(survivorBelow.after)).toBe('- x\n  - y\n\n- b\n');
+
+    const survivorAbove = pasteThroughBothGates(
+      '- a\n- b\n', pos(1, 0), pos(1, 3), '- x\n  - y\n',
+    );
+    expect(survivorAbove.kind).toBe('rewrite');
+    if (survivorAbove.kind !== 'rewrite') return;
+    expect(encode(survivorAbove.after)).toBe('- a\n- x\n  - y\n');
+
+    // And where the two meet: the run replaced ended the file, so it hands the
+    // terminating newline over, while the node above keeps the blank line that
+    // was its own separation from what stood there.
+    const loose = pasteThroughBothGates(
+      '- a\n\n- b\n', pos(2, 0), pos(2, 3), '- x\n  - y\n',
+    );
+    expect(loose.kind).toBe('rewrite');
+    if (loose.kind !== 'rewrite') return;
+    expect(encode(loose.after)).toBe('- a\n\n- x\n  - y\n');
+  });
+
+  it('takes over the terminating newline at the end of a document', () => {
+    // Negative control: the last node's gap is the file's final newline, not a
+    // separation — copied rather than taken over, it would end the file in two
+    // newlines and leave the run flush under the anchor.
+    const verdict = pasteThroughBothGates(
+      '# Day\n\nbody\n', pos(2, 4), pos(2, 4), '## Notes\n\nSome prose.\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(encode(verdict.after)).toBe('# Day\n\nbody\n\n## Notes\n\nSome prose.\n');
+  });
+});
+
+describe('an inexpressible paste is refused, never passed through', () => {
+  it('a caret paste vetoes rather than leaving the buffer corrupted', () => {
+    // Negative control: the old `return PASS` here let Obsidian concatenate
+    // the payload's first line onto the anchor's and drop the rest at its
+    // source indentation — not the "editable text" the default assumed.
+    const verdict = pasteThroughBothGates('Intro.\n\n- a\n- b\n', pos(2, 3), pos(2, 3), ATOM_PAYLOAD);
+    expect(verdict.kind).toBe('veto');
+  });
+
+  it('nothing the heading arm converts reaches the veto, at any depth', () => {
+    const shapes = [
+      ['- one\n  - a\n', pos(1, 5)],
+      ['- one\n  - a\n    - b\n', pos(2, 7)],
+      ['- one\n\t- a\n', pos(1, 5)],
+      ['# H\n\npara\n\n- a\n  - b\n', pos(5, 7)],
+    ] as const;
+    for (const [md, at] of shapes) {
+      const verdict = pasteThroughBothGates(md, at, at, SECTION_PAYLOAD);
+      expect(verdict.kind).toBe('rewrite');
+    }
+  });
+});

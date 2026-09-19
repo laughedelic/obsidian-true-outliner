@@ -3,8 +3,8 @@ import fc from 'fast-check';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
 import { treesEqual, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
-import { deleteSubtrees, insertSubtrees, mergeNodes } from '../src/ops';
-import { applyEdits } from '../src/result';
+import { deleteSubtrees, insertSubtrees, mergeNodes, outdent, type OpOutput } from '../src/ops';
+import { applyEdits, type OpResult } from '../src/result';
 import { arbTree } from './generators';
 
 /** Find the node whose first line matches. */
@@ -446,6 +446,22 @@ describe('insertSubtrees', () => {
     expect(text).toBe('- top\n\t- mid\n\t\t- anchor\n\t\t- x\n\t\t\t- y\n');
   });
 
+  it('a run at the end of a scope takes that scope\'s own separation', () => {
+    // The last node's gap is the file's terminating newline rather than a
+    // separation, so the run takes it over and reads what separates it from the
+    // node above off the boundary above THAT one.
+    const loose = parse('- one\n  - a\n\n  - b\n');
+    const looseResult = insertSubtrees(loose, byLine(loose, '  - b').id, parse('- x\n').children, 'after');
+    if (!looseResult.ok) throw new Error(looseResult.rejection.reason);
+    expect(encode(looseResult.value.doc)).toBe('- one\n  - a\n\n  - b\n\n  - x\n');
+
+    // Negative control: the same shape without the blank line gains none.
+    const tight = parse('- one\n  - a\n  - b\n');
+    const tightResult = insertSubtrees(tight, byLine(tight, '  - b').id, parse('- x\n').children, 'after');
+    if (!tightResult.ok) throw new Error(tightResult.rejection.reason);
+    expect(encode(tightResult.value.doc)).toBe('- one\n  - a\n  - b\n  - x\n');
+  });
+
   it('a pasted item\'s own surplus marker run is normalized to one space, like any other rewritten first line', () => {
     // The verbatim re-indent path (reindentSubtreeVerbatim) otherwise carried
     // a surplus run through unchanged, contradicting list-marker-content-column's
@@ -508,14 +524,19 @@ describe('insertSubtrees', () => {
     expect(result.ok).toBe(true);
   });
 
-  it('rejects a heading sequence inserted under a non-section scope', () => {
+  it('converts a heading sequence inserted under a non-section scope', () => {
     const md = '- a\n  - b\n';
     const doc = parse(md);
     const b = byLine(doc, '  - b');
     const headingBlocks = parse('# New heading\n\nBody.\n').children;
     const result = insertSubtrees(doc, b.id, headingBlocks, 'after');
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.rejection.reason).toBe('insertion-not-expressible');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // A heading cannot be a list item's child, so it takes the encoding the
+    // destination permits and carries its own `#` run into the item's text.
+    // Its paragraph child converts with it: a list scope is one list, and a
+    // leaf that stays a paragraph is a different kind of row from its peers.
+    expect(encode(result.value.doc)).toBe('- a\n  - b\n  - # New heading\n\n    - Body.\n');
   });
 
   it('rejects an empty block sequence', () => {
@@ -535,6 +556,9 @@ const KNOWN_REASONS = new Set([
   'would-orphan-children',
   'merge-not-expressible',
   'insertion-not-expressible',
+  // A heading payload deeper than the destination has room for, refused on the
+  // same terms `indent` refuses it (paste-lands-where-it-is-pointed).
+  'at-h6-bound',
 ]);
 
 /** Pick the nth node (document order) — deterministic target selection. */
@@ -709,5 +733,319 @@ describe('insertSubtrees: a payload whose roots came from different depths (sele
     if (!result.ok) return;
     // x normalizes from depth 2 to top level; Z's two-deep chain survives.
     expect(encode(result.value.doc)).toBe('- A\n- x\n- Z\n  - z1\n    - z2\n- D\n');
+  });
+});
+
+// ------------------------------------------- paste-lands-where-it-is-pointed
+
+/** A tree's shape as one string: kind (heading level included) and first line,
+ * indented by depth. Reads as the outline does, which is what these tests are
+ * actually about. */
+function shape(md: string): string {
+  const out: string[] = [];
+  const walk = (nodes: readonly OutlineNode[], depth: number): void => {
+    for (const node of nodes) {
+      const kind = node.kind === 'heading' ? `h${node.level}` : node.kind;
+      out.push(`${'  '.repeat(depth)}${kind}: ${(node.lines[0] ?? '').trim()}`);
+      walk(node.children, depth + 1);
+    }
+  };
+  walk(parse(md).children, 0);
+  return out.join('\n');
+}
+
+function insertAfter(md: string, anchorLine: string, payload: string): OpResult<OpOutput> {
+  const doc = parse(md);
+  return insertSubtrees(doc, byLine(doc, anchorLine).id, parse(payload).children, 'after');
+}
+
+/** The payload used throughout: four levels, whose innermost two reach their
+ * depth through the attachment rule rather than through indentation. */
+const SECTION = '## Notes\n\nSome prose.\n\n- alpha\n  - beta\n';
+
+describe('a payload landing in a LIST scope converts, throughout', () => {
+  // Negative control for this whole block: before the heading arm existed, the
+  // op rejected every one of these as `insertion-not-expressible`.
+  it('a heading section pasted below a list item becomes list items at its own depths', () => {
+    const result = insertAfter('- one\n  - two\n', '  - two', SECTION);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe(
+      '- one\n  - two\n  - ## Notes\n\n    - Some prose.\n\n      - alpha\n        - beta\n',
+    );
+  });
+
+  it('the payload\'s own tree survives the conversion, at every depth', () => {
+    // Negative control: converting the ROOT alone and re-indenting the rest
+    // verbatim — the no-conversion path — puts `- alpha` beside `Some prose.`
+    // instead of under it, because the attachment rule is section-level only.
+    const nested = insertAfter('- one\n  - two\n', '  - two', SECTION);
+    expect(nested.ok).toBe(true);
+    if (!nested.ok) return;
+    const pasted = shape(encode(nested.value.doc))
+      .split('\n')
+      .filter((row) => row.includes('Notes') || row.includes('prose') || row.includes('alpha') || row.includes('beta'));
+    // The payload's own depths, compared against the payload rather than
+    // against a literal: four nodes, each one level deeper than the last.
+    const payloadDepths = shape(SECTION).split('\n').map((row) => row.search(/\S/) / 2);
+    expect(pasted.map((row) => row.search(/\S/) / 2 - 1)).toEqual(payloadDepths);
+  });
+
+  it('a heading carries its own # run into the item\'s text', () => {
+    const result = insertAfter('- one\n  - two\n', '  - two', '### Deep\n\nbody\n');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toContain('- ### Deep');
+  });
+
+  it('an ordered payload keeps its markers', () => {
+    const result = insertAfter('- one\n  - two\n', '  - two', '## H\n\n1. first\n2. second\n');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const out = encode(result.value.doc);
+    expect(out).toContain('1. first');
+    expect(out).toContain('2. second');
+  });
+
+  it('peers in the payload land as the same kind of row, childless or not', () => {
+    // Negative control: while the conversion read each node's own child count,
+    // `First.` stayed a paragraph and `Second.` became an item, so two
+    // siblings of the payload landed as two different kinds of row.
+    const result = insertAfter(
+      '- one\n  - two\n',
+      '  - two',
+      '## H\n\nFirst.\n\nSecond.\n\n- child\n',
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(shape(encode(result.value.doc))).toBe(
+      [
+        'list-item: - one',
+        '  list-item: - two',
+        '  list-item: - ## H',
+        '    list-item: - First.',
+        '    list-item: - Second.',
+        '      list-item: - child',
+      ].join('\n'),
+    );
+  });
+
+  it('a setext heading is rewritten to ATX on the way in', () => {
+    // Negative control: without the rewrite the underline becomes a second
+    // line, which a list item's marker line has nowhere to put.
+    const result = insertAfter('- one\n  - two\n', '  - two', 'Section\n=======\n\nbody\n');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toContain('- # Section');
+    expect(encode(result.value.doc)).not.toContain('=====');
+  });
+});
+
+describe('a payload landing in a HEADING-bearing scope re-levels', () => {
+  it('an h2 section pasted among an h3\'s children becomes an h4', () => {
+    // Negative control: with no heading arm the payload keeps its source
+    // levels, and this lands as a sibling of the `##` two levels up.
+    const result = insertAfter('# One\n\n## Two\n\n### Three\n\nprose\n', 'prose', SECTION);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(shape(encode(result.value.doc))).toBe(
+      [
+        'h1: # One',
+        '  h2: ## Two',
+        '    h3: ### Three',
+        '      paragraph: prose',
+        '      h4: #### Notes',
+        '        paragraph: Some prose.',
+        '          list-item: - alpha',
+        '            list-item: - beta',
+      ].join('\n'),
+    );
+  });
+
+  it('every heading in the payload shifts by the same delta, skips included', () => {
+    const result = insertAfter('# One\n\n## Two\n\nprose\n', 'prose', '## A\n\n#### Skipped\n\nx\n');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const out = encode(result.value.doc);
+    expect(out).toContain('### A');
+    expect(out).toContain('##### Skipped');
+  });
+
+  it('at root scope the payload takes level 1', () => {
+    const result = insertAfter('- one\n- two\n', '- two', SECTION);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toContain('# Notes');
+  });
+
+  it('a setext payload is rewritten to ATX on the way in', () => {
+    // Negative control: without routing the re-level through `headingWithLevel`
+    // the underline survives as a second line, and the `=====` re-parses as a
+    // setext heading of its own at the destination.
+    const result = insertAfter('# One\n\nprose\n', 'prose', 'Title\n=====\n\nbody\n');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const out = encode(result.value.doc);
+    expect(out).toContain('## Title');
+    expect(out).not.toContain('=====');
+    expect(byLine(parse(out), '## Title').kind).toBe('heading');
+  });
+
+  it('refuses at the h6 bound, on the deepest heading in the payload', () => {
+    // Negative control: clamping instead puts two of the payload's levels on
+    // one, and converting to content at section level hands the run to the
+    // attachment rule. `indent` refuses the same shape for the same reason.
+    const deep = insertAfter(
+      '# a\n\n## b\n\n### c\n\n#### d\n\n##### e\n\nprose\n',
+      'prose',
+      '# Top\n\nbody\n\n## Mid\n\nmore\n',
+    );
+    expect(deep.ok).toBe(false);
+    if (!deep.ok) expect(deep.rejection.reason).toBe('at-h6-bound');
+
+    // The payload's ROOT alone would fit; its second level is what does not.
+    const shallow = insertAfter('# a\n\n## b\n\n### c\n\n#### d\n\n##### e\n\nprose\n', 'prose', '# Top\n\nbody\n');
+    expect(shallow.ok).toBe(true);
+  });
+});
+
+describe('a converted heading gives its rank back', () => {
+  it('outdents until the encoding is a paragraph, and re-parses as the original heading', () => {
+    // Negative control: drop the `#` run on conversion and the rank is gone —
+    // the item comes back as a plain paragraph, at no level at all.
+    const doc = parse('# Title\n\nintro para\n\n- a\n  - b\n');
+    const inserted = insertSubtrees(doc, byLine(doc, '  - b').id, parse(SECTION).children, 'after');
+    expect(inserted.ok).toBe(true);
+    if (!inserted.ok) return;
+
+    let md = encode(inserted.value.doc);
+    for (let step = 0; step < 2; step++) {
+      const current = parse(md);
+      const item = [...walkNodes(current)].find((n) => (n.lines[0] ?? '').trimStart().startsWith('- ## Notes'));
+      expect(item).toBeDefined();
+      const moved = outdent(current, item!.id);
+      expect(moved.ok).toBe(true);
+      if (!moved.ok) return;
+      md = encode(moved.value.doc);
+    }
+
+    // A real heading node again, at the rank it was copied with, subtree intact.
+    const restored = byLine(parse(md), '## Notes');
+    expect(restored.kind).toBe('heading');
+    expect(restored.level).toBe(2);
+    expect(shape(md)).toContain('h2: ## Notes');
+  });
+});
+
+describe('a pasted heading takes the content that follows it', () => {
+  it('the anchor\'s following siblings join the pasted section', () => {
+    // Negative control: this is stated behaviour, not an accident — a change
+    // that relocated the insertion or demoted the heading would fail here.
+    const result = insertAfter('# Project\n\n- one\n- two\n- three\n', '- two', SECTION);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // `- three` is inside the pasted section now, a sibling of `- alpha`
+    // under `Some prose.` — content that was never copied or pointed at.
+    expect(shape(encode(result.value.doc))).toContain('      list-item: - three');
+  });
+
+  it('the level comes from the scope\'s heading siblings, so a level SKIP does not let it escape', () => {
+    // Negative control: taking the level from the parent alone (`# One` + 1)
+    // puts the payload at h2 among h3 siblings, and `### Four` — never copied,
+    // never pointed at — becomes its child.
+    const result = insertAfter(
+      '# One\n\n### Three\n\nprose\n\n### Four\n\nmore\n',
+      '### Three',
+      '## Notes\n\nbody\n',
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(shape(encode(result.value.doc))).toBe(
+      [
+        'h1: # One',
+        '  h3: ### Three',
+        '    paragraph: prose',
+        '  h3: ### Notes',
+        '    paragraph: body',
+        '  h3: ### Four',
+        '    paragraph: more',
+      ].join('\n'),
+    );
+  });
+
+  it('a sibling heading of the enclosing level ends the pasted section', () => {
+    const result = insertAfter(
+      '# One\n\n## Two\n\n### Three\n\nprose\n\n### Four\n\nmore\n',
+      'prose',
+      SECTION,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const rows = shape(encode(result.value.doc)).split('\n');
+    const four = rows.find((r) => r.includes('### Four'))!;
+    const notes = rows.find((r) => r.includes('#### Notes'))!;
+    // `### Four` stays at the enclosing level, outside the pasted section.
+    expect(four.search(/\S/)).toBeLessThan(notes.search(/\S/));
+  });
+});
+
+describe('closure over the new arms', () => {
+  // The generated-payload property above already reaches both arms — it is
+  // what caught the `h6` bound during implementation — but it reaches a deep
+  // LIST scope only by chance. This drives the conversion arm at every node of
+  // every generated document, which is where the re-encode has to build
+  // indentation rather than carry it.
+  // An `insertSubtrees` result's `doc` IS `parse(encode(surgery))` — `finalize`
+  // re-parses before returning. So `treesEqual(result.doc, parse(encode(result.doc)))`
+  // re-checks the encode/parse round-trip and CANNOT fail on a surgery the
+  // re-parse reads differently, which is the failure mode that matters here.
+  // What can fail is the payload's own survival: every node the payload carried
+  // has to still be a node afterwards. Absorption reparents without adding or
+  // removing, so the delta is exactly the payload's node count either way.
+  it('every node in the payload is still a node after the insertion', () => {
+    const payloads = [
+      SECTION,
+      '## Outer\n\ntext\n\n### Inner\n\nmore\n',
+      'Section\n=======\n\nbody\n',
+      // First children a continuation line would swallow, which is how a
+      // payload node stops being one.
+      '## H\n---\n',
+      '## H\n> quoted\n> more\n',
+      '## H\n> [!note] titled\n> body\n',
+      '## H\n<div>\nx\n</div>\n',
+      '## H\n```\ncode\n```\n',
+      '## A\n\n### B\n---\n',
+    ];
+    fc.assert(
+      fc.property(arbTree(), fc.nat(), fc.nat(), fc.boolean(), (doc, n, p, before) => {
+        const anchor = nthNode(doc, n);
+        if (!anchor) return true;
+        const payload = payloads[p % payloads.length]!;
+        const blocks = parse(payload).children;
+        const expected = [...walkNodes(parse(payload))].length;
+        const beforeCount = [...walkNodes(doc)].length;
+        const result = insertSubtrees(doc, anchor.id, blocks, before ? 'before' : 'after');
+        // Negative control: without the boundary repair for a first child a
+        // continuation would swallow, `## H` + `---` lands as ONE list item
+        // carrying both lines and this fails with a delta one short.
+        if (!result.ok) return KNOWN_REASONS.has(result.rejection.reason);
+        return [...walkNodes(result.value.doc)].length - beforeCount === expected;
+      }),
+      { numRuns: 400 },
+    );
+  });
+
+  it('a converted payload keeps its own node count, whatever the destination depth', () => {
+    const payloadNodes = [...walkNodes(parse(SECTION))].length;
+    for (const md of ['- one\n  - two\n', '- one\n  - two\n    - three\n', '- one\n\t- two\n', '# H\n\npara\n\n- a\n  - b\n']) {
+      const doc = parse(md);
+      const deepest = [...walkNodes(doc)].reduce((a, b) => (b.lines[0]!.length >= a.lines[0]!.length ? b : a));
+      const result = insertSubtrees(doc, deepest.id, parse(SECTION).children, 'after');
+      expect(result.ok).toBe(true);
+      if (!result.ok) continue;
+      const after = [...walkNodes(result.value.doc)].length;
+      const beforeCount = [...walkNodes(doc)].length;
+      expect(after - beforeCount).toBe(payloadNodes);
+    }
   });
 });

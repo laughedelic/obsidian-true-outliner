@@ -75,6 +75,28 @@ export function arbTree(): fc.Arbitrary<OutlineDoc> {
       }),
     );
 
+  // A quote/callout and a table are RUNS of like-opening lines. They belong in
+  // the corpus because a run absorbs a following block that opens the same way,
+  // which is a node lost — and a generator emitting only paragraphs, list items
+  // and code can never place two of them side by side to show it.
+  const quoteAtom = (indent: number): fc.Arbitrary<OutlineNode> =>
+    fc.tuple(arbText, fc.boolean()).map(([text, callout]) =>
+      makeNode({
+        kind: callout ? 'callout' : 'quote',
+        lines: [`${' '.repeat(indent)}> ${callout ? `[!note] ${text}` : text}`],
+        trailingGap: [''],
+      }),
+    );
+
+  const tableAtom = (indent: number): fc.Arbitrary<OutlineNode> =>
+    arbText.map((text) =>
+      makeNode({
+        kind: 'table',
+        lines: [`${' '.repeat(indent)}| ${text} | b |`, `${' '.repeat(indent)}| --- | --- |`],
+        trailingGap: [''],
+      }),
+    );
+
   const paragraph: fc.Arbitrary<OutlineNode> = fc
     .tuple(arbText, fc.array(listItem(0, 2), { maxLength: 3 }))
     .map(([text, items]) =>
@@ -87,9 +109,16 @@ export function arbTree(): fc.Arbitrary<OutlineDoc> {
     );
 
   const sectionContent: fc.Arbitrary<OutlineNode[]> = fc
-    .array(fc.oneof({ weight: 3, arbitrary: paragraph }, listItem(0, 2), codeAtom(0)), {
-      maxLength: 4,
-    })
+    .array(
+      fc.oneof(
+        { weight: 3, arbitrary: paragraph },
+        listItem(0, 2),
+        codeAtom(0),
+        quoteAtom(0),
+        tableAtom(0),
+      ),
+      { maxLength: 4 },
+    )
     .map(foldListsIntoParagraphs)
     .map(normalizeSectionGaps);
 

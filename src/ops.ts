@@ -20,7 +20,7 @@
  *   levels) has no positional encoding and is rejected.
  */
 
-import type { ListStyle, NodePath, OutlineDoc, OutlineNode } from './model';
+import type { ListStyle, NodeKind, NodePath, OutlineDoc, OutlineNode } from './model';
 import { childrenAt, findPath, isAtom, makeNode, nodeAt, updateSiblings } from './model';
 import { forEachNodeWithLine, nodeAtLine, nodeStartLine } from './locate';
 import { subtreeCoverOf, type Cover } from './escalate';
@@ -29,10 +29,12 @@ import { encode, encodeLines } from './encode';
 import { parse, indentWidth } from './parse';
 import type { Edit, OpResult } from './result';
 import { accept, diffLines, reject } from './result';
-import { encodingKindAtDestination, listAttachesTo } from './rules';
+import { destinationHeadingLevel, encodingKindAtDestination, listAttachesTo } from './rules';
 import {
   childBaseCol,
+  headingAsListItem,
   headingWithLevel,
+  MAX_HEADING_LEVEL,
   leadingWhitespace,
   markerWidth,
   markerWidthOf,
@@ -237,7 +239,7 @@ function headingLevelSurgery(
   node: OutlineNode,
   delta: number,
 ): OpResult<Surgery> {
-  if (delta > 0 && maxHeadingLevel(node) >= 6) return reject('at-h6-bound');
+  if (delta > 0 && maxHeadingLevel(node) >= MAX_HEADING_LEVEL) return reject('at-h6-bound');
   if (delta < 0 && (node.level ?? 1) <= 1) return reject('at-h1-bound');
   const surgery = updateSiblings(doc, path.slice(0, -1), (siblings) =>
     siblings.map((sibling, i) =>
@@ -269,10 +271,41 @@ function stripFinalGap(node: OutlineNode): OutlineNode {
   return { ...node, children: [...node.children.slice(0, -1), stripFinalGap(last)] };
 }
 
-function setFinalGap(node: OutlineNode, gap: readonly string[]): OutlineNode {
+/** `node` with the trailing gap of its LAST descendant replaced — the gap that
+ * stands between the node's subtree and whatever follows it. */
+export function setFinalGap(node: OutlineNode, gap: readonly string[]): OutlineNode {
   const last = node.children[node.children.length - 1];
   if (!last) return { ...node, trailingGap: [...gap] };
   return { ...node, children: [...node.children.slice(0, -1), setFinalGap(last, gap)] };
+}
+
+/** A separation of the same WIDTH, written as empty lines. A gap line's own
+ * whitespace is the document's — a place line carries indentation so it parses
+ * as a node — and copying it would write that indentation somewhere it says
+ * nothing. */
+function blankGap(gap: readonly string[]): readonly string[] {
+  return gap.map(() => '');
+}
+
+/** The node whose trailing gap is the document's terminating newline. */
+function documentFinalNode(doc: OutlineDoc): OutlineNode | undefined {
+  const last = doc.children[doc.children.length - 1];
+  return last ? subtreeFinalNode(last) : undefined;
+}
+
+/** What a scope separates its nodes BY, read off the boundary above the one an
+ * insertion is splitting — the next one up that is not the document's end. A
+ * parent's own trailing gap answers where there is no such boundary, being its
+ * separation from its first child; at the root there is neither and the answer
+ * is none. */
+function scopeSeparation(
+  parent: OutlineNode | 'root',
+  siblings: readonly OutlineNode[],
+  insertIndex: number,
+): readonly string[] {
+  const above = insertIndex >= 2 ? siblings[insertIndex - 2] : undefined;
+  if (above) return subtreeFinalNode(above).trailingGap;
+  return parent === 'root' ? [] : parent.trailingGap;
 }
 
 function needsBlankBetween(prev: OutlineNode, next: OutlineNode): boolean {
@@ -293,7 +326,41 @@ function needsBlankBetween(prev: OutlineNode, next: OutlineNode): boolean {
       indentWidth(next.lines[0] ?? '') >= contentCol
     );
   }
+  // An HTML block ends at a BLANK LINE, not at its closing tag, so whatever
+  // follows one is inside it until a separator says otherwise — whatever kind
+  // that neighbour is. Surfaced by the payload-survival property: a payload
+  // ending in `<div>…</div>` took the node after it into its own lines.
+  if (leaf.kind === 'html') return true;
+  // A quote, a callout and a table are RUNS of like-opening lines, and a run
+  // claims a following block that opens the same way: another `>` line is more
+  // quote, another `|` row is more table. A callout is a quote with its first
+  // line spoken for, so the two are one family here.
+  //
+  // Measured over every ordered pair of kinds at a bare seam: these, the
+  // paragraph cases above and html's are the whole of what merges. Stated as
+  // the families rather than as the five pairs, so a kind joining one of them
+  // is covered by the rule that already describes it.
+  if (leaf.kind === 'quote' || leaf.kind === 'callout') {
+    return next.kind === 'quote' || next.kind === 'callout';
+  }
+  if (leaf.kind === 'table') return next.kind === 'table';
   return false;
+}
+
+/**
+ * Kinds that a list item's own CONTINUATION LINES swallow when they follow its
+ * marker line with no blank between — measured against `parse` at every child
+ * column. A node that lands there stops being a node at all: its lines join the
+ * item's, and the tree comes back one node short.
+ *
+ * `code`, `table` and a nested list item are the exceptions: each opens on a
+ * line the continuation rule cannot claim, so each is read as a child either
+ * way. Everything else needs the separator, `hr`, `quote` and `callout`
+ * included — the first two were the ones the rule used to name, and the rest
+ * reached this seam once a payload could be re-encoded INTO a list item.
+ */
+function swallowedAsContinuation(kind: NodeKind): boolean {
+  return kind !== 'code' && kind !== 'table' && kind !== 'list-item';
 }
 
 /**
@@ -310,7 +377,7 @@ function normalizeBoundaries(doc: OutlineDoc): OutlineDoc {
         firstChild &&
         fixed.kind === 'list-item' &&
         fixed.trailingGap.length === 0 &&
-        (firstChild.kind === 'paragraph' || firstChild.kind === 'html')
+        swallowedAsContinuation(firstChild.kind)
       ) {
         fixed = { ...fixed, trailingGap: [''] };
       }
@@ -1940,11 +2007,8 @@ export function mergeNodes(doc: OutlineDoc, firstId: number): OpResult<OpOutput>
  * Splices a parsed sequence of whole subtrees into the tree immediately
  * before/after `anchorId`, re-encoded (kind and indentation) for the
  * anchor's own sibling scope per the same mapping algebra `indent`/`outdent`
- * use. Rejects sequences inexpressible at that scope: a heading anywhere in
- * the sequence when the scope isn't root/heading-section level (headings
- * are positional/global — parse.ts never nests one under a list or
- * paragraph), or an atom when the scope is a paragraph's children (atoms
- * cannot nest under a paragraph, mirroring `indent`'s own rule).
+ * use. A payload the scope cannot express is rejected by
+ * `reencodeBlocksForDestination`, which owns both the rule and the guard.
  */
 /**
  * Re-indents a whole subtree for a new destination by swapping its OWN
@@ -1995,6 +2059,69 @@ export function reindentSubtreeVerbatim(node: OutlineNode, indentText: string): 
 }
 
 /**
+ * A payload re-encoded for a LIST scope, every node in it, at the depth its
+ * position in the payload gives it.
+ *
+ * Every structural node becomes a list item. Having children forces it —
+ * below a list item a paragraph has no expressible children at any
+ * indentation, because the attachment rule is applied at section level only
+ * (`parse.ts`), so converting the root alone and re-indenting the rest drops a
+ * level of the payload's own hierarchy. Childless nodes convert with them
+ * because a scope is one list: leaving a leaf as a paragraph while its sibling
+ * becomes an item splits the payload's peers into two kinds of row over an
+ * accident of whether each happened to have children.
+ *
+ * A heading becomes a list item carrying its `#` run as text, whatever the
+ * destination's context encoding says: a `#` run at a paragraph's own column
+ * would re-parse as a heading and break out of the list. A list item keeps its
+ * own marker, so an ordered payload does not silently become bullets. Atoms
+ * move as units.
+ */
+function reencodeIntoListScope(node: OutlineNode, indentText: string): OutlineNode {
+  let encoded: OutlineNode;
+  if (node.kind === 'heading') {
+    encoded = headingAsListItem(node, indentText);
+  } else if (isAtom(node)) {
+    encoded = reencodeForDestination(node, undefined, indentText);
+  } else {
+    encoded = reencodeForDestination(
+      node,
+      node.kind === 'list-item' ? undefined : 'list-item',
+      indentText,
+    );
+  }
+  // The child column is the item's own content column, as `childBaseCol` reads
+  // it — padding AFTER the indentation, never before, so a space never
+  // disappears into a tab stop.
+  const childIndent =
+    encoded.kind === 'list-item' ? indentText + ' '.repeat(markerWidth(encoded)) : indentText;
+  return { ...encoded, children: node.children.map((c) => reencodeIntoListScope(c, childIndent)) };
+}
+
+/**
+ * A heading-rooted payload re-levelled for a heading-bearing destination: the
+ * root takes `newLevel` and every heading beneath it shifts by the same delta,
+ * so the payload's own level relationships — skips included — survive.
+ *
+ * Non-heading descendants are carried verbatim. A heading's children sit at
+ * column zero in both the source scope and this one, so there is nothing to
+ * re-indent, and re-indenting a heading is what destroyed one: past three
+ * columns the line stops being a heading at all.
+ *
+ * The caller has already established that every level this produces exists.
+ */
+function reencodeHeadingSubtree(node: OutlineNode, delta: number): OutlineNode {
+  if (node.kind !== 'heading') return node;
+  const levelled = headingWithLevel(node, (node.level ?? 1) + delta);
+  return {
+    ...levelled,
+    children: node.children.map((child) =>
+      child.kind === 'heading' ? reencodeHeadingSubtree(child, delta) : child,
+    ),
+  };
+}
+
+/**
  * The shared re-encode step `insertSubtrees` and enforce.ts's own
  * no-surviving-anchor fallback (a paste replacing the only content in some
  * scope, D16) both need: given the destination scope's context (parent plus
@@ -2003,6 +2130,12 @@ export function reindentSubtreeVerbatim(node: OutlineNode, indentText: string): 
  * so the two call sites can never drift apart on the rule (the exact
  * failure D16 was: a second, ad hoc call site that forgot to re-indent at
  * all).
+ *
+ * The EXPRESSIBILITY GUARD lives here too, beside the rule it guards, rather
+ * than one layer up in `insertSubtrees`. Measured: it used to sit there, and
+ * the D16 fallback — which calls this function directly — therefore ran no
+ * guard at all, re-indenting a heading until it stopped being one. A path
+ * cannot reach the re-encode without the guard now.
  */
 export function reencodeBlocksForDestination(
   doc: OutlineDoc,
@@ -2011,7 +2144,29 @@ export function reencodeBlocksForDestination(
   followingSiblings: readonly OutlineNode[],
   parsedBlocks: readonly OutlineNode[],
   fallbackIndentUnit?: string,
-): readonly OutlineNode[] {
+): OpResult<readonly OutlineNode[]> {
+  // An atom below a paragraph is the one payload neither regime expresses: a
+  // paragraph's children attach as a LIST, and an atom is not one. Mirrors
+  // `indent`'s own rule. Everything else now has an encoding — a heading among
+  // list items converts rather than failing.
+  if (parent !== 'root' && parent.kind === 'paragraph' && parsedBlocks.some((b) => isAtom(b))) {
+    return reject('insertion-not-expressible');
+  }
+  // The heading regime running out, on the same terms `indent` refuses it: the
+  // DEEPEST heading in the payload is what decides, not its root. Neither
+  // available alternative keeps the payload's own tree — clamping puts two of
+  // its levels on one, and converting to content at section level hands the
+  // run to the attachment rule, which reparents it under whatever paragraph
+  // precedes it. The unifying principle's other branch is the honest answer
+  // when no encoding exists.
+  const destLevel = destinationHeadingLevel({ parent, precedingSiblings, followingSiblings });
+  if (destLevel !== undefined) {
+    for (const block of parsedBlocks) {
+      if (block.kind !== 'heading') continue;
+      const deepest = maxHeadingLevel(block) + (destLevel - (block.level ?? 1));
+      if (deepest > MAX_HEADING_LEVEL) return reject('at-h6-bound');
+    }
+  }
   // Both sides, for the reason `encodingKindAtDestination` below already uses
   // both: a payload landing BEFORE a tab-indented sibling has no preceding one
   // to copy from, and the inferred unit can leave that sibling deeper than the
@@ -2027,17 +2182,28 @@ export function reencodeBlocksForDestination(
     precedingSiblings,
     followingSiblings,
   });
-  return parsedBlocks.map((block) => {
-    const isContentBlock = block.kind === 'paragraph' || block.kind === 'list-item';
-    if (!isContentBlock || newContentKind === block.kind) {
-      // No kind conversion needed: a verbatim whole-subtree re-indent keeps
-      // every descendant's original indent unit intact (see
-      // reindentSubtreeVerbatim's own comment for why this differs from
-      // reencodeForDestination's numeric-delta approach here).
-      return reindentSubtreeVerbatim(block, indentText);
-    }
-    return reencodeForDestination(block, newContentKind, indentText);
-  });
+  const headingLevel = destLevel;
+  return accept(
+    parsedBlocks.map((block) => {
+      if (block.kind === 'heading') {
+        // A heading only ever reaches here at the payload's top level: no
+        // parse nests one under a paragraph or a list item, so the recursion
+        // each arm runs owns every other heading in the payload.
+        return headingLevel === undefined
+          ? reencodeIntoListScope(block, indentText)
+          : reencodeHeadingSubtree(block, headingLevel - (block.level ?? 1));
+      }
+      const isContentBlock = block.kind === 'paragraph' || block.kind === 'list-item';
+      if (!isContentBlock || newContentKind === block.kind) {
+        // No kind conversion needed: a verbatim whole-subtree re-indent keeps
+        // every descendant's original indent unit intact (see
+        // reindentSubtreeVerbatim's own comment for why this differs from
+        // reencodeForDestination's numeric-delta approach here).
+        return reindentSubtreeVerbatim(block, indentText);
+      }
+      return reencodeForDestination(block, newContentKind, indentText);
+    }),
+  );
 }
 
 export function insertSubtrees(
@@ -2046,6 +2212,7 @@ export function insertSubtrees(
   parsedBlocks: readonly OutlineNode[],
   position: 'before' | 'after',
   fallbackIndentUnit?: string,
+  inheritedSeparation?: readonly string[],
 ): OpResult<OpOutput> {
   if (parsedBlocks.length === 0) return reject('empty-selection');
   const anchorPath = findPath(doc, anchorId);
@@ -2055,19 +2222,10 @@ export function insertSubtrees(
   const parent = parentPath.length === 0 ? 'root' : nodeAt(doc, parentPath)!;
   const siblings = childrenAt(doc, parentPath);
 
-  const containsHeading = (node: OutlineNode): boolean =>
-    node.kind === 'heading' || node.children.some(containsHeading);
-  if (parsedBlocks.some(containsHeading) && parent !== 'root' && parent.kind !== 'heading') {
-    return reject('insertion-not-expressible');
-  }
-  if (parsedBlocks.some((b) => isAtom(b)) && parent !== 'root' && parent.kind === 'paragraph') {
-    return reject('insertion-not-expressible');
-  }
-
   const insertIndex = position === 'before' ? anchorIndex : anchorIndex + 1;
   const precedingSiblings = siblings.slice(0, insertIndex);
   const followingSiblings = siblings.slice(insertIndex);
-  const reencoded = reencodeBlocksForDestination(
+  const reencodedResult = reencodeBlocksForDestination(
     doc,
     parent,
     precedingSiblings,
@@ -2075,41 +2233,60 @@ export function insertSubtrees(
     parsedBlocks,
     fallbackIndentUnit,
   );
+  if (!reencodedResult.ok) return reencodedResult;
+  const reencoded = reencodedResult.value;
 
-  // Gap ownership (design.md D2, mirroring splitNode's own gap-repair):
-  // the anchor's trailing gap represents its separation from whatever
-  // FOLLOWED it, which is only still true when inserting BEFORE it. When
-  // inserting AFTER, that gap now belongs between the pasted run and
-  // whatever followed — it moves onto the last inserted block, and the
-  // anchor's own gap is stripped so it doesn't leave a spurious blank line
-  // before the pasted content. Either way, the block that newly lands
-  // adjacent to the anchor (the last one, for both directions) carries no
-  // gap of its own — any gap the destination genuinely needs is added by
-  // `normalizeBoundaries` in `finalize`, same as for a fresh adjacency.
-  const anchor = siblings[anchorIndex]!;
+  // Gap ownership: a gap is a BOUNDARY's separation, and an insertion turns one
+  // boundary into two, so both take it. The node above the insertion point
+  // keeps its own gap and the last inserted block takes a copy, which leaves
+  // the run separated from what follows it exactly as what follows was
+  // separated from what preceded it. Stripping that gap instead left the run
+  // flush against the next node wherever the parse required no blank — a
+  // pasted callout ran straight into the paragraph below it.
+  //
+  // The node above is the anchor for an `after` and the preceding sibling for a
+  // `before`; where the run lands first among a parent's children it is the
+  // parent, whose trailing gap is its separation from that first child.
+  //
+  // A caller that has already REMOVED what stood here states the separation
+  // instead: a type-over deletes the run it replaces, and the deletion takes
+  // that run's own gap with it, so the tree no longer holds what the
+  // replacement should inherit.
+  const above = insertIndex > 0 ? subtreeFinalNode(siblings[insertIndex - 1]!) : undefined;
+  const scopeGap = blankGap(scopeSeparation(parent, siblings, insertIndex));
+  const gapBelowRun = blankGap(
+    inheritedSeparation ?? (above ? above.trailingGap : scopeSeparation(parent, siblings, insertIndex)),
+  );
   const lastIdx = reencoded.length - 1;
-  let finalReencoded = reencoded;
-  let finalAnchor = anchor;
-  if (position === 'after') {
-    const carriedGap = subtreeFinalNode(anchor).trailingGap;
-    finalAnchor = stripFinalGap(anchor);
-    finalReencoded = [
-      ...reencoded.slice(0, lastIdx),
-      setFinalGap(reencoded[lastIdx]!, carriedGap),
-    ];
-  } else {
-    finalReencoded = [...reencoded.slice(0, lastIdx), stripFinalGap(reencoded[lastIdx]!)];
-  }
+  const finalReencoded = [
+    ...reencoded.slice(0, lastIdx),
+    setFinalGap(reencoded[lastIdx]!, gapBelowRun),
+  ];
+
+  // The document's LAST node holds no separation: its gap is the file's
+  // terminating newline. A run landing at the end takes that over — which the
+  // copy above already does — and what separates it from the node now above it
+  // is that scope's own separation instead.
+  //
+  // Not where the caller states the separation: a type-over's terminating
+  // newline comes from the run it deleted, so the node above keeps the gap it
+  // already has, which is its own separation from what stood there.
+  const aboveAtDocEnd =
+    inheritedSeparation === undefined &&
+    above !== undefined &&
+    above.id === documentFinalNode(doc)?.id;
 
   const surgery = updateSiblings(doc, parentPath, (nodes) => {
-    const withAnchor = nodes.map((n, i) => (i === anchorIndex ? finalAnchor : n));
+    const withAbove = aboveAtDocEnd
+      ? nodes.map((n, i) => (i === insertIndex - 1 ? setFinalGap(n, scopeGap) : n))
+      : nodes;
     // `nodes` is the destination list before the paste. The pasted blocks come
     // from parsed markdown with numbering of their own, which does not become
     // the start of a run that was already here.
     return renumberOrderedAgainst(nodes, [
-      ...withAnchor.slice(0, insertIndex),
+      ...withAbove.slice(0, insertIndex),
       ...finalReencoded,
-      ...withAnchor.slice(insertIndex),
+      ...withAbove.slice(insertIndex),
     ]);
   });
   return finalize(doc, surgery, finalReencoded[0]!.id);

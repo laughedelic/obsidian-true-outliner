@@ -703,8 +703,10 @@ the need for stored extension-origin state in keyboard extension.
    shape discriminator holds.
 4. ~~`content-space-caret`~~ — **shipped 2026-07-26.** Gap lines and marker prefixes stop being
    caret-addressable. Independent of all of the above.
-5. `paste-heading-section-reencoding` — a heading section pasted into a list mangles.
-   Independent; a re-encoding problem, not a selection one.
+5. `paste-lands-where-it-is-pointed` — a heading section pasted into a list mangles.
+   Independent; a re-encoding problem, not a selection one. Measured out in
+   [paste-across-encoding-regimes.md](paste-across-encoding-regimes.md), which found five
+   defects rather than one and settled the rule.
 
 ### What this track still owns
 

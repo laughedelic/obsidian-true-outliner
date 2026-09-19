@@ -1510,9 +1510,14 @@ describe('outline zoom: editing at the boundary', function () {
     });
 
     it('a paste that would splice beside the root (G1)', async function () {
-      await zoomedTo(LIST, '- beta');
+      // A CHILDLESS root, because that is where the splice rule still places a
+      // paste beside the root: `paste-lands-where-it-is-pointed` D8 anchors a
+      // caret on a node's own line at the boundary after those lines, which is
+      // the first child's when it has one. `- beta child` has none, so its own
+      // line still names its next-sibling slot — outside the scope it roots.
+      await zoomedTo(LIST, '- beta child');
       const before = await trail();
-      const c = at(LIST, 1, 2);
+      const c = at(LIST, 2, -1);
       await h.setCursorSettled(c.line, c.ch);
       await h.pasteText('- p\n  - q');
       await browser.pause(400);
@@ -1565,6 +1570,22 @@ describe('outline zoom: editing at the boundary', function () {
       await browser.keys(['Enter']);
       await browser.pause(350);
       await expectApplied(HEAD, before);
+    });
+
+    it('a paste at a root WITH children lands in its child scope (G1b)', async function () {
+      // The gesture G1 used to make: the caret at the zoom root's content
+      // start. It now splices at the root's first-child boundary, which is
+      // inside the scope, so there is nothing for the zoom rule to refuse.
+      await zoomedTo(LIST, '- beta');
+      const before = await trail();
+      const c = at(LIST, 1, 2);
+      await h.setCursorSettled(c.line, c.ch);
+      await h.pasteText('- p\n  - q');
+      await browser.pause(400);
+      await expectApplied(LIST, before);
+      expect(await h.getBuffer()).toBe(
+        '- alpha\n- beta\n  - p\n    - q\n  - beta child\n- gamma\n',
+      );
     });
 
     it('pastes a block inside the subtree (G2)', async function () {
