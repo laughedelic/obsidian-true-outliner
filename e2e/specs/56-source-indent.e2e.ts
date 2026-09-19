@@ -52,6 +52,42 @@ const TABBED = ['- alpha', '', '\tchild paragraph', '', '\t```js', '\tfenced', '
  * to: two characters of the node's own indentation, four of its own. */
 const DEEPER = ['- alpha', '', '  first line', '      second deeper', ''].join('\n');
 
+/** Runs that STATE a depth rather than restating one, so the layer leaves them
+ * standing: four columns at the top level, nine, and a tab. Obsidian resolves
+ * each four of them into a box it sizes from `--list-indent` (issue #140), which
+ * is what these lines are here to catch.
+ *
+ * The item comes last, where it cannot adopt the indented lines above it as
+ * children — its own content column would make their runs a node's own
+ * indentation, which is the other half of this file. It is here at all because
+ * the space advance is published from a list marker's own trailing space. */
+const STANDING = [
+  'Intro paragraph.',
+  '',
+  '    four-space line,',
+  '         an indented code block',
+  '',
+  '\ttab-indented line',
+  '',
+  '- alpha',
+  '',
+].join('\n');
+
+/** A list written inside a quote. The parse folds consecutive `>` lines into ONE
+ * node, so those levels are that node's own text rather than tree levels — and
+ * Obsidian's quantiser boxes their run all the same, walking past the `>`
+ * markers. The same shape outside the quote is the control: its levels ARE tree
+ * levels and step by the unit. */
+const QUOTED = [
+  '> - alpha',
+  '> \t- nested',
+  '> \t\t- deeper',
+  '',
+  '- outside alpha',
+  '\t- outside nested',
+  '',
+].join('\n');
+
 /** Where line `i`'s own text begins, relative to the content's left edge. */
 async function textColumn(i: number, text: string): Promise<number> {
   const first = text.search(/\S/);
@@ -294,6 +330,99 @@ describe('source indentation: one column per tree level', function () {
     // The continuation belongs under its item's TEXT — its whitespace is SIZED
     // to the stated hang, not hidden.
     expect(await textColumn(2, '    continuation')).toBeCloseTo(unit + gutter, 1);
+  });
+
+  it('renders a standing run at the width of its own characters', async function () {
+    // Obsidian sizes a leading run from `--list-indent` per four columns, which
+    // is wider than the spaces inside it; the layer takes that width off every
+    // line it decorates, so what is left is the glyphs.
+    //
+    // The two lines differ by five spaces and by nothing else the rendering
+    // adds: both carry the same seam onto their own text, Obsidian rendering a
+    // top-level indented run's text as inline code. Their DIFFERENCE is
+    // therefore the five spaces, in whatever the font makes of one.
+    await openOutlined('SourceIndent/standing.md', STANDING);
+    const advance = await h.publishedSpaceAdvance();
+    const four = await textColumn(2, '    four-space line,');
+    const nine = await textColumn(3, '         an indented code block');
+    expect(nine - four).toBeCloseTo(5 * advance, 0);
+  });
+
+  it('walks a standing run one character at a time', async function () {
+    // A standing run is content: every position in it is a position a reader
+    // can see, and no press crosses a box edge.
+    await openOutlined('SourceIndent/standing.md', STANDING);
+    const advance = await h.publishedSpaceAdvance();
+    // From the run's LAST character rather than from the text start, whose own
+    // step carries Obsidian's inline-code padding as well as a space.
+    await h.setCursorSettled(3, 8);
+    const seen = await walk('ArrowLeft', 8);
+    expect(seen.map((s) => s.ch)).toEqual([8, 7, 6, 5, 4, 3, 2, 1, 0]);
+    for (let i = 1; i < seen.length; i++) {
+      expect(seen[i]!.x!).toBeCloseTo(seen[i - 1]!.x! - advance, 0);
+    }
+  });
+
+  it('puts the caret where a click inside a standing run points', async function () {
+    // The box the quantiser states paints nothing, and a click in the blank part
+    // of it used to land at the box's edge — the caret drawn three spaces right
+    // of the glyph the reader aimed at.
+    //
+    // Inside the nine-space run rather than at a text start: Obsidian renders a
+    // top-level indented run's text as inline code, whose own padding puts the
+    // drawn caret a few pixels right of the boundary it belongs to, with the
+    // plugin enabled or not. That seam is not this layer's and is not what this
+    // case is about.
+    await openOutlined('SourceIndent/standing.md', STANDING);
+    const advance = await h.publishedSpaceAdvance();
+    const fourth = await h.posToCoords(3, 3); // in front of the fourth space
+    const target = fourth.left + advance / 2;
+    await h.clickAtPoint(target, (fourth.top + fourth.bottom) / 2);
+    await browser.pause(waitMs);
+    const at = await caret();
+    expect(at.line).toBe(3);
+    expect(Math.abs(at.x! + (await h.contentLeftAbsoluteX()) - target)).toBeLessThan(advance);
+  });
+
+  it('puts a tab-indented top-level line on the same column as a four-space one', async function () {
+    // A tab renders to its own tab stop, which is where four spaces land at the
+    // vault's own tab size of 4 — the setting this case reads through, rather
+    // than a column either value states independently. It holds before this
+    // change as well as after, both lines quantising into one box then: what it
+    // pins is that measuring the characters does not make the two disagree.
+    await openOutlined('SourceIndent/standing.md', STANDING);
+    expect(await textColumn(5, '\ttab-indented line')).toBeCloseTo(
+      await textColumn(2, '    four-space line,'),
+      1,
+    );
+  });
+
+  it('steps a list written inside a quote by its own characters', async function () {
+    // The one shape whose appearance this rule changes beyond the reported one.
+    // A quote's levels are not tree levels, so nothing states their width but
+    // the characters: each step is the tab's own advance, where Obsidian's box
+    // made it a list-indent. The list outside the quote is the control — its
+    // levels are tree levels and step by the unit.
+    await openOutlined('SourceIndent/quoted.md', QUOTED);
+    const unit = await h.publishedUnit();
+    const bullet = async (i: number, text: string) => {
+      const at = text.search(/[-*+]\s/);
+      return +((await h.posToCoords(i, at)).left - (await h.contentLeftAbsoluteX())).toFixed(2);
+    };
+    const alpha = await bullet(0, '> - alpha');
+    const nested = await bullet(1, '> \t- nested');
+    const deeper = await bullet(2, '> \t\t- deeper');
+    const step = nested - alpha;
+    expect(deeper - nested).toBeCloseTo(step, 0);
+    // A tab renders to its own tab stop, which at tab size 4 is four space
+    // advances — narrower than the unit, and narrower than the box Obsidian
+    // states for it. Read rather than spelled, for the reason `publishedUnit`
+    // records.
+    expect(step).toBeCloseTo(4 * (await h.publishedSpaceAdvance()), 0);
+    expect(step).toBeLessThan(unit);
+    // The control: on the grid, a level is a unit.
+    const outside = await bullet(4, '- outside alpha');
+    expect((await bullet(5, '\t- outside nested')) - outside).toBeCloseTo(unit, 0);
   });
 
   it('touches nothing with outline mode off', async function () {

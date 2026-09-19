@@ -8,7 +8,8 @@
  * line's text right.
  *
  * `docs/research/source-indentation-width` carries the versions that hid the
- * WHOLE run, or hid none of it, and what each cost the caret.
+ * WHOLE run, or hid none of it, what each cost the caret, and what Obsidian's
+ * own quantiser cost a run left standing.
  */
 
 /*
@@ -28,21 +29,37 @@
 }
 
 /*
- * Obsidian's quantiser, overridden so the span measures what is left inside it.
+ * Obsidian's quantiser, overridden so a leading run measures its own characters.
  *
- * It sizes a leading run from `--list-indent` rather than from the characters —
- * measured, 26.17px for two spaces, 36px for a tab, and a `border-box`
+ * It sizes a run from `--list-indent` rather than from the glyphs — measured,
+ * 26.17px for two spaces, 36px for four, 36px for a tab, and a `border-box`
  * `.cm-indent-spacing` carrying its width as `padding-left` — and it sizes from
- * the document, so that width outlives the characters the mark undraws.
- * Left standing it would put the line's text back in a second column.
+ * the document rather than from the DOM, so the width it states outlives
+ * whatever is left inside the span.
  *
- * `width: auto` rather than zero: the span still holds the surplus, whose own
- * glyphs are the width the line is owed. Every such span on the line, since
- * Obsidian splits a run across several.
+ * One rule for both of the runs this layer leaves behind, because the answer is
+ * the same: the characters are the width. Where the mark undrew a node's own
+ * indentation there are none left and the span collapses, which is what keeps
+ * the line's text out of a second column (issue #117). Where the run stands —
+ * a top-level line, a heading's child — the glyphs measure themselves, so the
+ * caret crosses them one advance at a time instead of stepping a box edge every
+ * four columns (issue #140), and a tab renders to its own tab stop. A quote's
+ * lines take the same treatment, whose levels are that node's own text rather
+ * than tree levels — the research note records what that moves.
+ *
+ * Named by the KIND classes rather than by a fact about the run, since the rule
+ * holds of any line the mode decorates that is not a list item. A list item and
+ * its continuation carry `to-decor-list` and keep the stated hang
+ * (`--to-list-hang`, `10-editor.css`), which is the one run this layer sizes
+ * from the tree rather than from the file.
+ *
+ * `width: auto` rather than a stated length, which would have to be right in a
+ * code font and at a tab stop as well as in the prose font. Every such span on
+ * the line, since Obsidian splits a run across several.
  */
 .markdown-source-view.mod-cm6
   .cm-content
-  > .cm-line.to-decor-indent-sized
+  > .cm-line:is(.to-decor-block, .to-decor-atom)
   :is(.cm-hmd-list-indent, .cm-indent, .cm-indent-spacing) {
   width: auto !important;
   min-width: 0 !important;

@@ -221,3 +221,108 @@ is the rule `10-editor.css` already carried, scoped where it should have been.
   `open-questions` Q38.
 - **A table written inside a list item**, which Obsidian does not render as a table in that
   position at all, with this plugin's decorations on or off (Q38).
+
+## A run left standing, and Obsidian's own quantiser
+
+The collapse leaves a top-level run and a heading child's run alone, and issue #140 reports what
+the editor then does with the caret inside one: on `␣␣␣␣four-space line,` the fourth press moves
+about five times a space's width, and on a nine-space line the same jump happens again at the
+eighth. Measured on the fixture below, at the same geometry as the rest of this note — unit 32px,
+gutter 14px, a prose space 5.08px — as `coordsAtPos` x per position, with the mode on and off:
+
+````markdown
+Intro paragraph.
+
+    four-space line,
+         an indented code block
+
+	tab-indented line
+
+# Heading
+
+plain child
+
+   three-space child
+````
+
+| Line | Positions through the run, mode ON | Mode OFF |
+|---|---|---|
+| `␣␣␣␣four-space line,` | 14, 19.08, 24.17, 29.25, **54.19** | 0, 5.08, 10.17, 15.25, **40.19** |
+| `␣×9 an indented code block` | 14, 19.08, 24.17, 29.25, **50**, 55.08, 60.17, 65.25, **86**, 95.28 | the same, less the gutter |
+| `⇥tab-indented line` | 14, **54.19** | 0, **40.19** |
+| `␣␣␣three-space child` | 46, 51.08, 56.17, 61.27 | 0, 5.08, 10.17, 15.27 |
+
+Within a row the two columns differ by this layer's own left padding and by nothing else — 14px at
+the top level, 46px for the heading's depth-1 child — and the STEPS inside a row are identical,
+which is the issue's own finding: no rule of ours reaches the run. What the bold positions have in
+common is that each is the right edge of a box rather than the end of a character: the two interior
+ones on the nine-space line stand 20.75px past the position before them, and a text start stands
+24.94px past it on the four-space line and 40.19px on the tab. The box is `.cm-indent`, whose
+`min-width` resolves to 36px from `--list-indent` (`calc(0.5625em * 4)`) while the four spaces
+inside it measure 20.34px. Obsidian emits one such span per four columns and leaves
+the remainder in a `.cm-indent-spacing` of literal glyphs, so the three-space child — a run shorter
+than one span — already renders at its characters and steps one space at a time. The defect is
+exactly a run of four columns or more.
+
+What the box costs a click is larger than what it costs a press. Reading `posAtCoords` every 2px
+across the line, each x that lands on a given position:
+
+| Position | Stock | With the run measured from its characters |
+|---|---|---|
+| ch 3 (the last space) | 28–30 | 28–30 |
+| ch 4 (the text start) | 32–58 | 32–42 |
+
+Twenty-six pixels of one line resolve to one position, most of them over a box that paints nothing
+— which is the "skips the first letter" half of the report: a click on the letter's left half lands
+at the text start and the caret draws at 54.19, a space's width right of the last space glyph, with
+blank box on either side of it.
+
+**The quantiser serves nothing else here.** Its other consumer is Obsidian's indentation aid, and
+`10-editor.css` already suppresses that on every line the mode decorates: measured on the fixture
+above, `--indentation-guide-width` resolves to 0px on all four indented lines. In outline mode the
+boxes align a run to a ladder that is not drawn.
+
+Measured with the same four declarations the collapse's own rule uses (`width: auto`, `min-width`,
+`padding` and `margin` zeroed) extended to every decorated non-list line:
+
+| Line | Run's rendered width | Text lands at | Steps through the run |
+|---|---|---|---|
+| `␣␣␣␣four-space line,` | 20.34 = 4 × 5.08 | 38.53 | 5.08 each |
+| `␣×9 an indented code block` | 45.77 = 9 × 5.08 | 63.97 | 5.08 each |
+| `⇥tab-indented line` | 20.34, the tab stop | 38.53 | one press |
+| `␣␣␣three-space child` | 15.27, unchanged | 61.27, unchanged | 5.08 each |
+
+Three things the same pass establishes about the blast radius:
+
+- **A line whose run is hidden does not move.** The declarations are the ones such a line already
+  carries, so the whole DOM of `␣␣␣␣␣␣second deeper` under an item compares equal before and after
+  — which is what lets one rule replace two.
+- **A list item and its continuation keep their own rule.** `to-decor-list` is on both — measured,
+  a continuation line carries it — and the selector names the block and atom classes only.
+- **A fence's interior is already its own width.** Inside a top-level fence, `.cm-indent` measures
+  33.72px against a `min-width` of 31.5px, because a code-font space is 8.43px and four of them
+  overflow the box. The override changes the number by nothing.
+- **A list written inside a QUOTE does move**, and it is the one shape whose appearance this rule
+  changes beyond the reported one. The parse folds consecutive `>` lines into a single quote node,
+  so those lines are one atom and the list inside them is that atom's own text; Obsidian's
+  quantiser still walks the run past the `>` markers and boxes every four columns of it. Measured on
+  `> - alpha` / `> ⇥- nested` / `> ⇥⇥- deeper`, as the x of each bullet: 64.5 / 84.84 / 105.19 with
+  the rule in force against 18.5 / 54.5 / 90.5 with the mode off — a level stepping by the tab's own
+  advance, 20.34px, where stock stepped 36px. A list at the same shape OUTSIDE the quote, whose
+  levels ARE tree levels, steps 32px, the outline unit.
+
+  The rule is right to reach it and the narrower step is the correct reading: those levels are not
+  tree levels, so nothing states their width but the characters, and the same box edge the caret
+  jumped at the top level was there to be jumped inside a quote too. What stock bought was a
+  coincidence — 36px sits near the 32px unit, so a quoted list looked as though it were on the grid.
+  It never was.
+
+One residue is stock and stays: Obsidian renders a top-level indented run's text as INLINE CODE
+(`.cm-hmd-indented-code.cm-inline-code`, padding `2.1px 4.2px`), so the step from the run's last
+space onto the text start is 9.28px rather than 5.08px — 4.2px of it that span's own padding. It
+measures the same with the plugin disabled, and no rule of this layer's puts it there.
+
+What the change costs, stated plainly: a top-level four-space line renders its run 15.66px narrower
+than stock Obsidian renders it, and its text column moves left with it. The characters stay — the
+run is still four spaces, still the only thing distinguishing an indented code block from a
+paragraph — and what changes is that they measure themselves rather than a list level they are not.
