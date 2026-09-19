@@ -46,16 +46,36 @@ export default defineConfig({
           text: 'Guide',
           items: [
             { text: 'Introduction', link: '/guide/' },
-            { text: 'Installation', link: '/guide/installation' },
-            { text: 'Getting started', link: '/guide/getting-started' },
-            { text: 'How a note becomes an outline', link: '/guide/how-notes-become-outlines' },
-            { text: 'Outline mode', link: '/guide/outline-mode' },
-            { text: 'Structural editing', link: '/guide/structural-editing' },
-            { text: 'Selection and the caret', link: '/guide/selection-and-caret' },
-            { text: 'Appearance', link: '/guide/appearance' },
-            { text: 'Folding', link: '/guide/folding' },
-            { text: 'Zoom', link: '/guide/zoom' },
-            { text: 'Structured backlinks', link: '/guide/backlinks' },
+            {
+              text: 'Start',
+              items: [
+                { text: 'Installation', link: '/guide/installation' },
+                { text: 'Getting started', link: '/guide/getting-started' },
+              ],
+            },
+            {
+              text: 'The outline',
+              items: [
+                { text: 'How a note becomes an outline', link: '/guide/how-notes-become-outlines' },
+                { text: 'Outline mode', link: '/guide/outline-mode' },
+                { text: 'Appearance', link: '/guide/appearance' },
+              ],
+            },
+            {
+              text: 'Editing',
+              items: [
+                { text: 'Structural editing', link: '/guide/structural-editing' },
+                { text: 'Selection and the caret', link: '/guide/selection-and-caret' },
+              ],
+            },
+            {
+              text: 'Finding the way',
+              items: [
+                { text: 'Folding', link: '/guide/folding' },
+                { text: 'Zoom', link: '/guide/zoom' },
+                { text: 'Structured backlinks', link: '/guide/backlinks' },
+              ],
+            },
             { text: 'Mobile', link: '/guide/mobile' },
           ],
         },
@@ -64,18 +84,28 @@ export default defineConfig({
           items: [
             { text: 'Where we stand', link: '/compare/' },
             { text: "Obsidian's outliner plugins", link: '/compare/obsidian-plugins' },
-            { text: 'Logseq', link: '/compare/logseq' },
-            { text: 'Workflowy and Dynalist', link: '/compare/workflowy' },
-            { text: 'Roam Research', link: '/compare/roam' },
-            { text: 'Tana', link: '/compare/tana' },
-            { text: 'outl', link: '/compare/outl' },
-            { text: 'Orca Note', link: '/compare/orca-note' },
-            { text: 'Thymer', link: '/compare/thymer' },
-            { text: 'Notion', link: '/compare/notion' },
-            { text: 'Capacities', link: '/compare/capacities' },
-            { text: 'Anytype', link: '/compare/anytype' },
-            { text: 'Reflect', link: '/compare/reflect' },
-            { text: 'Org-mode', link: '/compare/org-mode' },
+            {
+              text: 'Outliners',
+              items: [
+                { text: 'Logseq', link: '/compare/logseq' },
+                { text: 'Workflowy and Dynalist', link: '/compare/workflowy' },
+                { text: 'Roam Research', link: '/compare/roam' },
+                { text: 'Tana', link: '/compare/tana' },
+                { text: 'outl', link: '/compare/outl' },
+                { text: 'Orca Note', link: '/compare/orca-note' },
+                { text: 'Thymer', link: '/compare/thymer' },
+                { text: 'Org-mode', link: '/compare/org-mode' },
+              ],
+            },
+            {
+              text: 'Note apps',
+              items: [
+                { text: 'Notion', link: '/compare/notion' },
+                { text: 'Capacities', link: '/compare/capacities' },
+                { text: 'Anytype', link: '/compare/anytype' },
+                { text: 'Reflect', link: '/compare/reflect' },
+              ],
+            },
           ],
         },
         {

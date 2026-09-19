@@ -15,6 +15,8 @@ export interface BacklinkRow {
   kind: Kind;
   ordinal?: string;
   html: string;
+  /** The node's text without markup, to find it again on the source page. */
+  text: string;
   /** Present for its place in the lineage only. */
   dim: boolean;
   /** Descendants not shown, for a child drawn without its own children. */
@@ -261,7 +263,7 @@ export default defineLoader({
           const hidden = node.children.some((c) => shown.has(c)) ? 0 : countDescendants(node);
           const base = { depth: Math.max(depth, 0), kind: node.kind, ordinal: node.ordinal, dim: !full.has(node), hidden, hash };
           const texts = byNode.get(node) ?? [node.text];
-          for (const text of texts) rows.push({ ...base, html: render(text) });
+          for (const text of texts) rows.push({ ...base, html: render(text), text: plain(text).slice(0, 80) });
         }
         const count = [...byNode.values()].reduce((n, t) => n + t.length, 0);
         (out[key] ??= []).push({

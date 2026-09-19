@@ -4,11 +4,11 @@
  * that link here, each in its lineage with one level of its children, grouped
  * by page. Shown in outline view only, as the plugin shows its own.
  */
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, watch } from 'vue';
 import { useData, useRouter, withBase } from 'vitepress';
 import { data, type BacklinkGroup, type BacklinkRow } from './backlinks.data';
 import { ICONS } from './icons';
-import { outlineOn } from './state';
+import { closedGroups as closed, footerOpen as open, outlineOn, pendingFlash } from './state';
 
 const { frontmatter, page } = useData();
 const router = useRouter();
@@ -18,8 +18,6 @@ const groups = computed<BacklinkGroup[]>(() => data[key.value] ?? []);
 const total = computed(() => groups.value.reduce((n, g) => n + g.count, 0));
 const shown = computed(() => outlineOn.value && frontmatter.value.outlineView !== false);
 
-const open = ref(true);
-const closed = reactive(new Set<string>());
 watch(key, () => {
   open.value = true;
   closed.clear();
@@ -35,14 +33,19 @@ function toggleGroup(url: string) {
 function follow(event: MouseEvent | KeyboardEvent, group: BacklinkGroup, row: BacklinkRow) {
   if ((event.target as Element).closest('a')) return;
   const url = withBase(group.url + row.hash);
-  if (event.metaKey || event.ctrlKey) window.open(url, '_blank');
-  else void router.go(url);
+  if (event.metaKey || event.ctrlKey) {
+    window.open(url, '_blank');
+    return;
+  }
+  pendingFlash.value = { path: withBase(group.url), text: row.text };
+  void router.go(url);
 }
 </script>
 
 <template>
-  <section v-if="shown" class="to-o-backlinks" aria-label="Structured backlinks">
+  <section v-if="shown" class="to-o-backlinks" :class="{ 'is-folded': !open }" aria-label="Structured backlinks">
     <button type="button" class="to-o-bl-header" :aria-expanded="open" @click="open = !open">
+      <span class="to-o-bl-chevron" :class="{ 'is-folded': !open }" aria-hidden="true" v-html="ICONS.chevron"></span>
       <span class="to-o-bl-icon" aria-hidden="true" v-html="ICONS.link"></span>
       <span class="to-o-bl-title">Structured backlinks</span>
       <span class="to-o-bl-totals">
@@ -51,7 +54,7 @@ function follow(event: MouseEvent | KeyboardEvent, group: BacklinkGroup, row: Ba
       </span>
     </button>
     <template v-if="open">
-      <div v-for="g in groups" :key="g.url" class="to-o-bl-group">
+      <div v-for="g in groups" :key="g.url" class="to-o-bl-group" :data-url="g.url">
         <button type="button" class="to-o-bl-group-head" :aria-expanded="!closed.has(g.url)" @click="toggleGroup(g.url)">
           <span class="to-o-bl-chevron" :class="{ 'is-folded': closed.has(g.url) }" aria-hidden="true" v-html="ICONS.chevron"></span>
           <span class="to-o-bl-note">{{ g.title }}</span>

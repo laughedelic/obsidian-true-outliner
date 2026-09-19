@@ -10,9 +10,10 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from 
 import { onContentUpdated, useData } from 'vitepress';
 import { ancestors, buildTree, descendants, labelOf, type ONode, type OTree } from './tree';
 import { ICONS } from './icons';
-import { outlineOn } from './state';
+import { outlineOn, pendingFlash } from './state';
 
 const STORAGE_KEY = 'true-outliner:docs-view';
+const STATE_KEY = 'true-outliner:docs-state:';
 const EDIT_ROOT = 'https://github.com/laughedelic/obsidian-true-outliner/edit/main/website/';
 
 interface Mark {
@@ -20,6 +21,17 @@ interface Mark {
   x: number;
   y: number;
   foldable: boolean;
+}
+interface Saved {
+  folded: number[];
+  zoom: number | null;
+  y: number;
+}
+interface Tip {
+  text: string;
+  x: number;
+  y: number;
+  side: 'above' | 'right';
 }
 interface Guide {
   node: ONode;
@@ -40,7 +52,18 @@ const guides = shallowRef<Guide[]>([]);
 const zoomRoot = shallowRef<ONode | null>(null);
 const active = shallowRef<ONode | null>(null);
 const version = ref(0);
+const flash = ref<{ x: number; y: number; w: number; h: number } | null>(null);
+const tip = ref<Tip | null>(null);
 let content: HTMLElement | null = null;
+// The path the tree was read from, which is what its state is saved under:
+// during a navigation the address changes before the page does.
+let builtPath = '';
+// Held for a moment rather than used once: the content can report itself
+// updated more than once for one navigation.
+let restore: { path: string; state: Saved | null } | null = null;
+let restoreTimer = 0;
+let saveTimer = 0;
+let tipTimer = 0;
 let resize: ResizeObserver | null = null;
 let frame = 0;
 
@@ -158,10 +181,112 @@ function schedule() {
   frame = requestAnimationFrame(measure);
 }
 
-function refresh() {
+function refresh(keep = true) {
   applyVisibility();
   version.value++;
   void nextTick(schedule);
+  if (keep) save();
+}
+
+function save() {
+  const t = tree.value;
+  if (!t || builtPath !== location.pathname) return;
+  const state: Saved = {
+    folded: t.nodes.filter((n) => n.folded).map((n) => n.id),
+    zoom: zoomRoot.value?.id ?? null,
+    y: window.scrollY,
+  };
+  try {
+    sessionStorage.setItem(STATE_KEY + builtPath, JSON.stringify(state));
+  } catch {
+    // Without storage, going back starts the page afresh.
+  }
+}
+
+function onScroll() {
+  hideTip();
+  clearTimeout(saveTimer);
+  saveTimer = window.setTimeout(save, 150);
+}
+
+function saved(): Saved | null {
+  try {
+    return JSON.parse(sessionStorage.getItem(STATE_KEY + location.pathname) ?? 'null') as Saved | null;
+  } catch {
+    return null;
+  }
+}
+
+/** Runs once the router's own scroll for the navigation has happened. */
+function afterNavigation(run: () => void) {
+  void nextTick(() => requestAnimationFrame(() => requestAnimationFrame(run)));
+}
+
+const squash = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+
+/** The node a backlink row stood for, found by its text: the footer's rows
+ * come from the markdown and the tree from the HTML, so text is what they
+ * share. A table's reference is one of its rows. */
+function findByText(t: OTree, text: string): { node: ONode; el: HTMLElement } | null {
+  const want = squash(text).slice(0, 40);
+  if (!want) return null;
+  for (const node of t.nodes) {
+    if (node.kind === 'table') {
+      const row = Array.from(node.el.querySelectorAll('tr')).find((tr) => squash(tr.textContent ?? '').startsWith(want));
+      if (row) return { node, el: row };
+    } else if (squash(labelOf(node, 400)).startsWith(want)) return { node, el: node.el };
+  }
+  return null;
+}
+
+function flashAt(el: HTMLElement) {
+  const host = layer.value;
+  if (!host) return;
+  el.scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior });
+  const origin = host.getBoundingClientRect();
+  const rect = el.getBoundingClientRect();
+  // An item's box holds its children too; the line is what is pointed at.
+  const nested = Array.from(el.children).find((c) => c.tagName === 'UL' || c.tagName === 'OL');
+  const bottom = nested ? nested.getBoundingClientRect().top : rect.bottom;
+  flash.value = null;
+  void nextTick(() => {
+    flash.value = { x: rect.left - origin.left - 6, y: rect.top - origin.top - 2, w: rect.width + 12, h: bottom - rect.top + 4 };
+  });
+}
+
+/** Keeps a node on screen after a fold changed the page's height above or
+ * around it. */
+function keepInView(node: ONode) {
+  void nextTick(() => {
+    const top = node.el.getBoundingClientRect().top;
+    if (top < 88 || top > window.innerHeight - 40) {
+      window.scrollBy({ top: top - 104, behavior: 'instant' as ScrollBehavior });
+    }
+  });
+}
+
+function showTip(event: MouseEvent) {
+  const el = (event.target as Element).closest<HTMLElement>('[data-tip]');
+  clearTimeout(tipTimer);
+  if (!el?.dataset.tip) return hideTip();
+  const text = el.dataset.tip;
+  const rect = el.getBoundingClientRect();
+  const guide = el.classList.contains('to-o-guide');
+  const next: Tip = guide
+    ? { text, x: rect.right + 6, y: event.clientY, side: 'right' }
+    : { text, x: rect.left + rect.width / 2, y: rect.top - 6, side: 'above' };
+  tipTimer = window.setTimeout(() => (tip.value = next), 450);
+}
+
+function hideTip() {
+  clearTimeout(tipTimer);
+  if (tip.value) tip.value = null;
+}
+
+function guideTip(node: ONode): string | undefined {
+  const foldable = node.children.filter((c) => c.children.length);
+  if (!foldable.length) return undefined;
+  return foldable.some((c) => !c.folded) ? 'Fold everything under this node' : 'Unfold everything under this node';
 }
 
 function rebuild() {
@@ -169,6 +294,9 @@ function rebuild() {
   resize?.disconnect();
   zoomRoot.value = null;
   active.value = null;
+  flash.value = null;
+  hideTip();
+  builtPath = location.pathname;
   if (!content || !enabled.value) {
     tree.value = null;
     marks.value = [];
@@ -190,7 +318,22 @@ function rebuild() {
   content.classList.toggle('to-o-on', outline.value);
   resize = new ResizeObserver(schedule);
   resize.observe(content);
-  refresh();
+
+  const state = restore?.path === location.pathname ? restore.state : null;
+  if (state) {
+    const folded = new Set(state.folded);
+    for (const n of t.nodes) n.folded = folded.has(n.id) && n.children.length > 0;
+    zoomRoot.value = t.nodes.find((n) => n.id === state.zoom && n.parent) ?? null;
+  }
+  refresh(false);
+  if (state) afterNavigation(() => window.scrollTo({ top: state.y, behavior: 'instant' as ScrollBehavior }));
+
+  const target = pendingFlash.value;
+  pendingFlash.value = null;
+  if (target && target.path === location.pathname && outline.value) {
+    const found = findByText(t, target.text);
+    if (found) afterNavigation(() => flashAt(found.el));
+  }
 }
 
 function setOutline(on: boolean) {
@@ -208,6 +351,7 @@ function toggleFold(node: ONode) {
   if (!node.children.length) return;
   node.folded = !node.folded;
   refresh();
+  keepInView(node);
 }
 
 /** A click on a guide folds the branch's children, or opens them all again:
@@ -217,7 +361,9 @@ function toggleChildren(node: ONode) {
   if (!foldable.length) return;
   const anyOpen = foldable.some((c) => !c.folded);
   for (const c of foldable) c.folded = anyOpen;
+  hideTip();
   refresh();
+  keepInView(node);
 }
 
 function foldAll(fold: boolean) {
@@ -246,6 +392,12 @@ function zoomTo(node: ONode | null) {
   });
 }
 
+function onPop() {
+  restore = { path: location.pathname, state: saved() };
+  clearTimeout(restoreTimer);
+  restoreTimer = window.setTimeout(() => (restore = null), 1500);
+}
+
 function onOver(event: Event) {
   const t = tree.value;
   if (!t) return;
@@ -266,7 +418,13 @@ onMounted(() => {
   } catch {
     outline.value = true;
   }
+  // A reload or a return from another site comes back to the page as it was
+  // left, as going back within the site does.
+  const entry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+  if (entry && (entry.type === 'reload' || entry.type === 'back_forward')) onPop();
   rebuild();
+  window.addEventListener('popstate', onPop);
+  window.addEventListener('scroll', onScroll, { passive: true });
   document.addEventListener('mouseover', onOver, { passive: true });
   window.addEventListener('load', schedule);
   document.fonts?.ready.then(schedule).catch(() => undefined);
@@ -274,7 +432,12 @@ onMounted(() => {
 onContentUpdated(rebuild);
 onBeforeUnmount(() => {
   document.removeEventListener('mouseover', onOver);
+  window.removeEventListener('popstate', onPop);
+  window.removeEventListener('scroll', onScroll);
   window.removeEventListener('load', schedule);
+  clearTimeout(saveTimer);
+  clearTimeout(tipTimer);
+  clearTimeout(restoreTimer);
   resize?.disconnect();
   cancelAnimationFrame(frame);
 });
@@ -326,9 +489,26 @@ onBeforeUnmount(() => {
         v-html="ICONS.edit"
       ></a>
     </div>
+    <div v-if="tip" class="to-o-tip" :class="`is-${tip.side}`" :style="{ left: `${tip.x}px`, top: `${tip.y}px` }" role="tooltip">
+      {{ tip.text }}
+    </div>
   </Teleport>
-  <div v-if="enabled" ref="layer" class="to-o-layer" :class="{ 'is-on': outline }" aria-hidden="false">
+  <div
+    v-if="enabled"
+    ref="layer"
+    class="to-o-layer"
+    :class="{ 'is-on': outline }"
+    @mouseover="showTip"
+    @mouseleave="hideTip"
+    @mousedown="hideTip"
+  >
     <template v-if="outline">
+      <div
+        v-if="flash"
+        class="to-o-flash"
+        :style="{ left: `${flash.x}px`, top: `${flash.y}px`, width: `${flash.w}px`, height: `${flash.h}px` }"
+        @animationend="flash = null"
+      ></div>
       <button
         v-for="g in guides"
         :key="`g${g.node.id}`"
@@ -336,6 +516,7 @@ onBeforeUnmount(() => {
         class="to-o-guide"
         :class="{ 'is-path': path.has(g.node.id) }"
         :style="{ left: `${g.x}px`, top: `${g.top}px`, height: `${g.height}px` }"
+        :data-tip="guideTip(g.node)"
         tabindex="-1"
         aria-hidden="true"
         @click="toggleChildren(g.node)"
@@ -349,6 +530,7 @@ onBeforeUnmount(() => {
           :style="{ left: `${m.x}px`, top: `${m.y}px` }"
           :aria-label="m.node.folded ? 'Unfold' : 'Fold'"
           :aria-expanded="!m.node.folded"
+          :data-tip="m.node.folded ? 'Unfold' : 'Fold'"
           @click="toggleFold(m.node)"
           v-html="ICONS.chevron"
         ></button>
@@ -358,6 +540,7 @@ onBeforeUnmount(() => {
           :class="[`is-${m.node.kind}`, { 'is-path': path.has(m.node.id), 'is-current': active === m.node, 'is-folded': m.node.folded, 'is-ordinal': !!m.node.ordinal }]"
           :style="{ left: `${m.x}px`, top: `${m.y}px` }"
           :aria-label="`Zoom in to: ${labelOf(m.node)}`"
+          :data-tip="m.node === zoomRoot ? undefined : 'Zoom in'"
           @click="zoomTo(m.node)"
         >
           <template v-if="m.node.ordinal">{{ m.node.ordinal }}</template>

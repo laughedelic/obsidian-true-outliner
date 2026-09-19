@@ -341,6 +341,59 @@
   left: 4.5px;
 }
 
+/* The line a followed backlink led to, pointed out for a moment. */
+.to-o-flash {
+  position: absolute;
+  border-radius: 6px;
+  background: var(--vp-c-brand-soft);
+  box-shadow: 0 0 0 1px var(--vp-c-brand-2);
+  pointer-events: none;
+  animation: to-o-flash 1.8s ease-out forwards;
+}
+@keyframes to-o-flash {
+  0%,
+  30%,
+  60% {
+    opacity: 1;
+  }
+  15%,
+  45% {
+    opacity: 0.15;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes to-o-flash-still {
+  0%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.to-o-tip {
+  position: fixed;
+  z-index: 40;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+  color: var(--vp-c-bg);
+  background: var(--vp-c-text-1);
+  pointer-events: none;
+}
+.to-o-tip.is-above {
+  transform: translate(-50%, -100%);
+}
+.to-o-tip.is-right {
+  transform: translateY(-50%);
+}
+
 /* ---- Structured backlinks ------------------------------------------- */
 
 .to-o-backlinks {
@@ -379,6 +432,23 @@
   margin-left: auto;
   font-size: 13px;
   color: var(--vp-c-text-3);
+}
+.to-o-backlinks.is-folded .to-o-bl-header,
+.to-o-backlinks.is-folded .to-o-bl-icon {
+  color: var(--to-o-accent);
+}
+.to-o-backlinks.is-folded .to-o-bl-header .to-o-bl-chevron {
+  color: var(--to-o-accent);
+}
+.to-o-bl-group.is-hit {
+  animation: to-o-hit 1.4s ease-out;
+}
+@keyframes to-o-hit {
+  0%,
+  40% {
+    border-color: var(--vp-c-brand-1);
+    box-shadow: 0 0 0 3px var(--vp-c-brand-soft);
+  }
 }
 .to-o-bl-group {
   margin-bottom: 0.6rem;
@@ -479,6 +549,69 @@
   background: var(--vp-c-default-soft);
 }
 
+/* ---- Backlinks in the aside ---------------------------------------- */
+
+.to-o-aside-bl {
+  margin-top: 1.25rem;
+  padding-left: 1rem;
+  border-left: 1px solid var(--vp-c-divider);
+  font-size: 13px;
+}
+.to-o-aside-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin: 0;
+  line-height: 32px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.to-o-aside-bl ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.to-o-aside-bl a {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  line-height: 28px;
+  font-style: italic;
+  color: var(--vp-c-text-2);
+  transition: color 0.2s;
+}
+.to-o-aside-bl a:hover {
+  color: var(--vp-c-text-1);
+}
+.to-o-aside-note {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.to-o-aside-count {
+  margin-left: auto;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--vp-c-text-3);
+}
+
+/* ---- The sidebar as a tree ------------------------------------------ */
+
+.VPSidebar .VPSidebarItem.level-1 > .items,
+.VPSidebar .VPSidebarItem.level-2 > .items {
+  padding-left: 14px;
+  border-left: 0;
+}
+.VPSidebar .VPSidebarItem.level-1.collapsible > .item .text,
+.VPSidebar .VPSidebarItem.level-1:has(> .items) > .item .text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vp-c-text-1);
+}
+
 @media (max-width: 640px) {
   :root {
     --to-o-unit: 1.4rem;
@@ -486,6 +619,9 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .to-o-flash {
+    animation-name: to-o-flash-still;
+  }
   .to-o-chevron,
   .to-o-bl-chevron,
   .to-o-status :is(button, a)::after {
@@ -495,6 +631,7 @@
 @media print {
   .to-o-status,
   .to-o-trail,
+  .to-o-tip,
   .to-o-backlinks,
   .to-o-layer {
     display: none;
