@@ -823,12 +823,11 @@ indentation underneath:
   switch above; the markers' is what is left.
 - **Which icons to show, and their style** — extend the existing `markerVisibility` axis
   toward per-kind selection, style variants, and possibly **custom icons per node kind**.
-  Folds in the per-level heading markers idea (H1–H6, validated in the wild by
-  obsidian-lapel): thread the heading `level` through `LineDecorationFact` and branch
-  `buildMarkerIcon` (or render a text label). Lapel's theming pattern is worth copying
-  regardless of the built-in visuals: `data-kind`/`data-level` attributes plus
-  CSS-custom-property indirection, so themes/snippets can restyle markers without
-  touching the plugin.
+  The per-level heading markers idea (H1–H6, validated in the wild by obsidian-lapel) is
+  **taken by the `heading-level-markers` change**: the mark, the two setting axes and why a
+  text label was rejected are in [heading-level-markers.md](heading-level-markers.md). The
+  rest of this item is the roadmap's "Marker configurability"
+  ([#157](https://github.com/laughedelic/obsidian-true-outliner/issues/157)).
 - **A simpler, consistent bullet-style marker set as an opt-in** — one uniform mark for
   every kind, closer to a traditional outliner's look. (Experiment 5b's uniform dot lost
   the head-to-head as the *default*, but as an opt-in preset under the 5a mechanism it's

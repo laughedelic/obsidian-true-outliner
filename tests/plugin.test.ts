@@ -59,6 +59,8 @@ describe('persisted plugin data', () => {
       backlinksSeparator: 'chevron' as const,
       backlinksGuides: true,
       markerVisibility: 'with-children' as const,
+      headingMarkerGlyph: 'hash' as const,
+      headingMarkerLevel: 'subscript' as const,
       guideHighlight: 'lineage' as const,
       markerHighlight: 'lineage' as const,
       outlineUnit: 'balanced' as const,
@@ -75,6 +77,10 @@ describe('persisted plugin data', () => {
     expect(normalized.outlineByDefault).toBe(false);
     expect(normalized.markerVisibility).toBe(DEFAULT_DATA.markerVisibility);
     expect(normalized.guideHighlight).toBe(DEFAULT_DATA.guideHighlight);
+    // A heading's marker style, new with `heading-level-markers`: an install
+    // upgrading from before it has neither key.
+    expect(normalized.headingMarkerGlyph).toBe('H');
+    expect(normalized.headingMarkerLevel).toBe('beside');
   });
 
   it('opens new tabs in outline mode unless the file says otherwise', () => {
@@ -130,6 +136,12 @@ describe('persisted plugin data', () => {
     );
     expect(normalizePluginData({ markerHighlight: 7 }).markerHighlight).toBe(
       DEFAULT_DATA.markerHighlight,
+    );
+    expect(normalizePluginData({ headingMarkerGlyph: '§' }).headingMarkerGlyph).toBe(
+      DEFAULT_DATA.headingMarkerGlyph,
+    );
+    expect(normalizePluginData({ headingMarkerLevel: 'above' }).headingMarkerLevel).toBe(
+      DEFAULT_DATA.headingMarkerLevel,
     );
     // and a prototype key is a string but not a known state
     expect(normalizePluginData({ guideHighlight: 'toString' }).guideHighlight).toBe(
@@ -1250,6 +1262,8 @@ describe('the settings tab, derived from the declarations', () => {
       ['guideHideSingleRoot', 'toggle', null],
       ['guideIntensity', 'dropdown', ['subtle', 'normal', 'strong']],
       ['markerVisibility', 'dropdown', ['all', 'with-children', 'headings-and-paragraphs']],
+      ['headingMarkerGlyph', 'dropdown', ['H', 'hash']],
+      ['headingMarkerLevel', 'dropdown', ['beside', 'subscript', 'none']],
       ['hideGapLines', 'toggle', null],
       ['guideHighlight', 'dropdown', ['off', 'full', 'lineage']],
       ['markerHighlight', 'dropdown', ['off', 'current', 'lineage']],

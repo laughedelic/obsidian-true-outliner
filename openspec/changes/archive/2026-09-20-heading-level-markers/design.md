@@ -1,0 +1,206 @@
+## Context
+
+A heading's mark is built by `buildMarkerIcon(kind)` in `src/plugin/decorations.ts`, which
+switches on the kind alone and appends SVG children through DOM calls. It has five call sites on
+three surfaces:
+
+- **The editor**: `MarkerWidget.toDOM` for plain lines. The widget-atom injection is never a
+  heading, since `WIDGET_ATOM_KINDS` holds only table, callout, html and hr.
+- **The backlinks footer**: `markerFor`, `segmentMarker` and `segmentGlyph`.
+- **The zoom trail**: it reuses `segmentGlyph`.
+
+The level exists on `OutlineNode.level` but stops there. Neither `LineDecorationFact` nor the
+footer's `LineageSegment` carries it. The footer also makes facts outside `decorate()`: `rowFact` for
+a row that has no node, where a collapsed lineage row takes the kind of its chain's first element
+and so can be `heading` without any level to give, and `syntheticFact` for an emitted descendant.
+And the zoom trail built its crumbs with its own copy of the footer's segment literal.
+
+Each surface decides whether to rebuild its DOM with an identity check, and today that check
+knows only the kind:
+
+- `MarkerWidget.eq` compares kind and left shift.
+- `lineageKey` joins each segment's text, render mode, kind, task state and ordinal.
+- The zoom trail's widget key adds the segment-icon setting to that.
+
+The design has to satisfy the constraints in
+[heading-level-markers.md](../../../docs/research/heading-level-markers.md), "The constraints".
+The mark it must draw, with exact geometry, is the same note's "Decision".
+
+## Goals / Non-Goals
+
+**Goals:**
+- Draw the six styles exactly as the research note's geometry table specifies, from one
+  definition every surface shares. `H` with no digit reproduces today's heading mark exactly.
+- Make the geometry checkable by the unit suite, which has no DOM
+  ([#156](https://github.com/laughedelic/obsidian-true-outliner/issues/156)).
+- Give every identity check on the drawing path the level and the style, so neither an edit nor a
+  setting change leaves a stale mark mounted.
+
+**Non-Goals:**
+- Restructuring how the other kinds are drawn. They move into the same pure geometry function
+  only because they share `buildMarkerIcon`'s switch; their shapes do not change.
+- A general per-kind style mechanism. The style is one value for one kind (proposal, Non-goals).
+
+## Decisions
+
+### D1. Geometry is a pure function; the DOM is a thin materialiser
+
+A new function, `markerShapes(subject)`, returns a list of primitives: a tag plus its attributes,
+covering `rect`, `polygon`, `circle`, `line`, `polyline`, and a stroked `path` inside a
+transformed `g`. `buildMarkerIcon` becomes a loop that creates those elements under the existing
+`<svg viewBox="0 0 16 16">`. The whole heading drawing becomes reachable from the unit suite:
+bounds, distinctness, and the derived `H` height.
+
+*Alternatives.*
+- Keeping the drawing inline in `buildMarkerIcon` leaves the geometry testable only in e2e,
+  through rendered rects, whose pixel values vary by platform.
+- A data-URI or CSS-mask icon was rejected in Experiment 5a in favour of DOM-built SVG
+  ([experiment-5-block-markers.md](../../../docs/research/experiment-5-block-markers.md)).
+
+### D2. A heading subject always carries its level
+
+A node's kind and level travel as one union, `NodeMark`: `{ kind: 'heading', level }` or
+`{ kind: <other> }`. `LineDecorationFact` and `LineageSegment` are their own fields intersected
+with it, so a heading fact or segment without a level does not compile. That holds for every
+route that builds one, the synthetic ones included (`rowFact` takes a `NodeMark`), and for a test
+that builds one by hand. `markSubject(node, style)` takes a `NodeMark` too, and is total.
+
+The one runtime check sits where the model enters these types. `nodeMark(node)` reads an
+`OutlineNode`, whose level is only documented as present for a heading. The parser sets it for
+every heading, so a heading without one is a parser defect, and it throws there. Every fact
+route and the shared segment constructor go through it. The footer's lineage segments and the
+zoom trail's crumbs are built by one constructor, `lineageSegment`, so neither surface can drop
+a field the other carries. `segmentMarker`'s fallback, for a chain with no elements, takes the
+row's own fact, which is a `NodeMark` like any other.
+
+*Alternative.* Defaulting a missing level to 1, or falling back to the no-digit mark. Either
+would make a model defect render as a plausible mark instead of failing to compile.
+
+### D3. The style travels as data with the other drawing inputs
+
+The two settings resolve to one `HeadingMarkerStyle` value, `{ glyph: 'H' | 'hash', level:
+'beside' | 'subscript' | 'none' }`. With `none`, the drawing ignores the subject's level. The
+subject still carries it (D2), so `data-level` stays true and the identity checks in D4 need no
+special case. It is read fresh per recompute through the source interfaces that
+already carry marker settings: `DecorationSource` for the editor, `FooterSource` for the footer,
+and `ZoomTrailSource` for the trail. The fixed weights live in a table keyed by the style inside
+the geometry module. They appear nowhere else.
+
+*Alternative considered.* Draw all six styles into every heading mark and select one by an
+attribute on `body`. A setting change would then be paint-only. It is rejected for two reasons:
+
+- `57-marker-gap.e2e.ts` reads a mark's ink as the union of its children's rects, and a
+  `display: none` child reports a zero rect at the origin, which corrupts that union.
+- Every heading would carry six drawings to show one.
+
+### D4. The level and the style join every identity check on the drawing path
+
+- **`MarkerWidget`**: gains `level` and `style`, and `eq` compares both. Without the level,
+  retyping `##` as `###` keeps the H2 widget: same position, same kind, same shift.
+- **`lineageKey`**: joins the segment's level, for the same reason on the footer and the trail.
+- **The zoom trail's key**: joins the style, as it already joins the segment-icon setting for the
+  same failure its comment records.
+- **The footer's own widget**: keyed by the note, and already re-rendered by `repaintFooters`.
+  It needs no change.
+
+### D5. The twin `H`'s height is computed, not tabulated
+
+The `H`-beside style sizes its glyph box from the digit's ink extent: the outline's figure spans
+`y = 1..9` of its authored box, plus half the stroke on each side. The research note's
+`3.09 / 9.82` are outputs of that computation. If the digit's box or weight is ever retuned, the
+`H` follows, and a unit test holds the equality.
+
+### D6. Digits are stroked paths with scale-compensated stroke width
+
+Each digit path is authored in a 6 × 10 box ([heading-level-markers.md](../../../docs/research/heading-level-markers.md),
+"The digits"). It is placed with a uniform `scale` in a `g` transform and centred in its digit
+box. `stroke-width` is divided by the scale, so the tabulated `t` is the stroke drawn in viewBox
+units at every box size. `vector-effect: non-scaling-stroke` would instead fix the stroke in
+rendered pixels, and the footer's smaller box would then draw a proportionally heavier digit
+than the editor's.
+
+### D7. `data-kind` and `data-level` sit on the marker wrapper
+
+`MarkerWidget.toDOM` sets `data-kind` on the `.to-decor-marker-icon` span, which the widget-atom
+path already does, and sets `data-level` when the kind is `heading`. No stylesheet rule selects
+on either. The e2e reads them to find a given level's mark, then asserts on the drawing itself,
+so the tests never trust the label (D8).
+
+### D8. Tests assert the drawing, not the label
+
+- **Unit (geometry)**, for every style and level:
+  - every primitive's extent, including half its stroke, lies inside `0..16`, bounded
+    conservatively by the path's control points;
+  - the six digit paths are pairwise distinct;
+  - each style's weights match the table;
+  - the `H`-beside glyph's top and bottom equal the digit's ink extent;
+  - with no digit, the six levels draw identical primitives, and `H` alone equals today's
+    heading primitives.
+- **Unit (model)**: a heading's fact and lineage segment carry its level, and no other kind
+  carries one. `lineageKey` differs between two segments that differ only in level.
+- **e2e (editor)**, all in a new decorations-group spec:
+  - the six levels mount six different SVG markups, or one shared markup with no digit;
+  - retyping a level redraws the mark;
+  - each setting switches every mounted heading mark, in an inactive pane as well;
+  - the width and height equality against a paragraph still holds.
+- **e2e (surfaces)**: in a heading's footer lineage and zoom trail segment, the SVG markup
+  equals the editor's for the same level and style, before and after a style change.
+- **Unchanged and re-run**: `52-block-markers-icons.e2e.ts` and `57-marker-gap.e2e.ts`. The
+  heading's wider ink is inside the box, and the checkbox stays the widest mark.
+
+### D9. A style change redraws every open editor, through the footer's nudge
+
+Both settings are global, so a change has to reach every open pane, not just the active one.
+`forceRedraw` flips the mode field in the active view only. It exists for widget-replaced atoms,
+whose margin compensation needs a decoration output that genuinely differs, and a heading's mark
+is never one of those. `nudgeFooters` already dispatches an effect-only transaction to every open
+markdown editor. That transaction runs each editor's update cycle, and both surfaces that draw a
+heading mark in the editor recompute on any update, reading the settings fresh: `MarkersPlugin`
+and the zoom trail's field. With the style in their identity checks (D4), every pane redraws its
+heading marks and its trail. `repaintFooters` then re-renders the footers' own DOM.
+
+*Alternative.* Extending `forceRedraw` to every leaf. It would redraw the other settings'
+widget-atom cases too, but it is a wider change than this one needs, and those settings' own
+active-only behaviour is not in scope here.
+
+### D10. The settings preview is a render row drawing through the same builder
+
+Obsidian 1.13's declarative settings take a `SettingDefinitionRender` item beside the control
+rows, which renders imperatively and may return a cleanup. The preview is one of those, placed
+after the level setting, and it draws ONE level's mark with `buildMarkerIcon` — the editor's own
+builder, so the preview cannot show a mark the editor would not draw. One mark rather than all
+six, on the row's own control line rather than in a panel of its own: it answers "what does this
+choice draw", which one mark answers, and it costs the settings tab one row. It is drawn larger
+than the editor's, because it is examined rather than read past. The tab keeps the redraw of
+every mounted preview and calls them after a write, which is what makes the preview follow the
+dropdown that is sitting right above it. The pre-1.13 `display()` fallback renders the same row
+through the same function, for the reason that path exists at all.
+
+*Alternatives.* Illustrating the styles with a static image or hand-written SVG would drift from
+the builder the moment a shape is tuned. Drawing all six levels as a small outline was tried
+first and withdrawn: it showed what the six digits look like, which the reader can see in their
+own note, and spent a panel's worth of the settings tab doing it.
+
+## Risks / Trade-offs
+
+- **[Risk]** Every heading changes its look on upgrade, because the default shows the level. →
+  `H` with no digit is today's mark exactly, one setting away. A unit test pins it to today's
+  primitives.
+- **[Risk]** `#` with no digit has not been reviewed at real size. → It is drawn to the `H`'s
+  footprint and weight, and manual review (task 8.1) settles its weight before landing.
+- **[Risk]** `#95` and `#124` touch the footer's and the drag preview's calls into
+  `buildMarkerIcon`. → The call sites change in only a few lines each. Whichever lands second
+  passes the subject from D2. The type change makes a missed site a compile error, not a silent
+  plain mark.
+- **[Trade-off]** A heading's mark carries more ink than the plain `H`: a second glyph, and ink
+  reaching further toward its text. → The research note's "Against the budget" shows it inside
+  the box and clear of the stated gap, and the gap e2e re-verifies it on CI's fonts.
+- **[Trade-off]** The settings tab gains two rows for one kind's mark. → They are the first step
+  of #157's "Marker configurability". The row descriptions say what each axis changes, and
+  nothing more is added until a second kind earns a style.
+
+## Migration Plan
+
+No data migration. The two keys are new and absent keys take their defaults, as every setting's
+does through `normalizePluginData`, which also rejects unknown values. Rollback is a revert: an
+older build ignores the two keys.

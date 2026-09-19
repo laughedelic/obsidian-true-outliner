@@ -24,9 +24,8 @@ import { StateField, type EditorState, type Extension } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view';
 import { Component, editorInfoField } from 'obsidian';
 import type { OutlineNode } from '../model';
-import { segmentContent } from '../node-text';
 import { nodeStartLine } from '../locate';
-import { lineageKey, rowFact, splitPath, type LineageSegment } from './footer-model';
+import { lineageKey, lineageSegment, rowFact, splitPath, type LineageSegment } from './footer-model';
 import { renderLineageContent } from './lineage-row';
 import { renderInline, segmentGlyph, separatorGlyph } from './backlinks-footer';
 import { lineChrome, applyLineChrome, OWN_CHROME_CLASS } from './chrome-line';
@@ -34,6 +33,7 @@ import { parsedDoc } from './parsed-doc';
 import { zoomScope } from './zoom-scope';
 import { zoomCleared, zoomTo } from './zoom-state';
 import type { LineageSeparator, SegmentIcons } from './settings/footer';
+import { nodeMark, type HeadingMarkerStyle } from './marker-shapes';
 
 export const TRAIL_CLASS = 'to-zoom-trail';
 
@@ -42,6 +42,8 @@ export const TRAIL_CLASS = 'to-zoom-trail';
 export interface ZoomTrailSource {
   readonly backlinksSegmentIcons: SegmentIcons;
   readonly backlinksSeparator: LineageSeparator;
+  /** How a heading's mark is drawn, as the editor draws it. */
+  readonly headingMarkerStyle: HeadingMarkerStyle;
 }
 
 export const MODE_MARK_CLASS = 'to-zoom-out';
@@ -127,13 +129,9 @@ function segmentsFor(fileName: string, trail: readonly OutlineNode[]): LineageSe
     // A note's name is not markdown, so it is rendered as what it is. Running it
     // through the renderer would make a file called `**draft**` come out bold.
     { markdown: fileName, render: 'text', nodeId: FILE_SEGMENT_ID, kind: 'paragraph' },
-    // The same rule the footer's own lineage segments come from, so a crumb and
-    // a segment naming the same node say the same thing (docs/research/lineage-text-rendering).
-    ...trail.map((node) => ({
-      ...segmentContent(node),
-      nodeId: node.id,
-      kind: node.kind,
-    })),
+    // The footer's own lineage segments, so a crumb and a segment naming the
+    // same node say the same thing (docs/research/lineage-text-rendering).
+    ...trail.map(lineageSegment),
   ];
 }
 
@@ -181,7 +179,7 @@ class ZoomTrailWidget extends WidgetType {
     // The same chrome a footer lineage row takes, at depth 0 and with no guides:
     // the trail is one row about one chain, so there is no depth for a stripe to
     // describe.
-    applyLineChrome(row, lineChrome(rowFact('paragraph', 0), { nativeBlocks: false }));
+    applyLineChrome(row, lineChrome(rowFact({ kind: 'paragraph' }, 0), { nativeBlocks: false }));
 
     const info = view.state.field(editorInfoField, false);
     const file = info?.file;
@@ -217,13 +215,13 @@ class ZoomTrailWidget extends WidgetType {
       // thing telling them apart, while a footer lineage row sits in a card
       // whose structure already groups it (design D10).
       separator: 'chevron',
-      kind: scope.trail[0]?.kind ?? 'paragraph',
+      fallback: scope.trail[0] ? nodeMark(scope.trail[0]) : { kind: 'paragraph' },
       // The gutter mark is the zoom-out control, not this segment's kind — so
       // it stays even when the icon setting says "none", which would
       // otherwise remove it along with the decorative kind glyphs it is not.
       markerRequired: true,
       marker: () => zoomOutMark(clear),
-      glyph: segmentGlyph,
+      glyph: (segment) => segmentGlyph(segment, this.modes.headingMarkerStyle),
       separatorGlyph,
       // The same renderer and the same policy the footer's lineage rows take:
       // one implementation, so a crumb and a segment naming the same node are
@@ -287,12 +285,14 @@ function compute(state: EditorState, modes: ZoomTrailSource): DecorationSet {
   const name = file ? splitPath(file.path).name : 'Note';
   // The icon setting changes what the row DRAWS, so it is part of the widget's
   // identity: without it, turning icons off nudged every editor while `eq()`
-  // still said equal and CodeMirror kept the old marks.
+  // still said equal and CodeMirror kept the old marks. The heading marker
+  // style is identity for the same reason.
   // The FULL path, not the name: `MarkdownRenderer` resolves a crumb's relative
   // links against it, so a note moved to another folder keeping its basename
   // renders different links from an unchanged key.
   const key = [
     modes.backlinksSegmentIcons,
+    `${modes.headingMarkerStyle.glyph}:${modes.headingMarkerStyle.level}`,
     file?.path ?? '',
     lineageKey(segmentsFor(name, scope.trail)),
   ].join('\u0002');

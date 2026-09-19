@@ -42,9 +42,12 @@ import type {
   GuideHighlight,
   GuideIntensity,
   GuideVisibility,
+  HeadingMarkerGlyph,
+  HeadingMarkerLevel,
   MarkerHighlight,
   OutlineUnit,
 } from './settings/appearance';
+import type { HeadingMarkerStyle } from './marker-shapes';
 import type { StatusBarMode } from './settings/mode';
 
 /** The `PluginData` keys the footer reads, so `setFooterSetting` can only be
@@ -56,7 +59,9 @@ type FooterSettingKey =
   | 'backlinksSuppressCore'
   | 'backlinksSegmentIcons'
   | 'backlinksSeparator'
-  | 'backlinksGuides';
+  | 'backlinksGuides'
+  | 'headingMarkerGlyph'
+  | 'headingMarkerLevel';
 import { planCaret, type CaretOp } from '../caret-policy';
 import { editsToChanges, mapCursorForward, type EditorChange } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
@@ -72,6 +77,7 @@ import {
 import { BacklinkIndex } from './backlink-index';
 import { BUILD_STAMP } from 'virtual:build-stamp';
 import { decorationsExtension, type MarkerVisibility } from './decorations';
+import { drawHeadingMarkerPreview } from './heading-marker-preview';
 import { transactionFilterExtension } from './transaction-filter';
 import { viewRegistryExtension } from './view-registry';
 import { zoomStateExtension } from './zoom-state';
@@ -786,6 +792,35 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.data.markerVisibility = value;
     await this.saveData(this.data);
     this.forceRedraw();
+  }
+
+  get headingMarkerGlyph(): HeadingMarkerGlyph {
+    return this.data.headingMarkerGlyph;
+  }
+
+  get headingMarkerLevel(): HeadingMarkerLevel {
+    return this.data.headingMarkerLevel;
+  }
+
+  /** Both axes as the one value every surface draws a heading's mark from. */
+  get headingMarkerStyle(): HeadingMarkerStyle {
+    return { glyph: this.data.headingMarkerGlyph, level: this.data.headingMarkerLevel };
+  }
+
+  /**
+   * A heading's mark is drawn on three surfaces, in every open pane, and the
+   * footer's writer reaches all three. Its nudge dispatches into every open
+   * editor, and the editor's markers and the zoom trail recompute on any
+   * transaction; `repaintFooters` then redraws the footers themselves.
+   * `forceRedraw` would reach the active pane alone, and it exists for widget
+   * atoms, which never carry a heading's mark.
+   */
+  async setHeadingMarkerGlyph(value: HeadingMarkerGlyph): Promise<void> {
+    await this.setFooterSetting('headingMarkerGlyph', value);
+  }
+
+  async setHeadingMarkerLevel(value: HeadingMarkerLevel): Promise<void> {
+    await this.setFooterSetting('headingMarkerLevel', value);
   }
 
   get hideGapLines(): boolean {
@@ -1506,12 +1541,16 @@ const WRITERS: {
   guideHideSingleRoot: (p, v) => p.setGuideHideSingleRoot(v),
   guideIntensity: (p, v) => p.setGuideIntensity(v),
   markerVisibility: (p, v) => p.setMarkerVisibility(v),
+  headingMarkerGlyph: (p, v) => p.setHeadingMarkerGlyph(v),
+  headingMarkerLevel: (p, v) => p.setHeadingMarkerLevel(v),
   hideGapLines: (p, v) => p.setHideGapLines(v),
   guideHighlight: (p, v) => p.setGuideHighlight(v),
   markerHighlight: (p, v) => p.setMarkerHighlight(v),
 };
 
 const EXPERIMENTAL_CHIP_CLASS = 'to-setting-chip';
+
+const HEADING_PREVIEW_NAME = 'Preview';
 
 /**
  * A setting's description as the tab renders it: the text itself, or a fragment
@@ -1535,12 +1574,32 @@ function describeSetting(desc: string, experimental?: boolean): string | Documen
   return fragment;
 }
 
+/** The setting the heading marker preview follows, so it sits under the two
+ * settings it previews. */
+const HEADING_PREVIEW_AFTER: SettingKey = 'headingMarkerLevel';
+
 class TrueOutlinerSettingTab extends PluginSettingTab {
+  /** Every mounted preview's redraw. A preview draws from the settings, so every
+   * write redraws them; a torn-down row removes its own. */
+  private readonly previews = new Set<() => void>();
+
   constructor(
     app: App,
     private readonly plugin: TrueOutlinerPlugin,
   ) {
     super(app, plugin);
+  }
+
+  /** One heading's mark, drawn in the chosen style, where the row above it puts
+   * its dropdown. Returns the row's cleanup. */
+  private renderHeadingPreview(setting: Setting): () => void {
+    const el = setting.controlEl.createSpan();
+    const redraw = (): void => drawHeadingMarkerPreview(el, this.plugin.headingMarkerStyle);
+    redraw();
+    this.previews.add(redraw);
+    return () => {
+      this.previews.delete(redraw);
+    };
   }
 
   /**
@@ -1559,10 +1618,16 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
     // also carries `aliases`, `searchable` and `visible`, and a declaration
     // gaining one of those should reach this path as it already reaches
     // `display()`. Only `experimental` is consumed here, becoming the chip.
-    return settingDefinitions().map(({ experimental, desc, ...rest }) => ({
-      ...rest,
-      desc: describeSetting(desc, experimental),
-    }));
+    return settingDefinitions().flatMap(({ experimental, desc, ...rest }) => {
+      const row: SettingDefinitionItem = { ...rest, desc: describeSetting(desc, experimental) };
+      if (rest.control.key !== HEADING_PREVIEW_AFTER) return [row];
+      const preview: SettingDefinitionItem = {
+        name: HEADING_PREVIEW_NAME,
+        searchable: false,
+        render: (setting) => this.renderHeadingPreview(setting),
+      };
+      return [row, preview];
+    });
   }
 
   /** This plugin doesn't use the conventional `this.plugin.settings` shape
@@ -1580,11 +1645,13 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
     // a dropdown's option — and the writer it names takes exactly that.
     const coerced = declared.control === 'toggle' ? Boolean(value) : String(value);
     await WRITERS[declared.key](this.plugin, coerced as never);
+    for (const redraw of this.previews) redraw();
   }
 
   /** Pre-1.13 fallback only — see getSettingDefinitions() above. */
   override display(): void {
     this.containerEl.empty();
+    this.previews.clear();
     for (const { name, desc, experimental, control } of settingDefinitions()) {
       const setting = new Setting(this.containerEl)
         .setName(name)
@@ -1602,6 +1669,9 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
             .setValue(String(this.plugin.setting(control.key)))
             .onChange((value) => void this.setControlValue(control.key, value)),
         );
+      }
+      if (control.key === HEADING_PREVIEW_AFTER) {
+        this.renderHeadingPreview(new Setting(this.containerEl).setName(HEADING_PREVIEW_NAME));
       }
     }
   }

@@ -1,6 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { makeNode, type OutlineDoc } from '../src/model';
+import { makeNode, ownSpan, type OutlineDoc, type OutlineNode } from '../src/model';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
 import { arbMarkdownText, arbTree } from './generators';
@@ -210,6 +210,53 @@ describe('decorate: node kind (Experiment 5, block markers)', () => {
 
     const code = decorate(parse('```\ncode\n```\n'));
     expect(code.every((f) => f.hasChildren === false)).toBe(true); // atoms are always leaves
+  });
+
+  /**
+   * What a heading's marker names (`heading-level-markers`, design D2). The
+   * level rides on every line of the node, like its kind, and on nothing else.
+   *
+   * Negative control: drop the `level` forward in `decorate()` and every heading
+   * fact loses its level.
+   */
+  describe('carries a heading’s level exactly where the kind is heading', () => {
+    const check = (md: string): void => {
+      const doc = parse(md);
+      const facts = decorate(doc);
+      const byLine = new Map(facts.map((f) => [f.lineNumber, f]));
+      let line = doc.preamble.length;
+      const walk = (nodes: readonly OutlineNode[]): void => {
+        for (const node of nodes) {
+          for (let i = 0; i < node.lines.length; i++) {
+            const fact = byLine.get(line + i)!;
+            expect({ md, line: line + i, level: fact.level }).toEqual({
+              md,
+              line: line + i,
+              level: node.kind === 'heading' ? node.level : undefined,
+            });
+          }
+          line += ownSpan(node);
+          walk(node.children);
+        }
+      };
+      walk(doc.children);
+      for (const fact of facts) expect(fact.level !== undefined).toBe(fact.kind === 'heading');
+    };
+
+    it('names each level on a fixed note, a setext underline included', () => {
+      const facts = decorate(parse('# One\n\n## Two\n\n###### Six\n\nSetext\n===\n\npara\n'));
+      expect(facts.map((f) => [f.lineNumber, f.level])).toEqual([
+        [0, 1], [2, 2], [4, 6], [6, 1], [7, 1], [9, undefined],
+      ]);
+    });
+
+    it('holds over arbMarkdownText', () => {
+      fc.assert(fc.property(arbMarkdownText, check), { numRuns: 300 });
+    });
+
+    it('holds over arbTree', () => {
+      fc.assert(fc.property(arbTree().map(encode), check), { numRuns: 100 });
+    });
   });
 });
 

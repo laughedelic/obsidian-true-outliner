@@ -26,3 +26,26 @@
   vertical-align: baseline;
   white-space: nowrap;
 }
+
+/*
+ * The heading marker preview (`heading-level-markers`): one mark, drawn by the
+ * editor's own builder in the chosen style, on the row under the two settings
+ * it previews and in the column their dropdowns sit in.
+ *
+ * Deliberately larger than the editor's own mark, and the one place that is
+ * true: this mark is being examined while a choice is made, not read past
+ * beside a line of text.
+ */
+.to-heading-marker-preview {
+  display: inline-flex;
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  color: var(--text-muted);
+}
+
+.to-heading-marker-preview > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

@@ -126,6 +126,14 @@ import { foldedChrome } from './fold-service';
 import { foldableEntries } from './fold-model';
 import { guideHoverField, type GuideHover } from './guide-hover';
 import { toggleFoldAtLine } from './fold-commands';
+import {
+  markerShapes,
+  markKey,
+  markSubject,
+  type HeadingMarkerStyle,
+  type MarkSubject,
+  type Shape,
+} from './marker-shapes';
 
 // ---- Shared per-document fact computation (hardening 5.4) ------------------
 //
@@ -811,6 +819,8 @@ import type { MarkerVisibility } from './settings/appearance';
  * `forceRedraw` exists to guarantee. */
 export interface DecorationSource {
   readonly markerVisibility: MarkerVisibility;
+  /** How a heading's marker is drawn (`heading-level-markers`). */
+  readonly headingMarkerStyle: HeadingMarkerStyle;
   /** Which markers to accent (hierarchy-position-indicators). Read fresh per
    * recompute, same as the settings above. */
   readonly markerHighlight: MarkerHighlight;
@@ -883,26 +893,17 @@ function svgEl<K extends keyof SVGElementTagNameMap>(
   return el;
 }
 
-const STROKE_ATTRS = {
-  stroke: 'currentColor',
-  'stroke-width': '1.5',
-  fill: 'none',
-  'stroke-linecap': 'round',
-  'stroke-linejoin': 'round',
-};
-
 /**
- * Builds one distinct, self-drawn SVG icon per eligible node kind — via DOM
- * APIs directly (element creation + attribute setting in code), not a
- * data-URI string.
+ * Builds a node's self-drawn SVG mark — via DOM APIs directly (element
+ * creation + attribute setting in code), not a data-URI string. What each mark
+ * draws is `markerShapes`' answer (marker-shapes.ts); this only makes it DOM.
  *
- * Exported because the backlinks footer draws the same vocabulary on a
- * different DOM. A node's marker says what KIND of node it is; two surfaces
- * drawing that from two icon sets would be two answers to one question. Not a final design; exact shapes are expected to be
- * tuned by eye during real-vault review, like every other visual call in
- * this project (see the plan's own framing of Experiment 5a).
+ * Exported because the backlinks footer and the zoom trail draw the same
+ * vocabulary on a different DOM. A node's marker says what KIND of node it is,
+ * and for a heading which level; two surfaces drawing that from two icon sets
+ * would be two answers to one question.
  */
-export function buildMarkerIcon(kind: NodeKind): SVGSVGElement {
+export function buildMarkerIcon(subject: MarkSubject): SVGSVGElement {
   // `aria-hidden`: the marker is purely decorative chrome (the node's kind
   // is already in the accessible text itself — heading level, code fence,
   // etc.), so screen readers should skip it entirely (hardening 5.6).
@@ -912,107 +913,38 @@ export function buildMarkerIcon(kind: NodeKind): SVGSVGElement {
     height: '100%',
     'aria-hidden': 'true',
   });
-  const children: SVGElement[] = [];
-
-  switch (kind) {
-    case 'heading':
-      // A blocky "H": two vertical bars + a crossbar.
-      children.push(
-        svgEl('rect', { x: '3', y: '2', width: '2', height: '12', fill: 'currentColor' }),
-        svgEl('rect', { x: '11', y: '2', width: '2', height: '12', fill: 'currentColor' }),
-        svgEl('rect', { x: '3', y: '7', width: '10', height: '2', fill: 'currentColor' }),
-      );
-      break;
-    case 'paragraph':
-      // Three text lines, the last one shorter.
-      children.push(
-        svgEl('line', { ...STROKE_ATTRS, x1: '2', y1: '4', x2: '14', y2: '4' }),
-        svgEl('line', { ...STROKE_ATTRS, x1: '2', y1: '8', x2: '14', y2: '8' }),
-        svgEl('line', { ...STROKE_ATTRS, x1: '2', y1: '12', x2: '9', y2: '12' }),
-      );
-      break;
-    case 'code':
-      // "</>"
-      children.push(
-        svgEl('polyline', { ...STROKE_ATTRS, points: '6,3 2,8 6,13' }),
-        svgEl('line', { ...STROKE_ATTRS, x1: '9.5', y1: '2', x2: '6.5', y2: '14' }),
-        svgEl('polyline', { ...STROKE_ATTRS, points: '10,3 14,8 10,13' }),
-      );
-      break;
-    case 'table':
-      // 2x2 grid.
-      children.push(
-        svgEl('rect', { ...STROKE_ATTRS, x: '2', y: '2', width: '12', height: '12', rx: '1' }),
-        svgEl('line', { ...STROKE_ATTRS, x1: '2', y1: '8', x2: '14', y2: '8' }),
-        svgEl('line', { ...STROKE_ATTRS, x1: '8', y1: '2', x2: '8', y2: '14' }),
-      );
-      break;
-    case 'callout':
-      // Filled alert circle with an "!" bar.
-      children.push(
-        svgEl('circle', { cx: '8', cy: '8', r: '6', fill: 'currentColor' }),
-        svgEl('rect', {
-          x: '7',
-          y: '4',
-          width: '2',
-          height: '5',
-          fill: 'var(--background-primary)',
-        }),
-        svgEl('rect', {
-          x: '7',
-          y: '10',
-          width: '2',
-          height: '2',
-          fill: 'var(--background-primary)',
-        }),
-      );
-      break;
-    case 'quote':
-      // Two opening-quote marks.
-      children.push(
-        svgEl('circle', { cx: '5', cy: '5', r: '2', fill: 'currentColor' }),
-        svgEl('rect', { x: '4', y: '5', width: '2', height: '4', fill: 'currentColor' }),
-        svgEl('circle', { cx: '11', cy: '5', r: '2', fill: 'currentColor' }),
-        svgEl('rect', { x: '10', y: '5', width: '2', height: '4', fill: 'currentColor' }),
-      );
-      break;
-    case 'html':
-      // An outlined tag/document shape with a folded corner.
-      children.push(
-        svgEl('rect', { ...STROKE_ATTRS, x: '3', y: '2', width: '10', height: '12', rx: '1' }),
-        svgEl('line', { ...STROKE_ATTRS, x1: '9', y1: '2', x2: '13', y2: '6' }),
-      );
-      break;
-    case 'hr':
-      // A single bold horizontal bar.
-      children.push(
-        svgEl('rect', { x: '2', y: '7', width: '12', height: '2', fill: 'currentColor' }),
-      );
-      break;
-    case 'list-item':
-      // A bullet. The EDITOR never asks for this one — a list line there keeps
-      // its native marker, which is editable text the reader typed. The
-      // backlinks footer does: it renders list items unwrapped, with no native
-      // marker to keep, so it draws the bullet the reader would have seen.
-      //
-      // Larger than the fallback dot below, because it stands in for a real
-      // bullet rather than marking an unclassified node: at r=2 it read as a
-      // speck beside 16px text.
-      children.push(svgEl('circle', { cx: '8', cy: '8', r: '3', fill: 'currentColor' }));
-      break;
-    default:
-      // A small dot keeps this exhaustive-in-spirit without dead code paths.
-      children.push(svgEl('circle', { cx: '8', cy: '8', r: '2', fill: 'currentColor' }));
-  }
-
   // Safe DOM insertion (see the no-restricted-syntax guard in
   // eslint.config.js, hardening 5.2): `svg` is detached — built here, never
   // queried from the live document — so no CM6-owned or Obsidian-owned
   // subtree is being mutated.
   // eslint-disable-next-line no-restricted-syntax -- detached DOM: built here, never mounted by this code
-  svg.append(...children);
+  svg.append(...markerShapes(subject).map(shapeElement));
   return svg;
 }
+
+function shapeElement(shape: Shape): SVGElement {
+  const el = svgEl(shape.tag, shape.attrs);
+  if (shape.children) {
+    // eslint-disable-next-line no-restricted-syntax -- detached DOM: a group built here, before its svg is
+    el.append(...shape.children.map(shapeElement));
+  }
+  return el;
+}
+
+/**
+ * The node a marker marks, stated on its wrapper: its kind, and for a heading
+ * its level, whether or not the style draws the digit. For snippets and tests;
+ * no rule of ours selects on either.
+ */
+function stateMark(el: HTMLElement, subject: MarkSubject): void {
+  el.dataset.kind = subject.kind;
+  if (subject.kind === 'heading') el.dataset.level = String(subject.level);
+  else delete el.dataset.level;
+}
+
+/** Which mark a widget-line icon was built for. The DOM states the kind and
+ * level but not the style, and a style change has to rebuild the icon too. */
+const WIDGET_MARK_KEYS = new WeakMap<HTMLElement, string>();
 
 /** Widget-replaced atom kinds (see the module doc comment) — markers on
  * these are injected directly by MarginCompensation, not the CM6 widget
@@ -1049,14 +981,16 @@ function applyMarkerLeft(el: HTMLElement, leftExpr: string): void {
 
 class MarkerWidget extends WidgetType {
   constructor(
-    private readonly kind: NodeKind,
+    private readonly subject: MarkSubject,
     private readonly leftShiftExpr: string,
   ) {
     super();
   }
 
+  /** The level and the style are identity too: retyping `##` as `###` keeps the
+   * position, the kind and the shift, and must still redraw the mark. */
   override eq(other: MarkerWidget): boolean {
-    return other.kind === this.kind && other.leftShiftExpr === this.leftShiftExpr;
+    return markKey(other.subject) === markKey(this.subject) && other.leftShiftExpr === this.leftShiftExpr;
   }
 
   /**
@@ -1094,6 +1028,7 @@ class MarkerWidget extends WidgetType {
    */
   toDOM(): HTMLElement {
     const wrapper = createSpan({ cls: 'to-decor-marker-icon' });
+    stateMark(wrapper, this.subject);
     applyMarkerLeft(wrapper, this.leftShiftExpr);
     // Safe DOM insertion (see the no-restricted-syntax guard in
     // eslint.config.js, hardening 5.2): `wrapper` is detached at this point
@@ -1101,7 +1036,7 @@ class MarkerWidget extends WidgetType {
     // supported insertion path, which is the whole reason plain-line
     // markers use Decoration.widget instead of direct DOM injection.
     // eslint-disable-next-line no-restricted-syntax -- detached DOM: CM6 mounts toDOM()'s result via its own supported path
-    wrapper.appendChild(buildMarkerIcon(this.kind));
+    wrapper.appendChild(buildMarkerIcon(this.subject));
     return wrapper;
   }
 
@@ -1340,7 +1275,13 @@ function computeMarkers(state: EditorState, modes: DecorationSource): Decoration
     builder.add(
       from,
       from,
-      Decoration.widget({ widget: new MarkerWidget(fact.kind, MARKER_LEFT_SHIFT_EXPR), side: -1 }),
+      Decoration.widget({
+        widget: new MarkerWidget(
+          markSubject(fact, modes.headingMarkerStyle),
+          MARKER_LEFT_SHIFT_EXPR,
+        ),
+        side: -1,
+      }),
     );
   }
   return builder.finish();
@@ -1885,21 +1826,22 @@ function isMarkerEligible(fact: LineDecorationFact): boolean {
  * below) — visibly offsetting the table's marker from every other kind's
  * marker at the same depth.
  */
-function applyWidgetMarker(el: HTMLElement, kind: NodeKind, ownShiftExpr: string): void {
+function applyWidgetMarker(el: HTMLElement, subject: MarkSubject, ownShiftExpr: string): void {
   const targetRelExpr = `calc(${el.dataset.markerDepth ?? '0'} * ${UNIT} - (${ownShiftExpr}))`;
   const leftExpr = markerAnchorLeftExpr(targetRelExpr);
   const existing = el.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
   if (existing) {
     applyMarkerLeft(existing, leftExpr);
-    if (existing.dataset.kind === kind) return;
+    if (WIDGET_MARK_KEYS.get(existing) === markKey(subject)) return;
     existing.remove();
   }
   const icon = createSpan({ cls: 'to-decor-marker-icon to-decor-marker-icon--widget' });
-  icon.dataset.kind = kind;
+  stateMark(icon, subject);
+  WIDGET_MARK_KEYS.set(icon, markKey(subject));
   applyMarkerLeft(icon, leftExpr);
   // Safe DOM insertion: `icon` is still detached here.
   // eslint-disable-next-line no-restricted-syntax -- detached DOM: icon not yet mounted
-  icon.appendChild(buildMarkerIcon(kind));
+  icon.appendChild(buildMarkerIcon(subject));
   // THE sanctioned live-DOM injection site (invariant (a), see the module
   // doc comment and the no-restricted-syntax guard in eslint.config.js):
   // `el` is a widget-replaced LINE (matched by WIDGET_LINE_SELECTOR only) —
@@ -3526,7 +3468,11 @@ class MarginCompensation implements PluginValue {
           // from one number. (List items would need `supplementalDepth`
           // here, and are excluded by `isMarkerEligible` before this runs.)
           el.dataset.markerDepth = String(fact.isListItem ? fact.supplementalDepth : fact.depth);
-          applyWidgetMarker(el, fact.kind, positionedShiftExpr);
+          applyWidgetMarker(
+            el,
+            markSubject(fact, this.modes.headingMarkerStyle),
+            positionedShiftExpr,
+          );
         } else {
           clearWidgetMarker(el);
         }
