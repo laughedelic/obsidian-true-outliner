@@ -10,7 +10,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch 
 import { onContentUpdated, useData } from 'vitepress';
 import { ancestors, buildTree, descendants, labelOf, type ONode, type OTree } from './tree';
 import { ICONS } from './icons';
-import { loadView, markSeen, outlineOn, pendingFlash, seen, setView, type Hint } from './state';
+import { footerOpen, loadView, markSeen, outlineOn, pendingFlash, seen, setView, type Hint } from './state';
 
 const STATE_KEY = 'true-outliner:docs-state:';
 const EDIT_ROOT = 'https://github.com/laughedelic/obsidian-true-outliner/edit/main/website/';
@@ -63,6 +63,10 @@ let restore: { path: string; state: Saved | null } | null = null;
 let restoreTimer = 0;
 let saveTimer = 0;
 let tipTimer = 0;
+// The entry the page's state was last saved under, and where the page stood:
+// by the time a click is heard, the router may already have moved on.
+let currentKey = '';
+let lastY = 0;
 // The element being pointed out, so the highlight follows it if the page
 // still shifts under it.
 let flashTarget: HTMLElement | null = null;
@@ -235,16 +239,21 @@ function refresh(keep = true) {
   if (keep) save();
 }
 
-function save() {
+/** A history entry is its address, hash included: a jump within a page is an
+ * entry of its own, with its own folds, zoom and position to come back to. */
+const keyNow = () => STATE_KEY + location.pathname + location.hash;
+
+function save(key = keyNow(), y = window.scrollY) {
   const t = tree.value;
   if (!t || builtPath !== location.pathname) return;
   const state: Saved = {
     folded: t.nodes.filter((n) => n.folded).map((n) => n.id),
     zoom: zoomRoot.value?.id ?? null,
-    y: window.scrollY,
+    y,
   };
+  currentKey = keyNow();
   try {
-    sessionStorage.setItem(STATE_KEY + builtPath, JSON.stringify(state));
+    sessionStorage.setItem(key, JSON.stringify(state));
   } catch {
     // Without storage, going back starts the page afresh.
   }
@@ -252,13 +261,14 @@ function save() {
 
 function onScroll() {
   hideTip();
+  lastY = window.scrollY;
   clearTimeout(saveTimer);
   saveTimer = window.setTimeout(save, 150);
 }
 
 function saved(): Saved | null {
   try {
-    return JSON.parse(sessionStorage.getItem(STATE_KEY + location.pathname) ?? 'null') as Saved | null;
+    return JSON.parse(sessionStorage.getItem(keyNow()) ?? 'null') as Saved | null;
   } catch {
     return null;
   }
@@ -375,6 +385,8 @@ function rebuild() {
   endFlash();
   hideTip();
   builtPath = location.pathname;
+  currentKey = keyNow();
+  lastY = window.scrollY;
   if (!content || !enabled.value) {
     tree.value = null;
     marks.value = [];
@@ -398,13 +410,8 @@ function rebuild() {
   resize.observe(content);
 
   const state = restore?.path === location.pathname ? restore.state : null;
-  if (state) {
-    const folded = new Set(state.folded);
-    for (const n of t.nodes) n.folded = folded.has(n.id) && n.children.length > 0;
-    zoomRoot.value = t.nodes.find((n) => n.id === state.zoom && n.parent) ?? null;
-  }
-  refresh(false);
-  if (state) afterNavigation(() => window.scrollTo({ top: state.y, behavior: 'instant' as ScrollBehavior }));
+  if (state) applyState(t, state);
+  else refresh(false);
 
   const target = pendingFlash.value;
   pendingFlash.value = null;
@@ -420,6 +427,8 @@ watch(outline, (on) => {
   refresh(false);
 });
 watch(tryNode, () => refresh(false));
+// The footer speaks for the whole page, which a zoomed view is not showing.
+watch(zoomRoot, (root) => (footerOpen.value = !root));
 
 function toggleFold(node: ONode) {
   if (!node.children.length) return;
@@ -468,8 +477,32 @@ function zoomTo(node: ONode | null) {
   });
 }
 
+function applyState(t: OTree, state: Saved) {
+  const folded = new Set(state.folded);
+  for (const n of t.nodes) n.folded = folded.has(n.id) && n.children.length > 0;
+  zoomRoot.value = t.nodes.find((n) => n.id === state.zoom && n.parent) ?? null;
+  refresh(false);
+  afterNavigation(() => window.scrollTo({ top: state.y, behavior: 'instant' as ScrollBehavior }));
+}
+
+/** A heading the table of contents lists but the zoom hides: the click zooms
+ * out so the router's own jump has somewhere to land, and the zoomed view is
+ * kept under the entry being left, for the way back. */
+function onAsideClick(event: MouseEvent) {
+  const root = zoomRoot.value;
+  const link = (event.target as Element).closest<HTMLAnchorElement>('.VPDocAsideOutline a.outline-link');
+  if (!root || !link || !outline.value) return;
+  if (link.classList.contains('to-o-in-zoom') || link.classList.contains('to-o-zoom-here')) return;
+  save(currentKey, lastY);
+  zoomRoot.value = null;
+  refresh(false);
+}
+
 function onPop() {
   restore = { path: location.pathname, state: saved() };
+  // Within one page nothing is rebuilt, so the entry's state is applied here.
+  if (tree.value && builtPath === location.pathname && restore.state) applyState(tree.value, restore.state);
+  currentKey = keyNow();
   clearTimeout(restoreTimer);
   document.documentElement.classList.remove('to-o-wide');
   restoreTimer = window.setTimeout(() => (restore = null), 1500);
@@ -497,6 +530,7 @@ onMounted(() => {
   if (entry && (entry.type === 'reload' || entry.type === 'back_forward')) onPop();
   rebuild();
   window.addEventListener('popstate', onPop);
+  window.addEventListener('click', onAsideClick, { capture: true });
   window.addEventListener('scroll', onScroll, { passive: true });
   document.addEventListener('mouseover', onOver, { passive: true });
   window.addEventListener('load', schedule);
@@ -506,6 +540,7 @@ onContentUpdated(rebuild);
 onBeforeUnmount(() => {
   document.removeEventListener('mouseover', onOver);
   window.removeEventListener('popstate', onPop);
+  window.removeEventListener('click', onAsideClick, { capture: true });
   window.removeEventListener('scroll', onScroll);
   window.removeEventListener('load', schedule);
   clearTimeout(saveTimer);

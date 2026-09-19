@@ -622,6 +622,9 @@
 .VPDocAsideOutline.to-o-zoomed .outline-link {
   opacity: 0.4;
 }
+.VPDocAsideOutline.to-o-zoomed .outline-link:hover {
+  opacity: 0.8;
+}
 .VPDocAsideOutline.to-o-zoomed .outline-link:is(.to-o-in-zoom, .to-o-zoom-here) {
   opacity: 1;
 }
