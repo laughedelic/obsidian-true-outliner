@@ -167,7 +167,11 @@ describe('heading level markers', function () {
     const levelThree = before[1]!.svg;
     expect(before[0]!.svg).not.toBe(levelThree);
 
-    await h.setCursor(0, 1); // inside the `#` run, which is ordinary editing
+    // Inside the `#` run, which is ordinary editing. Settled, because a freshly
+    // opened note can still move the caret on a later mount, and a `#` typed
+    // after that lands in the heading's text instead.
+    await h.setCursorSettled(0, 1);
+    expect(await h.getCursor()).toEqual({ line: 0, ch: 1 });
     await browser.keys('#');
     await browser.pause(300);
     expect((await h.getBuffer()).split('\n')[0]).toBe('### Title');
