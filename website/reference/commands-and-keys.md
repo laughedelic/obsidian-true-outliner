@@ -1,8 +1,13 @@
 # Commands and keys
 
+Everything outline mode responds to, in four tables: the palette commands, the keys it binds, the mouse gestures, and the cues shown when an operation is refused.
+
 ## Commands
 
-All commands are in the command palette under the **True Outliner** prefix. Except for the toggle, they appear only while the active tab is in outline mode. Assign hotkeys under **Settings → Hotkeys**.
+All commands are in the command palette under the **True Outliner** prefix.
+
+- Except for the toggle, they appear only while the active tab is in outline mode.
+- Hotkeys are assigned under **Settings → Hotkeys**.
 
 | Command | Default hotkey | What it does |
 | --- | --- | --- |
@@ -27,7 +32,11 @@ All commands are in the command palette under the **True Outliner** prefix. Exce
 
 ## Keys in outline mode
 
-These bindings are part of outline mode and are not rebindable; switch outline mode off to get the native keys back. They apply in Live Preview and source mode, and step aside inside a table cell's editor and when there is more than one caret.
+These bindings are part of outline mode and are not rebindable.
+
+- Switching outline mode off brings the native keys back.
+- They apply in Live Preview and source mode.
+- They step aside inside a table cell's editor, and when there is more than one caret.
 
 | Key | Action |
 | --- | --- |
@@ -45,6 +54,8 @@ These bindings are part of outline mode and are not rebindable; switch outline m
 | **Backspace** / **Delete** on an empty position just created by Enter or Shift+Enter | Remove it again |
 
 ## Mouse
+
+What a click does depends on which part of the outline it lands on.
 
 | Gesture | Action |
 | --- | --- |

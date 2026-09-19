@@ -1,25 +1,61 @@
 # Where we stand
 
-Every outliner and every note app makes two choices before any feature: where the notes live, and what counts as a node. The pages in this section take one app at a time and say what it got right, where it falls short for someone who wants outlining on plain files, what we took from it, and what we leave aside. This page is the map.
+Every outliner and every note app makes two choices before any feature: where the notes live, and what counts as a node. The pages in this section take one app at a time, and this page is the map.
+
+Each page says four things about its app:
+
+- What it got right.
+- Where it falls short for someone who wants outlining on plain files.
+- What we took from it.
+- What we leave aside.
 
 ## The two choices
 
-**Where the notes live.** In a database the app owns (Roam, Tana, Notion, Logseq DB, Orca Note, Workflowy, Dynalist, Capacities, Reflect), or in files the person owns (Obsidian, Logseq OG, outl, Octarine). A database makes node identity, references and queries easy and makes the notes only fully readable inside the app. Files make the notes outlive the app and work with every other tool, and make identity and metadata hard, which is where the temptation to write things into the files comes from.
+Each choice has a small number of answers, and every app in this section picked one of them.
 
-**What counts as a node.** In an outliner everything is a bullet: Workflowy, Roam, Logseq, Tana, outl and Obsidian's outliner plugins all work on list items and nothing else. In a document editor nothing is a node: Obsidian, Octarine, Reflect edit text. Notion, Anytype and Capacities have blocks with types, but blocks that nest by being dragged, not by what the text says.
+- **Where the notes live.** In a database the app owns, or in files the person owns.
+	- A database: Roam, Tana, Notion, Logseq DB, Orca Note, Workflowy, Dynalist, Capacities, Reflect.
+		- It makes node identity, references and queries easy.
+		- It makes the notes only fully readable inside the app.
+	- Files: Obsidian, Logseq OG, outl, Octarine.
+		- They make the notes outlive the app and work with every other tool.
+		- They make identity and metadata hard, which is where the temptation to write things into the files comes from.
+- **What counts as a node.** Everything, nothing, or blocks with types.
+	- In an outliner everything is a bullet: Workflowy, Roam, Logseq, Tana, outl and Obsidian's outliner plugins all work on list items and nothing else.
+	- In a document editor nothing is a node: Obsidian, Octarine, Reflect edit text.
+	- Notion, Anytype and Capacities have blocks with types, but blocks that nest by being dragged, not by what the text says.
 
-True Outliner takes the file side of the first choice without compromise, and answers the second differently from everyone: **every block in a markdown note is a node**, heading, paragraph, list item, code, table and callout alike, because markdown already says how they nest. Headings nest by level, list items by indentation, a paragraph owns the list under it. Nothing has to be written into the file to have a tree, so nothing is.
+True Outliner takes the file side of the first choice without compromise, and answers the second differently from everyone: **every block in a markdown note is a node**, heading, paragraph, list item, code, table and callout alike, because markdown already says how they nest.
+
+- Headings nest by level.
+- List items nest by indentation.
+- A paragraph owns the list under it.
+
+Nothing has to be written into the file to have a tree, so nothing is.
 
 ## Obsidian plus the plugin, as one product
 
 The comparison is not the plugin against Roam; it is Obsidian with the plugin against Roam. That is the point of building it as a view rather than as an app:
 
-- **File over app.** The notes are plain markdown in a folder, synced any way at all, opened by any tool, readable in fifty years. Obsidian's core promise, kept, because the outliner adds no format of its own.
-- **No lock-in and no special syntax.** Turn the plugin off and the note is what it was. There are no `id::` lines, no fold markers, no forced bullets, no metadata block, no export step.
-- **Everything Obsidian already does.** Links, backlinks, search, graph, properties, Dataview, templates, publish, canvas, sync, four thousand plugins and themes, desktop and mobile. An outliner built as its own app has to rebuild each of those; one built as a view inherits them.
-- **A true outliner all the same.** Subtree moves wherever the caret is, selection by node, fold and zoom on any node, structured backlinks, a keyboard grammar for Enter and Tab that respects the tree, and enforcement of node boundaries on delete and paste.
+- **File over app.** The notes are plain markdown in a folder, synced any way at all, opened by any tool, readable in fifty years.
+	- It is Obsidian's core promise, kept, because the outliner adds no format of its own.
+- **No lock-in and no special syntax.** Turn the plugin off and the note is what it was.
+	- There are no `id::` lines, no fold markers, no forced bullets, no metadata block, no export step.
+- **Everything Obsidian already does.** Links, backlinks, search, graph, properties, Dataview, templates, publish, canvas, sync, four thousand plugins and themes, desktop and mobile.
+	- An outliner built as its own app has to rebuild each of those; one built as a view inherits them.
+- **A true outliner all the same.** Nothing of the outliner is given up for the files.
+	- Subtree moves wherever the caret is.
+	- Selection by node.
+	- Fold and zoom on any node.
+	- Structured backlinks.
+	- A keyboard grammar for Enter and Tab that respects the tree.
+	- Enforcement of node boundaries on delete and paste.
 
-The cost of that position is real and the pages below name it where it applies: node identity is positional, so block references and mirrors are Obsidian's `^id` links rather than a first-class node feature; drag and drop is not built yet; and the tree is the one markdown can express, which rules out a few arrangements a database would allow.
+The cost of that position is real, and the pages below name it where it applies:
+
+- Node identity is positional, so block references and mirrors are Obsidian's `^id` links rather than a first-class node feature.
+- Drag and drop is not built yet.
+- The tree is the one markdown can express, which rules out a few arrangements a database would allow.
 
 ## At a glance
 
@@ -44,6 +80,8 @@ The cost of that position is real and the pages below name it where it applies: 
 "?" marks what we could not confirm. Each page carries its sources and the date it was checked.
 
 ## What we took, in one line each
+
+The pages carry the detail; this is the short form.
 
 - From **Workflowy**: the editing feel, the zoom, the idea that every node is a place.
 - From **Roam**: structured backlinks, grouped and filterable, each reference in its tree.

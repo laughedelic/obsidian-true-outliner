@@ -4,11 +4,15 @@ True Outliner runs on Obsidian for iOS and Android with the same features as on 
 
 ## What is different on a phone
 
-- **The ribbon icon is the mode indicator.** There is no status bar on mobile, so the list-tree icon in the ribbon carries the on/off state and is the quickest way to toggle outline mode. The command palette works as usual.
+- **The ribbon icon is the mode indicator.** There is no status bar on mobile, so the list-tree icon in the ribbon carries the on/off state.
+	- It is the quickest way to toggle outline mode.
+	- The command palette works as usual.
 - **Narrower steps by default.** With **Outline width** on *Auto*, one level steps by the Compact width on a phone or tablet, where every bit of horizontal space matters, and by the Roomy width on a desktop. Pick a fixed width to use the same step everywhere.
 - **Tap a marker to zoom.** Tapping a heading's or paragraph's marker, or a list item's bullet, zooms into that node, the same as a click on the desktop.
 - **The backlinks footer adapts.** Its header shrinks to *Backlinks* with the two counts, and the filter row wraps, when the footer is narrow.
-- **Structural keys need a keyboard that has them.** Tab, Shift+Tab, Shift+Enter and Mod+Shift+Arrow are available with an external keyboard. From the on-screen keyboard, use the commands: **Indent node**, **Outdent node**, **Move node up**, **Move node down**, **Zoom in to node**, all available from Obsidian's mobile toolbar once added to it under Settings → Toolbar.
+- **Structural keys need a keyboard that has them.**
+	- Tab, Shift+Tab, Shift+Enter and Mod+Shift+Arrow are available with an external keyboard.
+	- From the on-screen keyboard, use the commands: **Indent node**, **Outdent node**, **Move node up**, **Move node down**, **Zoom in to node**, all available from Obsidian's mobile toolbar once added to it under Settings → Toolbar.
 
 <Shot name="mobile-outline" width="360" alt="A note in outline mode on a phone-sized screen" caption="The same note on a phone: the Compact step keeps the grid readable at 390 pixels wide." />
 
