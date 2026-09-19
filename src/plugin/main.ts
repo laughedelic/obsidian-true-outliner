@@ -1355,6 +1355,16 @@ export default class TrueOutlinerPlugin extends Plugin {
     // the keymap acted on the resolved one, so the same key on the same document
     // gave two different results depending on how it was invoked, which is the
     // divergence `selection-structural-ops` exists to hold shut.
+    //
+    // It is held shut for ONE keypress and no further, and the remainder is
+    // stated here rather than left to be rediscovered. This path READS the
+    // record and then destroys it: the dispatch below carries no `userEvent`,
+    // deliberately, for the undo granularity its own comment explains — and
+    // `placeLineAfter` recognises neither a creating nor a carrying dispatch
+    // without one, so the update drops the record. A place carried by Tab
+    // survives for the key after it; the same place carried from the palette
+    // does not. Closing that means giving this dispatch an event without losing
+    // the history join, which is a measurement this change did not take.
     const placeLine = view ? (openPlaceLine(view) ?? undefined) : undefined;
     const outline = placeOutline(text, cursorBefore, placeLine);
     const opDoc = outline ?? doc;

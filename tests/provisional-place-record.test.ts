@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest';
 import { EditorSelection, EditorState } from '@codemirror/state';
 import { history, redo, undo, undoDepth } from '@codemirror/commands';
 import { planKey, plannedCaret, type GrammarKey } from '../src/plugin/grammar';
-import { placeLineAfter, recordablePlace } from '../src/plugin/provisional-cleanup';
+import { carriedPlace, placeLineAfter, recordablePlace } from '../src/plugin/provisional-cleanup';
 
 /** Two spaces, so the figures below are the widths the documents show. */
 const UNIT = '  ';
@@ -84,7 +84,8 @@ function run(
   let state = stateOf(text, at.line, at.ch);
   let place: number | null = null;
   for (const key of keys) {
-    const before = place !== null && caretOf(state).line === place ? place : null;
+    // The production rule, not a restatement of it.
+    const before = carriedPlace(state, place);
     const done = press(state, key, place);
     if (!done) throw new Error(`${key} declined`);
     state = done.state;
@@ -155,16 +156,31 @@ describe('what does NOT leave a place record', () => {
   const AT_FOO_END = { line: 1, ch: 5 };
 
   it('a carrying key that did not start on the place', () => {
-    // The place is open on line 2; the Tab is pressed from `- one`, whose own
-    // operation cannot touch it. Nothing may mark a blank line as a place on
-    // the strength of where a caret happens to land.
-    const opened = run(SRC, AT_FOO_END, ['continue']);
+    // A place is open further down; the Tab is pressed on a DIFFERENT node,
+    // where it is expressible — so the keypress really happens and the guard is
+    // what refuses it. Nothing may mark a blank line as a place on the strength
+    // of where a caret happens to land.
+    //
+    // `startedOn` is computed the way the listener computes it: the place this
+    // view had open, kept only when the caret was on it when the keypress began.
+    // Here it was not, so the carry branch is closed whatever the Tab's own
+    // caret lands on.
+    const src = '- one\n- two\n- foo\n  bar\n';
+    const opened = run(src, { line: 2, ch: 5 }, ['continue']);
+    expect(opened.state.doc.toString()).toBe('- one\n- two\n- foo\n  \n  bar\n');
+    expect(opened.place).toBe(3);
+
+    // Move the caret onto `- two`, which HAS a previous sibling to indent under.
     const moved = opened.state.update({
-      selection: EditorSelection.cursor(0),
+      selection: EditorSelection.cursor(opened.state.doc.line(2).to),
     }).state;
-    const done = press(moved, 'indent', null);
-    expect(done).toBeNull(); // nothing above `- one` to indent under
-    expect(placeLineAfter(moved, 'input.structure.indent', null)).toBeNull();
+    const startedOn = carriedPlace(moved, opened.place);
+    expect(startedOn).toBeNull();
+
+    const done = press(moved, 'indent', opened.place);
+    expect(done).not.toBeNull();
+    expect(done!.state.doc.toString()).toBe('- one\n  - two\n- foo\n  \n  bar\n');
+    expect(placeLineAfter(done!.state, done!.event, startedOn)).toBeNull();
   });
 
   it('a move, which leaves its caret on the node rather than on the place', () => {

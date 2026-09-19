@@ -76,7 +76,12 @@ missing was the record keeping up, which is this capability's to state.
   resolves only where the place line and the caret agree, so a record kept through a move would not
   be read. Measured and recorded rather than closed.
 - **The palette's record.** `main.ts`'s `runOp` dispatches with no `userEvent` and states no
-  `abandon` edit, so it writes no record for a place it creates OR carries. Recorded in the same
-  research entry; its fix is `runOp`'s dispatch, not this record.
+  `abandon` edit, so it writes no record for a place it creates OR carries — it reads the place
+  line and then destroys the record. This change therefore closes the second keypress for the
+  keyboard and leaves it open for the palette, which is a DIVERGENCE where there was none: before
+  it, both paths lost the place equally. Users are strictly better off and the specification is
+  strictly less true, so the remainder is stated at the call site in `main.ts` as well as here.
+  Closing it means giving that dispatch a `userEvent` without losing the history join it relies on,
+  which is a measurement this change did not take.
 - **Provenance that outlives the per-view record** — the `StateField` several parked entries want,
   which would also close the redone-place limitation. Not this change.

@@ -500,6 +500,30 @@ column inside its own line") holds the two together. Three other conversions of 
 `offsetInLines` — do not clamp, and agree with this one only while every position they are handed
 is in range.
 
+### An indent writes its unit on the first line and spaces on the continuation lines
+
+Found while re-measuring the entry below, and unrelated to places: it reproduces with none open, so
+it belongs to the indent operation.
+
+With the editor's indent unit set to a TAB, `indent` writes the unit on the node's own first line
+and SPACES on the lines below it. Measured on `- top` / `- foo` / `␣␣bar` with the caret in `foo`
+and no place open:
+
+| Unit | Result |
+|---|---|
+| `⇥` | `- top` / `⇥- foo` / `␣␣␣␣␣␣bar` — a tab on the marker line, six spaces below it |
+| `␣␣␣␣` | `- top` / `␣␣␣␣- foo` / `␣␣␣␣␣␣bar` |
+| `␣␣` | `- top` / `␣␣- foo` / `␣␣␣␣bar` |
+
+The space units are self-consistent; the tab unit is not. The continuation lines come out at the
+item's content COLUMN counted in characters, which is the right column only while the unit is
+spaces — so a tab-indented vault gets a node whose own lines are indented two ways, which
+`source-indentation-collapses` then has to render.
+
+Not diagnosed further. Closing it starts with which of `indent`'s two writers computes the
+continuation prefix, and whether a column is the right currency for it at all when the unit is a
+tab.
+
 ### The place record is single-shot, so a SECOND structural key mistreats the place
 
 **Closed** by `a-carried-place-keeps-its-record` (issue #142). Kept with its measurements, because
@@ -589,11 +613,6 @@ not, which is the state `keymap.ts`'s note about the selection handlers said did
 slice of the shapes rather than the general case, so the handlers stay on the raw parse and the note
 now says so.
 
-Seen while re-measuring and unrelated to places: with the editor's indent unit set to a TAB,
-`indent` writes the unit on the node's first line and SPACES on its continuation lines — `- top` /
-`- foo` / `␣␣bar` becomes `- top` / `⇥- foo` / `␣␣␣␣␣␣bar`, a tab for the marker line and six
-spaces for the line below it. It reproduces with no place open, so it belongs to the indent
-operation rather than to anything here.
 
 ### The palette path does not resolve a place at all
 

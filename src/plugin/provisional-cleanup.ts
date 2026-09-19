@@ -132,25 +132,18 @@ const created = new WeakMap<EditorView, CreatedPlace>();
  * Holding one record for both scoped this one to a single keypress: the
  * conditions that make a removal safe — a creating event, a stated removal
  * edit, an unmoved undo depth — are all about the keypress, and a place outlives
- * the keypress that made it. Measured, Shift+Enter then Tab then Shift+Tab left
- * the place six columns deep under an item back at two, because the Tab left no
- * record for the Shift+Tab to read (docs/research/decoration-follow-ups).
+ * the keypress that made it. A key that carried a place therefore left nothing
+ * for the key after it to read (docs/research/decoration-follow-ups).
  */
 const openPlace = new WeakMap<EditorView, number>();
 
 /**
- * The dispatches whose UNDO removes an empty place and leaves the document as
- * if the keypress had not happened. That is a narrower test than "leaves the
- * caret on an empty place", and the difference matters.
- *
- * The empty-item ladder's two operations are both absent, for the same reason:
- * neither CREATES the place. `outdent` moves an item that was already empty, so
- * undoing it puts that item back one level deeper. `unwrap` converts an empty
- * item into a blank position, so undoing it restores the `- ` — which would
- * make abandoning an Enter-Enter (make an empty item, then leave the list)
- * leave a bullet behind that would not be there without this feature at all.
- * The blank line the unwrap leaves is the result of a deliberate act, not
- * debris from an unused keypress.
+ * The empty-item ladder's two operations, `outdent` and `unwrap`, are in this
+ * GAP list and out of the NODE one below, and the split is the whole point.
+ * Neither CREATES a node: `outdent` moves an item that was already empty, and
+ * `unwrap` converts one into a blank position, so undoing either would restore
+ * a bullet the user deliberately left the list to escape. What they do leave is
+ * a gap line, which nothing occupied before — hence the asymmetry.
  */
 /**
  * A dispatch of ours that leaves the caret on a GAP line necessarily created
@@ -200,6 +193,16 @@ const NODE_PLACE_EVENTS: readonly string[] = [
  * agree, so a record kept through a move would not be read either. The place a
  * move relocated is left behind with its node, which is the parking-lot entry
  * beside this one rather than this one.
+ *
+ * `outdent` is here for the rule rather than for its effect, and the difference
+ * is worth stating so the next reader does not have to re-derive it. Over a GAP
+ * place `recordablePlace` answers first — `GAP_PLACE_EVENTS` names `outdent` —
+ * so the carry branch is never reached. It IS reached over a NODE place, and
+ * there no consumer reads the answer: a node place's own line is a first line,
+ * which `positionJoinsANode` refuses, so `placeOutline` resolves nothing. Only
+ * `indent` therefore changes what any consumer sees today. The entry stays
+ * because the rule is about what an operation DOES to a place, not about which
+ * of two lists happens to name the event.
  */
 const CARRY_PLACE_EVENTS: readonly string[] = [
   'input.structure.indent',
@@ -329,6 +332,22 @@ export function recordablePlace(
  * Enter runs inside outline mode whenever the grammar declines, and a rule that
  * recognised a dispatch by its shape recognised that one too.
  */
+/**
+ * The open place a keypress BEGAN on, or `null` — the first half of the carry
+ * rule, read from the state as the transaction found it.
+ *
+ * Exported so the listener and the tests share one copy rather than two that
+ * agree today. A test that restates this is testing its own restatement: the
+ * rule is small, and that is exactly what makes it easy to restate wrongly.
+ */
+export function carriedPlace(
+  startState: EditorState,
+  openBefore: number | null | undefined,
+): number | null {
+  if (openBefore === undefined || openBefore === null) return null;
+  return caretIsOnLine(startState, openBefore) ? openBefore : null;
+}
+
 export function placeLineAfter(
   state: EditorState,
   userEvent: string | undefined,
@@ -405,9 +424,23 @@ function liveRecord(view: EditorView): CreatedPlace | undefined {
  * is the invalidation `openPlace` already has. It was named `createdPlaceLine`,
  * and the name was the defect: the caller means OPEN, and the record it read
  * answered CREATED.
+ *
+ * The answer is CONFIRMED against the live state before it is given, which is
+ * what keeps this record's failure direction the same as the removal record's.
+ * Both are keyed on the VIEW and both are maintained from an update listener,
+ * so a path that swaps a view's state without producing an update — Obsidian
+ * reusing one editor across files is the shape to worry about — leaves whatever
+ * was remembered behind. A stale removal record fails safe, because it only ever
+ * declines to remove; a stale place line fails the other way, and its consumer
+ * rewrites the user's document around a blank line nothing opened. Re-deriving
+ * costs nothing (`parsedDoc` is cached, and both callers are about to parse
+ * anyway) and makes the record self-validating rather than dependent on every
+ * mutation being observed.
  */
 export function openPlaceLine(view: EditorView): number | null {
-  return openPlace.get(view) ?? null;
+  const line = openPlace.get(view);
+  if (line === undefined) return null;
+  return emptyPlaceAt(view.state)?.line === line ? line : null;
 }
 
 /**
@@ -537,11 +570,7 @@ export function provisionalCleanup(inOutlineMode: (view: EditorView) => boolean)
         // The place a CARRYING dispatch could have moved: the one this view had
         // open, and only when the caret was actually on it when the transaction
         // began. A key pressed anywhere else carries nothing.
-        const before = last.startState.selection.main;
-        const startedOn =
-          openBefore !== undefined && caretIsOnLine(last.startState, openBefore)
-            ? openBefore
-            : null;
+        const startedOn = carriedPlace(last.startState, openBefore);
         const open = placeLineAfter(view.state, event, startedOn);
         if (open !== null) openPlace.set(view, open);
 
@@ -554,6 +583,7 @@ export function provisionalCleanup(inOutlineMode: (view: EditorView) => boolean)
         const stated = last.annotation(abandonEdit);
         const place = recordablePlace(view.state, event);
         if (stated && place) {
+          const before = last.startState.selection.main;
           created.set(view, {
             depth: undoDepth(view.state),
             line: place.line,
@@ -572,6 +602,11 @@ export function provisionalCleanup(inOutlineMode: (view: EditorView) => boolean)
     // declining, and the two facts differ in their CONDITIONS rather than in
     // how long a place lasts: a place the user has walked away from is not one
     // an operation should still be acting on.
+    //
+    // Belt-and-braces rather than the only defence: `openPlaceLine` re-derives
+    // from the live state before answering, so a record this misses is refused
+    // there instead of believed. Dropping it here keeps the map from holding
+    // what it has no business holding.
     const open = openPlace.get(view);
     if (open !== undefined && !caretIsOnLine(view.state, open)) openPlace.delete(view);
 

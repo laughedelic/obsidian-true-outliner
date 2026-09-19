@@ -24,6 +24,12 @@ the place they moved (`caret-placement-policy`, "A derived caret follows the pla
 MOVE does not: its caret is its subject's content start, so it leaves no place at the caret for the
 fact to be about, and the place it relocated is left behind with the node.
 
+The two tests OVERLAP, and the overlap is not a defect to remove. Outdent is already named by the
+creating test for a GAP place, so the carrying test decides nothing there; it decides only for a
+NODE place, whose own line no consumer resolves today. Indent is the key whose answer any consumer
+currently sees. The rule SHALL nonetheless be stated over what an operation DOES to a place, not
+over which test happens to answer first, so that an operation added later inherits it.
+
 The place fact SHALL be invalidated by a change to the DOCUMENT and by nothing else. A movement
 through history that leaves the document alone leaves the place where it is. The undo-depth
 backstop the removal record carries SHALL NOT be applied to it: that backstop exists because a
