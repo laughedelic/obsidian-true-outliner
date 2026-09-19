@@ -97,9 +97,10 @@ has to be undone.
 - **Dragging text.** A character-level drag, and the native text drop that follows it, keep the
   behaviour `node-edit-enforcement` already gives them.
 - **Dragging out of the editor** — to another pane, another note, another window, or another app.
-- **Zooming a task by pointer.** The measured finding frees the checkbox's press, not its click;
-  the affordance-budget entry's question about the task's zoom stays open in
-  docs/research/decoration-follow-ups.
+- **Zooming a task by pointer.** The measured finding frees the checkbox's press, not its click,
+  so the affordance-budget question about a task's zoom stays open. It leaves
+  docs/research/decoration-follow-ups for the tracker as this change touches that entry (task
+  7.3), since the parking lots take no further entries.
 - **Hovering a folded node to open it.** A drop into a folded node opens the fold, which is
   `outline-folding`'s existing rule; a dwell that expands mid-drag is a separate affordance. Said
   plainly, because the two halves of this are stated in different places and their consequence in
