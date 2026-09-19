@@ -22,6 +22,7 @@ import {
   dragThenEscape,
   editorBox,
   markPoint,
+  pointOf,
   recorded,
   startRecording,
 } from '../dragging.js';
@@ -247,6 +248,33 @@ describe('node dragging: the press and the drag it can become', function () {
     expect(await h.getBuffer()).toBe(DOC);
     expect(await zoomed()).toBe(false);
     await h.setOutlineMode(true);
+  });
+
+  it('picks nothing up from a mark the trail drew', async function () {
+    // The trail draws marks of its own and answers its own clicks — its mark
+    // zooms OUT. It already declares that it is not a line, which is exactly
+    // the question this gesture asks, so nothing more is needed here than the
+    // evidence that nothing was picked up.
+    const mark = await markPoint(BULLET, 0);
+    await h.clickAtPoint(mark.x, mark.y);
+    await browser.pause(300);
+    expect(await zoomed()).toBe(true);
+
+    const crumb = await pointOf('.to-zoom-trail .to-decor-marker-icon', 0);
+    // Aimed INTO the content, so the moves reach the recorder while the button
+    // is still down — a gesture whose moves never arrive would pass this by
+    // saying nothing.
+    const into = await markPoint(BULLET, 0);
+    await startRecording();
+    await dragFrom(crumb, [
+      { x: into.x + 20, y: into.y + 10 },
+      { x: into.x + 60, y: into.y + 40 },
+    ]);
+    await browser.pause(250);
+    const samples = await recorded();
+    expect(samples.length).toBeGreaterThan(0);
+    for (const sample of samples) expect(sample.selected).toEqual([]);
+    expect(await h.getBuffer()).toBe(DOC);
   });
 
   it('keeps hearing the pointer once it has left the editor', async function () {

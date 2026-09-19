@@ -61,6 +61,26 @@ export async function markPoint(selector: string, index = 0): Promise<Point> {
   return point;
 }
 
+/**
+ * The viewport centre of an element anywhere in the view — the chrome this
+ * plugin draws outside the content included, which `markPoint` deliberately
+ * does not reach.
+ */
+export function pointOf(selector: string, index = 0): Promise<Point> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, selector, index) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      const el = view.containerEl.querySelectorAll(selector)[index] as HTMLElement | undefined;
+      if (!el) throw new Error(`no ${selector}[${index}] rendered`);
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    },
+    selector,
+    index,
+  );
+}
+
 /** The editor root's own box, in viewport coordinates. */
 export function editorBox(): Promise<{
   left: number;
