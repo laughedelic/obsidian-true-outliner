@@ -675,10 +675,13 @@ off the tree before the deletion instead. Measured, `- one` / `  - a` / `- three
 `  - y` typed over `  - a` left a blank line before `- three` that the tight list never had; the
 payload's own text ended in one, and nothing overrode it.
 
-Found while measuring that path, and NOT ours: deleting the last node of a note that no blank
-line precedes drops the file's terminating newline (`- a` / `- b` minus `- b` gives `- a`, no
-newline). It is the deletion's own — the node owned that gap and deletion takes a node's gap with
-it — and it reproduces with no paste involved.
+Found while measuring that path, and not this change's to fix: deleting the last node of a note
+that no blank line precedes drops the file's terminating newline (`- a` / `- b` minus `- b` gives
+`- a`, no newline). It is the deletion's own — the node owned that gap, deletion takes a node's
+gap with it, and at the end of a document that gap is the newline rather than a separation — and
+it reproduces with no paste involved. Filed as
+[#160](https://github.com/laughedelic/obsidian-true-outliner/issues/160), measured in the real
+editor against `main` with an off-mode control.
 
 ## An unterminated leading `---` is not ours to fix (review round, 2026-09-19)
 
