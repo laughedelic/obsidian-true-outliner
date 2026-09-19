@@ -167,12 +167,19 @@ describe('heading level markers', function () {
     const levelThree = before[1]!.svg;
     expect(before[0]!.svg).not.toBe(levelThree);
 
-    // Inside the `#` run, which is ordinary editing. Settled, because a freshly
-    // opened note can still move the caret on a later mount, and a `#` typed
-    // after that lands in the heading's text instead.
-    await h.setCursorSettled(0, 1);
-    expect(await h.getCursor()).toEqual({ line: 0, ch: 1 });
-    await browser.keys('#');
+    // A `#` typed inside the `#` run, which is ordinary editing. Dispatched with
+    // the user event typed input carries, rather than sent as a keystroke: in a
+    // window without focus a keystroke lands wherever the DOM selection sits,
+    // which CodeMirror does not keep in step with its own, and CI saw it land at
+    // content start as `## #Title` on either platform.
+    await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      const cm = (view.editor as unknown as {
+        cm: { dispatch(spec: object): void };
+      }).cm;
+      cm.dispatch({ changes: { from: 1, insert: '#' }, selection: { anchor: 2 }, userEvent: 'input.type' });
+    });
     await browser.pause(300);
     expect((await h.getBuffer()).split('\n')[0]).toBe('### Title');
 
