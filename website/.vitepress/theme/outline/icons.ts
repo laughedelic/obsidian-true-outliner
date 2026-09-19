@@ -1,0 +1,38 @@
+/**
+ * The marker glyphs, one per node kind. The shapes are the plugin's
+ * (`buildMarkerIcon` in `src/plugin/decorations.ts`), restated as strings so a
+ * docs page does not have to load the editor to draw them.
+ */
+
+import type { Kind } from './tree';
+
+const svg = (body: string) => `<svg viewBox="0 0 16 16" width="100%" height="100%" aria-hidden="true">${body}</svg>`;
+const stroke = 'stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"';
+
+export const ICONS: Record<Kind | 'chevron' | 'zoomOut', string> = {
+  heading: svg(
+    '<rect x="3" y="2" width="2" height="12" fill="currentColor"/><rect x="11" y="2" width="2" height="12" fill="currentColor"/><rect x="3" y="7" width="10" height="2" fill="currentColor"/>',
+  ),
+  paragraph: svg(
+    `<line ${stroke} x1="2" y1="4" x2="14" y2="4"/><line ${stroke} x1="2" y1="8" x2="14" y2="8"/><line ${stroke} x1="2" y1="12" x2="9" y2="12"/>`,
+  ),
+  item: svg('<circle cx="8" cy="8" r="3" fill="currentColor"/>'),
+  code: svg(
+    `<polyline ${stroke} points="6,3 2,8 6,13"/><line ${stroke} x1="9.5" y1="2" x2="6.5" y2="14"/><polyline ${stroke} points="10,3 14,8 10,13"/>`,
+  ),
+  table: svg(
+    `<rect ${stroke} x="2" y="2" width="12" height="12" rx="1"/><line ${stroke} x1="2" y1="8" x2="14" y2="8"/><line ${stroke} x1="8" y1="2" x2="8" y2="14"/>`,
+  ),
+  callout: svg(
+    '<circle cx="8" cy="8" r="6" fill="currentColor"/><rect x="7" y="4" width="2" height="5" fill="var(--vp-c-bg)"/><rect x="7" y="10" width="2" height="2" fill="var(--vp-c-bg)"/>',
+  ),
+  quote: svg(
+    '<circle cx="5" cy="5" r="2" fill="currentColor"/><rect x="4" y="5" width="2" height="4" fill="currentColor"/><circle cx="11" cy="5" r="2" fill="currentColor"/><rect x="10" y="5" width="2" height="4" fill="currentColor"/>',
+  ),
+  hr: svg('<rect x="2" y="7" width="12" height="2" fill="currentColor"/>'),
+  media: svg(`<rect ${stroke} x="3" y="2" width="10" height="12" rx="1"/><line ${stroke} x1="9" y1="2" x2="13" y2="6"/>`),
+  chevron: svg(`<polyline ${stroke} points="4,6 8,10 12,6"/>`),
+  zoomOut: svg(
+    `<polyline ${stroke} points="6,2 2,2 2,6"/><line ${stroke} x1="2" y1="2" x2="6.5" y2="6.5"/><polyline ${stroke} points="10,14 14,14 14,10"/><line ${stroke} x1="14" y1="14" x2="9.5" y2="9.5"/>`,
+  ),
+};
