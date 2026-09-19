@@ -34,6 +34,8 @@ of it, with exact geometry.
 - **Every surface that draws a heading's mark draws the same level mark**: the editor line, the
   backlinks footer's gutter and its inline lineage segments, and the zoom trail's segments. A
   style change repaints all three.
+- **The settings tab previews the style.** Beside the two settings, the six levels are drawn in
+  the chosen style by the editor's own builder, and redraw as either setting changes.
 - **Markers say what they mark.** Every plain-line marker states its kind in `data-kind`, which
   the widget-atom markers already do, and a heading's marker also states `data-level`. This is a
   hook for snippets and for tests. It does not change how anything renders.
@@ -46,10 +48,10 @@ _None._
 
 ### Modified Capabilities
 
-- `outline-decorations`: adds a requirement that a heading's marker can name its level, in the
+- `outline-decorations`: adds requirements that a heading's marker can name its level, in the
   style the two settings choose, and that `H` without a digit stays today's mark. The box stays
-  the same size at every level and in every style. It also requires markers to carry
-  `data-kind` and, for a heading, `data-level`.
+  the same size at every level and in every style; that markers carry `data-kind` and, for a
+  heading, `data-level`; and that the settings tab previews the chosen style.
 - `backlinks-footer`: the notation requirement's "same glyph for the same kind" becomes "same
   glyph for the same kind and heading level, and the same glyph the editor draws". Without the
   change, an H2 lineage element and an H3 referencing node would contradict the requirement's

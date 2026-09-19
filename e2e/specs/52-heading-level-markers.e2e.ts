@@ -189,6 +189,52 @@ describe('heading level markers', function () {
   });
 
   /**
+   * The settings tab previews the six levels in the chosen style, beside the two
+   * settings, with the editor's own builder, and follows a change made while it
+   * is open — through the tab's own write path, the one its dropdowns take.
+   *
+   * Negative control: drop the preview redraw from the tab's `setControlValue`,
+   * and the open preview keeps the style it opened with.
+   */
+  it('previews the chosen style in the settings tab, as the editor draws it, across a change', async function () {
+    await openLevels();
+    const previewMarks = (): Promise<Array<{ level: string | null; svg: string }>> =>
+      browser.executeObsidian(({ app }) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const tab = (app as any).setting.pluginTabs.find((t: any) => t.id === 'true-outliner');
+        return Array.from(
+          tab.containerEl.querySelectorAll('.to-heading-marker-preview-mark') as NodeListOf<HTMLElement>,
+        ).map((el) => ({ level: el.dataset.level ?? null, svg: el.querySelector('svg')?.innerHTML ?? '' }));
+      });
+
+    await browser.executeObsidian(({ app }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const setting = (app as any).setting;
+      setting.open();
+      setting.openTabById('true-outliner');
+    });
+    await browser.pause(300);
+    try {
+      for (const style of [
+        ['H', 'beside'],
+        ['hash', 'subscript'],
+        ['hash', 'none'],
+      ] as const) {
+        await setStyle(style[0], style[1]);
+        const editor = headingsOf(await activeMarks()).map((m) => m.svg);
+        const preview = await previewMarks();
+        expect(preview.map((p) => p.level)).toEqual(['1', '2', '3', '4', '5', '6']);
+        expect({ style, preview: preview.map((p) => p.svg) }).toEqual({ style, preview: editor });
+      }
+    } finally {
+      await browser.executeObsidian(({ app }) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (app as any).setting.close();
+      });
+    }
+  });
+
+  /**
    * Both settings are global, so a change has to reach a pane that is not the
    * active one, and the trail that pane shows.
    *

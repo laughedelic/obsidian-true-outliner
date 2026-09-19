@@ -80,6 +80,21 @@ unchanged.
 - **WHEN** the same heading marker is drawn under two themes with different interface fonts
 - **THEN** its drawn geometry is identical in both
 
+### Requirement: The settings tab previews a heading's mark
+The settings that choose a heading marker's style SHALL be accompanied by a preview of what they
+draw: every heading level, 1 to 6, drawn as that level's marker in the style currently chosen. A
+previewed mark SHALL be drawn exactly as the editor draws that level in that style, and SHALL be
+redrawn when either setting changes, while the settings remain on screen.
+
+#### Scenario: The preview names every level in the chosen style
+- **WHEN** the settings are shown with the glyph `H` and the digit beside it
+- **THEN** six marks are drawn, one per level, each identical to the marker the editor draws for
+  that level in that style
+
+#### Scenario: The preview follows a change
+- **WHEN** either setting is changed while the settings are on screen
+- **THEN** the preview redraws in the new style, again matching what the editor draws
+
 ### Requirement: A marker states the kind it draws
 Every marker this layer draws for a node SHALL carry that node's kind as a `data-kind` attribute,
 on plain lines as well as widget-replaced atoms. A heading's marker SHALL also carry its level as

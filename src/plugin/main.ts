@@ -77,6 +77,7 @@ import {
 import { BacklinkIndex } from './backlink-index';
 import { BUILD_STAMP } from 'virtual:build-stamp';
 import { decorationsExtension, type MarkerVisibility } from './decorations';
+import { drawHeadingMarkerPreview } from './heading-marker-preview';
 import { transactionFilterExtension } from './transaction-filter';
 import { viewRegistryExtension } from './view-registry';
 import { zoomStateExtension } from './zoom-state';
@@ -1549,6 +1550,8 @@ const WRITERS: {
 
 const EXPERIMENTAL_CHIP_CLASS = 'to-setting-chip';
 
+const HEADING_PREVIEW_NAME = 'Heading marker preview';
+
 /**
  * A setting's description as the tab renders it: the text itself, or a fragment
  * whose first child is an EXPERIMENTAL chip.
@@ -1571,12 +1574,32 @@ function describeSetting(desc: string, experimental?: boolean): string | Documen
   return fragment;
 }
 
+/** The setting the heading marker preview follows, so it sits under the two
+ * settings it previews. */
+const HEADING_PREVIEW_AFTER: SettingKey = 'headingMarkerLevel';
+
 class TrueOutlinerSettingTab extends PluginSettingTab {
+  /** Every mounted preview's redraw. A preview draws from the settings, so every
+   * write redraws them; a torn-down row removes its own. */
+  private readonly previews = new Set<() => void>();
+
   constructor(
     app: App,
     private readonly plugin: TrueOutlinerPlugin,
   ) {
     super(app, plugin);
+  }
+
+  /** A heading's mark in each level, drawn in the chosen style, under the
+   * setting's name. Returns the row's cleanup. */
+  private renderHeadingPreview(setting: Setting): () => void {
+    const el = setting.descEl.createDiv();
+    const redraw = (): void => drawHeadingMarkerPreview(el, this.plugin.headingMarkerStyle);
+    redraw();
+    this.previews.add(redraw);
+    return () => {
+      this.previews.delete(redraw);
+    };
   }
 
   /**
@@ -1595,10 +1618,16 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
     // also carries `aliases`, `searchable` and `visible`, and a declaration
     // gaining one of those should reach this path as it already reaches
     // `display()`. Only `experimental` is consumed here, becoming the chip.
-    return settingDefinitions().map(({ experimental, desc, ...rest }) => ({
-      ...rest,
-      desc: describeSetting(desc, experimental),
-    }));
+    return settingDefinitions().flatMap(({ experimental, desc, ...rest }) => {
+      const row: SettingDefinitionItem = { ...rest, desc: describeSetting(desc, experimental) };
+      if (rest.control.key !== HEADING_PREVIEW_AFTER) return [row];
+      const preview: SettingDefinitionItem = {
+        name: HEADING_PREVIEW_NAME,
+        searchable: false,
+        render: (setting) => this.renderHeadingPreview(setting),
+      };
+      return [row, preview];
+    });
   }
 
   /** This plugin doesn't use the conventional `this.plugin.settings` shape
@@ -1616,11 +1645,13 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
     // a dropdown's option — and the writer it names takes exactly that.
     const coerced = declared.control === 'toggle' ? Boolean(value) : String(value);
     await WRITERS[declared.key](this.plugin, coerced as never);
+    for (const redraw of this.previews) redraw();
   }
 
   /** Pre-1.13 fallback only — see getSettingDefinitions() above. */
   override display(): void {
     this.containerEl.empty();
+    this.previews.clear();
     for (const { name, desc, experimental, control } of settingDefinitions()) {
       const setting = new Setting(this.containerEl)
         .setName(name)
@@ -1638,6 +1669,9 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
             .setValue(String(this.plugin.setting(control.key)))
             .onChange((value) => void this.setControlValue(control.key, value)),
         );
+      }
+      if (control.key === HEADING_PREVIEW_AFTER) {
+        this.renderHeadingPreview(new Setting(this.containerEl).setName(HEADING_PREVIEW_NAME));
       }
     }
   }

@@ -163,13 +163,26 @@ heading marks and its trail. `repaintFooters` then re-renders the footers' own D
 widget-atom cases too, but it is a wider change than this one needs, and those settings' own
 active-only behaviour is not in scope here.
 
+### D10. The settings preview is a render row drawing through the same builder
+
+Obsidian 1.13's declarative settings take a `SettingDefinitionRender` item beside the control
+rows, which renders imperatively and may return a cleanup. The preview is one of those, placed
+after the level setting, and it draws the six levels with `buildMarkerIcon` — the editor's own
+builder, so the preview cannot show a mark the editor would not draw. The tab keeps the redraw of
+every mounted preview and calls them after a write, which is what makes the preview follow the
+dropdown that is sitting right above it. The pre-1.13 `display()` fallback renders the same row
+through the same function, for the reason that path exists at all.
+
+*Alternative.* Illustrating the styles with a static image or hand-written SVG in the tab. It
+would drift from the builder the moment a shape is tuned.
+
 ## Risks / Trade-offs
 
 - **[Risk]** Every heading changes its look on upgrade, because the default shows the level. →
   `H` with no digit is today's mark exactly, one setting away. A unit test pins it to today's
   primitives.
 - **[Risk]** `#` with no digit has not been reviewed at real size. → It is drawn to the `H`'s
-  footprint and weight, and manual review (task 7.1) settles its weight before landing.
+  footprint and weight, and manual review (task 8.1) settles its weight before landing.
 - **[Risk]** `#95` and `#124` touch the footer's and the drag preview's calls into
   `buildMarkerIcon`. → The call sites change in only a few lines each. Whichever lands second
   passes the subject from D2. The type change makes a missed site a compile error, not a silent
