@@ -17,7 +17,14 @@
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
-import { dragFrom, editorBox, markPoint, recorded, startRecording } from '../dragging.js';
+import {
+  dragFrom,
+  dragThenEscape,
+  editorBox,
+  markPoint,
+  recorded,
+  startRecording,
+} from '../dragging.js';
 
 const NOTE = 'Scratch/dragging.md';
 
@@ -100,6 +107,71 @@ describe('node dragging: the press and the drag it can become', function () {
     await dragFrom(mark, [{ x: mark.x + 1, y: mark.y }]);
     await browser.pause(250);
     expect(await zoomed()).toBe(true);
+  });
+
+  it('enters block selection at the threshold, not at the press', async function () {
+    // A cover IS the block-selection interaction mode — the editor blurs, the
+    // covered lines stop rendering raw, block chrome appears. A press that
+    // never moves is a zoom, and has no business entering that mode on its way
+    // there, so the collapse belongs to the drag.
+    const mark = await markPoint(BULLET, 0);
+    await h.setCursor(0, 3);
+    await h.clickAtPoint(mark.x, mark.y);
+    await browser.pause(250);
+    const afterClick = await h.getSelection();
+    expect(afterClick.anchor).toEqual(afterClick.head);
+
+    // The same press, moved: the pressed node's own cover is what is in
+    // flight, and what is drawn as selected. Read from the recorder, because
+    // the only moment it is true is while the button is down.
+    await openDraggable();
+    await h.setCursor(0, 3);
+    const again = await markPoint(BULLET, 0);
+    await startRecording();
+    await dragThenEscape(again, [
+      { x: again.x + 20, y: again.y + 10 },
+      { x: again.x + 40, y: again.y + 30 },
+    ]);
+    await browser.pause(250);
+    // `- one` through its own child's content end: the pressed node's whole
+    // subtree cover, not the row the pointer is over.
+    const covers = (await recorded()).filter(
+      (sample) =>
+        sample.selection.anchor.line === 2 &&
+        sample.selection.head.line === 3 &&
+        sample.selection.head.ch > 0,
+    );
+    expect(covers.length).toBeGreaterThan(0);
+    // Escape put the caret back where it was, which is the cancel rule: the
+    // collapse belongs to the drag, so undoing the drag undoes it too.
+    expect(await h.getSelection()).toEqual({
+      anchor: { line: 0, ch: 3 },
+      head: { line: 0, ch: 3 },
+    });
+    expect(await h.getBuffer()).toBe(DOC);
+  });
+
+  it('carries the whole cover when the press lands inside it', async function () {
+    // The other branch of the operand rule: what the gesture picks up is the
+    // selection's covered subtrees, so dragging several nodes is the same
+    // gesture and not a second one — and the selection does not move, because
+    // it already draws what is in flight.
+    await h.setSelection({ line: 2, ch: 0 }, { line: 4, ch: '- two'.length });
+    await browser.pause(150);
+    const before = await h.getSelection();
+    const mark = await markPoint(BULLET, 2);
+    await startRecording();
+    await dragThenEscape(mark, [
+      { x: mark.x + 20, y: mark.y - 10 },
+      { x: mark.x + 40, y: mark.y - 30 },
+    ]);
+    await browser.pause(250);
+    const samples = await recorded();
+    expect(samples.length).toBeGreaterThan(0);
+    for (const sample of samples) {
+      expect(sample.selection).toEqual(before);
+    }
+    expect(await h.getBuffer()).toBe(DOC);
   });
 
   it('keeps hearing the pointer once it has left the editor', async function () {

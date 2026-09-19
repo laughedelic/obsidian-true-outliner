@@ -115,7 +115,7 @@
       (docs/research/node-drag-and-drop section 5); negative control: listening on the editor root
       without capture loses the moves once the pointer leaves its box, which the test drives by
       moving out over the app chrome
-- [ ] 3.4 Resolve the operand by `selection-structural-ops`'s rule, collapsing the selection to the
+- [x] 3.4 Resolve the operand by `selection-structural-ops`'s rule, collapsing the selection to the
       pressed node's cover at the THRESHOLD rather than at the press (design D9a) — a cover is the
       block-selection interaction mode, and a sub-threshold press is a zoom that has no business
       entering it. Verify with unit tests over the selection shapes and an e2e case for each

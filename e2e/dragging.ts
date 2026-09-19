@@ -16,6 +16,7 @@
  */
 
 import { browser } from '@wdio/globals';
+import { Key } from 'webdriverio';
 
 export interface Point {
   readonly x: number;
@@ -28,6 +29,12 @@ export interface MoveSample {
   readonly buttons: number;
   /** Whether the pointer was inside the editor's own box at that moment. */
   readonly inside: boolean;
+  /** The selection as it stood at that move — what the drag has picked up,
+   * readable only from inside the driving call. */
+  readonly selection: {
+    readonly anchor: { readonly line: number; readonly ch: number };
+    readonly head: { readonly line: number; readonly ch: number };
+  };
 }
 
 /** The viewport centre of the nth mark matching a selector. */
@@ -81,6 +88,11 @@ export function startRecording(): Promise<void> {
     w.__toDragSamples = [];
     w.__toDragRecorder = (event: PointerEvent) => {
       const r = dom.getBoundingClientRect();
+      const main = cm.state.selection.main;
+      const at = (offset: number) => {
+        const line = cm.state.doc.lineAt(offset);
+        return { line: line.number - 1, ch: offset - line.from };
+      };
       w.__toDragSamples.push({
         x: event.clientX,
         y: event.clientY,
@@ -90,6 +102,7 @@ export function startRecording(): Promise<void> {
           event.clientX <= r.right &&
           event.clientY >= r.top &&
           event.clientY <= r.bottom,
+        selection: { anchor: at(main.anchor), head: at(main.head) },
       });
     };
     dom.addEventListener('pointermove', w.__toDragRecorder, true);
@@ -103,6 +116,32 @@ export function recorded(): Promise<MoveSample[]> {
     const w = window as any;
     return (w.__toDragSamples ?? []) as MoveSample[];
   });
+}
+
+/**
+ * A drag that is interrupted by Escape WHILE THE BUTTON IS STILL DOWN.
+ *
+ * Two input sources ticking together in one call: the pointer moves, and the
+ * key source pauses for exactly as many ticks before pressing Escape. Sent as
+ * a call of its own instead, the Escape would arrive after the button had been
+ * auto-released and would cancel nothing — which is the measurement this shape
+ * exists to work around. The pointer is deliberately left held: what the drag
+ * does with the release is a different question.
+ */
+export async function dragThenEscape(from: Point, through: readonly Point[]): Promise<void> {
+  const pointer = browser
+    .action('pointer', { parameters: { pointerType: 'mouse' } })
+    .move({ x: Math.round(from.x), y: Math.round(from.y), origin: 'viewport' })
+    .down({ button: 0 });
+  for (const point of through) {
+    pointer.move({ x: Math.round(point.x), y: Math.round(point.y), origin: 'viewport' });
+  }
+  // One pause per tick the pointer chain has already spent, so Escape lands
+  // after the last move rather than beside the first.
+  const keys = browser.action('key');
+  for (let i = 0; i < through.length + 2; i++) keys.pause(20);
+  keys.down(Key.Escape).up(Key.Escape);
+  await browser.actions([pointer, keys]);
 }
 
 /**

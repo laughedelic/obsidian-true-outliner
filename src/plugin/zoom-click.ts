@@ -46,6 +46,9 @@
 import { ViewPlugin, type EditorView, type PluginValue, type ViewUpdate } from '@codemirror/view';
 import type { Extension } from '@codemirror/state';
 import { resolveZoom } from '../zoom';
+import { dragOperand } from '../operand';
+import { nodeAtLine } from '../locate';
+import { linePosToOffset, toLineRange } from './cm-pos';
 import { parsedDoc } from './parsed-doc';
 import { GUIDES_CLASS } from './chrome-line';
 import { guideOwnerAt, toggleGuideAt } from './fold-commands';
@@ -99,6 +102,12 @@ interface MarkPress {
   /** Set once the press has moved past the threshold, and never unset: a
    * gesture that wanders and comes back is still a drag. */
   dragging: boolean;
+  /** What the drag picked up, once it became one. */
+  groups: readonly (readonly number[])[] | undefined;
+  /** The selection as it was BEFORE the drag collapsed it — what a cancel
+   * puts back. The collapse belongs to the drag, so undoing the drag undoes
+   * the collapse with it. */
+  selectionBefore: { anchor: number; head: number } | undefined;
 }
 
 class ZoomClickPlugin implements PluginValue {
@@ -107,6 +116,7 @@ class ZoomClickPlugin implements PluginValue {
   private readonly onPointerMove: (event: Event) => void;
   private readonly onPointerUp: (event: Event) => void;
   private readonly onPointerLost: (event: Event) => void;
+  private readonly onKeyDown: (event: Event) => void;
   /** Where the pointer last was, so the hover can be re-applied after the
    * view rebuilds under it — the fold a press makes replaces the very lines
    * the band was on, and left the guide dark until the pointer moved. */
@@ -132,6 +142,7 @@ class ZoomClickPlugin implements PluginValue {
     this.onPointerMove = (event) => this.onMove(event as PointerEvent);
     this.onPointerUp = (event) => this.release(event as PointerEvent);
     this.onPointerLost = () => this.cancelPress();
+    this.onKeyDown = (event) => this.keyCancel(event as KeyboardEvent);
     this.view.dom.addEventListener('pointerdown', this.onPointerDown, true);
     // Not passive any more: a drag in flight is the one case that has to be
     // able to refuse the platform's own interpretation of the same movement.
@@ -255,6 +266,61 @@ class ZoomClickPlugin implements PluginValue {
       // A pointer the platform has already finished with. The drag goes on
       // without capture rather than not at all.
     }
+    // On the DOCUMENT, and only while a drag is in flight. Collapsing the
+    // selection to a cover blurs the content DOM, so a key listener on the
+    // editor's own element would not hear the Escape that cancels.
+    this.view.dom.ownerDocument.addEventListener('keydown', this.onKeyDown, true);
+    this.pickUp(press);
+  }
+
+  /**
+   * What the drag carries, resolved by the same rule every other structural
+   * operation resolves its operand by — asked about the node the pointer is
+   * holding rather than about the caret.
+   *
+   * Here, at the THRESHOLD, and not at the press. A cover IS the
+   * block-selection interaction mode: the editor blurs, the covered lines stop
+   * rendering raw, and block chrome appears. A press that never moves is a
+   * zoom, and has no business entering that mode on its way.
+   */
+  private pickUp(press: MarkPress): void {
+    let pos: number;
+    try {
+      pos = this.view.posAtDOM(press.mark);
+    } catch {
+      this.cancelPress();
+      return;
+    }
+    const { doc } = parsedDoc(this.view.state.doc);
+    const pressed = nodeAtLine(doc, this.view.state.doc.lineAt(pos).number - 1);
+    if (!pressed) {
+      this.cancelPress();
+      return;
+    }
+    const main = this.view.state.selection.main;
+    const operand = dragOperand(doc, toLineRange(this.view.state.doc, main), pressed.id);
+    if (!operand) {
+      this.cancelPress();
+      return;
+    }
+    press.groups = operand.groups;
+    if (!operand.collapseTo) return;
+    press.selectionBefore = { anchor: main.anchor, head: main.head };
+    this.view.dispatch({
+      selection: {
+        anchor: linePosToOffset(this.view.state.doc, operand.collapseTo.start),
+        head: linePosToOffset(this.view.state.doc, operand.collapseTo.end),
+      },
+    });
+  }
+
+  /** The selection as it was before the drag collapsed it. */
+  private restoreSelection(press: MarkPress): void {
+    const before = press.selectionBefore;
+    if (!before) return;
+    const end = this.view.state.doc.length;
+    if (before.anchor > end || before.head > end) return;
+    this.view.dispatch({ selection: { anchor: before.anchor, head: before.head } });
   }
 
   /**
@@ -267,17 +333,35 @@ class ZoomClickPlugin implements PluginValue {
     if (!press || event.pointerId !== press.pointerId) return;
     this.press = null;
     this.releaseCapture(press.pointerId);
-    if (press.dragging) return;
+    this.view.dom.ownerDocument.removeEventListener('keydown', this.onKeyDown, true);
+    if (press.dragging) {
+      // No destination is resolved yet, and a release that names none cancels
+      // with nothing written — which includes putting back the selection the
+      // pick-up collapsed. The drop replaces this branch, not the rule.
+      this.restoreSelection(press);
+      return;
+    }
     this.zoomToMark(press.mark);
   }
 
   /** Every path that ends a press without resolving it: a cancelled pointer,
    * capture lost to something else, the view going away. */
+  /** Escape cancels a drag in flight, and nothing else — a press that has not
+   * become one is a zoom waiting to happen, which Escape has no part in. */
+  private keyCancel(event: KeyboardEvent): void {
+    if (event.key !== 'Escape' || !this.press?.dragging) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.cancelPress();
+  }
+
   private cancelPress(): void {
     const press = this.press;
     if (!press) return;
     this.press = null;
     this.releaseCapture(press.pointerId);
+    this.view.dom.ownerDocument.removeEventListener('keydown', this.onKeyDown, true);
+    this.restoreSelection(press);
   }
 
   private releaseCapture(pointerId: number): void {
@@ -563,6 +647,8 @@ class ZoomClickPlugin implements PluginValue {
       startY: event.clientY,
       mark,
       dragging: false,
+      groups: undefined,
+      selectionBefore: undefined,
     };
   }
 }

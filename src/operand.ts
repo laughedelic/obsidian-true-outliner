@@ -22,7 +22,10 @@ import type { OutlineDoc } from './model';
 import type { OpOutput } from './ops';
 import type { LinePos } from './line-pos';
 import type { ForestRoot } from './escalate';
-import { coveredForestOf, escalateRange, forestCoverOf } from './escalate';
+import { coveredForestOf, escalateRange, forestCoverOf, subtreeCoverOf } from './escalate';
+import type { Cover } from './escalate';
+import type { OutlineNode } from './model';
+import { walkNodes } from './model';
 import { nodeAtLine } from './locate';
 import { isEmptyRange, type LineRange } from './line-pos';
 
@@ -113,6 +116,59 @@ export function resolveOperand(doc: OutlineDoc, range: LineRange): Operand | und
   if (covered) return { groups: groupRootsByParent(covered.roots), wasCover: true };
   const groups = coverGroupsOf(doc, range);
   return groups ? { groups, wasCover: false } : undefined;
+}
+
+/** What a drag picks up, and whether the selection has to move to match. */
+export interface DragOperand {
+  readonly groups: readonly (readonly number[])[];
+  /**
+   * The cover the selection becomes, where the press landed outside it —
+   * `undefined` leaves the selection exactly as it was.
+   *
+   * A cover IS the block-selection interaction mode, so entering one is not a
+   * neutral act: the editor blurs, the covered lines stop rendering raw, and
+   * block chrome appears. That is why this is the DRAG's answer and not the
+   * press's — a press that never moves is a zoom, which has no business
+   * entering block selection on its way.
+   */
+  readonly collapseTo: Cover | undefined;
+}
+
+/**
+ * The operand of a DRAG: the same rule every other structural operation
+ * resolves by, asked about the node the pointer is holding rather than about
+ * the caret.
+ *
+ * The pressed node inside the current cover means the whole cover travels —
+ * dragging several nodes is the same gesture and not a second one. Pressed
+ * anywhere else, the operand is that node's own subtree, and the selection
+ * becomes its cover so that what is in flight is always what is drawn as
+ * selected.
+ *
+ * INSIDE, not "is one of the roots": a press on a covered root's own
+ * descendant is still a press inside the cover, and picking that descendant
+ * out of it would drag a part of what the reader can see selected.
+ */
+export function dragOperand(
+  doc: OutlineDoc,
+  range: LineRange,
+  pressedId: number,
+): DragOperand | undefined {
+  let pressed: OutlineNode | undefined;
+  for (const node of walkNodes(doc)) {
+    if (node.id === pressedId) pressed = node;
+  }
+  if (!pressed) return undefined;
+
+  const covered = coveredForestOf(doc, range);
+  if (covered && covered.roots.some((root) => subtreeHolds(root.node, pressedId))) {
+    return { groups: groupRootsByParent(covered.roots), collapseTo: undefined };
+  }
+  return { groups: [[pressed.id]], collapseTo: subtreeCoverOf(doc, pressed) };
+}
+
+function subtreeHolds(node: OutlineNode, id: number): boolean {
+  return node.id === id || node.children.some((child) => subtreeHolds(child, id));
 }
 
 /**
