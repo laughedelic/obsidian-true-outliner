@@ -1,0 +1,93 @@
+## 1. The level reaches the drawing inputs
+
+- [ ] 1.1 `LineDecorationFact` gains `level`, set from `OutlineNode.level` for a heading and absent
+      for every other kind, constant across a node's lines. Verify with a `tests/decorate.test.ts`
+      property over both generators: a fact has a level exactly when its kind is `heading`, and it
+      equals the node's. Negative control: dropping the forward in `decorate()` fails it
+- [ ] 1.2 `LineageSegment` gains the same `level`, and `lineageKey` joins it (design D4). Verify
+      with a unit test that two segments differing only in level produce different keys. Negative
+      control: leaving level out of the join makes them equal
+
+## 2. The geometry, as a pure function
+
+- [ ] 2.1 New module (`src/plugin/marker-shapes.ts`): `markerShapes(subject)` returns the primitive
+      list for every kind (design D1). The drawing subject is the union in design D2, and the
+      non-heading kinds keep their exact current shapes. Verify with a unit test that each
+      non-heading kind's primitives equal the ones `buildMarkerIcon` draws today, copied into the
+      test as fixtures
+- [ ] 2.2 The heading glyphs (`H`, `#`), the six monoline digit paths and the placement helpers,
+      exactly as in `docs/research/heading-level-markers.md` "Geometry" and "The digits". The
+      digit stroke is scale-compensated (design D6). Verify with unit tests over all four styles ×
+      six levels that every primitive's extent, stroke included, lies inside the viewBox
+      (bounded by path control points), and that the six digit paths are pairwise distinct.
+      Negative control: moving the twin digit box one unit right pushes a digit's stroke out of
+      bounds, and the test fails
+- [ ] 2.3 The style → weights table, as the research note's "Decision" states it, and the `H`-beside
+      glyph box derived from the digit's ink (design D5). Verify with unit tests that each style
+      draws at its table weights, and that the `H`-beside glyph's top and bottom equal the
+      digit's ink extent to within 0.01 units. Negative control: a constant full-height `H` box
+      fails the equality
+- [ ] 2.4 `buildMarkerIcon` takes the subject and materialises `markerShapes` into the existing
+      `<svg>`, still through DOM calls on a detached element. Verify with `npm run build`, the
+      lint (the `no-restricted-syntax` DOM guard included) and `52-block-markers-icons.e2e.ts`
+      passing unchanged
+
+## 3. The settings
+
+- [ ] 3.1 Declare `headingMarkerGlyph` (`H` | `hash`, default `H`) and `headingMarkerLevel`
+      (`beside` | `subscript`, default `beside`) as `choice` settings in
+      `src/plugin/settings/appearance.ts`. Each option's label says what it draws; each row's
+      description says it changes only heading marks. Verify with a unit test that
+      `normalizePluginData` fills both defaults when absent and rejects an unknown value
+- [ ] 3.2 Getter/setter pair on the plugin, plus their `WRITERS` rows. The setter saves, calls
+      `forceRedraw()`, bumps the footer revision, then calls `nudgeFooters` and `repaintFooters`.
+      A single `headingMarkerStyle` getter resolves both keys into the style value
+      (design D3). Verify with the settings e2e in 6.3
+- [ ] 3.3 `DecorationSource`, `FooterSource` and `ZoomTrailSource` each gain `headingMarkerStyle`,
+      read fresh per recompute. Verify with `npm run build` (the plugin implements all three)
+
+## 4. The editor
+
+- [ ] 4.1 `computeMarkers` passes the fact's level and the source's style into `MarkerWidget`.
+      `eq` compares level and style alongside kind and shift (design D4). Verify with 6.2.
+      Negative control: dropping level from `eq` leaves an H2 mark after `##` becomes `###`
+- [ ] 4.2 `MarkerWidget.toDOM` sets `data-kind` on the wrapper, and `data-level` for a heading
+      (design D7). Verify with 6.1, which locates marks by these attributes and then asserts on
+      the drawing
+
+## 5. The footer and the zoom trail
+
+- [ ] 5.1 `markerFor`, `segmentMarker` and `segmentGlyph` build their subject from the row's fact
+      or the segment, level included, with the source's style. `segmentMarker`'s fallback takes
+      the row's fact instead of a bare kind (design D2). Verify with `npm run build`: a call site
+      that passes a heading kind without a level no longer compiles
+- [ ] 5.2 The zoom trail's widget key joins the style (design D4). Verify with 6.4. Negative
+      control: leaving it out keeps the old trail glyph after a style change
+
+## 6. End-to-end
+
+- [ ] 6.1 New spec `e2e/specs/52-heading-level-markers.e2e.ts`: a note with one heading per level,
+      in outline mode. Each heading's mark carries its `data-level`, the six SVG markups are
+      pairwise distinct, and every heading mark's box equals a paragraph mark's box. Iterate with
+      `npm run test:e2e:narrow -- 52-heading-level-markers`
+- [ ] 6.2 Same spec: retyping `## Title` as `### Title` redraws that mark to equal the level-3 markup
+      drawn elsewhere in the note. Negative control: task 4.1's
+- [ ] 6.3 Same spec: switching each setting switches every mounted heading mark on the next
+      render, and no line's text moves: every heading's text rect is unchanged across the switch.
+      Negative control: a setter without `forceRedraw` leaves the old marks mounted
+- [ ] 6.4 Same spec: with a heading ancestor in a backlinks footer's lineage and in a zoom trail,
+      each heading mark's SVG markup equals the editor's for that level and style, before and
+      after a style change. Negative control: dropping `repaintFooters` from the setter leaves
+      the footer on the old style
+- [ ] 6.5 Re-run `52-block-markers-icons`, `57-marker-gap` and `74-footer-chrome-pass` narrow and
+      unchanged. They pin the box size, the gutter derivation (the checkbox stays the widest
+      mark) and the footer's marks sharing the editor's column
+
+## 7. Manual testing and landing
+
+- [ ] 7.1 Add `test-vault/Notes/Heading level markers.md`, a nested H1–H6 outline with
+      paragraphs, a list and a reference from another note. Verify by manual review of all four
+      styles, light and dark, desktop and mobile emulation, footer and zoom trail included
+- [ ] 7.2 `npm run lint` and the unit suite pass, and the research index row for
+      `heading-level-markers.md` resolves
+- [ ] 7.3 `openspec validate heading-level-markers --strict`
