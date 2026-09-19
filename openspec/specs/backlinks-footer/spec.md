@@ -173,7 +173,10 @@ Two references sharing ancestors SHALL share the lineage that leads to their com
 point rather than each repeating it.
 
 Node kind notation — the marker drawn beside a node — SHALL be identical between a lineage
-element and a referencing node: same glyph for the same kind, same size, same colour. Emphasis
+element and a referencing node: the same glyph for the same kind and, for a heading, the same
+level, at the same size and in the same colour. It SHALL also be the glyph the editor draws for
+that kind and level, in the heading marker style the reader has chosen
+(`outline-decorations`, "A heading's marker can name its level, in a chosen style"). Emphasis
 SHALL be carried by text treatment alone, with lineage rendered dimmer than the referencing node
 it leads to.
 
@@ -193,8 +196,15 @@ No mark SHALL be drawn between two elements — they are separated by space alon
 
 #### Scenario: Markers do not encode emphasis
 
-- **WHEN** a lineage element and a referencing node are of the same kind
+- **WHEN** a lineage element and a referencing node are of the same kind, and if headings, of
+  the same level
 - **THEN** their markers are drawn identically, and only the text differs in colour
+
+#### Scenario: A heading's level reaches the footer
+
+- **WHEN** a reference sits under an H2 ancestor, beside a referencing H3 node
+- **THEN** the ancestor's mark names level 2 and the node's names level 3, each identical to the
+  mark the editor draws for that level in the chosen style
 
 #### Scenario: Every ancestor on a collapsed line is named
 

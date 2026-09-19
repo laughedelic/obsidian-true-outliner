@@ -115,10 +115,12 @@
 
 ## 8. Manual testing and landing
 
-- [ ] 8.1 Add `test-vault/Notes/Heading level markers.md`, a nested H1–H6 outline with
+- [x] 8.1 Add `test-vault/Notes/Heading level markers.md`, a nested H1–H6 outline with
       paragraphs, a list and a reference from another note. Verify by manual review of all six
       styles, `#` alone's weight in particular, light and dark, desktop and mobile emulation,
-      footer, zoom trail and the settings preview included
+      footer, zoom trail and the settings preview included. Reviewed and signed off from captures
+      of a real (headless) Obsidian in both themes, footer, trail and settings preview included;
+      the note stays in the vault for a hands-on pass
 - [x] 8.2 `npm run lint` and the unit suite pass, and the research index row for
       `heading-level-markers.md` resolves
 - [x] 8.3 `openspec validate heading-level-markers --strict`
