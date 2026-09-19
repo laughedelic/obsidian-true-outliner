@@ -2212,6 +2212,7 @@ export function insertSubtrees(
   parsedBlocks: readonly OutlineNode[],
   position: 'before' | 'after',
   fallbackIndentUnit?: string,
+  inheritedSeparation?: readonly string[],
 ): OpResult<OpOutput> {
   if (parsedBlocks.length === 0) return reject('empty-selection');
   const anchorPath = findPath(doc, anchorId);
@@ -2246,9 +2247,16 @@ export function insertSubtrees(
   // The node above is the anchor for an `after` and the preceding sibling for a
   // `before`; where the run lands first among a parent's children it is the
   // parent, whose trailing gap is its separation from that first child.
+  //
+  // A caller that has already REMOVED what stood here states the separation
+  // instead: a type-over deletes the run it replaces, and the deletion takes
+  // that run's own gap with it, so the tree no longer holds what the
+  // replacement should inherit.
   const above = insertIndex > 0 ? subtreeFinalNode(siblings[insertIndex - 1]!) : undefined;
   const scopeGap = blankGap(scopeSeparation(parent, siblings, insertIndex));
-  const gapBelowRun = above ? blankGap(above.trailingGap) : scopeGap;
+  const gapBelowRun = blankGap(
+    inheritedSeparation ?? (above ? above.trailingGap : scopeSeparation(parent, siblings, insertIndex)),
+  );
   const lastIdx = reencoded.length - 1;
   const finalReencoded = [
     ...reencoded.slice(0, lastIdx),
@@ -2259,7 +2267,14 @@ export function insertSubtrees(
   // terminating newline. A run landing at the end takes that over — which the
   // copy above already does — and what separates it from the node now above it
   // is that scope's own separation instead.
-  const aboveAtDocEnd = above !== undefined && above.id === documentFinalNode(doc)?.id;
+  //
+  // Not where the caller states the separation: a type-over's terminating
+  // newline comes from the run it deleted, so the node above keeps the gap it
+  // already has, which is its own separation from what stood there.
+  const aboveAtDocEnd =
+    inheritedSeparation === undefined &&
+    above !== undefined &&
+    above.id === documentFinalNode(doc)?.id;
 
   const surgery = updateSiblings(doc, parentPath, (nodes) => {
     const withAbove = aboveAtDocEnd

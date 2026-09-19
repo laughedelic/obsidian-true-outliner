@@ -33,10 +33,15 @@ is needed.
 - **A payload landing in a heading-bearing scope stays headings**, re-levelled so its root sits
   at the destination's depth, every heading in it shifting by the same delta. Setext normalizes
   to ATX on the way, through the function that already does that for level shifts.
-- **A payload landing in a list scope converts**, and converts throughout: every node in it that
-  has children becomes a list item. This is forced rather than chosen — below a list item a
-  paragraph can have no children at all, so preserving the payload's tree has exactly one
-  encoding available.
+- **A payload landing in a list scope converts**, and converts throughout: every structural node
+  in it becomes a list item. For a node WITH CHILDREN this is forced rather than chosen — below a
+  list item a paragraph can have no children at all, so preserving the payload's tree has exactly
+  one encoding available. A CHILDLESS node converts with them because a list scope is one list.
+
+  *(Corrected 2026-09-19, from the real-vault manual pass: this said only the nodes WITH children
+  convert. Measured, that left two siblings of one copied section as a paragraph and a list item,
+  over an accident of which of them happened to have children — M1 in
+  `docs/research/paste-across-encoding-regimes`.)*
 - **A converted heading carries its own `#` run as its list item's text.** `- ## Notes` is a
   list item containing an `h2` in CommonMark, Obsidian renders it with heading styling, and our
   own content-column rule already treats the marker run as chrome. The rank survives the move

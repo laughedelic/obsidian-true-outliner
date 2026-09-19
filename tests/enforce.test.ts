@@ -1271,6 +1271,37 @@ describe('a pasted run keeps the separation of the boundary it landed in', () =>
     expect(encode(atEnd.after)).toBe('- one\n  - x\n    - y\n');
   });
 
+  it('a replacement inherits that separation on every insertion path', () => {
+    // The second review round: the inherited separation reached only the path
+    // that replaces a whole scope. With a surviving sibling the run took the
+    // tree's own reading, which by then no longer held what the deletion had
+    // removed — the blank line below a replaced first item, and the
+    // terminating newline where the replaced run ended the file.
+    const survivorBelow = pasteThroughBothGates(
+      '- a\n\n- b\n', pos(0, 0), pos(0, 3), '- x\n  - y\n',
+    );
+    expect(survivorBelow.kind).toBe('rewrite');
+    if (survivorBelow.kind !== 'rewrite') return;
+    expect(encode(survivorBelow.after)).toBe('- x\n  - y\n\n- b\n');
+
+    const survivorAbove = pasteThroughBothGates(
+      '- a\n- b\n', pos(1, 0), pos(1, 3), '- x\n  - y\n',
+    );
+    expect(survivorAbove.kind).toBe('rewrite');
+    if (survivorAbove.kind !== 'rewrite') return;
+    expect(encode(survivorAbove.after)).toBe('- a\n- x\n  - y\n');
+
+    // And where the two meet: the run replaced ended the file, so it hands the
+    // terminating newline over, while the node above keeps the blank line that
+    // was its own separation from what stood there.
+    const loose = pasteThroughBothGates(
+      '- a\n\n- b\n', pos(2, 0), pos(2, 3), '- x\n  - y\n',
+    );
+    expect(loose.kind).toBe('rewrite');
+    if (loose.kind !== 'rewrite') return;
+    expect(encode(loose.after)).toBe('- a\n\n- x\n  - y\n');
+  });
+
   it('takes over the terminating newline at the end of a document', () => {
     // Negative control: the last node's gap is the file's final newline, not a
     // separation — copied rather than taken over, it would end the file in two

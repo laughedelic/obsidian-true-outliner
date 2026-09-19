@@ -202,9 +202,10 @@ export function reencodeForDestination(
   return shiftSubtree(node, delta);
 }
 
-/** Markdown's heading depth runs out here: there is no `h7`, so a payload
- * that would need one encodes as content instead of clamping two of its own
- * levels onto one. */
+/** Markdown's heading depth runs out here: there is no `h7`, so an insertion
+ * that would need one is rejected with `at-h6-bound` rather than clamping two
+ * of the payload's levels onto one or converting it to content — both lose the
+ * tree the insertion exists to preserve. */
 export const MAX_HEADING_LEVEL = 6;
 
 const ATX_RE = /^( {0,3})(#{1,6})([ \t]*)(.*)$/;

@@ -412,9 +412,13 @@ function deleteAndSplice(
 
   let inserted: OpResult<OpOutput>;
   if (after && survivorInDoc2) {
-    inserted = insertSubtrees(doc2, survivorInDoc2.id, parsedBlocks, 'before', fallbackIndentUnit);
+    inserted = insertSubtrees(
+      doc2, survivorInDoc2.id, parsedBlocks, 'before', fallbackIndentUnit, displacedGap,
+    );
   } else if (before && survivorInDoc2) {
-    inserted = insertSubtrees(doc2, survivorInDoc2.id, parsedBlocks, 'after', fallbackIndentUnit);
+    inserted = insertSubtrees(
+      doc2, survivorInDoc2.id, parsedBlocks, 'after', fallbackIndentUnit, displacedGap,
+    );
   } else {
     inserted = insertAsOnlyChildren(doc2, parentPath, parsedBlocks, fallbackIndentUnit, displacedGap);
   }
