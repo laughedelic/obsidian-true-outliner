@@ -271,10 +271,41 @@ function stripFinalGap(node: OutlineNode): OutlineNode {
   return { ...node, children: [...node.children.slice(0, -1), stripFinalGap(last)] };
 }
 
-function setFinalGap(node: OutlineNode, gap: readonly string[]): OutlineNode {
+/** `node` with the trailing gap of its LAST descendant replaced — the gap that
+ * stands between the node's subtree and whatever follows it. */
+export function setFinalGap(node: OutlineNode, gap: readonly string[]): OutlineNode {
   const last = node.children[node.children.length - 1];
   if (!last) return { ...node, trailingGap: [...gap] };
   return { ...node, children: [...node.children.slice(0, -1), setFinalGap(last, gap)] };
+}
+
+/** A separation of the same WIDTH, written as empty lines. A gap line's own
+ * whitespace is the document's — a place line carries indentation so it parses
+ * as a node — and copying it would write that indentation somewhere it says
+ * nothing. */
+function blankGap(gap: readonly string[]): readonly string[] {
+  return gap.map(() => '');
+}
+
+/** The node whose trailing gap is the document's terminating newline. */
+function documentFinalNode(doc: OutlineDoc): OutlineNode | undefined {
+  const last = doc.children[doc.children.length - 1];
+  return last ? subtreeFinalNode(last) : undefined;
+}
+
+/** What a scope separates its nodes BY, read off the boundary above the one an
+ * insertion is splitting — the next one up that is not the document's end. A
+ * parent's own trailing gap answers where there is no such boundary, being its
+ * separation from its first child; at the root there is neither and the answer
+ * is none. */
+function scopeSeparation(
+  parent: OutlineNode | 'root',
+  siblings: readonly OutlineNode[],
+  insertIndex: number,
+): readonly string[] {
+  const above = insertIndex >= 2 ? siblings[insertIndex - 2] : undefined;
+  if (above) return subtreeFinalNode(above).trailingGap;
+  return parent === 'root' ? [] : parent.trailingGap;
 }
 
 function needsBlankBetween(prev: OutlineNode, next: OutlineNode): boolean {
@@ -2204,40 +2235,43 @@ export function insertSubtrees(
   if (!reencodedResult.ok) return reencodedResult;
   const reencoded = reencodedResult.value;
 
-  // Gap ownership (design.md D2, mirroring splitNode's own gap-repair):
-  // the anchor's trailing gap represents its separation from whatever
-  // FOLLOWED it, which is only still true when inserting BEFORE it. When
-  // inserting AFTER, that gap now belongs between the pasted run and
-  // whatever followed — it moves onto the last inserted block, and the
-  // anchor's own gap is stripped so it doesn't leave a spurious blank line
-  // before the pasted content. Either way, the block that newly lands
-  // adjacent to the anchor (the last one, for both directions) carries no
-  // gap of its own — any gap the destination genuinely needs is added by
-  // `normalizeBoundaries` in `finalize`, same as for a fresh adjacency.
-  const anchor = siblings[anchorIndex]!;
+  // Gap ownership: a gap is a BOUNDARY's separation, and an insertion turns one
+  // boundary into two, so both take it. The node above the insertion point
+  // keeps its own gap and the last inserted block takes a copy, which leaves
+  // the run separated from what follows it exactly as what follows was
+  // separated from what preceded it. Stripping that gap instead left the run
+  // flush against the next node wherever the parse required no blank — a
+  // pasted callout ran straight into the paragraph below it.
+  //
+  // The node above is the anchor for an `after` and the preceding sibling for a
+  // `before`; where the run lands first among a parent's children it is the
+  // parent, whose trailing gap is its separation from that first child.
+  const above = insertIndex > 0 ? subtreeFinalNode(siblings[insertIndex - 1]!) : undefined;
+  const scopeGap = blankGap(scopeSeparation(parent, siblings, insertIndex));
+  const gapBelowRun = above ? blankGap(above.trailingGap) : scopeGap;
   const lastIdx = reencoded.length - 1;
-  let finalReencoded = reencoded;
-  let finalAnchor = anchor;
-  if (position === 'after') {
-    const carriedGap = subtreeFinalNode(anchor).trailingGap;
-    finalAnchor = stripFinalGap(anchor);
-    finalReencoded = [
-      ...reencoded.slice(0, lastIdx),
-      setFinalGap(reencoded[lastIdx]!, carriedGap),
-    ];
-  } else {
-    finalReencoded = [...reencoded.slice(0, lastIdx), stripFinalGap(reencoded[lastIdx]!)];
-  }
+  const finalReencoded = [
+    ...reencoded.slice(0, lastIdx),
+    setFinalGap(reencoded[lastIdx]!, gapBelowRun),
+  ];
+
+  // The document's LAST node holds no separation: its gap is the file's
+  // terminating newline. A run landing at the end takes that over — which the
+  // copy above already does — and what separates it from the node now above it
+  // is that scope's own separation instead.
+  const aboveAtDocEnd = above !== undefined && above.id === documentFinalNode(doc)?.id;
 
   const surgery = updateSiblings(doc, parentPath, (nodes) => {
-    const withAnchor = nodes.map((n, i) => (i === anchorIndex ? finalAnchor : n));
+    const withAbove = aboveAtDocEnd
+      ? nodes.map((n, i) => (i === insertIndex - 1 ? setFinalGap(n, scopeGap) : n))
+      : nodes;
     // `nodes` is the destination list before the paste. The pasted blocks come
     // from parsed markdown with numbering of their own, which does not become
     // the start of a run that was already here.
     return renumberOrderedAgainst(nodes, [
-      ...withAnchor.slice(0, insertIndex),
+      ...withAbove.slice(0, insertIndex),
       ...finalReencoded,
-      ...withAnchor.slice(insertIndex),
+      ...withAbove.slice(insertIndex),
     ]);
   });
   return finalize(doc, surgery, finalReencoded[0]!.id);

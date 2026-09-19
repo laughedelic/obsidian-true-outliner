@@ -850,11 +850,10 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     // with nothing where the caret was: a gap line resolves to the node BEFORE
     // it, and `after` that node is after its whole section.
     expect(await h.getBuffer()).toBe(
-      '# Day\n\n## Notes\n\nSome prose.\n## First\n\nbody\n',
+      '# Day\n\n## Notes\n\nSome prose.\n\n## First\n\nbody\n',
     );
-    // `Some prose.` abutting `## First` is the insertion rule's own: the block
-    // landing adjacent to the anchor carries no gap in either direction, and
-    // `normalizeBoundaries` adds one only where the parse needs it.
+    // The blank line below `Some prose.` is the gap the paste landed in,
+    // carried to both sides of itself: the boundary it split had one.
   });
 
   it('peers in the payload land as the same kind of row (M1)', async function () {
@@ -876,7 +875,7 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     // the heading's one-line gap becomes three.
     expect(await h.getBuffer()).toBe('# Day\n\n\n\n## First\n\nbody\n');
     await h.pasteText('## Notes\n\nSome prose.\n');
-    expect(await h.getBuffer()).toBe('# Day\n\n## Notes\n\nSome prose.\n## First\n\nbody\n');
+    expect(await h.getBuffer()).toBe('# Day\n\n## Notes\n\nSome prose.\n\n## First\n\nbody\n');
   });
 
   it('a paste with the caret ON a heading lands inside its section (M4)', async function () {
@@ -902,6 +901,19 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     // section absorbed — rather than stopping at what was pasted.
     const sel = await h.getSelection();
     expect(sel.head).toEqual({ line: 6, ch: 'Some prose.'.length });
+  });
+
+  it('a pasted section is separated from what follows it (M6)', async function () {
+    await outlineNote('## Kitchen\n\nTile shop.\n');
+    await h.setCursor(0, '## Kitchen'.length);
+    await h.keys.enter();
+    await h.pasteText('## Notes\n\n> [!warning] Heads up\n> Legal wants a look.\n');
+    // The manual pass saw the pasted section run straight into the paragraph
+    // below it: a callout followed by a paragraph needs no blank line to
+    // parse, and the run carried no gap of its own to supply one.
+    expect(await h.getBuffer()).toBe(
+      '## Kitchen\n\n### Notes\n\n> [!warning] Heads up\n> Legal wants a look.\n\nTile shop.\n',
+    );
   });
 
   it('undo restores the pre-paste buffer byte-identically, in one step, for a CONVERTED paste', async function () {

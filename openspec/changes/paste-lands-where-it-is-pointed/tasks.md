@@ -114,6 +114,13 @@
       own line still names its next-sibling slot, with the new in-scope case pinned beside it.
       Delta added under `specs/outline-zoom/`
 
+- [x] 6c.10 M6, the run landing flush against what follows it. A gap is a boundary's separation
+      and an insertion turns one boundary into two, so both take it now (design D10) — the run's
+      own final gap was stripped and the anchor's was moved onto it, which showed only where the
+      parse required no blank line. The type-over path reads that separation off the tree before
+      its deletion, which takes the replaced run's gap with it. Negative controls: the tight-list
+      frame gains nothing and the document-end frame keeps exactly one terminating newline
+
 ## 6d. Review round (independent review, 2026-09-19)
 
 - [x] 6d.1 Separate a RUN from a following block of the same family — a quote or callout from a

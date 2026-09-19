@@ -1080,7 +1080,7 @@ describe('a paste on the blank line under a node lands in it', () => {
     );
     expect(child.kind).toBe('rewrite');
     if (child.kind !== 'rewrite') return;
-    expect(encode(child.after)).toBe('\t- one\n\t\t\n\t\t- alpha\n\t\t  - beta\n\t\t- sub\n');
+    expect(encode(child.after)).toBe('\t- one\n\t\t\n\t\t- alpha\n\t\t  - beta\n\n\t\t- sub\n');
 
     // One tab in is column 4, short of 6, so it is still the sibling reading —
     // the comparison is columns against columns, not characters against either.
@@ -1113,7 +1113,7 @@ describe('a paste on the blank line under a node lands in it', () => {
     );
     expect(verdict.kind).toBe('rewrite');
     if (verdict.kind !== 'rewrite') return;
-    expect(encode(verdict.after)).toBe('# Day\n\n## Notes\n\nSome prose.\n## First\n\nbody\n');
+    expect(encode(verdict.after)).toBe('# Day\n\n## Notes\n\nSome prose.\n\n## First\n\nbody\n');
   });
 
   it('a gap of one is the document\'s own separation and is left alone', () => {
@@ -1122,7 +1122,7 @@ describe('a paste on the blank line under a node lands in it', () => {
     );
     expect(verdict.kind).toBe('rewrite');
     if (verdict.kind !== 'rewrite') return;
-    expect(encode(verdict.after)).toBe('# Day\n\n## Notes\n\nSome prose.\n## First\n\nbody\n');
+    expect(encode(verdict.after)).toBe('# Day\n\n## Notes\n\nSome prose.\n\n## First\n\nbody\n');
   });
 });
 
@@ -1210,6 +1210,77 @@ describe('a paste with the caret ON a node lands at its next boundary', () => {
         'list-item: - two',
       ].join('\n'),
     );
+  });
+});
+
+describe('a pasted run keeps the separation of the boundary it landed in', () => {
+  it('separates the run from what follows it, where the parse requires no blank', () => {
+    // The manual pass: a section ending in a callout, pasted under a heading,
+    // ran straight into the paragraph that followed. A blank is added by
+    // `normalizeBoundaries` only where the PARSE needs one, and a callout
+    // followed by a paragraph needs none, so the seam came out flush.
+    const verdict = pasteThroughBothGates(
+      '## Kitchen\n\nTile shop.\n',
+      pos(0, 10),
+      pos(0, 10),
+      '## Notes\n\n> [!warning] Heads up\n> Legal wants a look.\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(encode(verdict.after)).toBe(
+      '## Kitchen\n\n### Notes\n\n> [!warning] Heads up\n> Legal wants a look.\n\nTile shop.\n',
+    );
+  });
+
+  it('adds nothing where the boundary had no separation', () => {
+    // Negative control: the separation is the destination's own, not a blank
+    // line the paste brings with it. A tight list stays tight.
+    const verdict = pasteThroughBothGates(
+      '- one\n- two\n', pos(0, 5), pos(0, 5), '- alpha\n  - beta\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(encode(verdict.after)).toBe('- one\n- alpha\n  - beta\n- two\n');
+  });
+
+  it('a replacement inherits the separation of what it replaced', () => {
+    // The type-over path reaches its destination through a deletion, which
+    // takes the replaced run's own gap with it, so the separation is read off
+    // the tree before that. Left to the payload's, a section copied out of a
+    // note carried that note's blank line into a tight list.
+    const tight = pasteThroughBothGates(
+      '- one\n  - a\n- three\n', pos(1, 4), pos(1, 5), '- x\n  - y\n',
+    );
+    expect(tight.kind).toBe('rewrite');
+    if (tight.kind !== 'rewrite') return;
+    expect(encode(tight.after)).toBe('- one\n  - x\n    - y\n- three\n');
+
+    const loose = pasteThroughBothGates(
+      '- one\n  - a\n\n- three\n', pos(1, 4), pos(1, 5), '- x\n  - y\n',
+    );
+    expect(loose.kind).toBe('rewrite');
+    if (loose.kind !== 'rewrite') return;
+    expect(encode(loose.after)).toBe('- one\n  - x\n    - y\n\n- three\n');
+
+    // And the terminating newline where the replaced run ended the file.
+    const atEnd = pasteThroughBothGates(
+      '- one\n  - a\n', pos(1, 4), pos(1, 5), '- x\n  - y\n',
+    );
+    expect(atEnd.kind).toBe('rewrite');
+    if (atEnd.kind !== 'rewrite') return;
+    expect(encode(atEnd.after)).toBe('- one\n  - x\n    - y\n');
+  });
+
+  it('takes over the terminating newline at the end of a document', () => {
+    // Negative control: the last node's gap is the file's final newline, not a
+    // separation — copied rather than taken over, it would end the file in two
+    // newlines and leave the run flush under the anchor.
+    const verdict = pasteThroughBothGates(
+      '# Day\n\nbody\n', pos(2, 4), pos(2, 4), '## Notes\n\nSome prose.\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(encode(verdict.after)).toBe('# Day\n\nbody\n\n## Notes\n\nSome prose.\n');
   });
 });
 

@@ -601,6 +601,7 @@ section under it puts the payload below `body`, outside the section the caret wa
 ## Notes
 
 Some prose.
+
 ## First
 
 body
@@ -614,10 +615,8 @@ h1: # Day
     paragraph: body
 ```
 
-`Some prose.` abutting `## First` is the insertion rule's own, unchanged: the block landing
-adjacent to the anchor carries no gap in either direction, and `normalizeBoundaries` adds one
-only where the parse needs it. The separation the caret's own line held is now above the payload
-rather than below it.
+The separation the caret's own line held is above the payload, and a copy of it below: the
+boundary the paste split had one blank line, and both boundaries it became take it (D10).
 
 ### F3 — On a gap line the column carries the shallower reading
 
@@ -697,7 +696,8 @@ makes it parse as a node rather than as a continuation line — and nothing in t
 consumed the place the payload filled.
 
 **Intended:** the gap the caret sat in collapses to the single blank line the document already
-had, giving F2's buffer exactly. A gap of none or one is left alone.
+had, and F2's rule puts a copy of it below the payload, giving F2's buffer exactly. A gap of none
+or one is left alone.
 
 ### F6 — What the heading arm's absorption looks like from here
 
@@ -715,3 +715,25 @@ h1: # Day
 `body` is inside the pasted subsection now. A heading placed before content at the same scope
 means exactly that, and the alternatives are the ones F1 shows: put the payload after the
 content, or demote it and lose the rank.
+
+### F7 — A run that ends in a callout, and the paragraph below it
+
+Which payloads show the missing separation is a fact about the PARSE, not about the paste. Caret
+on `## Kitchen`, pasting a section whose last block is a callout, **today**:
+
+```
+## Kitchen
+
+### Notes
+
+> [!warning] Heads up
+> Legal wants a look.
+Tile shop.
+```
+
+**Intended:** a blank line before `Tile shop.`, the separation `## Kitchen` had from it.
+
+A payload ending in a PARAGRAPH comes out separated either way, because `paragraph` →
+`paragraph` merges and `normalizeBoundaries` has to break it. That is the whole of the
+difference between the two reports: the seam is flush in both, and only the payload whose parse
+tolerates it shows it.

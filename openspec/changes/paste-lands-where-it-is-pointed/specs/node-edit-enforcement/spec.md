@@ -30,6 +30,11 @@ On a GAP line the caret's COLUMN MAY ask for the shallower reading: to the left 
 child column the payload lands after the node, as a sibling. On the node's OWN lines there is no
 such choice to express, the column there being a position in the node's text.
 
+A pasted run SHALL keep the separation of the boundary it lands in, on both sides of itself, per
+`structural-operations`' rule for a subtree insertion. A TYPE-OVER reaches its destination through
+a deletion, which takes the replaced run's own gap with it, so its replacement SHALL inherit the
+separation that run had rather than whatever gap the payload's own text ended with.
+
 A gap the caret was in and that is WIDER than a single blank line SHALL collapse to one with the
 insertion. A structural Enter opens a place there and widens the gap by two — a separator on each
 side is what makes the place parse as a node rather than a continuation line — and the paste that
@@ -62,6 +67,11 @@ above the pasted content.)*
   that heading has content under it
 - **THEN** it lands as that heading's first child, opening a section there, rather than after the
   heading's whole section
+
+#### Scenario: A type-over keeps the separation of what it replaced
+- **WHEN** a structural payload replaces a selection covering every node of a scope
+- **THEN** the run is separated from what follows it exactly as the replaced run was — no blank
+  line in a tight list, the document's terminating newline where that run ended the file
 
 #### Scenario: A paste onto a place leaves no widened gap behind
 - **WHEN** a structural Enter opens a place and a structural payload is pasted onto it

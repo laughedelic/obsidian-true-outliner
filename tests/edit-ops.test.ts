@@ -446,6 +446,22 @@ describe('insertSubtrees', () => {
     expect(text).toBe('- top\n\t- mid\n\t\t- anchor\n\t\t- x\n\t\t\t- y\n');
   });
 
+  it('a run at the end of a scope takes that scope\'s own separation', () => {
+    // The last node's gap is the file's terminating newline rather than a
+    // separation, so the run takes it over and reads what separates it from the
+    // node above off the boundary above THAT one.
+    const loose = parse('- one\n  - a\n\n  - b\n');
+    const looseResult = insertSubtrees(loose, byLine(loose, '  - b').id, parse('- x\n').children, 'after');
+    if (!looseResult.ok) throw new Error(looseResult.rejection.reason);
+    expect(encode(looseResult.value.doc)).toBe('- one\n  - a\n\n  - b\n\n  - x\n');
+
+    // Negative control: the same shape without the blank line gains none.
+    const tight = parse('- one\n  - a\n  - b\n');
+    const tightResult = insertSubtrees(tight, byLine(tight, '  - b').id, parse('- x\n').children, 'after');
+    if (!tightResult.ok) throw new Error(tightResult.rejection.reason);
+    expect(encode(tightResult.value.doc)).toBe('- one\n  - a\n  - b\n  - x\n');
+  });
+
   it('a pasted item\'s own surplus marker run is normalized to one space, like any other rewritten first line', () => {
     // The verbatim re-indent path (reindentSubtreeVerbatim) otherwise carried
     // a surplus run through unchanged, contradicting list-marker-content-column's

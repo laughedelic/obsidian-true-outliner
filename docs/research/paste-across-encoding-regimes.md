@@ -479,7 +479,7 @@ The heading ANCHOR is the cost. It is not a regression — demoting the heading 
 link, and before this change the paste produced no well-formed result at all — but a reader
 following `[[note#Notes]]` into a converted section lands at the top of the note.
 
-## Manual pass (2026-09-18): four reports from a real vault
+## Manual pass (2026-09-18 onward): six reports from a real vault
 
 Driven against `test-vault/Journal/2026-07-10.md` — copying its `## Aurora review` section and
 pasting it in different places — through `classify` + `computeVerdict`, the same two gates the
@@ -617,6 +617,68 @@ The count of the payload's own nodes is what the caret walks now, not a subtree.
 followed the anchor, so it follows the payload in document order too, and the payload's nodes are
 the first N from the insertion point. That N is the payload's own is what the payload-survival
 property already pins.
+
+### M6. The run landed flush against what followed it
+
+Reported from the same vault: pasting a section into a provisional paragraph between a heading
+and a paragraph leaves no blank line between the pasted content and that paragraph — and pasting
+between two headings does not show it.
+
+The payload is the `## Aurora review` section, which ends in its callout. Pasting it under
+`## Kitchen` after an Enter on the heading:
+
+```
+> [!warning] Follow-up needed
+> Legal wants a review of the alarm-name field — some customers put PII in there.
+Tomás's tile shop was a bust (nothing in stock until September) but the owner pointed us to a
+```
+
+The callout and the paragraph below it have no separation at all. Which payloads show it is
+what the report's "not between two headings" is reading: `normalizeBoundaries` adds a blank line
+only where the PARSE needs one, and a callout followed by a paragraph needs none, while the
+paragraph-ending payload the earlier frames used gets one for free — `paragraph` → `paragraph`
+merges, so a blank is required and appears. The seam was flush in both cases; only one of them
+showed it.
+
+What put the run there with nothing below it is `insertSubtrees`' gap ownership. A gap belongs to
+the node above it, and an insertion BEFORE a node left the run's own final gap stripped, so the
+separation that boundary had stayed above the run and the run met the next node bare. The same
+rule ran the other way for an `after`: the anchor's gap MOVED down onto the run, leaving the run
+flush under the anchor instead.
+
+Measured at the verdict layer, `## Notes` / `Some prose.` into `# Day` / gap / `## First`:
+
+| | today | with the boundary's separation on both sides |
+| --- | --- | --- |
+| caret in the gap | `Some prose.` / `## First` | `Some prose.` / gap / `## First` |
+| caret at the end of `first.` | `first.` / `## Notes` | `first.` / gap / `## Notes` |
+
+A gap is a BOUNDARY's separation, and an insertion turns one boundary into two — so both take
+it. The node above the insertion point keeps its own gap and the run takes a copy of it, which
+leaves the run separated from what follows exactly as what follows was separated from what
+preceded it. A tight list has no separation to copy and stays tight.
+
+The document's last node is the exception, and it is not a separation at all: its gap is the
+file's terminating newline, which is why `- a` / `\t- b` with a payload pasted after `\t- b` must
+hand that newline to the run rather than copy it. What separates the run from the node now above
+it there is the scope's own separation — the parent's gap, or the boundary before it at the root.
+Copied instead, the file would end in two newlines and the run would still sit flush.
+
+A copied gap line is written as an EMPTY line rather than byte-for-byte: a place line carries
+indentation so that it parses as a node, and reproducing that indentation below the run would
+write trailing whitespace where it says nothing.
+
+The third insert path needed its own reading of the same rule. A type-over reaches its
+destination through a deletion, which takes the replaced run's gap with it, so there is nothing
+left in the tree to copy by the time the payload lands — the replacement inherits the gap read
+off the tree before the deletion instead. Measured, `- one` / `  - a` / `- three` with `- x` /
+`  - y` typed over `  - a` left a blank line before `- three` that the tight list never had; the
+payload's own text ended in one, and nothing overrode it.
+
+Found while measuring that path, and NOT ours: deleting the last node of a note that no blank
+line precedes drops the file's terminating newline (`- a` / `- b` minus `- b` gives `- a`, no
+newline). It is the deletion's own — the node owned that gap and deletion takes a node's gap with
+it — and it reproduces with no paste involved.
 
 ## An unterminated leading `---` is not ours to fix (review round, 2026-09-19)
 

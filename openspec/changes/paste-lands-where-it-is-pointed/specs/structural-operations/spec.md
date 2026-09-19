@@ -53,6 +53,70 @@ section level hands the run to the attachment rule.
 - **THEN** the insertion is rejected with `at-h6-bound` and the document is unchanged — even
   where the payload's ROOT alone would have fitted
 
+### Requirement: Subtree insertion at a boundary
+An `insertSubtrees` operation SHALL splice a parsed sequence of whole subtrees into
+the tree at a node boundary (before or after an anchor node), re-encoded at a depth
+valid for the anchor's scope per the mapping algebra (heading levels bounded,
+list/paragraph depth encodings converted as the existing reparenting rules require).
+Sequences inexpressible at the target scope SHALL be rejected rather than inserted
+in corrupted form. When no kind conversion is needed (the common case — the
+sequence's own top-level kind already matches the destination context), each
+subtree's original indent characters SHALL carry through verbatim beyond its own
+top-level prefix, re-rooted at the destination depth — not expressed as a flat
+numeric width delta, which can introduce a mismatched indent unit (e.g. spaces
+inserted into an otherwise all-tab subtree) at any depth beyond the first level.
+
+The inserted run SHALL carry the SEPARATION of the boundary it lands in on both sides of
+itself. A gap is a boundary's separation and an insertion turns one boundary into two: the node
+above the insertion point keeps its own gap, and the run's last block takes a copy of it. Where
+that node is the document's LAST, its gap is the file's terminating newline rather than a
+separation — the run SHALL take that over, and what separates the run from the node now above it
+SHALL be that scope's own separation: the parent's trailing gap, or the boundary above it at the
+root. A destination with no separation SHALL gain none, and a copied gap line SHALL be written as
+an EMPTY line, a place line's own indentation saying nothing where it is copied to.
+
+A blank line the PARSE requires is added independently, by the boundary normalization every
+operation runs, and is not what this rule provides: a callout followed by a paragraph needs no
+blank to parse, so the separation a reader sees there is this one.
+
+#### Scenario: List items pasted under a deeper scope re-indent
+- **WHEN** `insertSubtrees` places two top-level list-item subtrees after a list item
+  nested two levels deep
+- **THEN** the inserted items are re-encoded at the anchor's depth with their
+  internal relative structure preserved
+
+#### Scenario: A single node's nested children keep a consistent indent unit at any target depth
+- **WHEN** `insertSubtrees` places ONE top-level list-item subtree — itself with a
+  child two levels deep, all tab-indented — after an anchor at a depth different
+  from where the subtree was originally encoded
+- **THEN** every line in the inserted subtree, at every depth, uses the SAME indent
+  character the anchor's own context uses — no mix of the original tabs with
+  newly-added spaces at any level
+
+#### Scenario: Insertion never splices mid-node
+- **WHEN** `insertSubtrees` is invoked with any anchor
+- **THEN** every existing node's own lines remain contiguous and byte-identical —
+  inserted content only ever lands between nodes
+
+#### Scenario: A run landing in a separated boundary is separated on both sides
+- **WHEN** a run whose last block is a callout is inserted before a paragraph that a blank line
+  separated from the node above it
+- **THEN** a blank line stands between the run and that paragraph, as well as above the run,
+  although the parse would read the two as separate nodes without one
+
+#### Scenario: A tight destination gains no separation
+- **WHEN** a run is inserted between two list items with no blank line between them
+- **THEN** no blank line is added on either side of the run
+
+#### Scenario: A run at the end of the document takes over the terminating newline
+- **WHEN** a run is inserted after the document's last node
+- **THEN** the file ends in exactly one newline, and the run is separated from the node above it
+  by that scope's own separation
+
+*(Amendment 2026-09-19, `paste-lands-where-it-is-pointed`: the run's own final gap was stripped
+and the anchor's was moved onto it, which left the run flush against a neighbour wherever the
+parse required no blank line — measured in `docs/research/paste-across-encoding-regimes`, M6.)*
+
 ## ADDED Requirements
 
 ### Requirement: A payload landing in the other encoding regime re-encodes as a whole subtree

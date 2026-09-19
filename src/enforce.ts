@@ -30,6 +30,7 @@ import {
   isContentStartCh,
   mergeNodes,
   reencodeBlocksForDestination,
+  setFinalGap,
   type OpOutput,
 } from './ops';
 import type { Edit, OpResult, RejectionReason } from './result';
@@ -288,11 +289,19 @@ function insertAsOnlyChildren(
   parentPath: readonly number[],
   parsedBlocks: readonly OutlineNode[],
   fallbackIndentUnit: string | undefined,
+  displacedGap: readonly string[] | undefined,
 ): OpResult<OpOutput> {
   const parent = parentPath.length === 0 ? 'root' : nodeAt(doc, parentPath)!;
   const result = reencodeBlocksForDestination(doc, parent, [], [], parsedBlocks, fallbackIndentUnit);
   if (!result.ok) return result;
-  const reencoded = result.value;
+  // A replacement inherits the separation of what it replaced (D10), which the
+  // deletion took with the nodes and the caller reads off the tree before it.
+  // Left to the payload's own gap, a section copied out of a note carried that
+  // note's blank line into a tight list.
+  const value = result.value;
+  const reencoded = displacedGap
+    ? [...value.slice(0, -1), setFinalGap(value[value.length - 1]!, displacedGap)]
+    : value;
   const rebuild = (nodes: readonly OutlineNode[], depth: number): readonly OutlineNode[] => {
     if (depth === parentPath.length) return reencoded;
     const index = parentPath[depth]!;
@@ -385,6 +394,11 @@ function deleteAndSplice(
 
   const { parentPath, before, after } = survivorsOf(doc, ids);
   const doc2 = deletion.value.doc;
+  // What the deleted run was separated from what follows it BY: the deletion
+  // takes a node's owned gap with it, so this is read from the tree before it.
+  const lastDeletedPath = findPath(doc, ids[ids.length - 1]!);
+  const lastDeleted = lastDeletedPath ? nodeAt(doc, lastDeletedPath) : undefined;
+  const displacedGap = lastDeleted ? deepestLastDescendant(lastDeleted).trailingGap : undefined;
   // `before`/`after` carry ids from the PRE-deletion `doc` — `deleteSubtrees`
   // (like every op) returns a tree from a FRESH `finalize` reparse, which
   // assigns all-new ids. The survivor's identity only survives the crossing
@@ -402,7 +416,7 @@ function deleteAndSplice(
   } else if (before && survivorInDoc2) {
     inserted = insertSubtrees(doc2, survivorInDoc2.id, parsedBlocks, 'after', fallbackIndentUnit);
   } else {
-    inserted = insertAsOnlyChildren(doc2, parentPath, parsedBlocks, fallbackIndentUnit);
+    inserted = insertAsOnlyChildren(doc2, parentPath, parsedBlocks, fallbackIndentUnit, displacedGap);
   }
   if (!inserted.ok) return vetoFrom(inserted);
 

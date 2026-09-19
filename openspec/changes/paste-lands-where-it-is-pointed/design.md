@@ -221,6 +221,33 @@ separation the document had and the paste has no business changing it.
 A list scope needs none of this. Enter there writes a real empty list item, which
 `isEmptyAnchor` already replaces with the payload.
 
+### D10. A run keeps the separation of the boundary it landed in
+
+A gap is a BOUNDARY's separation, and an insertion turns one boundary into two. Both take it: the
+node above the insertion point keeps its own gap, and the last inserted block takes a copy, so the
+run is separated from what follows it exactly as what follows was separated from what preceded it.
+
+The rule it replaces stripped that gap and left the separation to `normalizeBoundaries`, which
+adds a blank line only where the PARSE requires one. A callout followed by a paragraph requires
+none, so a pasted section ending in a callout ran straight into the paragraph below it. The same
+rule ran the other way for an `after`, moving the anchor's gap down onto the run and leaving the
+run flush under the anchor.
+
+Two bounds. A gap the destination did not have is not invented — a tight list stays tight, since
+there is no separation to copy. And the document's LAST node holds no separation: its gap is the
+file's terminating newline. A run landing at the end takes that over, and what separates it from
+the node now above it is that scope's own separation — the parent's gap, or the boundary before it
+at the root. Copying there would end the file in two newlines and leave the seam flush anyway.
+
+A copied gap line is written as an empty line rather than byte-for-byte. A place line carries
+indentation so that it parses as a node, and that indentation says nothing anywhere else.
+
+The type-over path reaches its destination through a deletion, and a deletion takes the deleted
+run's own gap with it — so there the separation is read off the tree BEFORE the deletion and the
+replacement inherits it. Left to the payload's own final gap, a section copied out of a note
+carried that note's blank line into a tight list, and a replacement at the end of a note took
+whatever the copied text happened to end with.
+
 ## Risks / Trade-offs
 
 - **Paste-then-cut is not the identity at a heading level** → cutting the pasted section back
