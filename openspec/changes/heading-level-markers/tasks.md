@@ -105,6 +105,6 @@
 - [ ] 7.1 Add `test-vault/Notes/Heading level markers.md`, a nested H1–H6 outline with
       paragraphs, a list and a reference from another note. Verify by manual review of all six
       styles, `#` alone's weight in particular, light and dark, desktop and mobile emulation, footer and zoom trail included
-- [ ] 7.2 `npm run lint` and the unit suite pass, and the research index row for
+- [x] 7.2 `npm run lint` and the unit suite pass, and the research index row for
       `heading-level-markers.md` resolves
-- [ ] 7.3 `openspec validate heading-level-markers --strict`
+- [x] 7.3 `openspec validate heading-level-markers --strict`
