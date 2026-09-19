@@ -58,41 +58,41 @@
 
 ## 2. Resolving a destination from a pointer position
 
-- [ ] 2.1 Implement the seam-and-depth resolution as a pure function over the parsed document, the
+- [x] 2.1 Implement the seam-and-depth resolution as a pure function over the parsed document, the
       operand and a pointer position (design D6) — verify with unit tests over a fixture whose
       seams have known intervals, including the six-destination shape the mockup draws; negative
       control: computing the interval from the operand's own depth rather than from the flanking
       nodes gives one destination per seam and fails every multi-depth case
-- [ ] 2.2 Bound the interval by the flanking rows, excluding depths shallower than the row below
+- [x] 2.2 Bound the interval by the flanking rows, excluding depths shallower than the row below
       and deeper than one level inside the row above; negative control: dropping the lower bound
       offers a depth that would make the following row a descendant, which the test asserts is
       absent
-- [ ] 2.3 Exclude depths inside folded content, taking the deep bound from the deepest VISIBLE
+- [x] 2.3 Exclude depths inside folded content, taking the deep bound from the deepest VISIBLE
       trailing descendant — verify with a unit test over a folded fixture; negative control:
       reading the deep bound from the unfolded tree offers hidden levels and fails
-- [ ] 2.4 Filter the candidate set by calling the shared re-encode step per candidate and keeping
+- [x] 2.4 Filter the candidate set by calling the shared re-encode step per candidate and keeping
       what it accepts (design D6) — verify with a unit test that one seam inside a deep heading
       scope offers its shallower columns and refuses its deeper ones for a heading-rooted operand;
       negative control: a hand-written kind check, which cannot see a depth-dependent refusal at
       all, offers every column of that seam and fails
-- [ ] 2.5 Exclude every seam and depth inside the operand's own subtrees — verify by a unit test
+- [x] 2.5 Exclude every seam and depth inside the operand's own subtrees — verify by a unit test
       over an operand in the middle of its own parent; negative control: excluding only the
       operand's ROOT rows still offers the seams between its descendants, which the test names
-- [ ] 2.6 Partition the horizontal axis across the seam's legal columns, clamped at both ends, so
+- [x] 2.6 Partition the horizontal axis across the seam's legal columns, clamped at both ends, so
       every position resolves to exactly one candidate — verify by sweeping the axis from far left
       of the shallowest column to far right of the deepest and asserting no position resolves to
       none; negative control: `guideHit`'s own band, which an earlier draft borrowed, leaves
       7.33px between every pair of columns resolving to nothing at the default unit and returns
       nothing at all right of the line's text start, so the sweep fails in both regions
-- [ ] 2.7 Take seams from NODE boundaries, not from rendered rows — verify no seam is offered
+- [x] 2.7 Take seams from NODE boundaries, not from rendered rows — verify no seam is offered
       inside a table, a fenced code block or a paragraph broken over several lines, nor on either
       side of a trailing gap line; negative control: resolving from `.cm-line` elements offers a
       seam between a table's header and its body, which the test names
-- [ ] 2.8 Offer the document's first and last seams, with the preamble excluded — verify a run can
+- [x] 2.8 Offer the document's first and last seams, with the preamble excluded — verify a run can
       be dropped at the top level after the last node and before the first, and that no
       destination places it inside or above frontmatter; negative control: deriving the shallow
       bound from "the node below" alone leaves the last seam with no bound and no destination
-- [ ] 2.9 Bound the resolution by the zoom scope, so no destination outside it is ever produced —
+- [x] 2.9 Bound the resolution by the zoom scope, so no destination outside it is ever produced —
       verify with a unit test over a zoomed fixture; negative control: resolving against the
       unzoomed tree offers a destination the scope would reject
 
