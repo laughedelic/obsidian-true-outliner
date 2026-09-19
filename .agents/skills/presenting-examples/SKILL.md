@@ -86,3 +86,8 @@ Paste its output into a fenced block.
 When the user will reproduce an example by hand, follow the cases with a **To paste** block for
 each note: the plain document with real tabs and spaces and no glyphs, and a sentence on where
 the caret or selection goes.
+
+Where it lands decides its wrapping. On GitHub (issues, PRs, comments), the section goes in
+`<details><summary>To reproduce</summary>` … `</details>`, with a blank line after the summary
+line so the fences inside still render. The chat renders no raw HTML, so there it is the last
+section of the message, under its own heading.
