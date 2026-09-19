@@ -56,6 +56,12 @@ export function dragGeometry(
   const origin = content.left + parseFloat(getComputedStyle(view.contentDOM).paddingLeft || '0');
 
   const lastLine = view.state.doc.lines;
+  // A block's own `top` is stated in DOCUMENT coordinates — measured from the
+  // first line, not from the window — while the pointer arrives in viewport
+  // coordinates, which is the space the column expression above is already in.
+  // `documentTop` maps between them and carries the scroll
+  // (docs/research/node-drag-and-drop section 6c).
+  const top = view.documentTop;
   const seamY = seams.map((seam) => {
     // A seam's line is stated in the tree the seams were resolved against, and
     // under a zoom that is the scope's own re-rooted document — whose line 0
@@ -65,9 +71,9 @@ export function dragGeometry(
     // A seam sits at the TOP of the line below it. Past the last line there is
     // no line to ask, so the document's own bottom stands for it.
     if (line >= lastLine) {
-      return view.lineBlockAt(view.state.doc.length).bottom;
+      return top + view.lineBlockAt(view.state.doc.length).bottom;
     }
-    return view.lineBlockAt(view.state.doc.line(line + 1).from).top;
+    return top + view.lineBlockAt(view.state.doc.line(line + 1).from).top;
   });
 
   return { seamY, columnX: (depth: number) => origin + depth * unit };

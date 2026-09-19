@@ -216,6 +216,33 @@ reading a line's own rect would fold the depth in twice. The overlay's `backgrou
 with the probe, but reading it would tie the drag to guides being painted, which a display setting
 can switch off.
 
+## 6c. A seam's y is a document coordinate, and the pointer's is not
+
+The column arithmetic above is in viewport coordinates throughout, because every number it rests
+on comes from `getBoundingClientRect`. The vertical axis is not: CodeMirror's `lineBlockAt` reports
+`top` and `bottom` measured from the document's own first line, so on a note that does not start at
+the top of the window the two axes were in different spaces and only one of them matched the
+pointer.
+
+Measured on the drag fixture, in a default desktop window:
+
+| read | value |
+| --- | --- |
+| content DOM's own top | 154.05 |
+| line 0's block, `top`–`bottom` | 0 – 47.06 |
+| line 5's block top | 150.19 |
+| line 5's first character, `coordsAtPos().top` | 307.92 |
+| the document's bottom, `lineBlockAt(doc.length).bottom` | 248.06 |
+
+A pointer aimed at line 5's own top edge arrives as `clientY: 308`, and against the block numbers
+the nearest seam is the document's last one, 248 — so a run dropped a third of the way down the
+file landed at the end of it. `view.documentTop` is the offset between the two spaces and already
+carries the scroll, so a seam's y is `documentTop + block.top`.
+
+What let this stand through the whole preview layer is that it is a CONSTANT: the preview is drawn
+from the same resolution the release applies, so it agreed with itself and with every assertion
+about its stability. The first thing to disagree was the buffer after a real drop.
+
 ## 6b. The collapse's own layout shift could not be observed
 
 Design D9a reasons that resolving seams on the same frame as the selection collapse reads
