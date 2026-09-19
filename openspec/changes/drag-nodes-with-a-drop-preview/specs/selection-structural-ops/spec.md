@@ -19,6 +19,19 @@ other two get from the shared command funnel — one transaction, one undo step,
 the fold carry and the rejection cue — the gesture SHALL get by entering that same funnel, never
 by reproducing it beside it.
 
+The OUTLINE they resolve against SHALL be the same one too. Where a provisional position is open
+(`outline-keyboard-grammar`), every entry point SHALL resolve it and act on the tree it stands
+for. The operand, the zoom-scope check and the caret all read that tree, and an entry point that
+reads the raw parse instead gives a different document for the same keypress — which is the
+divergence this requirement exists to close, not a detail of one adapter. A drag resolves its
+DESTINATION against that same tree, so a seam and a depth name the same place the other two would
+act on.
+
+*(Amendment 2026-09-17, `a-trailing-place-moves-with-its-node`: the command path resolved no
+position at all, so Shift+Tab from the keymap and the same operation from the palette produced
+two different documents on the same buffer. Recorded in
+`docs/research/decoration-follow-ups`.)*
+
 ONE existing exception, which this capability does not introduce and cannot close: where an
 operation materializes brand-new indentation and the document holds no indentation evidence to
 infer from, the keyboard path supplies the editor's live indent unit while the command path
@@ -40,6 +53,23 @@ whole selections, and therefore needs no separate rule for covers.
 - **WHEN** indent is invoked over the same multi-node cover from Tab and from the command
   palette, in a document that already has indentation to infer a unit from
 - **THEN** the resulting document and the resulting selection are identical
+
+#### Scenario: Palette and keyboard agree with a position open
+- **WHEN** a provisional position is open and indent is invoked from Tab and from the command
+  palette, in a document that already has indentation to infer a unit from
+- **THEN** both resolve the position, both carry it with the node, and the resulting document
+  and caret are identical
+
+#### Scenario: Neither entry point guesses a position
+- **WHEN** the caret is on a blank line no structural keypress of ours opened, and indent is
+  invoked from either entry point
+- **THEN** both act on the node that owns the gap and leave the blank line as it was
+
+#### Scenario: A drag resolves an open position like the other two
+- **WHEN** a provisional position is open and a run is dragged over the seam that position stands
+  for
+- **THEN** the destination is resolved against the tree the position stands for, not against the
+  raw parse, so the drop lands where the same operation from the keyboard would put it
 
 #### Scenario: A drop agrees with the command that names the same move
 - **WHEN** a run is dropped at a destination, and the same run is moved to the same destination
