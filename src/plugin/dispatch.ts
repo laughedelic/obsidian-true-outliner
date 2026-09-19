@@ -715,7 +715,20 @@ export function editsToChangeSpec(
   oldLines: readonly string[],
   edits: readonly Edit[],
 ): ChangeSpec[] {
-  return editsToChanges(oldLines, edits).map((c) => ({
+  return changesToSpec(doc, editsToChanges(oldLines, edits));
+}
+
+/**
+ * The same conversion from the other side: line-range changes that have
+ * already been computed, as a CM6 `ChangeSpec`.
+ *
+ * The shared command funnel states its changes in Obsidian's `{line, ch}`
+ * world, because the caret policy and the after-state both speak it. An
+ * adapter holding a view converts them here rather than keeping a second copy
+ * of the arithmetic.
+ */
+export function changesToSpec(doc: Text, changes: readonly EditorChange[]): ChangeSpec[] {
+  return changes.map((c) => ({
     from: linePosToOffset(doc, c.from),
     to: linePosToOffset(doc, c.to),
     insert: c.text,

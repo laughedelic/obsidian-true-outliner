@@ -16,10 +16,7 @@ import {
 import type { OutlineDoc } from '../model';
 import { parse } from '../parse';
 import { indentGroups, moveGroupsDown, moveGroupsUp, outdentGroups } from '../ops';
-import { afterState, resolveOperand } from '../operand';
-import type { OpOutput } from '../ops';
-import type { OpResult } from '../result';
-import { applyEdits } from '../result';
+import { resolveOperand } from '../operand';
 import { applyAppearance, clearAppearance } from './appearance';
 import {
   DEFAULT_DATA,
@@ -57,9 +54,9 @@ type FooterSettingKey =
   | 'backlinksSegmentIcons'
   | 'backlinksSeparator'
   | 'backlinksGuides';
-import { planCaret, type CaretOp } from '../caret-policy';
-import { editsToChanges, mapCursorForward, type EditorChange } from './dispatch';
-import { REJECTION_MESSAGES } from './messages';
+import type { EditorChange } from './dispatch';
+import { planStructural, type StructuralOp } from './structural-run';
+import { noticeRejection } from './notices';
 import { compareWithSections, type SectionInfo } from './crosscheck';
 import { deleteToContentStart, grammarExtension, setMotionProbe } from './keymap';
 import { nestedEditorExtension } from './nested-editor';
@@ -86,7 +83,7 @@ import { viewFor } from './view-registry';
 import { deleteLineBoundaryBackward } from '@codemirror/commands';
 import { zoomScope } from './zoom-scope';
 import { zoomCleared, zoomTo } from './zoom-state';
-import { operandEscapes, parentOf, reresolveZoom, resolveZoom } from '../zoom';
+import { parentOf, reresolveZoom, resolveZoom } from '../zoom';
 import { toLineRange } from './cm-pos';
 import { nodeStartLine } from '../locate';
 import { parsedDoc } from './parsed-doc';
@@ -108,69 +105,6 @@ import { historyCaretExtension } from './history-caret';
 import { TransactionStats } from './stats';
 import { placeOutline } from './decorate';
 import { openPlaceLine } from './provisional-cleanup';
-
-/**
- * Note: `indent`/`outdent` also accept an optional trailing
- * `fallbackIndentUnit` (the unit to use for brand-new indentation with no
- * existing evidence in the document — see ops.ts's `destinationIndent`).
- * The command-palette path here can't supply it: Obsidian's public `Editor`/
- * `MarkdownView` API doesn't expose the underlying CM6 `EditorState`, so
- * there's no public-API way to read the live "Indent using tabs" setting
- * (the `@codemirror/language` `indentUnit` facet) from a command callback
- * the way keymap.ts's Tab/Shift-Tab handler and transaction-filter.ts's
- * paste path do. These commands fall back to inferring from the document's
- * own existing indentation, same as before this fix — a known, small gap
- * limited to the command-palette / custom-hotkey entry point.
- */
-type StructuralOp = (
-  doc: OutlineDoc,
-  groups: readonly (readonly number[])[],
-) => OpResult<OpOutput>;
-
-/**
- * The cursor a palette-invoked structural command should end on: decided by
- * `caret-policy.ts`, the same procedure `grammar.ts` uses for the keyboard
- * path, so the two entry points cannot diverge.
- *
- * This function is now purely an adapter — it converts Obsidian's `{line,
- * ch}` world into the policy's facts and back. It holds no rule of its own;
- * the previous version re-implemented the mapped-with-addressability-fallback
- * rule here, and had already drifted once (the palette missed the
- * addressability guard entirely until review caught it).
- */
-function resultCursor(
-  lines: readonly string[],
-  newLines: readonly string[],
-  changes: readonly EditorChange[],
-  before: OutlineDoc,
-  op: CaretOp,
-  anchor: { line: number; ch: number },
-  mapFrom?: { line: number; ch: number },
-  placeLine?: number,
-): { line: number; ch: number } {
-  const afterText = newLines.join('\n');
-  const mapped =
-    mapFrom === undefined
-      ? undefined
-      : offsetToPos(newLines, mapCursorForward(lines, changes, mapFrom));
-  // Read through the place the operation carried along, or the caret cannot stay
-  // on it: `grammar.ts`'s `planFromOp` states why, and `placeOutline` holds the
-  // gate both entry points ask through.
-  const after = placeOutline(afterText, mapped, placeLine) ?? parse(afterText);
-  return planCaret(op, { before, after, anchor, mapped }).caret;
-}
-
-/** Flat character offset (as `mapCursorForward` returns) → `{line, ch}`, for
- * Obsidian's public `Editor.setCursor`. */
-function offsetToPos(lines: readonly string[], offset: number): { line: number; ch: number } {
-  let acc = 0;
-  for (let line = 0; line < lines.length; line++) {
-    const len = lines[line]?.length ?? 0;
-    if (offset <= acc + len) return { line, ch: offset - acc };
-    acc += len + 1;
-  }
-  return { line: Math.max(0, lines.length - 1), ch: lines[lines.length - 1]?.length ?? 0 };
-}
 
 const CONFLICTING_PLUGINS = ['obsidian-outliner', 'obsidian-zoom'];
 
@@ -1335,6 +1269,13 @@ export default class TrueOutlinerPlugin extends Plugin {
   }
 
   /**
+   * The command-palette adapter onto the shared funnel (`structural-run.ts`).
+   *
+   * What it does that the funnel cannot: read the operand out of Obsidian's
+   * `Editor`, and dispatch back through it. Everything between is the funnel's,
+   * because `selection-structural-ops` requires every entry point to reach the
+   * same document and the same selection.
+   *
    * `useMappedCursor` true for indent/outdent (`minimal-change-dispatch`):
    * the pre-op cursor, mapped forward through the (minimal) change set with
    * assoc=1, rather than the op's own semantic cursor choice — see
@@ -1389,44 +1330,34 @@ export default class TrueOutlinerPlugin extends Plugin {
     const opDoc = outline ?? doc;
     const operand = resolveOperand(opDoc, range);
     if (!operand) {
-      new Notice(REJECTION_MESSAGES['node-not-found'], 1500);
+      noticeRejection('node-not-found');
       return;
     }
-    // `outline-zoom` D8: refuse an operand that would leave the scope, before the
-    // algebra runs. Checked here and in `grammar.ts` against the SAME predicate,
-    // so the two entry points cannot disagree about it — the divergence
-    // `selection-structural-ops` exists to prevent.
     const scope = view ? zoomScope(view.state) : null;
     // Re-resolved against `opDoc`, the fresh parse this command just made —
     // `scope` was built from the live editor's own cached parse, a DIFFERENT
     // parse object even when the text agrees, and `parse()` allocates every
     // node a new id regardless of content. Comparing `scope`'s ids against
-    // `operand.groups`' below without this re-derivation would never match
-    // anything, silently letting every palette operation on the zoom root or
-    // its direct children through (`reresolveZoom`'s own comment says why).
-    const localScope = scope ? reresolveZoom(opDoc, scope) : null;
-    if (localScope && operandEscapes(localScope, operand.groups, isOutdent)) {
-      new Notice(REJECTION_MESSAGES['would-leave-zoom-scope'], 1500);
-      return;
-    }
-    const result = op(opDoc, operand.groups);
-    if (!result.ok) {
-      new Notice(REJECTION_MESSAGES[result.rejection.reason], 1500);
-      return;
-    }
-    const lines = text === '' ? [] : text.split('\n');
-    const changes = editsToChanges(lines, result.value.edits);
-    const newLines = applyEdits(lines, result.value.edits);
-    const cursor = resultCursor(
-      lines,
-      newLines,
-      changes,
+    // `operand.groups`' would never match anything without this re-derivation,
+    // silently letting every palette operation on the zoom root or its direct
+    // children through (`reresolveZoom`'s own comment says why).
+    const outcome = planStructural({
+      text,
       opDoc,
-      useMappedCursor ? { kind: 'derived' } : { kind: 'subject' },
-      result.value.anchor,
-      useMappedCursor ? cursorBefore : undefined,
-      placeLine,
-    );
+      groups: operand.groups,
+      wasCover: operand.wasCover,
+      op,
+      caret: useMappedCursor ? { kind: 'derived' } : { kind: 'subject' },
+      ...(useMappedCursor ? { mapFrom: cursorBefore } : {}),
+      ...(placeLine === undefined ? {} : { placeLine }),
+      scope: scope ? reresolveZoom(opDoc, scope) : null,
+      isOutdent,
+      backward,
+    });
+    if (!outcome.ok) {
+      noticeRejection(outcome.reason);
+      return;
+    }
 
     // The change and the caret that belongs to it go in ONE transaction. A
     // caret computed from the NEW document is meaningless to anything that has
@@ -1452,14 +1383,16 @@ export default class TrueOutlinerPlugin extends Plugin {
     // userEvent already fails CM6's `joinableUserEvent` test. Guarded by a unit
     // test on that CM6 behaviour in tests/minimal-change-history.test.ts and by
     // 20-structural-commands' "one undo step each way".
-    // A selection that WAS a block cover survives the operation as the cover of
-    // the nodes that moved; anything else lands a caret, exactly as before.
-    const planned = afterState(result.value, operand.wasCover, cursor);
-    const after =
-      backward && planned.to ? { from: planned.to, to: planned.from } : planned;
-    if (changes.length > 0) editor.transaction({ changes, selection: after });
-    if (after.to) editor.setSelection(after.from, after.to);
-    else editor.setCursor(after.from);
+    const changes: EditorChange[] = [...outcome.changes];
+    if (changes.length > 0) {
+      const selectionAfter =
+        outcome.to === undefined
+          ? { from: outcome.from }
+          : { from: outcome.from, to: outcome.to };
+      editor.transaction({ changes, selection: selectionAfter });
+    }
+    if (outcome.to) editor.setSelection(outcome.from, outcome.to);
+    else editor.setCursor(outcome.from);
   }
 
   private crossCheck(doc: OutlineDoc, file: TFile): void {
