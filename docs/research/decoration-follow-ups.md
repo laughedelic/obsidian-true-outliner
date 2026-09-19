@@ -12,10 +12,12 @@ When an item graduates to real work, it should get its own openspec change (or f
 one), not be patched ad hoc — several of these touch the model or are design decisions,
 not bug fixes.
 
-An entry marked **Extracted to #N** has moved: the issue is where its diagnosis, its
-measurements and its candidate fixes now live and are kept current, and the entry here keeps
-only enough to say what it is and where it went. The heading stays so citations to it still
-resolve. Everything not so marked is still held here in full.
+**This lot is closed to new entries.** A follow-up found today is filed as a GitHub issue in the
+session that found it and linked from the note that records it (AGENTS.md, "A follow-up is an
+issue"). What is still live here moves out as it is touched; an entry marked **Extracted to #N**
+has already moved, and keeps only enough to say what it is and where it went, with its heading left
+in place so citations still resolve. An entry that CLOSED keeps its measurements here rather than
+pointing at a dead issue — that is what this file was always for, and it does not change.
 
 ## Known gaps (diagnosed, deferred)
 

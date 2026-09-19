@@ -7,9 +7,14 @@ issues, and which are better left where they are.
 The decision was taken and is recorded at the end: we extract, and an extracted item's
 diagnosis moves to its issue rather than being copied there. This file is the index of that
 move — one row per live item, saying what it is, which note held it, and where it went. It is a
-dated snapshot and does not track what happens afterward; an extracted item's issue does, and an
-item still in a parking lot is still tracked by that lot, which is amended in place when a change
-touches it. Nothing here restates a diagnosis.
+dated snapshot and does not track what happens afterward; an extracted item's issue does.
+
+**The practice it was written against has since been retired.** A follow-up is now filed as an
+issue in the session that finds it, and the parking lots are closed to new entries (AGENTS.md,
+"A follow-up is an issue"). So this file is a migration record rather than a standing index: it
+says where the backlog that had accumulated went, and what was deliberately left behind. It does
+not need keeping current, and once the rows still marked live have moved or been re-read against
+their notes, it can be retired with the practice it documents. Nothing here restates a diagnosis.
 
 ## What the sweep found
 
@@ -99,7 +104,7 @@ have measurements attached that constrain the choice.
 
 | # | Item | Note |
 | --- | --- | --- |
-| 46 | A DOM test environment (jsdom) for the view-plugin layer | selection-follow-ups | unlocks `history-caret.ts`'s wiring, `MarginCompensation`, the `onDocumentKeyDown` replay path, and a regression net for the modifier-key guard (verified live: `MODIFIER_ONLY_KEYS` is a one-line early return with nothing asserting it) |
+| 46 | A DOM test environment (jsdom) for the view-plugin layer | selection-follow-ups | unlocks `history-caret.ts`'s wiring, `MarginCompensation`, the `onDocumentKeyDown` replay path, and a regression net for the modifier-key guard (verified live: `MODIFIER_ONLY_KEYS` is a one-line early return with nothing asserting it) — **extracted to [#156](https://github.com/laughedelic/obsidian-true-outliner/issues/156)** |
 | 47 | The backlinks footer's first read races Obsidian's own cache on CI | decoration-follow-ups; e2e-ci-budgets | three waits were tried and reverted; the shape that would work is named — per-spec-file setup, budget sized from the measured rate, a still resolved-link count as the criterion |
 | 48 | The footer's default sort has no test | decoration-follow-ups | needs fixtures with controlled mtimes, staged in `run-e2e.mjs`; worth doing when the sort becomes configurable |
 | 49 | A dev-mode raw-keydown readout | selection-follow-ups | the probe reports only keys we bind, and the failure that cost several sessions was a key we do not |
@@ -234,9 +239,16 @@ that the write side is closed and only the read side disagrees with Obsidian. An
 tracker debt, and these do not close by being worked on. Discussions suit them better, and Q34
 already has a measured cost table and four readings ready to put in front of a reader.
 
-*The epics* (36, 37, 38, 41, 42, 46) file as placeholders for changes that will get their own
-OpenSpec proposals anyway. Item 46 — the jsdom environment — is the highest-leverage of them,
-since it unlocks four named things at once.
+*The epics were decided the other way, and only one was filed.* An epic issue would sit between
+two stages this repo already has — the note that holds the research, and the OpenSpec change plus
+draft PR that holds the plan — for work nobody is currently changing, so it duplicates the proposal
+without the staleness pressure that justified extracting the defects. [#156](https://github.com/laughedelic/obsidian-true-outliner/issues/156), the DOM test
+environment, is the exception on every axis: infrastructure rather than a feature, small and
+well-defined, unblocking four named things at once, and the kind of work nothing else forces.
+Item 36 is past this stage entirely — `paste-heading-section-reencoding` already has a proposal,
+design and tasks under `openspec/changes/`. The rest (37, 38, 41, 42) stay in their notes and go
+straight to a change when picked up. For the "what is next" visibility they genuinely lacked,
+[#157](https://github.com/laughedelic/obsidian-true-outliner/issues/157) indexes them in one place rather than six.
 
 *Leave in the notes:* the polish rows (19–23), all of Tier 4 except 46, and all of Tier 5. Tier 5
 especially: an issue reading "this flakes on CI and we do not know why" invites someone to close

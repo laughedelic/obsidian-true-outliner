@@ -56,3 +56,7 @@ operations:
     guidance:
       - Archive on the change's own branch, before the PR merges.
       - Bump the version in the same PR, and check the test vault for drift.
+      - File anything this change found and deliberately left as a GitHub issue
+        before archiving, and link it from the note that records it - see
+        AGENTS.md, "A follow-up is an issue". Re-check the claim against the
+        code first; the change may already have moved it.
