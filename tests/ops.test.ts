@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import fc from 'fast-check';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
 import { walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
@@ -11,9 +12,11 @@ import {
   unwrapListItem,
   insertSiblingHeading,
   insertSubtrees,
+  moveSubtreesTo,
   surplusMarkerSpace,
 } from '../src/ops';
 import { applyEdits } from '../src/result';
+import { arbTree } from './generators';
 
 /** Find the node whose first line matches. */
 function byLine(doc: OutlineDoc, line: string): number {
@@ -794,5 +797,317 @@ describe('surplusMarkerSpace', () => {
     expect(surplusMarkerSpace('-   a', 2)).toBe(0);
     expect(surplusMarkerSpace('-   a', 3)).toBe(1);
     expect(surplusMarkerSpace('-  a', 4)).toBe(0);
+  });
+});
+
+/** Every reason a move can legitimately refuse for, so a property cannot pass
+ * on a rejection nobody wrote. */
+const KNOWN_MOVE_REASONS = new Set([
+  'node-not-found',
+  'at-h6-bound',
+  'not-expressible-under-target',
+  'insertion-not-expressible',
+]);
+
+describe('moveSubtreesTo', () => {
+  /** The document a move produced, or the reason it was refused. */
+  function moved(
+    src: string,
+    lines: readonly string[],
+    destination: { parent: string; index: number },
+  ): string {
+    const doc = parse(src);
+    const result = moveSubtreesTo(
+      doc,
+      [lines.map((line) => byLine(doc, line))],
+      {
+        parentId: destination.parent === 'root' ? 'root' : byLine(doc, destination.parent),
+        index: destination.index,
+      },
+    );
+    if (!result.ok) return `REJECT ${result.rejection.reason}`;
+    return encode(result.value.doc);
+  }
+
+  it('moves a run across the document as one result', () => {
+    const src = ['- one', '- two', '  - two a', '- three', ''].join('\n');
+    expect(moved(src, ['- two'], { parent: 'root', index: 0 })).toBe(
+      ['- two', '  - two a', '- one', '- three', ''].join('\n'),
+    );
+  });
+
+  it('carries every descendant at its own depth relative to the root', () => {
+    const src = ['- one', '- two', '  - two a', '    - two a i', '- three', ''].join('\n');
+    expect(moved(src, ['- two'], { parent: '- three', index: 0 })).toBe(
+      ['- one', '- three', '  - two', '    - two a', '      - two a i', ''].join('\n'),
+    );
+  });
+
+  it('lands a run as the first child of a node that has none', () => {
+    const src = ['- one', '- two', ''].join('\n');
+    expect(moved(src, ['- one'], { parent: '- two', index: 0 })).toBe(
+      ['- two', '  - one', ''].join('\n'),
+    );
+  });
+
+  it('refuses a destination inside the run itself', () => {
+    const src = ['- one', '  - one a', '- two', ''].join('\n');
+    expect(moved(src, ['- one'], { parent: '  - one a', index: 0 })).toBe(
+      'REJECT not-expressible-under-target',
+    );
+  });
+
+  // An atom is a leaf at every indentation, so no encoding places a payload
+  // inside one. Asserted per kind rather than once, because the guard reads
+  // `isAtom` and a kind dropped from that set would go unnoticed by a single
+  // case.
+  const ATOM_DESTINATIONS = [
+    { kind: 'code', lines: ['```js', 'code', '```'], anchor: '```js' },
+    { kind: 'table', lines: ['| a | b |', '| --- | --- |'], anchor: '| a | b |' },
+    { kind: 'quote', lines: ['> quoted'], anchor: '> quoted' },
+  ] as const;
+
+  for (const atom of ATOM_DESTINATIONS) {
+    it(`refuses a ${atom.kind} as a destination, by the shared guard`, () => {
+      const src = ['- one', '', ...atom.lines, ''].join('\n');
+      expect(moved(src, ['- one'], { parent: atom.anchor, index: 0 })).toBe(
+        'REJECT not-expressible-under-target',
+      );
+    });
+  }
+
+  it('refuses a destination the insertion rule declines', () => {
+    const src = ['a paragraph', '', '```js', 'code', '```', ''].join('\n');
+    expect(moved(src, ['```js'], { parent: 'a paragraph', index: 0 })).toBe(
+      'REJECT insertion-not-expressible',
+    );
+  });
+
+  it('refuses a destination too deep for the run’s own headings', () => {
+    // The payload's own deepest heading is `h2`; landing its root among an
+    // `h5`'s children puts that descendant past `h6`.
+    const src = [
+      '# A',
+      '',
+      '## A1',
+      '',
+      '# B',
+      '',
+      '## B1',
+      '',
+      '### B2',
+      '',
+      '#### B3',
+      '',
+      '##### B4',
+      '',
+    ].join('\n');
+    expect(moved(src, ['# A'], { parent: '##### B4', index: 0 })).toBe('REJECT at-h6-bound');
+  });
+
+  it('writes no change when the destination is where the run already is', () => {
+    const src = ['- one', '- two', '- three', ''].join('\n');
+    const doc = parse(src);
+    const result = moveSubtreesTo(doc, [[byLine(doc, '- two')]], { parentId: 'root', index: 1 });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.edits).toEqual([]);
+    expect(encode(result.value.doc)).toBe(src);
+  });
+
+  it('keeps a run’s own encoding when it does not leave its scope', () => {
+    // The scope is mixed — a bullet among paragraphs — and the run is the only
+    // evidence of its own regime. Composing a removal with an insertion reads
+    // the regime off the siblings that are left, so the bullet came back a
+    // paragraph; a run that has not left its scope is already encoded for it.
+    const src = ['- bullet', '', 'para one', '', 'para two', ''].join('\n');
+    expect(moved(src, ['- bullet'], { parent: 'root', index: 0 })).toBe(src);
+    expect(moved(src, ['- bullet'], { parent: 'root', index: 3 })).toBe(
+      ['para one', '', 'para two', '', '- bullet', ''].join('\n'),
+    );
+  });
+
+  it('leaves a tight list tight, and the terminating newline where it was', () => {
+    // Gaps go with the SLOTS: the last slot ends the file whichever node
+    // occupies it, and the boundaries between the others stay as tight as the
+    // list was written.
+    const src = ['- a', '- b', '- c', ''].join('\n');
+    expect(moved(src, ['- c'], { parent: 'root', index: 0 })).toBe(
+      ['- c', '- a', '- b', ''].join('\n'),
+    );
+  });
+
+  it('renumbers both ordered runs a move crosses', () => {
+    // The second list attaches to the paragraph above it, so it is that
+    // paragraph's children the run joins.
+    const src = ['1. a', '2. b', '3. c', '', 'a paragraph', '', '  1. x', '  2. y', ''].join('\n');
+    const out = moved(src, ['2. b'], { parent: 'a paragraph', index: 2 }).split('\n');
+    // The run it left closes up...
+    expect(out).toContain('1. a');
+    expect(out).toContain('2. c');
+    // ...and the run it joined numbers it consecutively rather than carrying
+    // the number it arrived with.
+    expect(out).toContain('  3. b');
+  });
+
+  it('separates both sides of the move', () => {
+    const src = ['# A', '', 'para one', '', 'para two', '', '# B', '', 'para three', ''].join('\n');
+    const out = moved(src, ['para one'], { parent: '# B', index: 1 });
+    // No doubled blank where it left, none missing where it arrived.
+    expect(out).not.toContain('\n\n\n');
+    expect(out.endsWith('\n')).toBe(true);
+    expect(out).toContain('para three\n\npara one\n');
+  });
+
+  it('refuses a destination that is not in the document', () => {
+    const doc = parse(['- one', '- two', ''].join('\n'));
+    const result = moveSubtreesTo(doc, [[byLine(doc, '- one')]], { parentId: 9999, index: 0 });
+    expect(result.ok ? 'ACCEPT' : `REJECT ${result.rejection.reason}`).toBe('REJECT node-not-found');
+  });
+
+  it('absorbs what follows a moved heading, as an inserted one does', () => {
+    const src = ['# Doc', '', '## First', '', 'body', '', '## Move me', '', 'mine', ''].join('\n');
+    const doc = parse(src);
+    const result = moveSubtreesTo(doc, [[byLine(doc, '## Move me')]], {
+      parentId: byLine(doc, '# Doc'),
+      index: 0,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // `## Move me` now opens the section, so `## First` ends it rather than
+    // being taken in — the bound is the next heading of the same level.
+    const moveMe = [...walkNodes(result.value.doc)].find((n) => n.lines[0] === '## Move me')!;
+    expect(moveMe.children.map((c) => c.lines[0])).toEqual(['mine']);
+    const first = [...walkNodes(result.value.doc)].find((n) => n.lines[0] === '## First')!;
+    expect(first.children.map((c) => c.lines[0])).toEqual(['body']);
+  });
+
+  it('round-trips a run that absorbs nothing, and does not when it absorbs', () => {
+    // Absorbs nothing: a list item has no section to open. The run is kept
+    // clear of the document's LAST node at both ends, because a removal there
+    // takes the file's terminating newline with it — issue #160, reproducible
+    // with a plain `deleteSubtrees` and inherited here through the same
+    // removal, not introduced by the move.
+    const tight = ['- one', '- two', '- three', '- four', ''].join('\n');
+    const there = parse(tight);
+    const out = moveSubtreesTo(there, [[byLine(there, '- one')]], { parentId: 'root', index: 3 });
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    const back = moveSubtreesTo(out.value.doc, [[byLine(out.value.doc, '- one')]], {
+      parentId: 'root',
+      index: 0,
+    });
+    expect(back.ok).toBe(true);
+    if (!back.ok) return;
+    expect(encode(back.value.doc)).toBe(tight);
+
+    // Absorbing: the return trip's anchor is inside the run it would move, so
+    // the property is false here by construction rather than by a defect.
+    const sections = ['# Doc', '', 'para A', '', 'para B', '', '## Move me', '', 'body', ''].join(
+      '\n',
+    );
+    const src = parse(sections);
+    const away = moveSubtreesTo(src, [[byLine(src, '## Move me')]], {
+      parentId: byLine(src, '# Doc'),
+      index: 1,
+    });
+    expect(away.ok).toBe(true);
+    if (!away.ok) return;
+    const moveMe = [...walkNodes(away.value.doc)].find((n) => n.lines[0] === '## Move me')!;
+    // `para B` came with it: what follows a heading is inside its section.
+    expect(moveMe.children.map((c) => c.lines[0])).toContain('para B');
+    expect(encode(away.value.doc)).not.toBe(sections);
+  });
+
+  /**
+   * Every scope in the document, named by the PATH of child indices that
+   * reaches its parent. A path outlives the move and an id does not: an
+   * accepted result is `parse(encode(...))`, which mints fresh ids.
+   */
+  function scopePaths(doc: OutlineDoc): number[][] {
+    const paths: number[][] = [[]];
+    const visit = (nodes: readonly OutlineNode[], prefix: number[]): void => {
+      nodes.forEach((node, index) => {
+        if (node.children.length === 0) return;
+        const here = [...prefix, index];
+        paths.push(here);
+        visit(node.children, here);
+      });
+    };
+    visit(doc.children, []);
+    return paths;
+  }
+
+  /** The children of the node a path reaches, or the roots for the empty path. */
+  function childrenAtPath(doc: OutlineDoc, path: readonly number[]): readonly OutlineNode[] {
+    let nodes: readonly OutlineNode[] = doc.children;
+    for (const step of path) {
+      const parent = nodes[step];
+      if (!parent) return [];
+      nodes = parent.children;
+    }
+    return nodes;
+  }
+
+  /** The id a path names as a destination parent — `'root'` for the empty path. */
+  function parentIdAtPath(doc: OutlineDoc, path: readonly number[]): number | 'root' {
+    if (path.length === 0) return 'root';
+    let nodes: readonly OutlineNode[] = doc.children;
+    let parent: OutlineNode | undefined;
+    for (const step of path) {
+      parent = nodes[step]!;
+      nodes = parent.children;
+    }
+    return parent!.id;
+  }
+
+  it('returns a run that absorbs nothing to the bytes it came from', () => {
+    fc.assert(
+      fc.property(arbTree(), fc.nat(), fc.nat(), fc.nat(), (doc, s, from, to) => {
+        const paths = scopePaths(doc);
+        const path = paths[s % paths.length]!;
+        const siblings = childrenAtPath(doc, path);
+        if (siblings.length < 2) return true;
+
+        const i = from % siblings.length;
+        const j = to % (siblings.length + 1);
+        const before = encode(doc);
+        const away = moveSubtreesTo(doc, [[siblings[i]!.id]], {
+          parentId: parentIdAtPath(doc, path),
+          index: j,
+        });
+        if (!away.ok) return KNOWN_MOVE_REASONS.has(away.rejection.reason);
+
+        // Absorbing operands are out of scope: a heading opens a section at the
+        // place it lands, and a run landing after one joins the section there,
+        // so the return trip is a different operation and the property is false
+        // by construction. Read off the RESULT rather than predicted from the
+        // operand, because both directions of absorption show up the same way —
+        // the scope no longer holds the members it started with. The asymmetry
+        // itself is asserted above.
+        const landed = childrenAtPath(away.value.doc, path);
+        if (landed.length !== siblings.length) return true;
+
+        // Both indices are read against the PRE-removal sibling list, so the
+        // return trip aims one past its origin whenever the run travelled
+        // upwards and the origin is now below it.
+        const back = moveSubtreesTo(away.value.doc, [[landed[j > i ? j - 1 : j]!.id]], {
+          parentId: parentIdAtPath(away.value.doc, path),
+          index: i < j ? i : i + 1,
+        });
+        if (!back.ok) return KNOWN_MOVE_REASONS.has(back.rejection.reason);
+        return encode(back.value.doc) === before;
+      }),
+      { numRuns: 400 },
+    );
+  });
+
+  it('re-levels a heading run for the scope it lands in', () => {
+    const src = ['# A', '', '## A1', '', '# B', '', '## B1', '', '### B2', ''].join('\n');
+    const out = moved(src, ['## A1'], { parent: '### B2', index: 0 });
+    // Landing among an `h3`'s children, the run takes `h4`. Asserted on whole
+    // lines: `#### A1` contains `## A1` as a substring.
+    expect(out.split('\n')).toContain('#### A1');
+    expect(out.split('\n')).not.toContain('## A1');
   });
 });

@@ -1,0 +1,307 @@
+/**
+ * Where a dragged run can land: the seams of a document and the depths each
+ * one offers (`node-dragging`, design D6).
+ *
+ * Core rather than plugin, and therefore blind to pixels on purpose. A seam is
+ * a boundary between two NODES, so the document decides where the seams are
+ * and what each one offers; the view decides only which seam the pointer is
+ * nearest and which of that seam's columns its x is nearest, through the one
+ * partition this module exports. Boundaries taken from rendered rows would
+ * invent seams inside a table, inside a fenced block and on both sides of
+ * every blank line.
+ *
+ * Folds are passed IN rather than read here, as the ids whose children are
+ * currently hidden: a folded node's descendants are not on screen, so the walk
+ * stops at it and the seam after it is the one that names its last child.
+ *
+ * A zoom is applied by the CALLER, which passes the scope's own re-rooted
+ * document. Then no seam outside the scope exists to be offered, rather than
+ * every seam being offered and the ones outside filtered out afterwards.
+ */
+
+import { isAtom, type OutlineDoc, type OutlineNode } from './model';
+import { ownSpan } from './model';
+import { reencodeBlocksForDestination } from './ops';
+
+/** A place a run can land: a parent, a position among its children, and the
+ * depth the run's own first mark takes there. */
+export interface DropDestination {
+  readonly parentId: number | 'root';
+  readonly index: number;
+  readonly depth: number;
+  /** The run's first line as it will be written at this destination — the
+   * mark the preview draws, taken from the same re-encoding the release
+   * applies rather than from the run's current kind. */
+  readonly firstLine: string;
+}
+
+/** The boundary between two nodes, and every destination it offers. */
+export interface DropSeam {
+  /** The line the seam sits above: the first line of the node below it, or the
+   * document's line count where there is none. */
+  readonly line: number;
+  readonly aboveId: number | undefined;
+  readonly belowId: number | undefined;
+  /** Shallowest first. Never empty — a seam with no legal depth is not a seam
+   * this module returns. */
+  readonly candidates: readonly DropDestination[];
+}
+
+interface Step {
+  readonly node: OutlineNode;
+  /** The node's own position among its parent's children. */
+  readonly index: number;
+}
+
+interface Visible {
+  readonly node: OutlineNode;
+  readonly startLine: number;
+  readonly depth: number;
+  /** Root-first, this node last, so `chain[d]` is the ancestor at depth `d`. */
+  readonly chain: readonly Step[];
+}
+
+/**
+ * Every visible node in document order, with the ancestry each seam's parents
+ * are read from. A folded node is visited; its children are not.
+ */
+function visibleNodes(doc: OutlineDoc, folded: ReadonlySet<number>): Visible[] {
+  const out: Visible[] = [];
+  let line = doc.preamble.length;
+  const walk = (nodes: readonly OutlineNode[], chain: readonly Step[]): void => {
+    nodes.forEach((node, index) => {
+      const here = [...chain, { node, index }];
+      out.push({ node, startLine: line, depth: chain.length, chain: here });
+      line += ownSpan(node);
+      if (!folded.has(node.id)) walk(node.children, here);
+      else line += hiddenSpan(node);
+    });
+  };
+  walk(doc.children, []);
+  return out;
+}
+
+/** The lines a fold hides: everything under the node, its own lines aside. */
+function hiddenSpan(node: OutlineNode): number {
+  let total = 0;
+  const walk = (nodes: readonly OutlineNode[]): void => {
+    for (const child of nodes) {
+      total += ownSpan(child);
+      walk(child.children);
+    }
+  };
+  walk(node.children);
+  return total;
+}
+
+/** Every id in these subtrees — what a destination may not lie inside. */
+function subtreeIds(roots: readonly OutlineNode[]): Set<number> {
+  const ids = new Set<number>();
+  const visit = (node: OutlineNode): void => {
+    ids.add(node.id);
+    node.children.forEach(visit);
+  };
+  roots.forEach(visit);
+  return ids;
+}
+
+/**
+ * The seams of a document, each with the destinations it offers, for a run
+ * whose roots are `operandRoots`.
+ *
+ * The legal interval of a seam runs from the depth of the node BELOW it to one
+ * level inside the node above — or, where that node is a leaf, to the level of
+ * the nearest trailing ancestor that can hold children, which is the leaf's own
+ * depth. Every depth in between names a parent: the ancestor of the node above
+ * at one level shallower, taken at the position the seam sits in among its
+ * children.
+ *
+ * Each candidate is then put to the shared re-encode step, and only what it
+ * accepts is returned — the refusal that depends on the destination's own
+ * DEPTH rather than its kind is why the filter asks the operation instead of
+ * re-stating its conditions, and it is why one seam can offer its shallower
+ * columns and refuse its deeper ones.
+ */
+export function dropSeams(
+  doc: OutlineDoc,
+  operandRoots: readonly OutlineNode[],
+  options: {
+    readonly folded?: ReadonlySet<number>;
+    readonly fallbackIndentUnit?: string;
+  } = {},
+): DropSeam[] {
+  if (operandRoots.length === 0) return [];
+  const folded = options.folded ?? new Set<number>();
+  const visible = visibleNodes(doc, folded);
+  if (visible.length === 0) return [];
+  const operandIds = subtreeIds(operandRoots);
+  const operandRootIds = new Set(operandRoots.map((root) => root.id));
+
+  const seams: DropSeam[] = [];
+  for (let s = 0; s <= visible.length; s++) {
+    const above = s > 0 ? visible[s - 1]! : undefined;
+    const below = s < visible.length ? visible[s]! : undefined;
+    const shallow = below ? below.depth : 0;
+    const deep = above ? (isAtom(above.node) ? above.depth : above.depth + 1) : shallow;
+
+    const candidates: DropDestination[] = [];
+    for (let depth = shallow; depth <= deep; depth++) {
+      const placed = placeAt(depth, above, below);
+      if (!placed) continue;
+      if (placed.parentId !== 'root' && operandIds.has(placed.parentId)) continue;
+      const written = writtenFirstLine(doc, placed, operandRoots, operandRootIds, options);
+      if (written === undefined) continue;
+      candidates.push({ ...placed, depth, firstLine: written });
+    }
+    if (candidates.length === 0) continue;
+    seams.push({
+      line: below ? below.startLine : documentEnd(doc),
+      aboveId: above?.node.id,
+      belowId: below?.node.id,
+      candidates,
+    });
+  }
+  return seams;
+}
+
+/** The parent and index a depth names at one seam. */
+function placeAt(
+  depth: number,
+  above: Visible | undefined,
+  below: Visible | undefined,
+): { readonly parentId: number | 'root'; readonly index: number } | undefined {
+  if (!above) {
+    // The document's first seam: nothing is above it, so the only place is
+    // before the first node, among whatever holds it.
+    if (!below) return undefined;
+    const own = below.chain[below.chain.length - 1]!;
+    const parent = below.chain[below.chain.length - 2];
+    return { parentId: parent ? parent.node.id : 'root', index: own.index };
+  }
+  // One level inside the node above: the seam sits after everything it holds,
+  // hidden children included, so the run lands LAST among them.
+  if (depth === above.depth + 1) {
+    return { parentId: above.node.id, index: above.node.children.length };
+  }
+  // Otherwise the parent is an ancestor of the node above, and the seam sits
+  // just past the child of it that the node above is inside.
+  const step = above.chain[depth];
+  if (!step) return undefined;
+  const parent = above.chain[depth - 1];
+  return { parentId: parent ? parent.node.id : 'root', index: step.index + 1 };
+}
+
+/**
+ * The run's first line as this destination would write it, or `undefined`
+ * where the destination refuses the run.
+ *
+ * A run that does not leave its own scope is not re-encoded — the operation
+ * takes that case as a reorder — so it is asked for nothing and keeps the line
+ * it has.
+ */
+function writtenFirstLine(
+  doc: OutlineDoc,
+  placed: { readonly parentId: number | 'root'; readonly index: number },
+  operandRoots: readonly OutlineNode[],
+  operandRootIds: ReadonlySet<number>,
+  options: { readonly fallbackIndentUnit?: string },
+): string | undefined {
+  const parent = placed.parentId === 'root' ? 'root' : nodeById(doc, placed.parentId);
+  if (parent === undefined) return undefined;
+  const siblings = parent === 'root' ? doc.children : parent.children;
+  if (siblings.some((sibling) => operandRootIds.has(sibling.id))) {
+    return operandRoots[0]!.lines[0]!;
+  }
+  const result = reencodeBlocksForDestination(
+    doc,
+    parent,
+    siblings.slice(0, placed.index),
+    siblings.slice(placed.index),
+    operandRoots,
+    options.fallbackIndentUnit,
+  );
+  return result.ok ? result.value[0]!.lines[0]! : undefined;
+}
+
+function nodeById(doc: OutlineDoc, id: number): OutlineNode | undefined {
+  let found: OutlineNode | undefined;
+  const walk = (nodes: readonly OutlineNode[]): void => {
+    for (const node of nodes) {
+      if (found) return;
+      if (node.id === id) {
+        found = node;
+        return;
+      }
+      walk(node.children);
+    }
+  };
+  walk(doc.children);
+  return found;
+}
+
+function documentEnd(doc: OutlineDoc): number {
+  let total = doc.preamble.length;
+  const walk = (nodes: readonly OutlineNode[]): void => {
+    for (const node of nodes) {
+      total += ownSpan(node);
+      walk(node.children);
+    }
+  };
+  walk(doc.children);
+  return total;
+}
+
+/** What the view knows that this module does not: where each seam sits, and
+ * where a depth's column is. Injected so the resolution stays pure and the
+ * geometry stays in one place. */
+export interface PointerGeometry {
+  /** One vertical position per seam, in the order `dropSeams` returned them. */
+  readonly seamY: readonly number[];
+  /** The horizontal position a depth's own column is drawn at. */
+  readonly columnX: (depth: number) => number;
+}
+
+/**
+ * The destination a pointer position names: the seam it is nearest, and the
+ * column of that seam it is nearest.
+ *
+ * The ONE resolution, called by the preview and by the release alike (design
+ * D7), so the two cannot disagree about where the run lands or what it becomes.
+ * `undefined` where there is no seam to name at all, which is a drag that
+ * continues with no preview and cancels on release.
+ */
+export function resolveDestination(
+  seams: readonly DropSeam[],
+  geometry: PointerGeometry,
+  pointer: { readonly x: number; readonly y: number },
+): { readonly seam: DropSeam; readonly destination: DropDestination } | undefined {
+  if (seams.length === 0) return undefined;
+  const seam = seams[nearestIndex(pointer.y, geometry.seamY)]!;
+  const columns = seam.candidates.map((candidate) => geometry.columnX(candidate.depth));
+  return { seam, destination: seam.candidates[nearestIndex(pointer.x, columns)]! };
+}
+
+/**
+ * Which of these positions a coordinate is nearest, clamped at both ends.
+ *
+ * A PARTITION and not a hit test: every coordinate resolves to exactly one
+ * entry, with everything before the first resolving to the first and
+ * everything after the last to the last. `guideHit`'s band is the hit test,
+ * and borrowing it here would leave 7.33px between every pair of columns
+ * resolving to nothing at the default indent unit, and nothing at all right of
+ * a line's own text — where most of a drag happens. A release that resolves
+ * nothing cancels the drag, so a dead band throws the gesture away.
+ */
+export function nearestIndex(value: number, positions: readonly number[]): number {
+  if (positions.length === 0) return -1;
+  let best = 0;
+  let bestDistance = Math.abs(value - positions[0]!);
+  for (let i = 1; i < positions.length; i++) {
+    const distance = Math.abs(value - positions[i]!);
+    if (distance < bestDistance) {
+      best = i;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}

@@ -3,7 +3,7 @@ import fc from 'fast-check';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
 import { treesEqual, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
-import { indent, outdent, moveDown, moveUp, unwrapListItem } from '../src/ops';
+import { indent, moveDown, moveSubtreesTo, moveUp, outdent, unwrapListItem } from '../src/ops';
 import { applyEdits } from '../src/result';
 import { arbTree } from './generators';
 
@@ -27,6 +27,7 @@ const KNOWN_REASONS = new Set([
   'no-sibling-above',
   'no-sibling-below',
   'not-expressible-under-target',
+  'insertion-not-expressible',
   'cannot-reorder-across-heading-boundary',
   'reorder-not-expressible',
   'would-orphan-children',
@@ -199,5 +200,35 @@ describe('5.4 rejections are total and typed', () => {
     const result = indent(doc, [...walkNodes(doc)][0]!.id);
     expect(result.ok).toBe(false);
     expect(encode(doc)).toBe(before);
+  });
+});
+
+describe('5.5 a move conserves the tree', () => {
+  // `finalize` returns `parse(encode(surgery))`, so asserting that the result
+  // re-parses to itself re-checks the encode/parse round trip and cannot fail
+  // on a surgery the re-parse reads differently — the failure that matters.
+  // What can fail is conservation: a move neither adds a node nor removes one,
+  // so the count is invariant. A run landing somewhere that cannot hold it is
+  // swallowed into its neighbour's lines and the count drops.
+  it('every node is still a node after a move', () => {
+    fc.assert(
+      fc.property(arbTree(), fc.nat(), fc.nat(), fc.nat(), (doc, n, p, i) => {
+        const run = nthNode(doc, n);
+        if (!run) return true;
+        const all = [...walkNodes(doc)];
+        const parentNode = all[p % all.length]!;
+        const before = all.length;
+        const result = moveSubtreesTo(doc, [[run.id]], {
+          parentId: parentNode.id,
+          index: i % (parentNode.children.length + 1),
+        });
+        // Negative control: with the atom-parent guard removed from the shared
+        // re-encode step, a run landing under an atom re-parses as part of it —
+        // one table swallowing another — and the count drops.
+        if (!result.ok) return KNOWN_REASONS.has(result.rejection.reason);
+        return [...walkNodes(result.value.doc)].length === before;
+      }),
+      { numRuns: 400 },
+    );
   });
 });
