@@ -175,6 +175,13 @@ class ZoomClickPlugin implements PluginValue {
   }
 
   update(update: ViewUpdate): void {
+    // A write under a held press invalidates everything the press resolved
+    // against — the operand's ids, the mark's position, the seams. Cancelled
+    // rather than re-resolved: the reader is holding a node that has moved
+    // under them, and continuing would drop it somewhere they did not aim at.
+    // Our own collapse and restore are selection-only, so they do not trip
+    // this.
+    if (update.docChanged && this.press) this.cancelPress();
     // A change clears the hover state (its line numbers moved) while the
     // pointer has not. Re-derive from where it last was — and only then. The
     // state survives everything else, the fold a press makes included; and
