@@ -75,17 +75,56 @@ async function activeMarks(): Promise<Mark[]> {
 
 const headingsOf = (marks: readonly Mark[]) => marks.filter((m) => m.kind === 'heading');
 
-/** Where each heading's text starts, pane by pane — what must not move. */
-function headingTextLefts(): Promise<number[][]> {
+/**
+ * Where each line's text starts, pane by pane — what a marker could move, and
+ * what must not.
+ *
+ * The line's own indentation, not the position of a heading's text span: Live
+ * Preview reveals a heading's `#` syntax as an extra span on the line the caret
+ * is in and hides it again when focus leaves, so a measurement over those spans
+ * tracks the caret rather than the chrome. CI caught exactly that, reading one
+ * more span before a style change than after.
+ */
+function lineTextStarts(): Promise<number[][]> {
   return browser.execute(() =>
     Array.from(document.querySelectorAll<HTMLElement>('.workspace-leaf .cm-content'))
       .filter((pane) => pane.getBoundingClientRect().width > 0)
       .map((pane) =>
-        Array.from(pane.querySelectorAll<HTMLElement>('.cm-line .cm-header'))
-          .filter((el) => el.closest('.to-backlinks, .to-zoom-trail') === null)
-          .map((el) => +el.getBoundingClientRect().left.toFixed(2)),
+        Array.from(pane.querySelectorAll<HTMLElement>('.cm-line')).map(
+          (el) => +parseFloat(getComputedStyle(el).paddingInlineStart).toFixed(2),
+        ),
       ),
   );
+}
+
+/**
+ * Read until the value holds still, or until it differs from `was`.
+ *
+ * A settings write repaints every open editor and every footer, and those
+ * repaints land on render passes this side cannot see. A fixed pause reads
+ * whatever they have got to — enough on a developer machine, and not on a CI
+ * runner with fifteen spec files in flight, where the trail was still drawing
+ * the style before the change.
+ */
+async function readSettled<T>(read: () => Promise<T>, was?: T): Promise<T> {
+  const target = was === undefined ? undefined : JSON.stringify(was);
+  let last = await read();
+  let previous = JSON.stringify(last);
+  await browser.waitUntil(
+    async () => {
+      last = await read();
+      const now = JSON.stringify(last);
+      const settled = target === undefined ? now === previous : now !== target;
+      previous = now;
+      return settled;
+    },
+    {
+      timeout: h.waitBudget(8000),
+      interval: 150,
+      timeoutMsg: `never settled${target === undefined ? '' : ` away from ${target}`}: ${previous}`,
+    },
+  );
+  return last;
 }
 
 /** The zoom trail's inline heading glyphs, in every visible pane. */
@@ -132,7 +171,7 @@ describe('heading level markers', function () {
       ['hash', 'subscript'],
     ] as const) {
       await setStyle(style[0], style[1]);
-      const marks = await activeMarks();
+      const marks = await readSettled(activeMarks);
       const headings = headingsOf(marks);
       expect({ style, levels: headings.map((m) => m.level) }).toEqual({
         style,
@@ -150,7 +189,7 @@ describe('heading level markers', function () {
     await openLevels();
     for (const glyph of ['H', 'hash'] as const) {
       await setStyle(glyph, 'none');
-      const headings = headingsOf(await activeMarks());
+      const headings = headingsOf(await readSettled(activeMarks));
       expect(headings.map((m) => m.level)).toEqual(['1', '2', '3', '4', '5', '6']);
       expect({ glyph, distinct: new Set(headings.map((m) => m.svg)).size }).toEqual({ glyph, distinct: 1 });
     }
@@ -183,7 +222,7 @@ describe('heading level markers', function () {
     await browser.pause(300);
     expect((await h.getBuffer()).split('\n')[0]).toBe('### Title');
 
-    const after = headingsOf(await activeMarks());
+    const after = headingsOf(await readSettled(activeMarks));
     expect(after[0]!.level).toBe('3');
     expect(after[0]!.svg).toBe(levelThree);
   });
@@ -230,8 +269,8 @@ describe('heading level markers', function () {
         ['hash', 'none'],
       ] as const) {
         await setStyle(style[0], style[1]);
-        const editor = headingsOf(await activeMarks());
-        const preview = await previewMark();
+        const editor = headingsOf(await readSettled(activeMarks));
+        const preview = await readSettled(previewMark);
         const level = preview?.level ?? '';
         expect({ style, svg: preview?.svg }).toEqual({
           style,
@@ -282,15 +321,15 @@ describe('heading level markers', function () {
     });
     await browser.pause(300);
 
-    const marksBefore = await editorMarks();
-    const trailBefore = await trailGlyphs();
-    const textBefore = await headingTextLefts();
+    const marksBefore = await readSettled(editorMarks);
+    const trailBefore = await readSettled(trailGlyphs);
+    const textBefore = await readSettled(lineTextStarts);
     expect(marksBefore.length).toBe(2); // two panes, or this proves nothing
     expect(trailBefore.length).toBeGreaterThan(0);
 
     await setStyle('hash', 'subscript');
 
-    const marksAfter = await editorMarks();
+    const marksAfter = await readSettled(editorMarks, marksBefore);
     for (const [pane, marks] of marksAfter.entries()) {
       const before = headingsOf(marksBefore[pane]!);
       const after = headingsOf(marks);
@@ -305,8 +344,8 @@ describe('heading level markers', function () {
     }
     // The trail's `# One` is drawn as the first pane now draws its own level 1.
     const levelOne = headingsOf(marksAfter[0]!).find((m) => m.level === '1')!.svg;
-    expect(await trailGlyphs()).toEqual(trailBefore.map(() => levelOne));
-    expect(await headingTextLefts()).toEqual(textBefore);
+    expect(await readSettled(trailGlyphs, trailBefore)).toEqual(trailBefore.map(() => levelOne));
+    expect(await readSettled(lineTextStarts)).toEqual(textBefore);
 
     await browser.executeObsidian(({ app }) => {
       const leaves = app.workspace.getLeavesOfType('markdown');
@@ -337,7 +376,7 @@ describe('heading level markers', function () {
         return svg?.innerHTML ?? null;
       });
     const editorLevel = async (level: string): Promise<string> =>
-      headingsOf(await activeMarks()).find((m) => m.level === level)!.svg;
+      headingsOf(await readSettled(activeMarks)).find((m) => m.level === level)!.svg;
 
     await h.openNote(target);
     await h.setOutlineMode(true);
@@ -361,11 +400,10 @@ describe('heading level markers', function () {
     await h.setCursorSettled(2, 6);
     await h.runCommand('zoom-in');
     await browser.pause(300);
-    expect(await trailGlyphs()).toEqual([oldOne]);
+    expect(await readSettled(trailGlyphs)).toEqual([oldOne]);
 
     await setStyle('hash', 'beside');
-    const trailAfter = await trailGlyphs();
-    expect(trailAfter).not.toEqual([oldOne]);
+    const trailAfter = await readSettled(trailGlyphs, [oldOne]);
     await h.runCommand('zoom-clear');
     await browser.pause(300);
     expect(trailAfter).toEqual([await editorLevel('1')]);
