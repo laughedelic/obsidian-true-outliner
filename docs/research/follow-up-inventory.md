@@ -42,7 +42,7 @@ to reach.
 | 4 | A non-list-item child of a list item is indented twice — our depth padding plus the child's own literal leading whitespace | decoration-follow-ups | from a real-vault report; the fix is a decoration decision, not a parse one — **extracted to [#117](https://github.com/laughedelic/obsidian-true-outliner/issues/117)** |
 | 5 | Under the Minimal theme, indented callouts and code blocks overflow the reading column. Minimal sizes them with `max-width`, which does not recompute when our `margin-left` changes | decoration-follow-ups | measured live by computed style; bundled themes are unaffected because they use `width: auto` — **extracted to [#118](https://github.com/laughedelic/obsidian-true-outliner/issues/118)** |
 | 6 | Toggling outline mode jumps the view to the top of a long document | decoration-follow-ups, "Other design ideas" | no diagnosis yet beyond the symptom — **extracted to [#143](https://github.com/laughedelic/obsidian-true-outliner/issues/143)** |
-| 7 | Shift+Tab on a provisional position leaves the caret on the line below the place it moved | decoration-follow-ups | measured, and asserted as-is in `tests/grammar.test.ts`, so a fix has to change that test deliberately — **extracted to [#119](https://github.com/laughedelic/obsidian-true-outliner/issues/119)** |
+| 7 | ~~Shift+Tab on a provisional position leaves the caret off the place~~ | decoration-follow-ups | **filed, then closed as superseded ([#119](https://github.com/laughedelic/obsidian-true-outliner/issues/119)).** Re-measurement on main found the reported column did not exist on its line, so the Tab/Shift+Tab asymmetry was never there; the real defect was the TRAILING place ([#130](https://github.com/laughedelic/obsidian-true-outliner/issues/130)), fixed by `a-trailing-place-moves-with-its-node`. The entry is rewritten in its note |
 | 8 | A structural key on a provisional position leaves the blank line in the file if the user then walks away | decoration-follow-ups | byte-identical to stock Obsidian; what makes it ours is that the model asserts something about that line |
 | 9 | Renumbering can push a marker past the parser's nine-digit ceiling (`999999999.` → `1000000000.`), which re-parses as a paragraph | enter-and-shift-enter-catalogue | verified live: `\d{1,9}` in both `LIST_ITEM_RE` and `LIST_CONT_RE`. Closing it means deciding what an operation does at the ceiling — **extracted to [#120](https://github.com/laughedelic/obsidian-true-outliner/issues/120)** |
 | 10 | Abandoning a position opened over a block selection leaves one stray blank line; after undo→redo the position returns unrecorded | enter-and-shift-enter-catalogue | two attempts to recognise a redo failed and were reverted; the recorded sequence was re-measured and corrected once already |
@@ -147,7 +147,7 @@ the next reader. That is the trade, taken deliberately.
 | [#116](https://github.com/laughedelic/obsidian-true-outliner/issues/116) | Shift+Enter on a marker with no trailing space opens a position outside every node | decoration-follow-ups |
 | [#117](https://github.com/laughedelic/obsidian-true-outliner/issues/117) | A non-list-item child of a list item is indented twice | decoration-follow-ups |
 | [#118](https://github.com/laughedelic/obsidian-true-outliner/issues/118) | Minimal-theme boxed atoms overflow the reading column when indented | decoration-follow-ups |
-| [#119](https://github.com/laughedelic/obsidian-true-outliner/issues/119) | Shift+Tab leaves the caret off the provisional position it moved | decoration-follow-ups |
+| [#119](https://github.com/laughedelic/obsidian-true-outliner/issues/119) | ~~Shift+Tab leaves the caret off the provisional position it moved~~ — closed as superseded, see below | decoration-follow-ups |
 | [#120](https://github.com/laughedelic/obsidian-true-outliner/issues/120) | Renumbering past nine digits re-parses the item as a paragraph | enter-and-shift-enter-catalogue |
 | [#121](https://github.com/laughedelic/obsidian-true-outliner/issues/121) | A node holding several references renders one footer row | decoration-follow-ups |
 
@@ -184,11 +184,15 @@ footer's repaint dropping focus, fixed for every control by the search change th
 search field. Two of the fourteen rows this pass has reached for turned out already done, both
 found by validating rather than by reading.
 
-**One filed item was overtaken by better measurement.**
-[#119](https://github.com/laughedelic/obsidian-true-outliner/issues/119) named the outdent/place defect from this note's reading; #129 corrected that
-diagnosis and [#130](https://github.com/laughedelic/obsidian-true-outliner/issues/130) now pins the trailing-place shape as measured, with
-[#142](https://github.com/laughedelic/obsidian-true-outliner/issues/142) covering the record being single-shot. The tracker moved past the note, which is
-what extraction was for.
+**One filed item was overtaken, and then disproved.** [#119](https://github.com/laughedelic/obsidian-true-outliner/issues/119) named the outdent/place
+defect from this note's reading. #129 corrected the diagnosis, [#130](https://github.com/laughedelic/obsidian-true-outliner/issues/130) pinned the trailing
+place as measured, and `a-trailing-place-moves-with-its-node` (#132) fixed it — at which point
+#119 had nothing left to describe and was closed as superseded. The correction is worth keeping:
+the shape this note recorded was measured from a column that does not exist on its own line, so
+the Tab/Shift+Tab asymmetry it reported was never real. Both keys were right on an interior place
+and both were wrong on a trailing one. That is the sharpest illustration of the validation rule
+below — the row was verified against the source before filing, and the source agreed with a
+measurement that was itself wrong.
 
 **One Tier 2 decision shipped.** Item 35, collapsing gap lines, is in as an opt-in setting
 (`gap-line-hiding.md`), with its costs stated rather than solved — a run of blanks is
@@ -213,10 +217,15 @@ it so, and the code moves underneath it either way.
 
 ### What to extract next, and what not to
 
-*Tier 1's user-visible half is now filed*, except items 8, 10 and 11 — the three provisional-place
-rows, which overlap [#130](https://github.com/laughedelic/obsidian-true-outliner/issues/130) and [#142](https://github.com/laughedelic/obsidian-true-outliner/issues/142) enough that they should be read against those
-two before anything is filed. Item 11 in particular wants the place-provenance `StateField` both of
-those issues circle, so it may be one change with them rather than an issue of its own.
+*Tier 1's user-visible half is filed.* What is left of the tier is rows 8, 10 and 11 — the three
+provisional-place rows — and the place area has moved so far past this note that none of them
+should be filed from what is written here. Between 2026-09-16 and 2026-09-19 that area took three
+changes (#129, #132, #151) and produced five issues of its own, of which [#130](https://github.com/laughedelic/obsidian-true-outliner/issues/130) and
+[#142](https://github.com/laughedelic/obsidian-true-outliner/issues/142) are already closed and [#152](https://github.com/laughedelic/obsidian-true-outliner/issues/152), [#153](https://github.com/laughedelic/obsidian-true-outliner/issues/153) and [#154](https://github.com/laughedelic/obsidian-true-outliner/issues/154) are live.
+Row 8 in particular — a structural key leaving the blank line in the file — sits next to #153's
+carried-place record without being the same thing, and row 11 wants the place-provenance
+`StateField` that several of those issues circle. Read the rewritten entries in
+`decoration-follow-ups` first; the rows here are older than they are.
 
 *The open decisions* (24, 26, 33, 34) want a different shape. Item 25, Q35's unmodelled indented
 code block, is no longer among them — it was filed independently as [#138](https://github.com/laughedelic/obsidian-true-outliner/issues/138) off the
