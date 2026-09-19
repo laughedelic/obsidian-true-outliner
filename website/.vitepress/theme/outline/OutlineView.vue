@@ -63,6 +63,9 @@ let restore: { path: string; state: Saved | null } | null = null;
 let restoreTimer = 0;
 let saveTimer = 0;
 let tipTimer = 0;
+// The element being pointed out, so the highlight follows it if the page
+// still shifts under it.
+let flashTarget: HTMLElement | null = null;
 let resize: ResizeObserver | null = null;
 let frame = 0;
 
@@ -148,9 +151,8 @@ function applyVisibility() {
   const base = root && root.kind !== 'item' ? root.depth : 0;
   content.style.setProperty('--to-o-base', String(base));
   for (const n of t.nodes) n.el.classList.toggle('to-o-hinted', n === tryNode.value);
-  // A table wants the width the aside takes, and a zoom into one says the
-  // rest of the page is not being read.
-  const wide = !!root && outline.value && [root, ...descendants(root)].some((n) => n.kind === 'table');
+  // A table zoomed into on its own takes the width the aside has.
+  const wide = outline.value && root?.kind === 'table';
   document.documentElement.classList.toggle('to-o-wide', wide);
   markAside();
 }
@@ -216,6 +218,7 @@ function measure() {
     const top = c.y + 0.55 * rem;
     if (bottom - top > 4) nextGuides.push({ node, x: c.x, top, height: bottom - top });
   }
+  if (flashTarget) placeFlash(true);
   marks.value = nextMarks;
   guides.value = nextGuides;
 }
@@ -283,19 +286,50 @@ function findByText(t: OTree, text: string): { node: ONode; el: HTMLElement } | 
   return null;
 }
 
-function flashAt(el: HTMLElement) {
+/** Resolves once the pictures and clips above an element have their sizes,
+ * or after a moment: until then the element's place on the page is not
+ * settled, and neither is a scroll to it. */
+function mediaSettled(el: HTMLElement): Promise<void> {
+  const before = (m: Element) => !!(m.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
+  const waits = Array.from(content?.querySelectorAll<HTMLImageElement | HTMLVideoElement>('img, video') ?? [])
+    .filter(before)
+    // A figure with its size declared already holds its place.
+    .filter((m) => !m.hasAttribute('width'))
+    .filter((m) => (m instanceof HTMLImageElement ? !m.complete : m.readyState < 1))
+    .map(
+      (m) =>
+        new Promise<void>((done) => {
+          for (const type of ['load', 'loadedmetadata', 'error']) m.addEventListener(type, () => done(), { once: true });
+        }),
+    );
+  if (!waits.length) return Promise.resolve();
+  return Promise.race([Promise.all(waits).then(() => undefined), new Promise<void>((done) => setTimeout(done, 2500))]);
+}
+
+function placeFlash(scroll: boolean) {
+  const el = flashTarget;
   const host = layer.value;
-  if (!host) return;
-  el.scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior });
+  if (!el || !host) return;
+  if (scroll) el.scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior });
   const origin = host.getBoundingClientRect();
   const rect = el.getBoundingClientRect();
   // An item's box holds its children too; the line is what is pointed at.
   const nested = Array.from(el.children).find((c) => c.tagName === 'UL' || c.tagName === 'OL');
   const bottom = nested ? nested.getBoundingClientRect().top : rect.bottom;
+  flash.value = { x: rect.left - origin.left - 6, y: rect.top - origin.top - 2, w: rect.width + 12, h: bottom - rect.top + 4 };
+}
+
+async function flashAt(el: HTMLElement) {
+  const path = builtPath;
+  await mediaSettled(el);
+  if (path !== builtPath || !el.isConnected) return;
+  flashTarget = el;
+  placeFlash(true);
+}
+
+function endFlash() {
   flash.value = null;
-  void nextTick(() => {
-    flash.value = { x: rect.left - origin.left - 6, y: rect.top - origin.top - 2, w: rect.width + 12, h: bottom - rect.top + 4 };
-  });
+  flashTarget = null;
 }
 
 /** Keeps a node on screen after a fold changed the page's height above or
@@ -338,7 +372,7 @@ function rebuild() {
   resize?.disconnect();
   zoomRoot.value = null;
   active.value = null;
-  flash.value = null;
+  endFlash();
   hideTip();
   builtPath = location.pathname;
   if (!content || !enabled.value) {
@@ -551,7 +585,7 @@ onBeforeUnmount(() => {
         v-if="flash"
         class="to-o-flash"
         :style="{ left: `${flash.x}px`, top: `${flash.y}px`, width: `${flash.w}px`, height: `${flash.h}px` }"
-        @animationend="flash = null"
+        @animationend="endFlash"
       ></div>
       <div
         v-if="tryKind && tryMark"

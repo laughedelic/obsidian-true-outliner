@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useData, withBase } from 'vitepress';
+import { data as sizes } from './media.data';
 
 // A still from `website/public/media/shots/`, in the variant matching the
 // site's colour scheme — the same mount-then-swap as Clip.vue. `width` caps
@@ -11,6 +12,7 @@ const mounted = ref(false);
 onMounted(() => {
   mounted.value = true;
 });
+const size = computed(() => sizes[`shots/${props.name}-light`]);
 const src = computed(() =>
   withBase(`/media/shots/${props.name}-${mounted.value && isDark.value ? 'dark' : 'light'}.png`),
 );
@@ -18,7 +20,7 @@ const src = computed(() =>
 
 <template>
   <figure class="media media-shot" :style="width ? { maxWidth: `${width}px` } : undefined">
-    <img :src="src" :alt="alt" loading="lazy" />
+    <img :src="src" :alt="alt" :width="size?.width" :height="size?.height" loading="lazy" />
     <figcaption v-if="caption">{{ caption }}</figcaption>
   </figure>
 </template>

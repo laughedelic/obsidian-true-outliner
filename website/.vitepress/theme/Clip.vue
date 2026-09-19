@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useData, withBase } from 'vitepress';
+import { data as sizes } from './media.data';
 
 // A silent looping clip from `website/public/media/clips/`, in the variant
 // matching the site's colour scheme. The server renders the light one and the
@@ -12,13 +13,14 @@ const mounted = ref(false);
 onMounted(() => {
   mounted.value = true;
 });
+const size = computed(() => sizes[`clips/${props.name}-light`]);
 const variant = computed(() => `${props.name}-${mounted.value && isDark.value ? 'dark' : 'light'}`);
 const url = (ext: string) => withBase(`/media/clips/${variant.value}.${ext}`);
 </script>
 
 <template>
   <figure class="media media-clip">
-    <video :key="variant" autoplay loop muted playsinline :poster="url('png')">
+    <video :key="variant" autoplay loop muted playsinline :poster="url('png')" :width="size?.width" :height="size?.height">
       <source :src="url('webm')" type="video/webm" />
       <source :src="url('mp4')" type="video/mp4" />
     </video>
