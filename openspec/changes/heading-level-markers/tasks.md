@@ -72,8 +72,8 @@
 - [x] 5.1 `markerFor`, `segmentMarker` and `segmentGlyph` build their subject from the row's fact
       or the segment, level included, with the source's style. `segmentMarker`'s fallback takes
       the row's fact instead of a bare kind, and that fact carries the level after task 1.2
-      (design D2). Verify with `npm run build`: a call site
-      that passes a heading kind without a level no longer compiles
+      (design D2). Verify with `npm run build`: a heading fact, segment or mark without a level
+      no longer compiles, pinned by a `@ts-expect-error` case in `tests/marker-shapes.test.ts`
 - [x] 5.2 The zoom trail's widget key joins the style (design D4). Verify with 6.4. Negative
       control: leaving it out keeps the old trail glyph after a style change
 

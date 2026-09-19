@@ -33,7 +33,7 @@ import { parsedDoc } from './parsed-doc';
 import { zoomScope } from './zoom-scope';
 import { zoomCleared, zoomTo } from './zoom-state';
 import type { LineageSeparator, SegmentIcons } from './settings/footer';
-import type { HeadingMarkerStyle } from './marker-shapes';
+import { nodeMark, type HeadingMarkerStyle } from './marker-shapes';
 
 export const TRAIL_CLASS = 'to-zoom-trail';
 
@@ -179,7 +179,7 @@ class ZoomTrailWidget extends WidgetType {
     // The same chrome a footer lineage row takes, at depth 0 and with no guides:
     // the trail is one row about one chain, so there is no depth for a stripe to
     // describe.
-    applyLineChrome(row, lineChrome(rowFact('paragraph', 0), { nativeBlocks: false }));
+    applyLineChrome(row, lineChrome(rowFact({ kind: 'paragraph' }, 0), { nativeBlocks: false }));
 
     const info = view.state.field(editorInfoField, false);
     const file = info?.file;
@@ -215,7 +215,7 @@ class ZoomTrailWidget extends WidgetType {
       // thing telling them apart, while a footer lineage row sits in a card
       // whose structure already groups it (design D10).
       separator: 'chevron',
-      fallback: scope.trail[0] ?? { kind: 'paragraph' },
+      fallback: scope.trail[0] ? nodeMark(scope.trail[0]) : { kind: 'paragraph' },
       // The gutter mark is the zoom-out control, not this segment's kind — so
       // it stays even when the icon setting says "none", which would
       // otherwise remove it along with the decorative kind glyphs it is not.

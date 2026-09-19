@@ -15,13 +15,9 @@
  * action would be a worse abstraction than two call sites.
  */
 
-import type { LineDecorationFact } from './decorate';
 import type { LineageSegment } from './footer-model';
+import type { NodeMark } from './marker-shapes';
 import type { LineageSeparator, SegmentIcons } from './settings/footer';
-
-/** What a mark is drawn from when there is no segment to draw it from: a
- * kind, and a heading's level, which a row's fact and a node both carry. */
-export type MarkedNode = Pick<LineDecorationFact, 'kind' | 'level'>;
 
 /** The appearance settings are the footer's own, imported rather than restated,
  * so one choice governs both surfaces and neither can drift from the settings
@@ -31,13 +27,13 @@ export interface LineageRowOptions {
   readonly separator: LineageSeparator;
   /** The row's own kind and level, for the gutter marker when the first
    * segment has none. */
-  readonly fallback: MarkedNode;
+  readonly fallback: NodeMark;
   /** What activating one segment means on this surface. The event is always
    * the `click` or `keydown` that triggered it — never any other kind — since
    * this module is the only place that dispatches it. */
   readonly onActivate: (segment: LineageSegment, event: MouseEvent | KeyboardEvent) => void;
   /** Builds the gutter marker for the first segment. */
-  readonly marker: (segment: LineageSegment | undefined, fallback: MarkedNode) => HTMLElement;
+  readonly marker: (segment: LineageSegment | undefined, fallback: NodeMark) => HTMLElement;
   /** Builds one segment's own inline icon. */
   readonly glyph: (segment: LineageSegment) => Element;
   /** Builds the between-segments separator. */

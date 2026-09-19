@@ -47,8 +47,8 @@ import { isOutlineMode } from './outline-state';
 import { nestedEditorField } from './nested-editor';
 import { contentEndAnchor } from './zoom-scope';
 import { buildMarkerIcon, FOLDED_NODE_CLASS } from './decorations';
-import { markSubject, type HeadingMarkerStyle } from './marker-shapes';
-import { renderLineageContent, type MarkedNode } from './lineage-row';
+import { markSubject, type HeadingMarkerStyle, type NodeMark } from './marker-shapes';
+import { renderLineageContent } from './lineage-row';
 import {
   MARKER_LEFT_SHIFT_EXPR,
   OWN_CHROME_CLASS,
@@ -592,7 +592,7 @@ class FooterController {
     // that is the rung the missing ones would have stood on.
     const more = tail.createEl('button', { cls: 'to-backlinks-rung to-backlinks-load-more' });
     more.type = 'button';
-    applyLineChrome(more, lineChrome(rowFact('paragraph', 0), { nativeBlocks: false }));
+    applyLineChrome(more, lineChrome(rowFact({ kind: 'paragraph' }, 0), { nativeBlocks: false }));
     // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
     more.appendChild(markerSlot(ellipsisGlyph()));
     // The action, not the count. D10 draws both a rung reading "93 more notes"
@@ -781,7 +781,7 @@ class FooterController {
       // A rung in the tree's own vocabulary, at the depth the hidden rows would
       // have occupied, saying how many there are (docs/research/structured-backlinks, D10).
       toggle.addClass('to-backlinks-rung');
-      applyLineChrome(toggle, lineChrome(rowFact('paragraph', omitted.depth), {
+      applyLineChrome(toggle, lineChrome(rowFact({ kind: 'paragraph' }, omitted.depth), {
         nativeBlocks: false,
       }));
       // eslint-disable-next-line no-restricted-syntax -- detached DOM: the card is still off-tree
@@ -1718,7 +1718,7 @@ class FooterController {
 function markerFor(row: Extract<FooterRow, { type: 'node' }>, style: HeadingMarkerStyle): HTMLElement {
   if (row.task !== undefined) return markerSlot(checkboxGlyph(row.task));
   if (row.ordinal) return ordinalMarker(row.ordinal);
-  return markerSlot(buildMarkerIcon(markSubject(row.fact.kind, row.fact.level, style)));
+  return markerSlot(buildMarkerIcon(markSubject(row.fact, style)));
 }
 
 /**
@@ -1732,13 +1732,13 @@ function markerFor(row: Extract<FooterRow, { type: 'node' }>, style: HeadingMark
  */
 export function segmentMarker(
   segment: LineageSegment | undefined,
-  fallback: MarkedNode,
+  fallback: NodeMark,
   style: HeadingMarkerStyle,
 ): HTMLElement {
-  if (!segment) return markerSlot(buildMarkerIcon(markSubject(fallback.kind, fallback.level, style)));
+  if (!segment) return markerSlot(buildMarkerIcon(markSubject(fallback, style)));
   if (segment.task !== undefined) return markerSlot(checkboxGlyph(segment.task));
   if (segment.ordinal) return ordinalMarker(segment.ordinal);
-  return markerSlot(buildMarkerIcon(markSubject(segment.kind, segment.level, style)));
+  return markerSlot(buildMarkerIcon(markSubject(segment, style)));
 }
 
 /** The same choice as `segmentMarker`, as a bare glyph for an INLINE segment
@@ -1747,7 +1747,7 @@ export function segmentMarker(
  * since no fixed-width icon box holds `10.`. */
 export function segmentGlyph(segment: LineageSegment, style: HeadingMarkerStyle): Element {
   if (segment.task !== undefined) return checkboxGlyph(segment.task);
-  return buildMarkerIcon(markSubject(segment.kind, segment.level, style));
+  return buildMarkerIcon(markSubject(segment, style));
 }
 
 /**

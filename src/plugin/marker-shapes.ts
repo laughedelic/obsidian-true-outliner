@@ -38,21 +38,32 @@ export interface Shape {
 }
 
 /**
- * The subject for a node known by its kind and optional level — a decoration
- * fact, or a lineage segment.
+ * A node's kind, and its level exactly when it is a heading: what a decoration
+ * fact and a lineage segment carry about the node they stand for.
  *
- * A heading without a level is a model defect: every fact and segment carries
- * one exactly when its kind is `'heading'`. It throws rather than draw a
- * plausible mark for a level nobody knows.
+ * A union, so that a heading without a level cannot be written down at all —
+ * the type says what `OutlineNode.level`'s comment only documents.
  */
-export function markSubject(
-  kind: NodeKind,
-  level: number | undefined,
-  style: HeadingMarkerStyle,
-): MarkSubject {
-  if (kind !== 'heading') return { kind };
-  if (level === undefined) throw new Error('A heading mark needs its level');
-  return { kind, level, style };
+export type NodeMark =
+  | { readonly kind: 'heading'; readonly level: number }
+  | { readonly kind: Exclude<NodeKind, 'heading'>; readonly level?: undefined };
+
+/**
+ * The model's node read into a `NodeMark` — the one place a runtime check
+ * stands in for the type, because `OutlineNode` carries its level as an
+ * optional field. The parser sets it for every heading, so a heading without
+ * one is a parser defect, and it throws rather than draw a plausible mark for a
+ * level nobody knows.
+ */
+export function nodeMark(node: { readonly kind: NodeKind; readonly level?: number }): NodeMark {
+  if (node.kind !== 'heading') return { kind: node.kind };
+  if (node.level === undefined) throw new Error('A heading node without a level');
+  return { kind: 'heading', level: node.level };
+}
+
+/** The subject for a node's mark, drawn in `style` if it is a heading. */
+export function markSubject(node: NodeMark, style: HeadingMarkerStyle): MarkSubject {
+  return node.kind === 'heading' ? { kind: 'heading', level: node.level, style } : { kind: node.kind };
 }
 
 /**

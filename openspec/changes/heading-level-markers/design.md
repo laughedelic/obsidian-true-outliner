@@ -59,14 +59,19 @@ bounds, distinctness, and the derived `H` height.
 
 ### D2. A heading subject always carries its level
 
-The drawing input is a union: `{ kind: 'heading', level, style }` or `{ kind: <other> }`. No call
-site can ask for a heading mark without a level. `LineDecorationFact` and `LineageSegment` each
-gain `level`, present exactly when the kind is `heading`, forwarded from the node. A synthetic
-lineage fact takes its level from the same first element its kind comes from, so the invariant
-holds for every fact, projected or not: `syntheticFact` forwards its node's level too. The
-footer's lineage segments and the zoom trail's crumbs are built by one constructor,
-`lineageSegment`, so neither surface can drop a field the other carries. `segmentMarker`'s kind-only fallback, for a chain with no
-elements, takes the row's own fact instead of a bare kind, so it too has a level to pass.
+A node's kind and level travel as one union, `NodeMark`: `{ kind: 'heading', level }` or
+`{ kind: <other> }`. `LineDecorationFact` and `LineageSegment` are their own fields intersected
+with it, so a heading fact or segment without a level does not compile. That holds for every
+route that builds one, the synthetic ones included (`rowFact` takes a `NodeMark`), and for a test
+that builds one by hand. `markSubject(node, style)` takes a `NodeMark` too, and is total.
+
+The one runtime check sits where the model enters these types. `nodeMark(node)` reads an
+`OutlineNode`, whose level is only documented as present for a heading. The parser sets it for
+every heading, so a heading without one is a parser defect, and it throws there. Every fact
+route and the shared segment constructor go through it. The footer's lineage segments and the
+zoom trail's crumbs are built by one constructor, `lineageSegment`, so neither surface can drop
+a field the other carries. `segmentMarker`'s fallback, for a chain with no elements, takes the
+row's own fact, which is a `NodeMark` like any other.
 
 *Alternative.* Defaulting a missing level to 1, or falling back to the no-digit mark. Either
 would make a model defect render as a plausible mark instead of failing to compile.

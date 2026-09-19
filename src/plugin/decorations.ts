@@ -1277,7 +1277,7 @@ function computeMarkers(state: EditorState, modes: DecorationSource): Decoration
       from,
       Decoration.widget({
         widget: new MarkerWidget(
-          markSubject(fact.kind, fact.level, modes.headingMarkerStyle),
+          markSubject(fact, modes.headingMarkerStyle),
           MARKER_LEFT_SHIFT_EXPR,
         ),
         side: -1,
@@ -3470,7 +3470,7 @@ class MarginCompensation implements PluginValue {
           el.dataset.markerDepth = String(fact.isListItem ? fact.supplementalDepth : fact.depth);
           applyWidgetMarker(
             el,
-            markSubject(fact.kind, fact.level, this.modes.headingMarkerStyle),
+            markSubject(fact, this.modes.headingMarkerStyle),
             positionedShiftExpr,
           );
         } else {

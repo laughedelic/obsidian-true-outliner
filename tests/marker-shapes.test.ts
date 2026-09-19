@@ -9,6 +9,8 @@ import type { NodeKind } from '../src/model';
 import {
   markSubject,
   markerShapes,
+  nodeMark,
+  type NodeMark,
   type HeadingMarkerGlyph,
   type HeadingMarkerLevel,
   type HeadingMarkerStyle,
@@ -174,9 +176,12 @@ describe('markerShapes: the kinds that did not change', () => {
    * Negative control: change any attribute of any kind's primitives, and its
    * row fails.
    */
-  it.each(Object.keys(BEFORE).filter((k) => k !== 'heading') as NodeKind[])('%s draws what it drew', (kind) => {
-    expect(markerShapes(markSubject(kind, undefined, { glyph: 'H', level: 'beside' }))).toEqual(BEFORE[kind]);
-  });
+  it.each(Object.keys(BEFORE).filter((k) => k !== 'heading') as Array<Exclude<NodeKind, 'heading'>>)(
+    '%s draws what it drew',
+    (kind) => {
+      expect(markerShapes(markSubject({ kind }, { glyph: 'H', level: 'beside' }))).toEqual(BEFORE[kind]);
+    },
+  );
 });
 
 describe('markerShapes: heading marks', () => {
@@ -260,14 +265,28 @@ describe('markerShapes: heading marks', () => {
   });
 });
 
-describe('markSubject', () => {
+describe('a node’s mark, and the subject drawn from it', () => {
   it('brings a heading’s level and style, and nothing for any other kind', () => {
     const style: HeadingMarkerStyle = { glyph: 'hash', level: 'subscript' };
-    expect(markSubject('heading', 2, style)).toEqual({ kind: 'heading', level: 2, style });
-    expect(markSubject('paragraph', undefined, style)).toEqual({ kind: 'paragraph' });
+    expect(markSubject({ kind: 'heading', level: 2 }, style)).toEqual({ kind: 'heading', level: 2, style });
+    expect(markSubject({ kind: 'paragraph' }, style)).toEqual({ kind: 'paragraph' });
   });
 
-  it('refuses a heading without a level rather than draw a guess', () => {
-    expect(() => markSubject('heading', undefined, { glyph: 'H', level: 'beside' })).toThrow();
+  /**
+   * The guarantee is the type's, so the check is the compiler's: `npm run build`
+   * type-checks this file. Negative control: make `level` optional on the
+   * heading arm of `NodeMark`, and the directive below goes unused, which fails
+   * the build.
+   */
+  it('cannot be written for a heading without its level', () => {
+    // @ts-expect-error a heading without a level is not a NodeMark
+    const mark: NodeMark = { kind: 'heading' };
+    expect(mark.kind).toBe('heading');
+  });
+
+  it('reads a model node, and refuses a heading node without a level rather than draw a guess', () => {
+    expect(nodeMark({ kind: 'heading', level: 3 })).toEqual({ kind: 'heading', level: 3 });
+    expect(nodeMark({ kind: 'code' })).toEqual({ kind: 'code' });
+    expect(() => nodeMark({ kind: 'heading' })).toThrow();
   });
 });

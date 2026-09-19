@@ -154,7 +154,7 @@ describe('the zoom trail widget key', () => {
     const cases: Array<[string, LineageSegment]> = [
       ['task state', { ...base, task: true }],
       ['ordinal', { ...base, ordinal: '10.' }],
-      ['kind', { ...base, kind: 'heading' }],
+      ['kind', { ...base, kind: 'heading', level: 1 }],
       ['render mode', { ...base, render: 'text' }],
       ['shortening', { ...base, shortened: true }],
     ];
