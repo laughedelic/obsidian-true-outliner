@@ -52,7 +52,7 @@ columns.
 | `x̲` | Selection inside one item's text, underlined |
 | `‸` | Insertion or paste point, when it differs from where the caret ends up |
 | `⏵   ` | Tab, padded to its visual width |
-| `·` | A space in an indentation that holds a tab, and a trailing space. Every other space stays plain |
+| `·` | A space touching a tab, and a trailing space (a line of only spaces is all `·`). Every other space stays plain |
 | `∅` | End of document: after the last line's text when there is no final newline, on a line of its own otherwise |
 
 Draw `∅` only when the final newline or the end of the document is the point. An empty line
@@ -62,18 +62,19 @@ stays empty. The first example in a conversation gets a one-line legend of the g
 
 Generate the block with [`layout.mjs`](layout.mjs) rather than aligning it by hand: combining
 underlines, tab glyphs and column padding all have to add up. It reads columns on stdin, each
-starting with a `## <header>` line, written as the document itself: real tabs and spaces, `▒`
+starting with an `=== <header>` line, so a Markdown heading stays content. Each column is
+written as the document itself: real tabs and spaces, including lines of only spaces, `▒`
 opening a block-selected line, `«…»` around a selection inside a line, and `┃`, `‸`, `∅` where
 they go.
 
 ```bash
 node .agents/skills/presenting-examples/layout.mjs <<'EOF'
-## before
+=== before
 - a
 ▒- b
 ∅
 
-## after
+=== after
 - a┃
 ∅
 EOF

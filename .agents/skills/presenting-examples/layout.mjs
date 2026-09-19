@@ -3,16 +3,16 @@
 //
 // Input on stdin, one column after another:
 //
-//   ## before          a header line starts a column
+//   === before         a header line starts a column
 //   - a
 //   ▒- b               a leading ▒ marks a block-selected line
 //   - «big»┃ c         «…» is a selection inside one line, drawn underlined
 //   \t- d              real tabs and spaces, drawn by the rules below
 //   ∅
 //
-// Tabs become "⏵   ". Spaces in an indentation that holds a tab, and spaces at the end of a
-// line (before any closing ┃ or ∅), become "·"; every other space stays plain. Blank lines at
-// the end of a column are dropped, so columns can be separated by a blank line.
+// Tabs become "⏵   ". Spaces touching a tab, and spaces at the end of a line (before any
+// closing ┃, ‸ or ∅), become "·"; every other space stays plain. Empty lines at the end of a
+// column are dropped, so columns can be separated by an empty line; a line of spaces is content.
 import { readFileSync } from 'node:fs';
 
 const UNDERLINE = '̲';
@@ -31,30 +31,24 @@ function draw(raw) {
 		edge = BLOCK;
 		s = s.slice(BLOCK.length);
 	}
-	if (s === '') return edge;
-	const lead = s.match(/^[ \t]*/)[0];
-	const mixed = lead.includes('\t');
-	let body = s.slice(lead.length);
-	const allBlank = body.replace(/[┃∅]/g, '') === '';
-	const indent = [...lead]
-		.map((c) => (c === '\t' ? TAB : mixed || allBlank ? '·' : ' '))
-		.join('');
-	body = body
-		.replace(/ +(?=[┃∅]*$)/, (m) => '·'.repeat(m.length))
+	const dots = (m) => '·'.repeat(m.length);
+	s = s
+		.replace(/ +(?=[┃‸∅]*$)/, dots)
+		.replace(/ +(?=\t)|(?<=\t) +/g, dots)
 		.replace(/\t/g, TAB)
 		.replace(/«(.*?)»/g, (_, t) => [...t].map((c) => c + UNDERLINE).join(''));
-	return edge + indent + body;
+	return edge + s;
 }
 
 const columns = [];
 for (const line of readFileSync(0, 'utf8').split('\n')) {
-	const header = line.match(/^## (.*)$/);
+	const header = line.match(/^=== (.*)$/);
 	if (header) columns.push({ header: header[1], lines: [] });
 	else if (columns.length) columns.at(-1).lines.push(line);
-	else if (line.trim()) throw new Error('input must start with a "## <header>" line');
+	else if (line.trim()) throw new Error('input must start with a "=== <header>" line');
 }
 for (const col of columns) {
-	while (col.lines.length && col.lines.at(-1).trim() === '') col.lines.pop();
+	while (col.lines.at(-1) === '') col.lines.pop();
 	col.lines = col.lines.map(draw);
 	col.width = Math.max(width(col.header) + 1, ...col.lines.map(width)) + GAP;
 }
