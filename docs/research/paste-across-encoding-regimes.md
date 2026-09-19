@@ -573,3 +573,30 @@ h1: # Day
 heading placed before content at the same scope means, and there is no encoding in which it does
 not: the alternatives are placing the payload after the content, which is the defect above, or
 demoting it, which loses the rank. Worth watching in use.
+
+## An unterminated leading `---` is not ours to fix (review round, 2026-09-19)
+
+The review round reported that a paste can swallow a note's whole body into frontmatter: `---` /
+gap / `- a` with `## H2p` / `---` pasted at `- a` gives a document of ZERO nodes, every line in
+the preamble. It reproduces exactly, on this branch and on `main` — `parse.ts`'s frontmatter scan
+is unbounded, so any later `---` closes a block that takes everything above it, and the same
+leading line is an `hr` or a frontmatter opener depending on text arbitrarily far below.
+
+Measured against a real instance before filing it anywhere, which is what settled it. Obsidian's
+own metadata cache reads the three shapes as:
+
+| note | `sections` | `frontmatter` |
+| --- | --- | --- |
+| `---` / gap / `- a` / `# H2p` / gap / `---` | `yaml@0` and nothing else | absent |
+| `---` / gap / `- a` | `thematicBreak@0`, `list@2` | absent |
+| `---` / `title: x` / `---` / gap / `- a` | `yaml@0`, `list@4` | present |
+
+Obsidian swallows the prefix too, and lists no section for the body. `frontmatter` is absent
+because the content is not a YAML mapping, but the SECTION is yaml all the same. Our parse agrees
+with it on all three.
+
+So there is no divergence to fix: the file's text is intact, and an outline of nothing is an
+honest reading of a document Obsidian also thinks is all YAML. Typing `---` at the end of such a
+note does the same with no plugin involved. Recorded here as reference rather than filed, per
+AGENTS.md's "A follow-up is an issue" — the claim worth keeping is the one that refutes the
+report, so nobody pays for this diagnosis twice.
