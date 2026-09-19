@@ -1016,8 +1016,11 @@ describe('a paste on the blank line under a node lands in it', () => {
   });
 
   it('under a list item it converts, at the item\'s own child depth', () => {
+    // The place line carries its indentation, which is the only way a caret
+    // reaches a column past zero on one: an EMPTY line has no column but zero,
+    // whatever `ch` a test hands it.
     const verdict = pasteThroughBothGates(
-      '- one\n\n  - sub\n- two\n', pos(1, 2), pos(1, 2), '## Notes\n\nSome prose.\n',
+      '- one\n  \n  - sub\n- two\n', pos(1, 2), pos(1, 2), '## Notes\n\nSome prose.\n',
     );
     expect(verdict.kind).toBe('rewrite');
     if (verdict.kind !== 'rewrite') return;
@@ -1066,6 +1069,39 @@ describe('a paste on the blank line under a node lands in it', () => {
         '  list-item: - sub',
       ].join('\n'),
     );
+  });
+
+  it('a tab-indented vault reaches the child reading too', () => {
+    // Negative control: while the caret's CHARACTER index was compared against
+    // `childBaseCol`'s COLUMN, `\t- one`'s child column of 6 was unreachable on
+    // a two-character gap line and every caret took the sibling reading.
+    const child = pasteThroughBothGates(
+      '\t- one\n\t\t\n\t\t- sub\n', pos(1, 2), pos(1, 2), '- alpha\n  - beta\n',
+    );
+    expect(child.kind).toBe('rewrite');
+    if (child.kind !== 'rewrite') return;
+    expect(encode(child.after)).toBe('\t- one\n\t\t\n\t\t- alpha\n\t\t  - beta\n\t\t- sub\n');
+
+    // One tab in is column 4, short of 6, so it is still the sibling reading —
+    // the comparison is columns against columns, not characters against either.
+    const sibling = pasteThroughBothGates(
+      '\t- one\n\t\t\n\t\t- sub\n', pos(1, 1), pos(1, 1), '- alpha\n  - beta\n',
+    );
+    expect(sibling.kind).toBe('rewrite');
+    if (sibling.kind !== 'rewrite') return;
+    expect(encode(sibling.after)).toBe('\t- one\n\t\t\n\t\t- sub\n\t- alpha\n\t  - beta\n');
+  });
+
+  it('a gap the payload lands PAST is left alone', () => {
+    // Negative control: while the collapse keyed on "the caret was in a gap"
+    // rather than on "the payload fills it", the shallow reading rewrote a gap
+    // two lines above content the insertion never touched.
+    const verdict = pasteThroughBothGates(
+      '- one\n  \n  \n  - sub\n- two\n', pos(1, 0), pos(1, 0), '- alpha\n  - beta\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(encode(verdict.after)).toBe('- one\n  \n  \n  - sub\n- alpha\n  - beta\n- two\n');
   });
 
   it('the gap the caret sat in collapses to one blank line', () => {

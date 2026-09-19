@@ -763,16 +763,16 @@ describe('a payload landing in a LIST scope converts, throughout', () => {
     // Negative control: converting the ROOT alone and re-indenting the rest
     // verbatim — the no-conversion path — puts `- alpha` beside `Some prose.`
     // instead of under it, because the attachment rule is section-level only.
-    const payloadShape = shape(SECTION).replace(/^(\s*)h2: ## Notes$/m, '$1ROOT');
     const nested = insertAfter('- one\n  - two\n', '  - two', SECTION);
     expect(nested.ok).toBe(true);
     if (!nested.ok) return;
     const pasted = shape(encode(nested.value.doc))
       .split('\n')
       .filter((row) => row.includes('Notes') || row.includes('prose') || row.includes('alpha') || row.includes('beta'));
-    // Four nodes, each one level deeper than the last — the payload's shape.
-    expect(pasted.map((row) => row.search(/\S/) / 2)).toEqual([1, 2, 3, 4]);
-    expect(payloadShape.split('\n')).toHaveLength(4);
+    // The payload's own depths, compared against the payload rather than
+    // against a literal: four nodes, each one level deeper than the last.
+    const payloadDepths = shape(SECTION).split('\n').map((row) => row.search(/\S/) / 2);
+    expect(pasted.map((row) => row.search(/\S/) / 2 - 1)).toEqual(payloadDepths);
   });
 
   it('a heading carries its own # run into the item\'s text', () => {

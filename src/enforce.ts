@@ -15,6 +15,7 @@ import type { OutlineDoc, OutlineNode } from './model';
 import { childrenAt, findPath, nodeAt } from './model';
 import { nodeAtLine, nodeStartLine } from './locate';
 import { childBaseCol } from './reencode';
+import { TAB_WIDTH } from './parse';
 import { coveredForestOf } from './escalate';
 import { coverGroupsOf, groupRootsByParent } from './operand';
 import type { LinePos, LineRange } from './line-pos';
@@ -489,7 +490,30 @@ function computeDeletionVerdict(
  * for a sibling, which is what `after` gives. On the node's OWN lines there is
  * no such choice to express — the column there is a position in the node's text
  * and says nothing about depth.
+ *
+ * `childBaseCol` answers in COLUMNS and `LinePos.ch` counts CHARACTERS, so the
+ * caret is converted before the two are compared. A tab is one character and up
+ * to `TAB_WIDTH` columns: in a tab-indented vault the child column of `\t- one`
+ * is 6 while its gap line holds two characters, so comparing the two directly
+ * put every reachable caret on the sibling side and the child reading became
+ * unreachable. `indentPrefixCh` is the converter for the other direction and
+ * clamps BELOW its column, which answers a different question than this one.
+ *
+ * `fillsGap` says whether the payload lands IN the gap the caret sat in — it
+ * does for the child reading, and for the sibling reading only when the node
+ * has no children to be placed past. That is what may be collapsed; a gap the
+ * insertion jumps over belongs to the document.
  */
+/** The display COLUMN a caret at character index `ch` sits at, tabs expanded —
+ * the unit `childBaseCol` and every other depth in the mapping are stated in. */
+function columnAtCh(line: string, ch: number): number {
+  let width = 0;
+  for (const c of line.slice(0, ch)) {
+    width += c === '\t' ? TAB_WIDTH - (width % TAB_WIDTH) : 1;
+  }
+  return width;
+}
+
 function pasteAnchor(
   doc: OutlineDoc,
   node: OutlineNode,
@@ -497,16 +521,18 @@ function pasteAnchor(
 ): {
   readonly anchor: OutlineNode;
   readonly position: 'before' | 'after';
-  readonly inGap: boolean;
+  readonly fillsGap: boolean;
 } {
   const start = nodeStartLine(doc, node.id);
-  const inGap = start >= 0 && at.line >= start + node.lines.length;
+  const gapIndex = start < 0 ? -1 : at.line - (start + node.lines.length);
+  const inGap = gapIndex >= 0 && gapIndex < node.trailingGap.length;
   const first = node.children[0];
-  if (!first || start < 0) return { anchor: node, position: 'after', inGap };
-  const wantsChild = !inGap || at.ch >= childBaseCol(node);
+  if (!first || start < 0) return { anchor: node, position: 'after', fillsGap: inGap };
+  const gapLine = node.trailingGap[gapIndex] ?? '';
+  const wantsChild = !inGap || columnAtCh(gapLine, at.ch) >= childBaseCol(node);
   return wantsChild
-    ? { anchor: first, position: 'before', inGap }
-    : { anchor: node, position: 'after', inGap };
+    ? { anchor: first, position: 'before', fillsGap: inGap }
+    : { anchor: node, position: 'after', fillsGap: false };
 }
 
 /**
@@ -548,12 +574,12 @@ function computePasteVerdict(
     // empty anchor didn't work out for some reason (conservative bias).
   }
 
-  const { anchor, position, inGap } = pasteAnchor(doc, node, edit.from);
+  const { anchor, position, fillsGap } = pasteAnchor(doc, node, edit.from);
   // The gap the caret sat in is the place the paste fills, so it collapses
   // with the insertion. `insertSubtrees` runs against that collapsed tree and
   // the edits are re-diffed against the real one below, the same crossing
   // `deleteAndSplice` makes.
-  const source = inGap ? withGapCollapsed(doc, node.id) : doc;
+  const source = fillsGap ? withGapCollapsed(doc, node.id) : doc;
   const inserted = insertSubtrees(source, anchor.id, parsedBlocks, position, fallbackIndentUnit);
   if (!inserted.ok) return vetoFrom(inserted);
   const runEnd = endOfInsertedRun(inserted.value.doc, inserted.value.anchor, parsedBlocks.length);

@@ -366,10 +366,18 @@ child column derived from a list marker crosses that at the second level of nest
 `- one` / `  - two` with `## H` + `---` pasted gives a `paragraph` where the payload had an `hr`.
 `code` and `table` survive, having no such limit.
 
-The node survives — the boundary fix above guarantees that much — but its KIND does not, so the
-outline shows a paragraph where the document showed a rule. Directly pasting a callout into a
-depth-2 list already did this before any of this change, so the mechanism is old; what is new is
-that every heading payload converting into a list now routes its atoms through the same columns.
+Below a LIST ITEM the node survives — the boundary fix above guarantees that much — but its KIND
+does not, so the outline shows a paragraph where the document showed a rule. Directly pasting a
+callout into a depth-2 list already did this before any of this change, so the mechanism is old;
+what is new is that every heading payload converting into a list now routes its atoms through the
+same columns.
+
+*(Corrected 2026-09-19, review round: "the node survives" holds only in that direction. In a
+HEADING scope an atom re-indented past column 3 loses its kind AND takes the node after it, because
+what it becomes is a paragraph and a paragraph claims the next line as a continuation. Measured:
+`## H2` / `\tbody` with `- item` / `> quote` pasted at the heading gives `\t> quote` read as a
+paragraph carrying `\tbody` — two nodes where there were two plus two. `***` behaves the same. The
+kind loss is old; reaching it from a caret on a heading's own line is not.)*
 
 This falsifies design D7's "atoms move as opaque units and land at the right column", which was
 measured only at depth 1.

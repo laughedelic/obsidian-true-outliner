@@ -109,6 +109,30 @@
       own line still names its next-sibling slot, with the new in-scope case pinned beside it.
       Delta added under `specs/outline-zoom/`
 
+## 6d. Review round (independent review, 2026-09-19)
+
+- [x] 6d.1 Separate a RUN from a following block of the same family — a quote or callout from a
+      quote or callout, a table from a table. A caret paste on a node's own line now lands the
+      payload's last block against the destination's FIRST CHILD, and that seam destroyed a
+      callout on an ordinary Ctrl+V. Stated as the two families rather than the five measured
+      pairs, beside `html`'s existing arm
+- [x] 6d.2 Give `arbTree` the kinds that merge. The payload-survival property was the right
+      property over a corpus that could not express the defect: the generator emits only
+      `paragraph`, `list-item` and `code`, so two runs were never adjacent. Negative control: with
+      the kinds added and the rule not yet fixed, the property fails on a `quote` counterexample
+- [x] 6d.3 Compare COLUMNS to columns in `pasteAnchor`. `childBaseCol` answers in columns and
+      `LinePos.ch` counts characters, so in a tab-indented vault — a supported configuration —
+      `\t- one`'s child column of 6 was unreachable on a two-character gap line and every caret
+      took the sibling reading. Negative control in the test
+- [x] 6d.4 Collapse only a gap the payload actually FILLS. The shallow reading lands past the
+      anchor's whole subtree, and the collapse was keyed on "the caret was in a gap" rather than
+      on what the insertion reaches, rewriting bytes two lines above untouched content
+- [x] 6d.5 Correct P5's "the node survives": true below a list item, false in a heading scope,
+      where the atom's kind loss makes it a paragraph and the paragraph claims the next line
+- [x] 6d.6 Re-word the retained mid-paragraph scenario, which stated the old anchor and is false
+      for a paragraph WITH children, and replace the assertion in the conversion test that
+      compared a literal against itself
+
 ## 6b. Review round (independent review, 2026-09-16)
 
 - [x] 6b.1 Replace the tautological `insertSubtrees` closure assertion with a payload-survival

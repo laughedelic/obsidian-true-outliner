@@ -300,6 +300,19 @@ function needsBlankBetween(prev: OutlineNode, next: OutlineNode): boolean {
   // that neighbour is. Surfaced by the payload-survival property: a payload
   // ending in `<div>…</div>` took the node after it into its own lines.
   if (leaf.kind === 'html') return true;
+  // A quote, a callout and a table are RUNS of like-opening lines, and a run
+  // claims a following block that opens the same way: another `>` line is more
+  // quote, another `|` row is more table. A callout is a quote with its first
+  // line spoken for, so the two are one family here.
+  //
+  // Measured over every ordered pair of kinds at a bare seam: these, the
+  // paragraph cases above and html's are the whole of what merges. Stated as
+  // the families rather than as the five pairs, so a kind joining one of them
+  // is covered by the rule that already describes it.
+  if (leaf.kind === 'quote' || leaf.kind === 'callout') {
+    return next.kind === 'quote' || next.kind === 'callout';
+  }
+  if (leaf.kind === 'table') return next.kind === 'table';
   return false;
 }
 

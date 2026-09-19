@@ -90,10 +90,15 @@ above the pasted content.)*
 - **THEN** all three produce the same verdict and the same resulting tree
 
 #### Scenario: Block copy pasted mid-paragraph
-- **WHEN** a multi-range block-level copy (whole subtrees) is pasted with the cursor
-  mid-paragraph
+- **WHEN** a multi-range block-level copy (whole subtrees) is pasted with the cursor mid-paragraph
+  and that paragraph has NO children
 - **THEN** the subtrees are inserted after that paragraph node at its depth, and the paragraph's
   own text is not merged with the pasted content
+
+#### Scenario: Block copy pasted mid-paragraph, where the paragraph has children
+- **WHEN** the same paste is made mid-paragraph and that paragraph DOES have children
+- **THEN** the subtrees are inserted before its first child — the boundary after its own lines —
+  rather than after its whole subtree
 
 #### Scenario: A single node with nested children is still spliced and re-indented
 - **WHEN** a copy of exactly one node that itself has children is pasted at a target depth
