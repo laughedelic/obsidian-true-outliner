@@ -5,7 +5,9 @@ import Shot from './Shot.vue';
 import OutlineDemo from '../components/OutlineDemo.vue';
 import Landing from '../components/Landing.vue';
 import DemoGallery from '../components/DemoGallery.vue';
+import Layout from './Layout.vue';
 import './media.css';
+import './outline/outline.css';
 import './custom.css';
 
 // The default theme plus the site's own components: `Clip` and `Shot` for the
@@ -14,6 +16,8 @@ import './custom.css';
 // and these resolve it), `OutlineDemo` for the live editor, and the front page.
 export default {
   extends: DefaultTheme,
+  // The default layout with the outline view in front of every docs page.
+  Layout,
   enhanceApp({ app }) {
     app.component('Clip', Clip);
     app.component('Shot', Shot);

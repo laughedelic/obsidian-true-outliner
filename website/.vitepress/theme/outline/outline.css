@@ -1,0 +1,326 @@
+/*
+ * The docs pages drawn as outlines. Everything here is gated on `.to-o-on`,
+ * the one class the view toggles, so long-form is the theme's own rendering
+ * untouched.
+ */
+
+:root {
+  --to-o-unit: 1.5rem;
+  --to-o-gutter: 1.35rem;
+  --to-o-icon: 0.8rem;
+  --to-o-mark: var(--vp-c-text-3);
+  --to-o-guide: var(--vp-c-divider);
+  --to-o-accent: var(--vp-c-brand-1);
+}
+
+.VPDoc .content-container {
+  position: relative;
+}
+
+/* ---- Bar ---------------------------------------------------------------- */
+
+.to-o-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1.25rem;
+  font-size: 13px;
+}
+.to-o-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+.to-o-btn,
+.to-o-switch button,
+.to-o-crumb {
+  font: inherit;
+  color: var(--vp-c-text-2);
+  background: transparent;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 6px;
+  padding: 0.15rem 0.6rem;
+  cursor: pointer;
+  line-height: 1.5;
+}
+.to-o-btn:hover:not(:disabled),
+.to-o-switch button:hover,
+.to-o-crumb:hover {
+  color: var(--vp-c-text-1);
+  border-color: var(--vp-c-brand-1);
+}
+.to-o-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.to-o-switch {
+  display: inline-flex;
+}
+.to-o-switch button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+.to-o-switch button:last-child {
+  border-radius: 0 6px 6px 0;
+  margin-left: -1px;
+}
+.to-o-switch button[aria-pressed='true'] {
+  background: var(--vp-c-brand-soft);
+  border-color: var(--vp-c-brand-1);
+  color: var(--vp-c-text-1);
+  position: relative;
+}
+.to-o-bar button:focus-visible,
+.to-o-layer button:focus-visible {
+  outline: 2px solid var(--vp-c-brand-1);
+  outline-offset: 1px;
+}
+
+.to-o-trail {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  min-width: 0;
+  color: var(--vp-c-text-3);
+}
+.to-o-crumb {
+  border-color: transparent;
+  padding: 0.1rem 0.35rem;
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.to-o-crumb:hover {
+  text-decoration: underline;
+  border-color: transparent;
+}
+.to-o-zoomout {
+  width: 0.8rem;
+  height: 0.8rem;
+  display: inline-block;
+  flex: none;
+}
+
+/* ---- The page's own blocks ------------------------------------------ */
+
+.vp-doc .to-o-on .to-o-node,
+.vp-doc .to-o-on .to-o-list {
+  margin-left: calc((var(--to-o-d, 0) - var(--to-o-base, 0)) * var(--to-o-unit) + var(--to-o-gutter)) !important;
+  margin-right: 0 !important;
+}
+.vp-doc .to-o-on .to-o-hidden {
+  display: none !important;
+}
+
+.vp-doc .to-o-on :is(h1, h2, h3, h4, h5, h6).to-o-node {
+  margin-top: 1.1rem;
+  margin-bottom: 0.3rem;
+  padding-top: 0;
+  border-top: 0;
+}
+.vp-doc .to-o-on h1.to-o-node {
+  margin-top: 0;
+  margin-bottom: 0.6rem;
+}
+.vp-doc .to-o-on .header-anchor {
+  display: none;
+}
+.vp-doc .to-o-on p.to-o-node {
+  margin-top: 0.45rem;
+  margin-bottom: 0.45rem;
+  line-height: 1.65;
+}
+.vp-doc .to-o-on :is(div, table, blockquote, figure, pre).to-o-node {
+  margin-top: 0.7rem;
+  margin-bottom: 0.7rem;
+}
+.vp-doc .to-o-on table.to-o-node {
+  display: block;
+  max-width: calc(100% - (var(--to-o-d, 0) - var(--to-o-base, 0)) * var(--to-o-unit) - var(--to-o-gutter));
+}
+
+.vp-doc .to-o-on .to-o-list,
+.vp-doc .to-o-on .to-o-list :is(ul, ol) {
+  list-style: none;
+  padding-left: 0;
+  margin-top: 0.2rem;
+  margin-bottom: 0.2rem;
+}
+.vp-doc .to-o-on .to-o-list li > :is(ul, ol) {
+  margin-left: var(--to-o-unit);
+}
+.vp-doc .to-o-on .to-o-list li,
+.vp-doc .to-o-on .to-o-list li + li {
+  margin-top: 0.2rem;
+  line-height: 1.65;
+}
+.vp-doc .to-o-on .to-o-list li > p {
+  margin: 0;
+}
+
+/* A folded node says how much it hides, after its own text. */
+.vp-doc .to-o-on .to-o-folded::after {
+  content: attr(data-to-hidden);
+  display: inline-block;
+  margin-left: 0.5em;
+  padding: 0 0.45em;
+  border-radius: 999px;
+  font-family: var(--vp-font-family-base);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.6;
+  letter-spacing: 0;
+  vertical-align: middle;
+  color: var(--vp-c-text-2);
+  background: var(--vp-c-default-soft);
+}
+
+/* Zooming into an item leaves its ancestor items in the flow, because they
+ * contain it; their own text and indentation step aside. */
+.vp-doc .to-o-on li.to-o-zoom-anc {
+  font-size: 0;
+  line-height: 0;
+  margin: 0;
+}
+.vp-doc .to-o-on li.to-o-zoom-anc > :is(ul, ol) {
+  font-size: 1rem;
+  line-height: 1.65;
+}
+.vp-doc .to-o-on li.to-o-zoom-anc > :not(ul, ol) {
+  display: none;
+}
+.vp-doc .to-o-on .to-o-zoom-list,
+.vp-doc .to-o-on .to-o-list li > .to-o-zoom-list {
+  margin-left: 0 !important;
+}
+.vp-doc .to-o-on .to-o-list.to-o-zoom-list {
+  margin-left: var(--to-o-gutter) !important;
+}
+
+/* ---- The layer over them ------------------------------------------- */
+
+.to-o-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.to-o-layer button {
+  position: absolute;
+  pointer-events: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--to-o-mark);
+}
+
+.to-o-mark {
+  width: 1.15rem;
+  height: 1.15rem;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+}
+.to-o-mark > span {
+  width: var(--to-o-icon);
+  height: var(--to-o-icon);
+  display: block;
+}
+.to-o-mark.is-item > span {
+  width: 0.7rem;
+  height: 0.7rem;
+}
+.to-o-mark.is-ordinal {
+  width: auto;
+  min-width: 1.15rem;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  transform: translate(calc(-100% + 0.5rem), -50%);
+  white-space: nowrap;
+}
+.to-o-mark:hover {
+  color: var(--to-o-accent);
+  background: var(--vp-c-brand-soft);
+}
+.to-o-mark.is-folded {
+  color: var(--vp-c-text-1);
+}
+.to-o-mark.is-path {
+  color: color-mix(in srgb, var(--to-o-accent) 55%, var(--to-o-mark));
+}
+.to-o-mark.is-current {
+  color: var(--to-o-accent);
+}
+
+.to-o-chevron {
+  width: 0.9rem;
+  height: 0.9rem;
+  transform: translate(calc(-50% - 1.05rem), -50%);
+  opacity: 0;
+  transition: opacity 0.12s, transform 0.12s;
+}
+.to-o-chevron.is-active,
+.to-o-chevron.is-folded,
+.to-o-chevron:hover,
+.to-o-chevron:focus-visible {
+  opacity: 1;
+}
+.to-o-chevron.is-folded {
+  transform: translate(calc(-50% - 1.05rem), -50%) rotate(-90deg);
+  color: var(--vp-c-text-2);
+}
+.to-o-chevron:hover {
+  color: var(--to-o-accent);
+}
+
+.to-o-guide {
+  width: 11px;
+  transform: translateX(-50%);
+  border-radius: 0;
+}
+.to-o-guide::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--to-o-guide);
+}
+.to-o-guide.is-path::before {
+  background: var(--to-o-accent);
+  opacity: 0.55;
+}
+.to-o-guide:hover::before {
+  background: var(--to-o-accent);
+  opacity: 1;
+  width: 2px;
+  left: 4.5px;
+}
+
+@media (max-width: 640px) {
+  :root {
+    --to-o-unit: 1.1rem;
+    --to-o-gutter: 1.2rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .to-o-chevron {
+    transition: none;
+  }
+}
+@media print {
+  .to-o-bar,
+  .to-o-layer {
+    display: none;
+  }
+}
