@@ -279,6 +279,46 @@ export function setFinalGap(node: OutlineNode, gap: readonly string[]): OutlineN
   return { ...node, children: [...node.children.slice(0, -1), setFinalGap(last, gap)] };
 }
 
+/**
+ * Whether a document ends in a newline, read off its last node's gap.
+ *
+ * Not the gap's LENGTH. A gap line carries whatever whitespace the document
+ * wrote there, so a note whose last line is two spaces and no newline ends
+ * with the gap `['  ']` — non-empty, and not a terminator. The terminator is
+ * the EMPTY last entry, which is what a final `\n` leaves behind.
+ */
+function endsInNewline(node: OutlineNode | undefined): boolean {
+  if (node === undefined) return false;
+  const gap = node.trailingGap;
+  return gap.length > 0 && gap[gap.length - 1] === '';
+}
+
+/**
+ * The document's terminating newline, kept where an operation would otherwise
+ * drop it.
+ *
+ * It is ONE EMPTY GAP LINE on the document's LAST node rather than a property
+ * of the document, so an operation that takes that node takes the newline with
+ * it. Every other gap a removal takes is a separation the removed run owned —
+ * which is the rule everywhere else — but the last node's gap separates it
+ * from nothing, so whichever node ends the document afterwards takes it over.
+ *
+ * Restored, never invented: a note genuinely written without a final newline
+ * is not given one by an edit elsewhere in it. APPENDED rather than written
+ * over, because the node that now ends the document can own gap lines of its
+ * own, and a whitespace-only one is content the note holds rather than a
+ * terminator standing in for it.
+ */
+function keepDocumentTerminator(before: OutlineDoc, after: OutlineDoc): OutlineDoc {
+  if (!endsInNewline(documentFinalNode(before))) return after;
+  const ends = documentFinalNode(after);
+  if (ends === undefined || endsInNewline(ends)) return after;
+  return updateSiblings(after, [], (nodes) => [
+    ...nodes.slice(0, -1),
+    setFinalGap(nodes[nodes.length - 1]!, [...ends.trailingGap, '']),
+  ]);
+}
+
 /** A separation of the same WIDTH, written as empty lines. A gap line's own
  * whitespace is the document's — a place line carries indentation so it parses
  * as a node — and copying it would write that indentation somewhere it says
@@ -1702,9 +1742,18 @@ function resolveContiguousGroup(doc: OutlineDoc, nodeIds: readonly number[]): Op
  * be exactly one contiguous run of siblings under one parent, or the whole
  * call is rejected (no partial application). The single-group case of
  * `deleteSubtreeGroups`.
+ *
+ * ONE gap line is not the removed run's to take: the document's terminating
+ * newline, which `keepDocumentTerminator` hands to the node that now ends the
+ * document. `spliceFollows` is how a caller that will fill the place this
+ * removal leaves declines that — see `deleteSubtreeGroups`.
  */
-export function deleteSubtrees(doc: OutlineDoc, nodeIds: readonly number[]): OpResult<OpOutput> {
-  return deleteSubtreeGroups(doc, [nodeIds]);
+export function deleteSubtrees(
+  doc: OutlineDoc,
+  nodeIds: readonly number[],
+  spliceFollows = false,
+): OpResult<OpOutput> {
+  return deleteSubtreeGroups(doc, [nodeIds], spliceFollows);
 }
 
 /**
@@ -1733,10 +1782,19 @@ export function deleteSubtrees(doc: OutlineDoc, nodeIds: readonly number[]): OpR
  * that each candidate must actually survive the combined removal: the naive
  * `survivorAfter` is exactly what an adjacent later group deletes, and the
  * anchor then pointed at line 0.
+ *
+ * `spliceFollows` says that the caller will fill the place this removal
+ * leaves — a type-over, or a paste onto an empty anchor. Every gap the removal
+ * takes is the removed run's own, with ONE exception: the document's
+ * terminating newline, which belongs to whichever node ends the document.
+ * Where a splice follows, that newline travels with the gap this removal hands
+ * to the insertion, so it is not also restored here; everywhere else the node
+ * that now ends the document takes it over (`keepDocumentTerminator`).
  */
 export function deleteSubtreeGroups(
   doc: OutlineDoc,
   groups: readonly (readonly number[])[],
+  spliceFollows = false,
 ): OpResult<OpOutput> {
   if (groups.length === 0) return reject('empty-selection');
   const resolved: ResolvedGroup[] = [];
@@ -1768,6 +1826,25 @@ export function deleteSubtreeGroups(
       ),
     );
   }
+
+  // A document's terminating newline is ONE EMPTY GAP LINE on its last node
+  // rather than a property of the document, so a removal that takes the node
+  // holding it takes the newline with it. Every other gap a removal takes is a
+  // separation the deleted run owned — which is the rule everywhere else — but
+  // the last node's gap separates it from nothing, so the node that now ends
+  // the document takes it over instead.
+  //
+  // Only where the document HAD one, and only onto a node that ends flush: a
+  // note genuinely written without a final newline is not given one by an edit
+  // elsewhere in it, and a survivor that already ends in a gap already carries
+  // the terminator.
+  //
+  // `spliceFollows` is the caller that will fill the place this run leaves —
+  // a type-over, or a paste onto an empty anchor. There the survivor does not
+  // end the document afterwards, and the terminator travels with the gap the
+  // deleted run is carrying to the insertion, so restoring it here would put a
+  // blank line between the survivor and what lands next to it.
+  if (!spliceFollows) surgery = keepDocumentTerminator(doc, surgery);
 
   // The anchor must name a node that SURVIVES the combined removal, which the
   // naive `firstSiblings[hi + 1]` does not: with two adjacent groups under one
@@ -2254,9 +2331,23 @@ export function insertSubtrees(
   // replacement should inherit.
   const above = insertIndex > 0 ? subtreeFinalNode(siblings[insertIndex - 1]!) : undefined;
   const scopeGap = blankGap(scopeSeparation(parent, siblings, insertIndex));
-  const gapBelowRun = blankGap(
-    inheritedSeparation ?? (above ? above.trailingGap : scopeSeparation(parent, siblings, insertIndex)),
-  );
+  const sourceGap =
+    inheritedSeparation ??
+    (above ? above.trailingGap : scopeSeparation(parent, siblings, insertIndex));
+  // A gap line's own whitespace is the document's, so it is blanked wherever
+  // it lands — with ONE exception. The file's last line is not a separation:
+  // where it carried whitespace and no newline followed it, blanking it ends
+  // the note with a terminator it never had. A run that ends the document
+  // keeps that line exactly as it was, which is the same rule the deletion
+  // side states — restored, never invented.
+  const endsDocument =
+    insertIndex === siblings.length &&
+    above !== undefined &&
+    above.id === documentFinalNode(doc)?.id;
+  const gapBelowRun =
+    endsDocument && sourceGap.length > 0
+      ? [...blankGap(sourceGap).slice(0, -1), sourceGap[sourceGap.length - 1]!]
+      : blankGap(sourceGap);
   const lastIdx = reencoded.length - 1;
   const finalReencoded = [
     ...reencoded.slice(0, lastIdx),
