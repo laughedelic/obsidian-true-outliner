@@ -9,7 +9,7 @@
  */
 
 import type { Text } from '@codemirror/state';
-import type { ZoomScope } from '../zoom';
+import type { LineSpan, ZoomScope } from '../zoom';
 
 /**
  * The hidden spans as CM6 offset ranges, ready for a block replacement.
@@ -41,9 +41,12 @@ import type { ZoomScope } from '../zoom';
  * zero-length block replacement does hide it. Measured both ways in
  * `80-outline-zoom`; with the range dropped, the blank line renders.
  */
-export function hiddenOffsetRanges(doc: Text, scope: ZoomScope): { from: number; to: number }[] {
+export function hiddenOffsetRanges(
+  doc: Text,
+  visible: readonly LineSpan[],
+): { from: number; to: number }[] {
   const out: { from: number; to: number }[] = [];
-  for (const span of scope.hidden) {
+  for (const span of gapsAround(doc, visible)) {
     // Source lines are 0-indexed and the span is half-open; CM lines are
     // 1-indexed. Clamped against the real document, whose trailing-line count
     // can differ from the parse's.
@@ -56,4 +59,59 @@ export function hiddenOffsetRanges(doc: Text, scope: ZoomScope): { from: number;
     });
   }
   return out;
+}
+
+/**
+ * The line spans NOT covered by `visible` — its complement over the document.
+ *
+ * `visible` is sorted and merged by its caller, which is what lets this be one
+ * pass. An adjacent or overlapping pair still produces an empty or negative
+ * gap rather than a wrong one, and the conversion above drops it.
+ *
+ * The complement is taken over the REAL document's line count, which is also
+ * what the conversion clamps each gap against: a gap is a claim about what the
+ * view must not render, and the view renders `doc`.
+ */
+function gapsAround(doc: Text, visible: readonly LineSpan[]): LineSpan[] {
+  const gaps: LineSpan[] = [];
+  let at = 0;
+  for (const span of visible) {
+    if (span.fromLine > at) gaps.push({ fromLine: at, toLine: span.fromLine });
+    at = Math.max(at, span.toLine);
+  }
+  if (at < doc.lines) gaps.push({ fromLine: at, toLine: doc.lines });
+  return gaps;
+}
+
+/**
+ * The spans visible under BOTH of two sorted, merged sets.
+ *
+ * The filter composes with a zoom by intersection (`outline-filter` D4): the
+ * query runs over the whole note and its matches are cut down to the scope,
+ * rather than run over the re-rooted subtree in a second line space. A pair of
+ * sorted inputs makes that one walk with no allocation per candidate pair.
+ */
+export function intersectSpans(a: readonly LineSpan[], b: readonly LineSpan[]): LineSpan[] {
+  const out: LineSpan[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < a.length && j < b.length) {
+    const from = Math.max(a[i]!.fromLine, b[j]!.fromLine);
+    const to = Math.min(a[i]!.toLine, b[j]!.toLine);
+    if (from < to) out.push({ fromLine: from, toLine: to });
+    // Advance whichever ends first: the other may still meet the next one.
+    if (a[i]!.toLine < b[j]!.toLine) i++;
+    else j++;
+  }
+  return out;
+}
+
+/**
+ * A zoom scope as the one visible span it has always been.
+ *
+ * The cover is stated with an INCLUSIVE end line and a span is half-open, so
+ * the `+ 1` is the conversion between the two and not a boundary decision.
+ */
+export function coverSpan(scope: ZoomScope): LineSpan {
+  return { fromLine: scope.cover.start.line, toLine: scope.cover.end.line + 1 };
 }

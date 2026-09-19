@@ -46,6 +46,9 @@ const LABELS = {
   // costs nothing: the group holds one spec, so there is no sibling to
   // serialise against within it either.
   94: 'guide-pointer',
+  // Its own decade's label, so the check is named for the feature rather than
+  // falling back to `8x`. 80 is zoom and sits in `clipboard` for its paste rows.
+  8: 'outline-filter',
   // Lifted out of `selection` and run one-at-a-time: see EXCLUSIVE_GROUPS.
   61: 'clipboard',
   62: 'clipboard',

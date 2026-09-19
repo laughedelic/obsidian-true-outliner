@@ -65,6 +65,9 @@ import { nodeAtLine, nodeStartLine } from "../locate";
 import { linePosToOffset, offsetToLinePos, toLineRange } from "./cm-pos";
 import { parsedDoc } from "./parsed-doc";
 import { zoomScope } from "./zoom-scope";
+import { shownSpans } from "./outline-filter-scope";
+import { crossesHiddenLines, nextVisibleLine } from "./outline-filter-state";
+import { vetoEffect } from "./transaction-filter";
 import { foldedEntryAt } from "./fold-service";
 import { unfoldEffectsFor } from "./fold-ops";
 import { isNestedEditor } from "./nested-editor";
@@ -426,6 +429,7 @@ function makeExtendHandler(direction: ExtendDirection) {
         linePosToOffset(doc, target.head),
       );
     });
+    if (refusedByFilter(view, doc, ranges)) return true;
     view.dispatch({
       selection: EditorSelection.create(ranges, sel.mainIndex),
       scrollIntoView: true,
@@ -470,6 +474,7 @@ function makeSelectAllHandler() {
         linePosToOffset(doc, target.head),
       );
     });
+    if (refusedByFilter(view, doc, ranges)) return true;
     view.dispatch({
       selection: EditorSelection.create(ranges, view.state.selection.mainIndex),
       scrollIntoView: true,
@@ -758,6 +763,44 @@ function foldHidingLine(
   return found;
 }
 
+/**
+ * Refuse a selection that would reach across what the filter hides, and say so.
+ *
+ * `outline-filter` D3: a caret is a point and gets moved onto a visible line,
+ * but a RANGE spanning a gap cannot be drawn truthfully — it covers nodes the
+ * reader cannot see and hands them to Copy and Delete. Refusing leaves the
+ * selection exactly as it was, which for progressive Select All is what "stops
+ * at the visible run" means: the previous rung stands.
+ *
+ * Here rather than in `transaction-filter.ts` because both gestures that build
+ * a selection dispatch it with no `userEvent`, which `classify.ts` reads as
+ * programmatic — so the filter's own selection path never sees them.
+ *
+ * The cue rides `vetoEffect`, the same way a refused structural operation
+ * states its reason, and the listener that shows it collapses a held key's
+ * repeats into one.
+ */
+function refusedByFilter(
+  view: EditorView,
+  doc: Text,
+  ranges: readonly SelectionRange[],
+): boolean {
+  const visible = shownSpans(view.state);
+  if (!visible) return false;
+  const crosses = ranges.some(
+    (range) =>
+      !range.empty &&
+      crossesHiddenLines(
+        visible,
+        doc.lineAt(range.from).number - 1,
+        doc.lineAt(range.to).number - 1,
+      ),
+  );
+  if (!crosses) return false;
+  view.dispatch({ effects: vetoEffect.of('would-cross-a-filter-gap') });
+  return true;
+}
+
 function makeVerticalHandler(forward: boolean) {
   return (view: EditorView): boolean => {
     if (!outlinePathOf(view)) return false;
@@ -862,6 +905,7 @@ function makeVerticalHandler(forward: boolean) {
     let line = startLine;
     let node = nodeAtLine(outlineDoc, startLine);
     if (!node) return false; // preamble
+    const visible = shownSpans(view.state);
     for (let guard = 0; guard < doc.lines + 1; guard++) {
       let nextLine = forward ? line + 1 : line - 1;
       // A folded node is one node to step over. The walk starts from the raw
@@ -873,6 +917,21 @@ function makeVerticalHandler(forward: boolean) {
       // node and every Up from beneath one. The walk resumes on the far side.
       const hidden = foldHidingLine(view.state, nextLine);
       if (hidden) nextLine = forward ? hidden.lastLine + 1 : hidden.headLine;
+      // A filter hides runs of lines the way a fold does, so the walk steps
+      // over them the same way. `outline-filter`'s caret rule is this: the
+      // caret lands on the nearest line the view actually draws. Nothing
+      // visible in this direction reads as the document edge below, because
+      // for a filtered view that is what it is.
+      if (visible) {
+        const next = nextVisibleLine(visible, nextLine, forward ? 1 : -1);
+        if (next === null) {
+          dispatchAt(
+            forward ? nodeContentEnd(outlineDoc, node) : nodeContentStart(outlineDoc, node),
+          );
+          return true;
+        }
+        nextLine = next;
+      }
       if (nextLine < 0 || nextLine >= doc.lines) {
         // Document edge reached mid-walk: land on this node's own content
         // boundary rather than leaving the caret on its gap.
