@@ -310,7 +310,9 @@ describe('node-selection-enforcement: Phase B', function () {
     // `c1` survives under `P`; `c2` and all of `S` are gone. `t1`/`t2` left
     // WITH their parent, which is the whole point of downward closure —
     // the geometry, the classification and the grouped deletion in one path.
-    expect(await h.getBuffer()).toBe('- P\n  - c1');
+    // `t2`'s own gap was the note's terminating newline rather than a
+    // separation, so `c1` takes it over and the note still ends in one.
+    expect(await h.getBuffer()).toBe('- P\n  - c1\n');
   });
 
   it('copying a mixed-depth selection yields a faithful slice of the document', async function () {

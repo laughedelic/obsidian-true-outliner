@@ -753,11 +753,34 @@ typed result form the existing operations use. Deleting every node SHALL yield a
 valid empty (or preamble-only) document. Non-contiguous or partial-subtree inputs
 SHALL be rejected, not partially applied.
 
+ONE gap line is not the removed run's to take: a document's terminating newline is an
+empty gap line on its LAST node rather than a property of the document, and it
+separates that node from nothing. Where the removal takes the node holding it, the node
+that now ends the document SHALL take it over, appended to whatever gap that node
+already owns. It SHALL be restored and never invented — a note written without a final
+newline SHALL NOT be given one — and a gap line carrying whitespace is content rather
+than a terminator, so the question is whether the gap's LAST line is empty.
+
+A caller that will splice content into the place the removal leaves — a type-over, or a
+paste onto an empty anchor — SHALL say so, and the terminator SHALL NOT be restored
+there: it travels with the gap the removed run hands to that insertion, and restoring
+it as well would separate the survivor from what lands beside it.
+
 #### Scenario: Deletion takes the trailing gap
 - **WHEN** `deleteSubtrees` removes a paragraph node that owns one trailing blank
   line
 - **THEN** the paragraph's lines and its blank line are both removed, and the
-  surviving neighbors' own lines and gaps are byte-identical to before
+  surviving neighbors' own lines and gaps are byte-identical to before — save for the
+  terminating newline below, which the document's new last node takes over
+
+#### Scenario: A deletion at the end keeps the note's terminating newline
+- **WHEN** `deleteSubtrees` removes the run that ends a note, with no blank line
+  separating it from the node above
+- **THEN** the note still ends in a newline, carried by the node that now ends it
+
+#### Scenario: A note without a terminating newline is not given one
+- **WHEN** the same deletion runs on a note whose last line ends flush
+- **THEN** the result ends flush too
 
 #### Scenario: Heading deletion removes its section
 - **WHEN** `deleteSubtrees` targets a heading node

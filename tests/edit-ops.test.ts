@@ -65,6 +65,25 @@ describe('deleteSubtrees', () => {
     expect(encode(result.value.doc)).toBe('- a');
   });
 
+  it('reads the terminator as the gap’s empty LAST line, not as any gap at all', () => {
+    // A gap line carries whatever whitespace the note wrote there, so a last
+    // line of two spaces and no newline is a non-empty gap that is not a
+    // terminator. Reading the gap's length instead invents one here...
+    const whitespaceEnd = parse('- a\n- b\n  ');
+    const invented = deleteSubtrees(whitespaceEnd, [byLine(whitespaceEnd, '- b').id]);
+    if (!invented.ok) throw new Error(invented.rejection.reason);
+    expect(encode(invented.value.doc)).toBe('- a');
+
+    // ...and drops one here, where the survivor's own gap is whitespace and
+    // the terminator left with the node that was holding it. The restored
+    // newline is APPENDED to that gap: the whitespace line is the note's, not
+    // a terminator standing in for one.
+    const whitespaceGap = parse('- a\n  \n- b\n');
+    const dropped = deleteSubtrees(whitespaceGap, [byLine(whitespaceGap, '- b').id]);
+    if (!dropped.ok) throw new Error(dropped.rejection.reason);
+    expect(encode(dropped.value.doc)).toBe('- a\n  \n');
+  });
+
   it('gives no second newline to a survivor that already ends in a gap', () => {
     // Negative control: where a blank line already separated the survivor from
     // the run that left, it is already carrying the terminator.
