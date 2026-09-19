@@ -73,6 +73,21 @@ const STANDING = [
   '',
 ].join('\n');
 
+/** A list written inside a quote. The parse folds consecutive `>` lines into ONE
+ * node, so those levels are that node's own text rather than tree levels — and
+ * Obsidian's quantiser boxes their run all the same, walking past the `>`
+ * markers. The same shape outside the quote is the control: its levels ARE tree
+ * levels and step by the unit. */
+const QUOTED = [
+  '> - alpha',
+  '> \t- nested',
+  '> \t\t- deeper',
+  '',
+  '- outside alpha',
+  '\t- outside nested',
+  '',
+].join('\n');
+
 /** Where line `i`'s own text begins, relative to the content's left edge. */
 async function textColumn(i: number, text: string): Promise<number> {
   const first = text.search(/\S/);
@@ -370,12 +385,44 @@ describe('source indentation: one column per tree level', function () {
   });
 
   it('puts a tab-indented top-level line on the same column as a four-space one', async function () {
-    // A tab renders to its own tab stop, which is where four spaces land.
+    // A tab renders to its own tab stop, which is where four spaces land at the
+    // vault's own tab size of 4 — the setting this case reads through, rather
+    // than a column either value states independently. It holds before this
+    // change as well as after, both lines quantising into one box then: what it
+    // pins is that measuring the characters does not make the two disagree.
     await openOutlined('SourceIndent/standing.md', STANDING);
     expect(await textColumn(5, '\ttab-indented line')).toBeCloseTo(
       await textColumn(2, '    four-space line,'),
       1,
     );
+  });
+
+  it('steps a list written inside a quote by its own characters', async function () {
+    // The one shape whose appearance this rule changes beyond the reported one.
+    // A quote's levels are not tree levels, so nothing states their width but
+    // the characters: each step is the tab's own advance, where Obsidian's box
+    // made it a list-indent. The list outside the quote is the control — its
+    // levels are tree levels and step by the unit.
+    await openOutlined('SourceIndent/quoted.md', QUOTED);
+    const unit = await h.publishedUnit();
+    const bullet = async (i: number, text: string) => {
+      const at = text.search(/[-*+]\s/);
+      return +((await h.posToCoords(i, at)).left - (await h.contentLeftAbsoluteX())).toFixed(2);
+    };
+    const alpha = await bullet(0, '> - alpha');
+    const nested = await bullet(1, '> \t- nested');
+    const deeper = await bullet(2, '> \t\t- deeper');
+    const step = nested - alpha;
+    expect(deeper - nested).toBeCloseTo(step, 0);
+    // A tab renders to its own tab stop, which at tab size 4 is four space
+    // advances — narrower than the unit, and narrower than the box Obsidian
+    // states for it. Read rather than spelled, for the reason `publishedUnit`
+    // records.
+    expect(step).toBeCloseTo(4 * (await h.publishedSpaceAdvance()), 0);
+    expect(step).toBeLessThan(unit);
+    // The control: on the grid, a level is a unit.
+    const outside = await bullet(4, '- outside alpha');
+    expect((await bullet(5, '\t- outside nested')) - outside).toBeCloseTo(unit, 0);
   });
 
   it('touches nothing with outline mode off', async function () {

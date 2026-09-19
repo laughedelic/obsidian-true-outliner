@@ -43,7 +43,9 @@
  * the line's text out of a second column (issue #117). Where the run stands —
  * a top-level line, a heading's child — the glyphs measure themselves, so the
  * caret crosses them one advance at a time instead of stepping a box edge every
- * four columns (issue #140), and a tab renders to its own tab stop.
+ * four columns (issue #140), and a tab renders to its own tab stop. A quote's
+ * lines take the same treatment, whose levels are that node's own text rather
+ * than tree levels — the research note records what that moves.
  *
  * Named by the KIND classes rather than by a fact about the run, since the rule
  * holds of any line the mode decorates that is not a list item. A list item and
@@ -51,10 +53,9 @@
  * (`--to-list-hang`, `10-editor.css`), which is the one run this layer sizes
  * from the tree rather than from the file.
  *
- * `width: auto` rather than a stated length: the glyphs are right in every font
- * by construction, where a computed width is wrong in a code font and wrong
- * again at a tab stop. Every such span on the line, since Obsidian splits a run
- * across several.
+ * `width: auto` rather than a stated length, which would have to be right in a
+ * code font and at a tab stop as well as in the prose font. Every such span on
+ * the line, since Obsidian splits a run across several.
  */
 .markdown-source-view.mod-cm6
   .cm-content

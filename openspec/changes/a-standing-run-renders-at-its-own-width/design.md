@@ -9,10 +9,12 @@ Obsidian's own quantiser" for the run it does not.
 
 Three findings from that pass carry the design:
 
-- The stated width comes from ONE element. `.cm-indent` takes its `min-width` from `--list-indent`
-  per four columns; the remainder Obsidian leaves in a `.cm-indent-spacing` of literal glyphs, which
-  already measures itself. So a run shorter than four columns never had the defect, and the fix has
-  one box kind to answer.
+- On a run left STANDING the stated width comes from ONE element. `.cm-indent` takes its `min-width`
+  from `--list-indent` per four columns; the remainder Obsidian leaves in a `.cm-indent-spacing`
+  whose glyphs measure themselves there — measured, three spaces under a heading at 15.27px. So a
+  standing run shorter than four columns never had the defect, and the fix has one box kind to
+  answer. Under a list item the same element is sized instead, as `padding-left` written inline, and
+  that is why the rule keeps all four declarations rather than only a width.
 - The declarations that answer it already exist. The collapse's own rule zeroes `width`,
   `min-width`, `padding` and `margin` on the same three span kinds, for the neighbouring reason that
   a stated width outlives the characters a mark undraws. Applied to a run left standing, the same

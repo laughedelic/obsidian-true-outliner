@@ -18,7 +18,10 @@
   pointed. Negative control: the same restoration lands it at the box's edge, three spaces right.
 - [x] 2.4 E2E: a tab-indented top-level line renders its text on the same column as a four-space
   one.
-- [x] 2.5 E2E: the lines whose run is HIDDEN are unmoved — the existing child-column, deeper-line,
+- [x] 2.5 E2E: a list written inside a quote steps by the tab's own advance, against the control of
+  the same list outside it stepping by the unit. Negative control: restoring the class-driven
+  selector steps it by Obsidian's own box instead and fails the advance assertion.
+- [x] 2.6 E2E: the lines whose run is HIDDEN are unmoved — the existing child-column, deeper-line,
   Shift+Enter and list-continuation cases, which are also what would catch a hidden run left without
   a kind class.
 
@@ -30,3 +33,6 @@
 - [x] 3.3 Remove the probe spec once its figures are in
   `docs/research/source-indentation-width`.
 - [x] 3.4 `openspec validate a-standing-run-renders-at-its-own-width --strict`
+- [ ] 3.5 Sync the delta into `openspec/specs/outline-decorations/spec.md`.
+- [ ] 3.6 Archive the change.
+- [ ] 3.7 `npm version patch`, which rewrites `manifest.json` and `versions.json` and cuts no tag.

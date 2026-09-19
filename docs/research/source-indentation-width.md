@@ -252,10 +252,14 @@ plain child
 | `⇥tab-indented line` | 14, **54.19** | 0, **40.19** |
 | `␣␣␣three-space child` | 46, 51.08, 56.17, 61.27 | 0, 5.08, 10.17, 15.27 |
 
-The two columns differ by the 14px marker gutter and by nothing else, which is the issue's own
-finding: no rule of ours reaches these lines. What moves the caret 20.75px at the bold positions is
-`.cm-indent`, whose `min-width` resolves to 36px from `--list-indent` (`calc(0.5625em * 4)`) while
-the four spaces inside it measure 20.34px. Obsidian emits one such span per four columns and leaves
+Within a row the two columns differ by this layer's own left padding and by nothing else — 14px at
+the top level, 46px for the heading's depth-1 child — and the STEPS inside a row are identical,
+which is the issue's own finding: no rule of ours reaches the run. What the bold positions have in
+common is that each is the right edge of a box rather than the end of a character: the two interior
+ones on the nine-space line stand 20.75px past the position before them, and a text start stands
+24.94px past it on the four-space line and 40.19px on the tab. The box is `.cm-indent`, whose
+`min-width` resolves to 36px from `--list-indent` (`calc(0.5625em * 4)`) while the four spaces
+inside it measure 20.34px. Obsidian emits one such span per four columns and leaves
 the remainder in a `.cm-indent-spacing` of literal glyphs, so the three-space child — a run shorter
 than one span — already renders at its characters and steps one space at a time. The defect is
 exactly a run of four columns or more.
@@ -298,6 +302,20 @@ Three things the same pass establishes about the blast radius:
 - **A fence's interior is already its own width.** Inside a top-level fence, `.cm-indent` measures
   33.72px against a `min-width` of 31.5px, because a code-font space is 8.43px and four of them
   overflow the box. The override changes the number by nothing.
+- **A list written inside a QUOTE does move**, and it is the one shape whose appearance this rule
+  changes beyond the reported one. The parse folds consecutive `>` lines into a single quote node,
+  so those lines are one atom and the list inside them is that atom's own text; Obsidian's
+  quantiser still walks the run past the `>` markers and boxes every four columns of it. Measured on
+  `> - alpha` / `> ⇥- nested` / `> ⇥⇥- deeper`, as the x of each bullet: 64.5 / 84.84 / 105.19 with
+  the rule in force against 18.5 / 54.5 / 90.5 with the mode off — a level stepping by the tab's own
+  advance, 20.34px, where stock stepped 36px. A list at the same shape OUTSIDE the quote, whose
+  levels ARE tree levels, steps 32px, the outline unit.
+
+  The rule is right to reach it and the narrower step is the correct reading: those levels are not
+  tree levels, so nothing states their width but the characters, and the same box edge the caret
+  jumped at the top level was there to be jumped inside a quote too. What stock bought was a
+  coincidence — 36px sits near the 32px unit, so a quoted list looked as though it were on the grid.
+  It never was.
 
 One residue is stock and stays: Obsidian renders a top-level indented run's text as INLINE CODE
 (`.cm-hmd-indented-code.cm-inline-code`, padding `2.1px 4.2px`), so the step from the run's last

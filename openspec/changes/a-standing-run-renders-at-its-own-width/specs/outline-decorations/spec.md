@@ -135,6 +135,13 @@ already decided by the time this layer runs.
 - **THEN** each press moves it by one space's own advance, with no position rendering at a box
   edge, and a click inside the run lands on the character it is over
 
+#### Scenario: A list written inside a quote steps by its own characters
+
+- **WHEN** a nested list is written inside a block quote, whose lines are one node and whose levels
+  are therefore not tree levels
+- **THEN** each of its levels steps by the width of the characters that indent it, not by the
+  outline unit and not by the width Obsidian would state for them
+
 #### Scenario: A tab-indented top-level line and a four-space one agree
 
 - **WHEN** the same top-level line is written once indented with a tab and once with four spaces
@@ -162,7 +169,7 @@ the run itself", "walks a line's surplus one character at a time", "crosses the 
 indentation in one press, and draws the caret at both ends", "leaves deletion to stock, in the
 surplus and in the run alike", "draws the caret on a line Shift+Enter opens, which is indentation
 alone", "leaves the item's own indentation to the list rules", "touches nothing with outline mode
-off"); `tests/decorate.test.ts` ("decorate: source indentation (indentCh)"); `e2e/specs/56-source-indent.e2e.ts` ("renders a
-standing run at the width of its own characters", "walks a standing run one character at a time",
-"puts the caret where a click inside a standing run points", "puts a tab-indented top-level line on
-the same column as a four-space one").
+off", "renders a standing run at the width of its own characters", "walks a standing run one
+character at a time", "puts the caret where a click inside a standing run points", "puts a
+tab-indented top-level line on the same column as a four-space one", "steps a list written inside a
+quote by its own characters"); `tests/decorate.test.ts` ("decorate: source indentation (indentCh)").
