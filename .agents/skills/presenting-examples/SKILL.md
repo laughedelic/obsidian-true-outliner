@@ -12,82 +12,77 @@ and docs that only agents read.
 
 ## Shape of an example
 
-1. **Setup**, one line, only when it changes the outcome: the settings in play ("Indent using
-   tabs: on"), and whether the block is Markdown source (the default) or what is drawn on screen.
-   For what is drawn, a screenshot usually beats a diagram.
-2. **Before**: a code block with the document and the caret or selection.
-3. **Keystrokes**, on their own line in plain text, not monospace.
-4. **After**: a code block with the result and the new caret.
-5. **The difference in one sentence**, when the two blocks look alike.
+Each case is a short heading, the keystrokes in plain text, then one code block laying the
+editor states out side by side as columns:
 
-Stack the parts vertically. Code blocks cannot sit in table cells, so a table only summarises
-cases already drawn in full. Number the cases ("case 2") so the user can point at one. A bug
-report draws **expected** and **actual** after-blocks, labelled.
+**Case 3: pasting over the last item.** ⌘V with the clipboard shown.
 
-For a small change in a long document, a `diff` block showing only what changed is clearer than
-two full copies.
+```
+ clipboard    before    actual     expected
+┆- x         ┆- a      ┆- a       ┆- a
+┆  - y       ▒- b      ┆- x       ┆- x
+             ┆∅        ┆  - y┃∅   ┆  - y┃
+                                  ┆∅
+```
+
+- **Columns**, left to right: the inputs (`clipboard`, when there is one), `before`, then the
+  results. A single result is `after`; a bug report shows `actual` and `expected`; a control run
+  (off-mode, native Obsidian) is one more result column.
+- **Keystrokes** sit outside the block, in the case's sentence: symbols in plain text, ⌘A, ⇧⌥⏎,
+  ⇥, ⇧⇥, ⌫, ⌦, ↑ ↓; steps separated by spaces, repeats as ×N (⇧↓×2 ⌫). Spell a key out in
+  monospace (`cmd-shift-enter`) when it is uncommon or its symbol is ambiguous.
+- **Setup**, when it changes the outcome, goes in the same sentence: the settings in play
+  ("Indent using tabs" on), and whether the block is Markdown source (the default) or what is
+  drawn on screen. For what is drawn, a screenshot usually beats a diagram.
+- **Number the cases** so the user can point at one, and add a sentence on the difference when
+  two columns look alike.
+- **Every result shows the caret** where the edit leaves it, from the code or a measurement. A
+  result whose caret nobody has checked says so rather than guessing.
+
+A `diff` block showing only what changed suits a small change in a long document better than
+columns.
 
 ## Glyphs
 
 | Glyph | Meaning |
 |---|---|
-| `│` | Caret (box-drawing bar: taller than `\|` and safe inside Markdown tables) |
+| `┆` | Left edge of a column, touching the content |
+| `▒` | A block-selected line, in place of the edge. A block selection has no caret: the editor gives up focus while it holds |
+| `┃` | Caret |
+| `x̲` | Selection inside one item's text, underlined |
 | `‸` | Insertion or paste point, when it differs from where the caret ends up |
-| `x̲` | Selection, as a combining underline (U+0332) after each selected character: `-̲ ̲b̲` |
-| `▐` | Whole-line selection in a left gutter, when block-level selection is the point |
 | `⏵   ` | Tab, padded to its visual width |
-| `·` | Trailing space, and any space next to a tab: `⏵   ⏵   ··- b` |
-| `∅` | End of document: ending the last line when it has no final newline, on a line of its own otherwise |
+| `·` | A space in an indentation that holds a tab, and a trailing space. Every other space stays plain |
+| `∅` | End of document: after the last line's text when there is no final newline, on a line of its own otherwise |
 
-Draw only the whitespace that matters to the example, and `∅` only when the final newline or the
-end of the document is the point. A blank line with nothing on it stays blank. With a selection,
-put `│` at its moving end. Generate underlined text rather than typing it:
-`python3 -c "print(''.join(c+'̲' for c in '- b'))"`.
+Draw `∅` only when the final newline or the end of the document is the point. An empty line
+stays empty. The first example in a conversation gets a one-line legend of the glyphs it uses.
 
-The gutter form keeps every line shifted by the same two columns:
+## Drawing the block
 
+Generate the block with [`layout.mjs`](layout.mjs) rather than aligning it by hand: combining
+underlines, tab glyphs and column padding all have to add up. It reads columns on stdin, each
+starting with a `## <header>` line, written as the document itself: real tabs and spaces, `▒`
+opening a block-selected line, `«…»` around a selection inside a line, and `┃`, `‸`, `∅` where
+they go.
+
+```bash
+node .agents/skills/presenting-examples/layout.mjs <<'EOF'
+## before
+- a
+▒- b
+∅
+
+## after
+- a┃
+∅
+EOF
 ```
-  - a
-▐ - b
-▐ - c│
-```
 
-The first example in a conversation that uses glyphs gets a one-line legend of the ones it uses.
-
-## Keystrokes
-
-Symbols in plain text: ⌘A, ⇧⌥⏎, ⇥, ⇧⇥, ⌫, ⌦, ↑ ↓. Separate steps with spaces and write repeats
-as ×N: ⇧↓×2 ⌫. Spell a key out in monospace (`cmd-shift-enter`) when it is uncommon or its symbol
-is ambiguous.
+Paste its output into a fenced block.
 
 ## Copy-paste version
 
-When the user will reproduce the example by hand, add a block labelled **To paste** with the
-plain document: real tabs and spaces, no glyphs. Say in words where the caret or selection goes,
-since the block cannot show it.
-
-## Worked example
-
-Indent using tabs: on.
-
-```
-- a
--̲ ̲b̲
--̲ ̲c̲│
-```
-
-⇥
-
-```
-- a
-⏵   -̲ ̲b̲
-⏵   -̲ ̲c̲│
-```
-
-To paste (select from the start of `- b` to the end of `- c`):
-
-```
-- a
-- b
-- c
-```
+When the user will reproduce an example by hand, follow the cases with a **To paste** block for
+each note: the plain document with real tabs and spaces and no glyphs, and a sentence on where
+the caret or selection goes.
