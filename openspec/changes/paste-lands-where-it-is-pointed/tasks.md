@@ -103,6 +103,11 @@
       and is withdrawn. The probe now records both so a re-run cannot repeat it
 - [x] 6c.7 E2E for the Enter-then-paste gap collapse and the caret-on-a-heading anchor, through
       the real buffer
+- [x] 6c.9 M5, the caret jumping to the end of the absorbed section. `endOfInsertedRun` took the
+      inserted block's SUBTREE end, which stops being the payload the moment a pasted heading
+      absorbs the anchor's following siblings — the attachment rule can put them below the
+      payload's own last node. It counts the payload's own nodes now. Negative control: over-count
+      the walk and the caret lands on the absorbed paragraph again
 - [x] 6c.8 `outline-zoom`'s G1 caught by CI: a paste at the zoom root's content start no longer
       splices BESIDE the root when that root has children, so the gesture the scenario names stops
       meeting its own condition. The ground is unchanged — restated from a CHILDLESS root, whose

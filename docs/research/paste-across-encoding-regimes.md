@@ -586,6 +586,38 @@ heading placed before content at the same scope means, and there is no encoding 
 not: the alternatives are placing the payload after the content, which is the defect above, or
 demoting it, which loses the rank. Worth watching in use.
 
+### M5. The caret jumped to the end of the absorbed section
+
+Reported from the manual pass after M1–M4 landed: pasting a heading section leaves the caret at
+the end of the sibling subtree rather than at the end of what was pasted.
+
+The anchor was right by then; the CARET was not. `endOfInsertedRun` took the last inserted
+block's SUBTREE end, which is the payload only until the insertion changes it. A pasted heading
+opens a section that takes the anchor's following siblings into it (D3), and the attachment rule
+can put what it absorbs BELOW the payload's own last node rather than beside it — so the subtree
+whose end the caret took was the payload plus everything the section had just swallowed.
+
+Measured, `## Notes` / `Some prose.` pasted with the caret on `## First`:
+
+```
+## First
+
+### Notes
+
+Some prose.          <- what was pasted ends here
+
+body                 <- CARET landed here
+```
+
+It fires exactly when the pasted heading absorbs something, which is why the frames that pin the
+anchor did not catch it: in those the payload's level is ended by a sibling heading and nothing is
+absorbed at all.
+
+The count of the payload's own nodes is what the caret walks now, not a subtree. Anything absorbed
+followed the anchor, so it follows the payload in document order too, and the payload's nodes are
+the first N from the insertion point. That N is the payload's own is what the payload-survival
+property already pins.
+
 ## An unterminated leading `---` is not ours to fix (review round, 2026-09-19)
 
 The review round reported that a paste can swallow a note's whole body into frontmatter: `---` /

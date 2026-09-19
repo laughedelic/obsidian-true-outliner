@@ -891,6 +891,19 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     );
   });
 
+  it('the caret lands at the end of the pasted content, not of the absorbed section (M5)', async function () {
+    await outlineNote('# Day\n\n## First\n\nbody\n');
+    await h.setCursor(2, '## First'.length);
+    await h.pasteText('## Notes\n\nSome prose.\n');
+    expect(await h.getBuffer()).toBe(
+      '# Day\n\n## First\n\n### Notes\n\nSome prose.\n\nbody\n',
+    );
+    // The manual pass saw the caret jump to `body` — the paragraph the new
+    // section absorbed — rather than stopping at what was pasted.
+    const sel = await h.getSelection();
+    expect(sel.head).toEqual({ line: 6, ch: 'Some prose.'.length });
+  });
+
   it('undo restores the pre-paste buffer byte-identically, in one step, for a CONVERTED paste', async function () {
     const md = '- one\n  - two\n';
     await outlineNote(md);

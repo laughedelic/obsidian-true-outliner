@@ -13,7 +13,7 @@
 
 import type { OutlineDoc, OutlineNode } from './model';
 import { childrenAt, findPath, nodeAt } from './model';
-import { nodeAtLine, nodeStartLine } from './locate';
+import { forEachNodeWithLine, nodeAtLine, nodeStartLine } from './locate';
 import { childBaseCol } from './reencode';
 import { TAB_WIDTH } from './parse';
 import { coveredForestOf } from './escalate';
@@ -309,34 +309,56 @@ function deepestLastDescendant(node: OutlineNode): OutlineNode {
   return last ? deepestLastDescendant(last) : node;
 }
 
-function endOfSubtree(doc: OutlineDoc, node: OutlineNode): { line: number; ch: number } {
-  const leaf = deepestLastDescendant(node);
-  const leafStart = nodeStartLine(doc, leaf.id);
-  const lastLine = leaf.lines[leaf.lines.length - 1] ?? '';
-  return { line: leafStart + leaf.lines.length - 1, ch: lastLine.length };
-}
-
 /**
- * End position of the LAST of `blockCount` contiguous top-level blocks that
- * were just inserted starting at `firstBlockAnchor` (the FIRST block's own
- * content-start — `insertSubtrees`/`finalize`'s anchor convention) — the
- * cursor spot that makes continued typing (or a follow-up single-key
- * type-over keystroke) land AFTER the just-inserted content instead of
- * before it. `doc` is the op's returned tree, which `finalize` always
- * FRESH-reparses (new node ids) — so the inserted blocks are located by
- * LINE and sibling OFFSET from the first one, never by id.
+ * End position of the last node the PAYLOAD contributed, starting from
+ * `firstBlockAnchor` (the FIRST block's own content-start —
+ * `insertSubtrees`/`finalize`'s anchor convention) — the cursor spot that
+ * makes continued typing (or a follow-up single-key type-over keystroke) land
+ * AFTER the just-inserted content instead of before it. `doc` is the op's
+ * returned tree, which `finalize` always FRESH-reparses (new node ids) — so
+ * the inserted content is located by LINE and by COUNT from the first one,
+ * never by id.
+ *
+ * Counting the payload's own NODES rather than taking its last top-level
+ * block's subtree end, because after an insertion that block's subtree is not
+ * the payload. A pasted heading opens a section that takes the anchor's
+ * following siblings into it (design D3), and the attachment rule can put what
+ * it absorbs BELOW the payload's own last node rather than beside it — so a
+ * subtree end lands the caret on content the user never pasted. Measured:
+ * `## Notes` / `Some prose.` pasted with the caret on `## First` left the
+ * caret on `body`, the paragraph the new section had just absorbed.
+ *
+ * Counting is enough because anything absorbed FOLLOWED the anchor, so it
+ * follows the payload in document order too; the payload's own nodes are the
+ * first `payloadNodes` from the anchor. That the count is the payload's own is
+ * what the payload-survival property pins (`tests/edit-ops.test.ts`).
  */
 function endOfInsertedRun(
   doc: OutlineDoc,
   firstBlockAnchor: { line: number; ch: number },
-  blockCount: number,
+  payloadNodes: number,
 ): { line: number; ch: number } {
   const firstNode = nodeAtLine(doc, firstBlockAnchor.line);
   if (!firstNode) return firstBlockAnchor; // defensive: shouldn't happen
-  const path = findPath(doc, firstNode.id)!;
-  const siblings = childrenAt(doc, path.slice(0, -1));
-  const lastNode = siblings[path[path.length - 1]! + blockCount - 1] ?? firstNode;
-  return endOfSubtree(doc, lastNode);
+  let seen = 0;
+  let last: { node: OutlineNode; startLine: number } | undefined;
+  let reached = false;
+  forEachNodeWithLine(doc, (node, startLine) => {
+    if (node.id === firstNode.id) reached = true;
+    if (!reached) return true;
+    seen += 1;
+    last = { node, startLine };
+    return seen < payloadNodes;
+  });
+  if (!last) return firstBlockAnchor;
+  const lastLine = last.node.lines[last.node.lines.length - 1] ?? '';
+  return { line: last.startLine + last.node.lines.length - 1, ch: lastLine.length };
+}
+
+/** How many nodes a parsed payload carries, its descendants included — the
+ * unit `endOfInsertedRun` counts in. */
+function payloadNodeCount(blocks: readonly OutlineNode[]): number {
+  return blocks.reduce((total, block) => total + 1 + payloadNodeCount(block.children), 0);
 }
 
 /**
@@ -387,7 +409,7 @@ function deleteAndSplice(
   const finalText = encode(inserted.value.doc);
   const finalLines = finalText === '' ? [] : finalText.split('\n');
   const finalEdits = diffLines(encodeLines(doc), finalLines);
-  const runEnd = endOfInsertedRun(inserted.value.doc, inserted.value.anchor, parsedBlocks.length);
+  const runEnd = endOfInsertedRun(inserted.value.doc, inserted.value.anchor, payloadNodeCount(parsedBlocks));
   const { caret } = planCaret(
     { kind: 'exact' },
     { before: doc, after: inserted.value.doc, anchor: runEnd },
@@ -582,7 +604,7 @@ function computePasteVerdict(
   const source = fillsGap ? withGapCollapsed(doc, node.id) : doc;
   const inserted = insertSubtrees(source, anchor.id, parsedBlocks, position, fallbackIndentUnit);
   if (!inserted.ok) return vetoFrom(inserted);
-  const runEnd = endOfInsertedRun(inserted.value.doc, inserted.value.anchor, parsedBlocks.length);
+  const runEnd = endOfInsertedRun(inserted.value.doc, inserted.value.anchor, payloadNodeCount(parsedBlocks));
   const { caret } = planCaret(
     { kind: 'exact' },
     { before: doc, after: inserted.value.doc, anchor: runEnd },

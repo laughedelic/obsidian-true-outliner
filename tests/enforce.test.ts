@@ -1180,6 +1180,22 @@ describe('a paste with the caret ON a node lands at its next boundary', () => {
     );
   });
 
+  it('the caret lands at the end of what was PASTED, not of what the section absorbed', () => {
+    // Negative control: while the caret took the inserted block's SUBTREE end,
+    // this left it on `body` — the paragraph the new `### Notes` section had
+    // just absorbed, two nodes past anything the user pasted.
+    const verdict = pasteThroughBothGates(
+      '# Day\n\n## First\n\nbody\n', pos(2, 8), pos(2, 8), '## Notes\n\nSome prose.\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    const lines = encode(verdict.after).split('\n');
+    expect(lines[verdict.cursor.line]).toBe('Some prose.');
+    expect(verdict.cursor.ch).toBe('Some prose.'.length);
+    // The absorbed paragraph is still there, just not where the caret is.
+    expect(lines).toContain('body');
+  });
+
   it('a childless node still splices after it', () => {
     const verdict = pasteThroughBothGates(
       '- one\n- two\n', pos(0, 5), pos(0, 5), '- alpha\n  - beta\n',
