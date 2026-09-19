@@ -72,7 +72,8 @@ _None._
 ## Impact
 
 - **Model → decorations**: `LineDecorationFact` gains the heading's `level`, forwarded from
-  `OutlineNode.level`. The footer's `LineageSegment` gains it too.
+  `OutlineNode.level`. The footer's `LineageSegment` gains it too, and so does the synthetic fact
+  a collapsed lineage row gets from `rowFact`.
 - **Drawing**: `buildMarkerIcon` in `src/plugin/decorations.ts` takes a heading's level and the
   chosen style. The geometry moves into a pure function the unit suite can reach, without a DOM.
 - **Editor**: `MarkerWidget` carries the level and the style, and includes both in its `eq`.
@@ -81,8 +82,9 @@ _None._
   `src/plugin/backlinks-footer.ts` pass the level and the style through. Their sources gain the
   style setting.
 - **Settings**: two `choice` declarations in `src/plugin/settings/appearance.ts`, with a
-  getter/setter pair on the plugin and a row in `WRITERS`. The setter repaints the editor
-  (`forceRedraw`) and the footers (`nudgeFooters`, `repaintFooters`).
+  getter/setter pair on the plugin and a row in `WRITERS`. The setter redraws every open editor
+  and zoom trail through `nudgeFooters`, and the footers through `repaintFooters`, not just the
+  active pane.
 - **Tests**: unit tests for the geometry and the fact's level; e2e tests for the level mark on
   every surface, its update on an edit and on a style change. `52-block-markers-icons.e2e.ts`
   and `57-marker-gap.e2e.ts` must pass unchanged.

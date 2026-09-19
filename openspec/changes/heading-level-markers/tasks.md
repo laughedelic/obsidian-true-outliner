@@ -4,7 +4,14 @@
       for every other kind, constant across a node's lines. Verify with a `tests/decorate.test.ts`
       property over both generators: a fact has a level exactly when its kind is `heading`, and it
       equals the node's. Negative control: dropping the forward in `decorate()` fails it
-- [ ] 1.2 `LineageSegment` gains the same `level`, and `lineageKey` joins it (design D4). Verify
+- [ ] 1.2 `rowFact` takes an optional level, and a lineage row's synthetic fact passes its chain's
+      first element's level, the element its kind already comes from (design D2). Every fact,
+      projected or synthetic, then has a level exactly when its kind is `heading`. Verify with a
+      `tests/footer-model.test.ts` case: a lineage row whose chain starts at an H2 has a fact of
+      kind `heading` and level 2, and one starting at a paragraph has no level. Negative control:
+      the current `rowFact(row.kind, row.depth)` leaves the heading row without a level, and the
+      case fails
+- [ ] 1.3 `LineageSegment` gains the same `level`, and `lineageKey` joins it (design D4). Verify
       with a unit test that two segments differing only in level produce different keys. Negative
       control: leaving level out of the join makes them equal
 
@@ -43,10 +50,11 @@
       `src/plugin/settings/appearance.ts`. Each option's label says what it draws; each row's
       description says it changes only heading marks. Verify with a unit test that
       `normalizePluginData` fills both defaults when absent and rejects an unknown value
-- [ ] 3.2 Getter/setter pair on the plugin, plus their `WRITERS` rows. The setter saves, calls
-      `forceRedraw()`, bumps the footer revision, then calls `nudgeFooters` and `repaintFooters`.
-      A single `headingMarkerStyle` getter resolves both keys into the style value
-      (design D3). Verify with the settings e2e in 6.3
+- [ ] 3.2 Getter/setter pair on the plugin, plus their `WRITERS` rows. The setter saves, bumps
+      the footer revision, then calls `nudgeFooters` and `repaintFooters`. It does not rely on
+      `forceRedraw`, which reaches only the active view (design D9). A single
+      `headingMarkerStyle` getter resolves both keys into the style value (design D3). Verify
+      with the settings e2e in 6.3
 - [ ] 3.3 `DecorationSource`, `FooterSource` and `ZoomTrailSource` each gain `headingMarkerStyle`,
       read fresh per recompute. Verify with `npm run build` (the plugin implements all three)
 
@@ -63,7 +71,8 @@
 
 - [ ] 5.1 `markerFor`, `segmentMarker` and `segmentGlyph` build their subject from the row's fact
       or the segment, level included, with the source's style. `segmentMarker`'s fallback takes
-      the row's fact instead of a bare kind (design D2). Verify with `npm run build`: a call site
+      the row's fact instead of a bare kind, and that fact carries the level after task 1.2
+      (design D2). Verify with `npm run build`: a call site
       that passes a heading kind without a level no longer compiles
 - [ ] 5.2 The zoom trail's widget key joins the style (design D4). Verify with 6.4. Negative
       control: leaving it out keeps the old trail glyph after a style change
@@ -78,9 +87,11 @@
       `npm run test:e2e:narrow -- 52-heading-level-markers`
 - [ ] 6.2 Same spec: retyping `## Title` as `### Title` redraws that mark to equal the level-3 markup
       drawn elsewhere in the note. Negative control: task 4.1's
-- [ ] 6.3 Same spec: switching each setting switches every mounted heading mark on the next
-      render, and no line's text moves: every heading's text rect is unchanged across the switch.
-      Negative control: a setter without `forceRedraw` leaves the old marks mounted
+- [ ] 6.3 Same spec: with the note open in two panes, the second one zoomed so it shows a trail,
+      switching each setting switches every heading mark in both panes, the inactive one included,
+      and the trail's heading segment. No line's text moves: every heading's text rect is
+      unchanged across the switch. Negative control: a setter that repaints through
+      `forceRedraw` alone leaves the inactive pane's marks on the old style
 - [ ] 6.4 Same spec: with a heading ancestor in a backlinks footer's lineage and in a zoom trail,
       each heading mark's SVG markup equals the editor's for that level and style, before and
       after a style change. Negative control: dropping `repaintFooters` from the setter leaves

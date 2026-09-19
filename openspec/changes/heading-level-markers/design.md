@@ -10,7 +10,9 @@ three surfaces:
 - **The zoom trail**: it reuses `segmentGlyph`.
 
 The level exists on `OutlineNode.level` but stops there. Neither `LineDecorationFact` nor the
-footer's `LineageSegment` carries it.
+footer's `LineageSegment` carries it. The footer also makes facts for rows that have no node
+(`rowFact`): a collapsed lineage row takes the kind of its chain's first element, so its fact can
+be `heading` without any level to give.
 
 Each surface decides whether to rebuild its DOM with an identity check, and today that check
 knows only the kind:
@@ -58,9 +60,10 @@ bounds, distinctness, and the derived `H` height.
 
 The drawing input is a union: `{ kind: 'heading', level, style }` or `{ kind: <other> }`. No call
 site can ask for a heading mark without a level. `LineDecorationFact` and `LineageSegment` each
-gain `level`, present exactly when the kind is `heading`, forwarded from the node.
-`segmentMarker`'s kind-only fallback, for a chain with no elements, takes the row's own fact
-instead of a bare kind, so it too has a level to pass.
+gain `level`, present exactly when the kind is `heading`, forwarded from the node. A synthetic
+lineage fact takes its level from the same first element its kind comes from, so the invariant
+holds for every fact, projected or not. `segmentMarker`'s kind-only fallback, for a chain with no
+elements, takes the row's own fact instead of a bare kind, so it too has a level to pass.
 
 *Alternative.* Defaulting a missing level to 1, or falling back to the no-digit mark. Either
 would make a model defect render as a plausible mark instead of failing to compile.
@@ -130,12 +133,27 @@ so the tests never trust the label (D8).
 - **e2e (editor)**, all in a new decorations-group spec:
   - the six levels mount six different SVG markups, or one shared markup with no digit;
   - retyping a level redraws the mark;
-  - each setting switches every mounted heading mark;
+  - each setting switches every mounted heading mark, in an inactive pane as well;
   - the width and height equality against a paragraph still holds.
 - **e2e (surfaces)**: in a heading's footer lineage and zoom trail segment, the SVG markup
   equals the editor's for the same level and style, before and after a style change.
 - **Unchanged and re-run**: `52-block-markers-icons.e2e.ts` and `57-marker-gap.e2e.ts`. The
   heading's wider ink is inside the box, and the checkbox stays the widest mark.
+
+### D9. A style change redraws every open editor, through the footer's nudge
+
+Both settings are global, so a change has to reach every open pane, not just the active one.
+`forceRedraw` flips the mode field in the active view only. It exists for widget-replaced atoms,
+whose margin compensation needs a decoration output that genuinely differs, and a heading's mark
+is never one of those. `nudgeFooters` already dispatches an effect-only transaction to every open
+markdown editor. That transaction runs each editor's update cycle, and both surfaces that draw a
+heading mark in the editor recompute on any update, reading the settings fresh: `MarkersPlugin`
+and the zoom trail's field. With the style in their identity checks (D4), every pane redraws its
+heading marks and its trail. `repaintFooters` then re-renders the footers' own DOM.
+
+*Alternative.* Extending `forceRedraw` to every leaf. It would redraw the other settings'
+widget-atom cases too, but it is a wider change than this one needs, and those settings' own
+active-only behaviour is not in scope here.
 
 ## Risks / Trade-offs
 
