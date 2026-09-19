@@ -42,10 +42,12 @@ export type DemoSettings = DecorationSource & ZoomTrailSource & AppearanceSource
 
 export const DEFAULT_SETTINGS: DemoSettings = {
   markerVisibility: 'all',
+  headingMarkerStyle: { glyph: 'H', level: 'beside' },
   markerHighlight: 'current',
   guideHighlight: 'full',
   guideVisibility: 'all',
   guideHideSingleRoot: false,
+  hideGapLines: false,
   backlinksSegmentIcons: 'all',
   backlinksSeparator: 'none',
   outlineUnit: 'auto',

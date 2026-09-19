@@ -79,6 +79,8 @@ These settings size the grid, choose which guides and markers are drawn, and hig
 | **Guide line strength** | Subtle · Normal · Strong | Subtle |
 | **Debug: block marker visibility (experiment 5a)** | All eligible kinds · Only nodes that have children · Only headings and paragraphs | All eligible kinds |
 | **Highlight guides at the cursor's position** | No highlight · Whole guide of every ancestor · Only the part leading down to the cursor | Whole guide of every ancestor |
+| **Heading marker glyph** | H · # | H |
+| **Heading level in the marker** | Beside the glyph · As a subscript · Not shown | Beside the glyph |
 | **Highlight markers at the cursor's position** | No highlight · The current node only · The current node and all its ancestors | The current node only |
 
 What each one does:
@@ -92,6 +94,7 @@ What each one does:
 - **Hide the outermost guide under a single root** drops the depth-zero guide where the whole note, or the whole zoomed view, hangs off one node.
 - **Guide line strength** sets guide contrast as a proportion of the theme's faintest text, so it holds up in light and dark themes.
 - **Block marker visibility** chooses which nodes get an icon.
+- **Heading marker glyph** and **Heading level in the marker** decide how a heading's marker is drawn; only heading markers change.
 	- It never affects a list item's bullet or number.
 	- Gutter space is reserved either way, so text never shifts.
 	- It takes effect on the next edit or note switch.

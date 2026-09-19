@@ -7,7 +7,7 @@
 import { computed, watch } from 'vue';
 import { useData, useRouter, withBase } from 'vitepress';
 import { data, type BacklinkGroup, type BacklinkRow } from './backlinks.data';
-import { ICONS } from './icons';
+import { ICONS, markIcon } from './icons';
 import { closedGroups as closed, footerOpen as open, outlineOn, pendingFlash } from './state';
 
 const { frontmatter, page } = useData();
@@ -76,7 +76,7 @@ function follow(event: MouseEvent | KeyboardEvent, group: BacklinkGroup, row: Ba
             <span v-for="d in row.depth" :key="d" class="to-o-bl-guide" :style="{ '--to-o-g': d - 1 }" aria-hidden="true"></span>
             <span class="to-o-bl-mark" :class="{ 'is-ordinal': !!row.ordinal, 'is-item': row.kind === 'item' }" aria-hidden="true">
               <template v-if="row.ordinal">{{ row.ordinal }}</template>
-              <span v-else v-html="ICONS[row.kind]"></span>
+              <span v-else v-html="markIcon(row.kind, row.level)"></span>
             </span>
             <span class="to-o-bl-text">
               <span v-html="row.html"></span>

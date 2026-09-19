@@ -13,6 +13,8 @@ import type { Kind } from './tree';
 export interface BacklinkRow {
   depth: number;
   kind: Kind;
+  /** A heading's level. */
+  level?: number;
   ordinal?: string;
   html: string;
   /** The node's text without markup, to find it again on the source page. */
@@ -40,6 +42,7 @@ interface MdNode {
   id: number;
   kind: Kind;
   text: string;
+  level?: number;
   ordinal?: string;
   parent: MdNode | null;
   children: MdNode[];
@@ -101,7 +104,7 @@ function parse(source: string): MdNode[] {
     if (heading) {
       const level = heading[1]!.length;
       while (open.length && open[open.length - 1]!.level >= level) open.pop();
-      open.push({ level, node: add('heading', heading[2]!.trim(), section()) });
+      open.push({ level, node: add('heading', heading[2]!.trim(), section(), { level }) });
       items = [];
       lastParagraph = continuing = null;
       continue;
@@ -261,7 +264,7 @@ export default defineLoader({
             if (!hash && p.kind === 'heading') hash = `#${slugify(p.text)}`;
           }
           const hidden = node.children.some((c) => shown.has(c)) ? 0 : countDescendants(node);
-          const base = { depth: Math.max(depth, 0), kind: node.kind, ordinal: node.ordinal, dim: !full.has(node), hidden, hash };
+          const base = { depth: Math.max(depth, 0), kind: node.kind, level: node.level, ordinal: node.ordinal, dim: !full.has(node), hidden, hash };
           const texts = byNode.get(node) ?? [node.text];
           for (const text of texts) rows.push({ ...base, html: render(text), text: plain(text).slice(0, 80) });
         }

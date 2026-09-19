@@ -13,6 +13,15 @@
   --to-o-accent: var(--vp-c-brand-1);
 }
 
+/* The plugin's callout mark knocks its "!" out in Obsidian's page colour. */
+.to-o-layer,
+.to-o-backlinks {
+  --background-primary: var(--vp-c-bg);
+}
+.to-o-bl-group {
+  --background-primary: var(--vp-c-bg-soft);
+}
+
 .VPDoc .content-container {
   position: relative;
 }

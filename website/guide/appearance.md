@@ -50,6 +50,10 @@ Three settings tune them.
 
 Each block's first line carries a small icon in the gutter that names its kind: heading, paragraph, code, table, callout, quote and so on.
 
+- A heading's marker also names its level, as in *H2*.
+	- **Heading marker glyph** draws it with the letter H or with `#`.
+	- **Heading level in the marker** puts the digit beside the glyph, sets it as a subscript, or leaves it out.
+	- The marker's size and every line's position are the same in all of them.
 - List items keep their own bullet, number or checkbox instead.
 	- It is restyled to the same weight and colour and moved onto the grid, so a list looks like a list.
 - Continuation lines and blank lines never carry a marker.

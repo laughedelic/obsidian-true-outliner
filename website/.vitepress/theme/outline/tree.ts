@@ -17,6 +17,8 @@ export interface ONode {
   depth: number;
   parent: ONode | null;
   children: ONode[];
+  /** A heading's level. */
+  level?: number;
   /** An ordered item's number, as the list renders it. */
   ordinal?: string;
   folded: boolean;
@@ -91,7 +93,7 @@ export function buildTree(root: HTMLElement): OTree {
     if (heading) {
       const level = Number(heading[1]);
       while (open.length && open[open.length - 1]!.level >= level) open.pop();
-      const node = add(el, 'heading', open.length ? open[open.length - 1]!.node : null);
+      const node = add(el, 'heading', open.length ? open[open.length - 1]!.node : null, { level });
       open.push({ level, node });
       lastParagraph = null;
       continue;

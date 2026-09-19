@@ -9,7 +9,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import { onContentUpdated, useData } from 'vitepress';
 import { ancestors, buildTree, descendants, labelOf, type ONode, type OTree } from './tree';
-import { ICONS } from './icons';
+import { ICONS, markIcon } from './icons';
 import { footerOpen, loadView, markSeen, outlineOn, pendingFlash, seen, setView, type Hint } from './state';
 
 const STATE_KEY = 'true-outliner:docs-state:';
@@ -667,7 +667,7 @@ onBeforeUnmount(() => {
           @click="zoomTo(m.node)"
         >
           <template v-if="m.node.ordinal">{{ m.node.ordinal }}</template>
-          <span v-else v-html="ICONS[m.node.kind]"></span>
+          <span v-else v-html="markIcon(m.node.kind, m.node.level)"></span>
         </button>
       </template>
     </template>
