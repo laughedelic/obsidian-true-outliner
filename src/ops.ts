@@ -2331,9 +2331,23 @@ export function insertSubtrees(
   // replacement should inherit.
   const above = insertIndex > 0 ? subtreeFinalNode(siblings[insertIndex - 1]!) : undefined;
   const scopeGap = blankGap(scopeSeparation(parent, siblings, insertIndex));
-  const gapBelowRun = blankGap(
-    inheritedSeparation ?? (above ? above.trailingGap : scopeSeparation(parent, siblings, insertIndex)),
-  );
+  const sourceGap =
+    inheritedSeparation ??
+    (above ? above.trailingGap : scopeSeparation(parent, siblings, insertIndex));
+  // A gap line's own whitespace is the document's, so it is blanked wherever
+  // it lands — with ONE exception. The file's last line is not a separation:
+  // where it carried whitespace and no newline followed it, blanking it ends
+  // the note with a terminator it never had. A run that ends the document
+  // keeps that line exactly as it was, which is the same rule the deletion
+  // side states — restored, never invented.
+  const endsDocument =
+    insertIndex === siblings.length &&
+    above !== undefined &&
+    above.id === documentFinalNode(doc)?.id;
+  const gapBelowRun =
+    endsDocument && sourceGap.length > 0
+      ? [...blankGap(sourceGap).slice(0, -1), sourceGap[sourceGap.length - 1]!]
+      : blankGap(sourceGap);
   const lastIdx = reencoded.length - 1;
   const finalReencoded = [
     ...reencoded.slice(0, lastIdx),

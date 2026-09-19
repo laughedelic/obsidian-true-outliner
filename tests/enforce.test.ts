@@ -435,6 +435,28 @@ describe('a deletion at the end of a note keeps its terminating newline (#160)',
     expect(applyVerdict(md, verdict)).toBe('- a\n');
   });
 
+  it('a type-over does not give a note a newline it never had', () => {
+    // The note's last line is two spaces and no newline, which is a non-empty
+    // gap and not a terminator. Blanking it on the way into the insertion
+    // would end the note with one — restored, never invented, on this side
+    // too. The gap line itself is the note's own, so it survives verbatim.
+    const md = '- a\n- b\n  ';
+    const doc = parse(md);
+    const edit: EditFact = { from: pos(1, 0), to: pos(2, 2), insert: '- x\n' };
+    expect(applyVerdict(md, computeVerdict('boundary-crossing-edit', doc, edit))).toBe(
+      '- a\n- x\n  ',
+    );
+
+    // And where the same whitespace line IS followed by a newline, the
+    // terminator is still there afterwards.
+    const terminated = '- a\n- b\n  \n';
+    const other = parse(terminated);
+    const wide: EditFact = { from: pos(1, 0), to: pos(3, 0), insert: '- x\n' };
+    expect(
+      applyVerdict(terminated, computeVerdict('boundary-crossing-edit', other, wide)),
+    ).toBe('- a\n- x\n\n');
+  });
+
   it('a type-over at the end neither loses the newline nor gains a blank line', () => {
     // A type-over deletes the covered run and splices into the place it left,
     // so the terminator travels with the gap that run was carrying. Restoring
@@ -553,6 +575,13 @@ describe('computeVerdictForRanges: multi-range structural deletion (D2/D3)', () 
       const last = node.children[node.children.length - 1];
       return last ? deepestLast(last) : node;
     };
+    /** A note ends in a newline when its last gap LINE is empty. A gap that
+     * merely exists is not one: a last line of spaces is a non-empty gap and
+     * no terminator, which is the distinction the implementation makes. */
+    const endsInNewline = (node: OutlineNode): boolean => {
+      const gap = node.trailingGap;
+      return gap.length > 0 && gap[gap.length - 1] === '';
+    };
 
     fc.assert(
       fc.property(arbTree(), fc.array(fc.nat(10), { minLength: 2, maxLength: 4 }), (tree, rawIndices) => {
@@ -582,7 +611,7 @@ describe('computeVerdictForRanges: multi-range structural deletion (D2/D3)', () 
           text.endsWith('\n') &&
           indices.includes(doc.children.length - 1) &&
           lastSurvivor !== undefined &&
-          deepestLast(lastSurvivor).trailingGap.length === 0;
+          !endsInNewline(deepestLast(lastSurvivor));
         const expectedLineCount =
           text.split('\n').length - removedLines + (restoresTerminator ? 1 : 0);
         // `''.split('\n')` is `['']` (length 1), not 0 — an empty final
