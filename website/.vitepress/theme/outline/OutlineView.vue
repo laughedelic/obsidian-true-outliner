@@ -231,9 +231,17 @@ function zoomTo(node: ONode | null) {
     node.folded = false;
     for (const a of ancestors(node)) a.folded = false;
   }
-  zoomRoot.value = node && node.parent ? node : null;
+  const from = zoomRoot.value;
+  const to = node && node.parent ? node : null;
+  zoomRoot.value = to;
   refresh();
-  if (node) layer.value?.scrollIntoView({ block: 'start', behavior: 'instant' as ScrollBehavior });
+  // After the render, so the trail appearing above the page is already in
+  // the layout the scroll is measured against.
+  void nextTick(() => {
+    const instant = 'instant' as ScrollBehavior;
+    if (to) window.scrollTo({ top: 0, behavior: instant });
+    else if (from) from.el.scrollIntoView({ block: 'center', behavior: instant });
+  });
 }
 
 function onOver(event: Event) {
