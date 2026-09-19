@@ -9,7 +9,7 @@ import type { Kind } from './tree';
 const svg = (body: string) => `<svg viewBox="0 0 16 16" width="100%" height="100%" aria-hidden="true">${body}</svg>`;
 const stroke = 'stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"';
 
-export const ICONS: Record<Kind | 'chevron' | 'zoomOut', string> = {
+export const ICONS: Record<Kind | 'chevron' | 'zoomOut' | 'foldAll' | 'unfoldAll' | 'outline' | 'longForm', string> = {
   heading: svg(
     '<rect x="3" y="2" width="2" height="12" fill="currentColor"/><rect x="11" y="2" width="2" height="12" fill="currentColor"/><rect x="3" y="7" width="10" height="2" fill="currentColor"/>',
   ),
@@ -32,6 +32,14 @@ export const ICONS: Record<Kind | 'chevron' | 'zoomOut', string> = {
   hr: svg('<rect x="2" y="7" width="12" height="2" fill="currentColor"/>'),
   media: svg(`<rect ${stroke} x="3" y="2" width="10" height="12" rx="1"/><line ${stroke} x1="9" y1="2" x2="13" y2="6"/>`),
   chevron: svg(`<polyline ${stroke} points="4,6 8,10 12,6"/>`),
+  foldAll: svg(`<polyline ${stroke} points="4.5,2.5 8,6 11.5,2.5"/><polyline ${stroke} points="4.5,13.5 8,10 11.5,13.5"/>`),
+  unfoldAll: svg(`<polyline ${stroke} points="4.5,6 8,2.5 11.5,6"/><polyline ${stroke} points="4.5,10 8,13.5 11.5,10"/>`),
+  outline: svg(
+    `<line ${stroke} x1="6" y1="4" x2="14" y2="4"/><line ${stroke} x1="9" y1="8" x2="14" y2="8"/><line ${stroke} x1="9" y1="12" x2="14" y2="12"/><path ${stroke} d="M2.5 4v2.7c0 .7.6 1.3 1.3 1.3h2.2"/><path ${stroke} d="M2.5 6.7v4c0 .7.6 1.3 1.3 1.3h2.2"/>`,
+  ),
+  longForm: svg(
+    `<line ${stroke} x1="2" y1="3.5" x2="14" y2="3.5"/><line ${stroke} x1="2" y1="6.5" x2="14" y2="6.5"/><line ${stroke} x1="2" y1="9.5" x2="14" y2="9.5"/><line ${stroke} x1="2" y1="12.5" x2="9" y2="12.5"/>`,
+  ),
   zoomOut: svg(
     `<polyline ${stroke} points="6,2 2,2 2,6"/><line ${stroke} x1="2" y1="2" x2="6.5" y2="6.5"/><polyline ${stroke} points="10,14 14,14 14,10"/><line ${stroke} x1="14" y1="14" x2="9.5" y2="9.5"/>`,
   ),

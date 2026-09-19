@@ -123,7 +123,7 @@ function measure() {
   }
   const origin = host.getBoundingClientRect();
   const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-  const gutter = 1.35 * rem;
+  const gutter = parseFloat(getComputedStyle(host).getPropertyValue('--to-o-gutter')) * rem || 1.5 * rem;
   const nextMarks: Mark[] = [];
   const centre = new Map<number, { x: number; y: number }>();
   for (const node of t.nodes) {
@@ -138,13 +138,9 @@ function measure() {
     nextMarks.push({ node, x, y, foldable: node.children.length > 0 });
   }
   const nextGuides: Guide[] = [];
-  const root = zoomRoot.value;
   for (const node of t.nodes) {
     const c = centre.get(node.id);
     if (!c || node.folded || !node.children.length) continue;
-    // A page hangs off its title, and a zoomed view off its root: a guide
-    // down the whole of either says nothing.
-    if (node === root || (!root && !node.parent)) continue;
     const last = [...descendants(node)].reverse().find(visible);
     if (!last) continue;
     const bottom = last.el.getBoundingClientRect().bottom - origin.top;
@@ -275,27 +271,47 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div v-if="enabled" class="to-o-bar">
-    <nav v-if="outline && zoomRoot" class="to-o-trail" aria-label="Zoom trail">
-      <button type="button" class="to-o-crumb to-o-crumb-page" @click="zoomTo(null)" title="Zoom out fully">
-        <span class="to-o-zoomout" aria-hidden="true" v-html="ICONS.zoomOut"></span>{{ page.title }}
-      </button>
-      <template v-for="a in trail" :key="a.id">
-        <span class="to-o-sep" aria-hidden="true">›</span>
-        <button type="button" class="to-o-crumb" @click="zoomTo(a)">{{ labelOf(a) }}</button>
-      </template>
-    </nav>
-    <div class="to-o-controls">
+  <nav v-if="enabled && outline && zoomRoot" class="to-o-trail" aria-label="Zoom trail">
+    <button type="button" class="to-o-crumb to-o-crumb-page" @click="zoomTo(null)" title="Zoom out fully">
+      <span class="to-o-zoomout" aria-hidden="true" v-html="ICONS.zoomOut"></span>{{ page.title }}
+    </button>
+    <template v-for="a in trail" :key="a.id">
+      <span class="to-o-sep" aria-hidden="true">›</span>
+      <button type="button" class="to-o-crumb" @click="zoomTo(a)">{{ labelOf(a) }}</button>
+    </template>
+  </nav>
+  <Teleport to="body">
+    <div v-if="enabled" class="to-o-status" role="toolbar" aria-label="Page view">
       <template v-if="outline">
-        <button type="button" class="to-o-btn" @click="foldAll(true)">Fold all</button>
-        <button type="button" class="to-o-btn" :disabled="!anyFolded" @click="foldAll(false)">Unfold all</button>
+        <button type="button" title="Fold all" aria-label="Fold all" @click="foldAll(true)" v-html="ICONS.foldAll"></button>
+        <button
+          type="button"
+          title="Unfold all"
+          aria-label="Unfold all"
+          :disabled="!anyFolded"
+          @click="foldAll(false)"
+          v-html="ICONS.unfoldAll"
+        ></button>
+        <span class="to-o-status-sep" aria-hidden="true"></span>
       </template>
-      <div class="to-o-switch" role="group" aria-label="Page view">
-        <button type="button" :aria-pressed="outline" @click="setOutline(true)">Outline</button>
-        <button type="button" :aria-pressed="!outline" @click="setOutline(false)">Long-form</button>
-      </div>
+      <button
+        type="button"
+        title="Outline view"
+        aria-label="Outline view"
+        :aria-pressed="outline"
+        @click="setOutline(true)"
+        v-html="ICONS.outline"
+      ></button>
+      <button
+        type="button"
+        title="Long-form view"
+        aria-label="Long-form view"
+        :aria-pressed="!outline"
+        @click="setOutline(false)"
+        v-html="ICONS.longForm"
+      ></button>
     </div>
-  </div>
+  </Teleport>
   <div v-if="enabled" ref="layer" class="to-o-layer" :class="{ 'is-on': outline }" aria-hidden="false">
     <template v-if="outline">
       <button
