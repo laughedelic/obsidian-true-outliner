@@ -18,6 +18,7 @@ import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
 import {
+  columnOfMark,
   dragFrom,
   dragThenEscape,
   editorBox,
@@ -362,6 +363,73 @@ describe('node dragging: the press and the drag it can become', function () {
     ]);
     await browser.pause(300);
   }
+
+  it('draws the indicator on the destination depth\u2019s own column', async function () {
+    // The document's LAST seam, which is the one offering all three top-level
+    // depths: beside `# Top` at the root, among its children, and inside
+    // `- three`. Swept left to right, the indicator's left end should land on
+    // each of those columns in turn.
+    //
+    // The columns come from the document's own MARKS, of two different kinds,
+    // because that is what makes this a relation rather than a constant: a
+    // heading's marker icon is centred on its column and a list bullet's span
+    // begins on its. An indicator positioned by measuring one kind's box would
+    // sit right on that kind's destinations and half a bullet out on the
+    // other's, which one column alone cannot tell.
+    const columns = [
+      await columnOfMark('.to-decor-marker-icon', 0, 'centre'), // `# Top`, depth 0
+      await columnOfMark(BULLET, 0, 'left'), // `- one`, depth 1
+      await columnOfMark(BULLET, 1, 'left'), // `  - nested`, depth 2
+    ];
+    const last = await markPoint(BULLET, 3);
+    const above = await markPoint(BULLET, 2);
+    // Well past the last row. The last seam sits at the DOCUMENT's own bottom,
+    // which is below the note's terminating gap line and the padding after it
+    // — a row or two down is still nearer the seam above the last row, whose
+    // columns are a subset of this one's and would leave the heading depth
+    // untested. Nothing lies below the last seam, so any y past it resolves
+    // there.
+    const y = last.y + 6 * (last.y - above.y);
+    const box = await editorBox();
+
+    const mark = await markPoint(BULLET, 0);
+    await startRecording();
+    // A nudge after each column, because the sampler runs in the CAPTURE phase
+    // and the gesture resolves on the bubble: each sample carries the answer
+    // the PREVIOUS move produced, so a column visited once is resolved and
+    // never recorded.
+    await dragThenEscape(mark, [
+      { x: mark.x + 20, y: mark.y + 10 },
+      { x: box.left + 4, y },
+      { x: box.left + 5, y },
+      { x: columns[1]!, y },
+      { x: columns[1]! + 1, y },
+      { x: columns[2]!, y },
+      { x: columns[2]! + 1, y },
+    ]);
+    await browser.pause(250);
+
+    // The indicator's x is stated in the overlay's own space, whose origin is
+    // depth 0's column — so one mark fixes the origin and the rest is the
+    // relation under test.
+    const drawn = (await recorded()).filter((sample) => sample.indicator !== null);
+    expect(drawn.length).toBeGreaterThan(0);
+    const seen = new Map<number, number>();
+    for (const sample of drawn) {
+      expect(sample.preview).not.toBe(null);
+      seen.set(sample.preview!.depth, columns[0]! + sample.indicator!.x);
+    }
+    // The sweep has to have reached the HEADING's own depth, not just the two
+    // list ones. Asserted rather than assumed: a sweep naming only list
+    // destinations passes every per-column check while testing one kind of
+    // mark, which is the half this case exists to rule out. Found by running
+    // the control, which did not bite until this line was here.
+    expect([...seen.keys()].sort()).toEqual([0, 1, 2]);
+    for (const [depth, drawnAt] of seen) {
+      expect(Math.abs(drawnAt - columns[depth]!)).toBeLessThan(1);
+    }
+    expect(await h.getBuffer()).toBe(DOC);
+  });
 
   it('drops the run where the preview named it', async function () {
     await dropOneBeforeThree();

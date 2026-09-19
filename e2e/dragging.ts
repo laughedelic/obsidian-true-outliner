@@ -39,6 +39,17 @@ export interface MoveSample {
    * Empty wherever the plugin's decorations are not running at all, which is
    * what a decline looks like from the outside. */
   readonly selected: readonly number[];
+  /**
+   * The drop indicator as the page actually paints it: the row it hangs on,
+   * and its own left edge in the overlay's coordinate space — which is the
+   * space every column on that row is stated in.
+   *
+   * Found by background-SIZE, which is what tells the indicator's layer from
+   * the others sharing the list: a guide and a trail accent are each one unit
+   * wide and full height, and the indicator is full width and one stripe tall.
+   * `null` while nothing is drawn.
+   */
+  readonly indicator: { readonly line: number; readonly x: number } | null;
   /** Where the drag would land at that move, as the gesture itself resolved
    * it — `null` before a destination is named, and after one is dropped. */
   readonly preview: {
@@ -87,6 +98,39 @@ export function pointOf(selector: string, index = 0): Promise<Point> {
     },
     selector,
     index,
+  );
+}
+
+/**
+ * A mark's own COLUMN, in viewport x.
+ *
+ * Which edge that is depends on the kind, and the difference is the whole
+ * reason the indicator is positioned from `chrome-line.ts`'s expression rather
+ * than from any mark's box: measured (docs/research/node-drag-and-drop section
+ * 1), a list bullet's span BEGINS on its column, where every other mark is
+ * CENTRED on it. A reading that treats the two alike is right for one kind of
+ * destination and half a bullet out for the other.
+ */
+export function columnOfMark(
+  selector: string,
+  index: number,
+  on: 'centre' | 'left',
+): Promise<number> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, selector, index, on) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cm = (view.editor as any).cm;
+      const marks = (cm.dom as HTMLElement).querySelectorAll(`.cm-content ${selector}`);
+      const mark = marks[index] as HTMLElement | undefined;
+      if (!mark) throw new Error(`no ${selector}[${index}] rendered`);
+      const r = mark.getBoundingClientRect();
+      return on === 'left' ? r.left : r.left + r.width / 2;
+    },
+    selector,
+    index,
+    on,
   );
 }
 
@@ -140,9 +184,31 @@ export function startRecording(): Promise<void> {
       const held = (app as any).plugins?.plugins?.['true-outliner'];
       // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       const live = held?.activeDragPreview?.() ?? null;
+      // Computed `background-size` and `background-position` are resolved to
+      // plain lengths, so splitting the layer list on commas is exact here —
+      // it would not be on `background-image`, whose functions carry their
+      // own.
+      let indicator: { line: number; x: number } | null = null;
+      for (const el of Array.from(dom.querySelectorAll('.cm-line.to-decor-guides'))) {
+        const style = getComputedStyle(el, '::after');
+        const sizes = style.backgroundSize.split(',').map((part) => part.trim());
+        const which = sizes.findIndex((size) => size.startsWith('100%'));
+        if (which < 0) continue;
+        const positions = style.backgroundPosition.split(',').map((part) => part.trim());
+        try {
+          indicator = {
+            line: cm.state.doc.lineAt(cm.posAtDOM(el)).number - 1,
+            x: parseFloat(positions[which] ?? ''),
+          };
+        } catch {
+          // A row the view has already moved past.
+        }
+        break;
+      }
       w.__toDragSamples.push({
         x: event.clientX,
         y: event.clientY,
+        indicator,
         buttons: event.buttons,
         inside:
           event.clientX >= r.left &&

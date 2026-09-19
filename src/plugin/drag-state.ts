@@ -21,8 +21,14 @@ import type { DropDestination } from '../drop-destinations';
 
 /** Where the run would land, and the seam the indicator is drawn at. */
 export interface DragPreview {
-  /** The line the seam sits above — the first line of the node below it, or
-   * the document's line count where there is none. */
+  /** The line the seam sits above, in the SOURCE document — the first line of
+   * the node below it, or the document's line count where there is none.
+   *
+   * The source's, not the tree's: under a zoom the seams are resolved against
+   * the scope's own re-rooted document, whose line 0 is the scope root's line
+   * here, and the decoration pass draws into the source. The one constant
+   * offset is applied where the seam is resolved, so everything downstream
+   * reads one line space. */
   readonly seamLine: number;
   readonly destination: DropDestination;
 }

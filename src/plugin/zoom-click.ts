@@ -356,7 +356,13 @@ class ZoomClickPlugin implements PluginValue {
     const geometry = dragGeometry(this.view, seams, scope ? scope.startLine : 0);
     if (!geometry) return null;
     const resolved = resolveDestination(seams, geometry, { x, y });
-    return resolved ? { seamLine: resolved.seam.line, destination: resolved.destination } : null;
+    if (!resolved) return null;
+    // Back into the SOURCE's line space, which is the one every consumer of
+    // this state reads.
+    return {
+      seamLine: resolved.seam.line + (scope ? scope.startLine : 0),
+      destination: resolved.destination,
+    };
   }
 
   /**

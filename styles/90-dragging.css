@@ -21,3 +21,24 @@
   height: 0;
   width: var(--to-decor-unit);
 }
+
+/*
+ * The drop indicator.
+ *
+ * Declared here and consumed by `drag-preview.ts`'s background layer, which
+ * rides the guide overlay's own comma-separated list — a `.cm-line` has no
+ * pseudo-element left of its own (`10-editor.css` says which two took them),
+ * and that overlay is already shifted back to the true column origin, so a
+ * layer positioned at a depth's column lands where every marker and guide at
+ * that depth is.
+ *
+ * The accent, not a colour of its own: the indicator names a place in the same
+ * hierarchy the caret trail names one in, and a second accent would have the
+ * reader learning two vocabularies for one idea. Thicker than a guide, because
+ * it crosses the grain of every vertical line on the row and has to read as
+ * the answer to a gesture rather than as more chrome.
+ */
+.markdown-source-view.mod-cm6 .cm-content {
+  --to-drop-color: var(--to-decor-accent);
+  --to-drop-width: 2px;
+}

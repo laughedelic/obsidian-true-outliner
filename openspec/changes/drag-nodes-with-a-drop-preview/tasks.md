@@ -153,7 +153,7 @@
       field's updates that an unchanged destination dispatches nothing; negative control:
       dispatching per move instead emits one transaction per pointer sample, which a counter in
       the test reads directly
-- [ ] 4.2 Draw the indicator at the seam with its left end on the destination depth's own column,
+- [x] 4.2 Draw the indicator at the seam with its left end on the destination depth's own column,
       taken from `chrome-line.ts`'s column expression — verify in e2e by comparing the indicator's
       resolved left edge against a marker's column at the same depth, as a RELATION not an
       absolute; negative control: positioning from a list bullet's box puts it a few px out on

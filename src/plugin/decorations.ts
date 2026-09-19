@@ -125,6 +125,8 @@ import { isNestedEditor, nestedEditorField } from './nested-editor';
 import { foldedChrome } from './fold-service';
 import { foldableEntries } from './fold-model';
 import { guideHoverField, type GuideHover } from './guide-hover';
+import { dragPreviewField } from './drag-state';
+import { seamIndicator, seamLayer } from './drag-preview';
 import { toggleFoldAtLine } from './fold-commands';
 import {
   markerShapes,
@@ -1355,6 +1357,13 @@ function renderInputs(state: EditorState, modes: DecorationSource): RenderInputs
   const visibility = visibilityContext(state, modes, facts);
   const trail = positionTrail(state, modes);
   const hover = state.field(guideHoverField, false) ?? null;
+  // Where a drag in flight would land. Read here with the rest of the inputs
+  // so the indicator is painted by the same pass as everything else on the
+  // grid, rather than positioned over it (design D10).
+  const seam = seamIndicator(
+    state.field(dragPreviewField, false) ?? null,
+    new Set(facts.factsByLine.keys()),
+  );
   const markerAccent = modes.markerHighlight !== 'off';
   // Two lookups from one pass: a folded node's treatment belongs on the line
   // its marker is on, and the count of what it hides belongs after its own
@@ -1379,13 +1388,20 @@ function renderInputs(state: EditorState, modes: DecorationSource): RenderInputs
     const lineNumber = guide.lineNumber;
     const fact = facts.factsByLine.get(lineNumber);
     const depths = drawnGuideDepths(guide, visibility);
+    // The indicator FIRST, so it draws over the guides rather than under
+    // them: it is the one thing on the row the reader is looking for. A row
+    // that draws no guide still gets the overlay when it carries the seam —
+    // a depth-0 destination beside a top-level node is an ordinary case.
+    const layers: string[] = [];
+    if (seam && seam.lineNumber === lineNumber) layers.push(seamLayer(seam));
+    if (hasOverlay(depths)) {
+      layers.push(guideBackground(depths, trail.byLine.get(lineNumber), litGuideOn(hover, lineNumber)));
+    }
     lines.push({
       lineNumber,
       fact,
       gap: guide.isGapLine,
-      guides: hasOverlay(depths)
-        ? guideBackground(depths, trail.byLine.get(lineNumber), litGuideOn(hover, lineNumber))
-        : undefined,
+      guides: layers.length > 0 ? layers.join(', ') : undefined,
       marker: fact ? markerClasses(trail, lineNumber, markerAccent) : '',
       folded: foldedMarkers.has(lineNumber),
       foldedTail: foldedTails.has(lineNumber),
