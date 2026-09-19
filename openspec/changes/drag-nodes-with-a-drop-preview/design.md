@@ -229,6 +229,12 @@ exactly that case. The shared re-encode step already takes a parent and its two 
 handles the empty one, so what is missing is a splice that takes a parent and an index. Adding it
 is what makes "one place the move is expressed" true rather than aspirational.
 
+The layer below has since reached the same gap from the other side. Its own D8 wants the boundary
+after an anchor's own lines, which for a node WITH children it names as that first child's
+`before` — the missing destination form expressed through the anchor it does have. Where the node
+has none, that route is unavailable and the private variant is what answers. Two call sites now
+work around one absent destination, which is the argument for adding it rather than a third.
+
 ### D9a. The operand's selection is set at the threshold, not at the press
 
 D5 collapses the selection to the pressed node's cover when the press lands outside the current
