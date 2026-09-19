@@ -98,18 +98,18 @@
 
 ## 3. The press, and the drag it can become
 
-- [ ] 3.1 Move the mark press's zoom from `pointerdown` to `pointerup`, keeping the press claimed
+- [x] 3.1 Move the mark press's zoom from `pointerdown` to `pointerup`, keeping the press claimed
       on arrival (design D2), and add the `pointerup` that `clickMark` in
       `e2e/specs/80-outline-zoom.e2e.ts` does not currently dispatch — without it every mark-click
       scenario stops zooming, on the mobile suite too, which depends on that same helper. Verify
       those scenarios pass with the helper's new dispatch and their own assertions unchanged;
       negative control: the helper WITHOUT the added `pointerup` fails every one of them, which is
       how this was found
-- [ ] 3.2 Add the drag threshold and the state it carries, in the same listener rather than a
+- [x] 3.2 Add the drag threshold and the state it carries, in the same listener rather than a
       second one — verify a press that moves past the threshold produces no zoom and a press that
       does not still zooms; negative control: resolving the drag at the first move rather than at
       a threshold turns a hand tremor into a drag, which a one-pixel move asserts
-- [ ] 3.3 Capture the pointer on the editor root for the drag's duration and release it on every
+- [x] 3.3 Capture the pointer on the editor root for the drag's duration and release it on every
       exit path, including `lostpointercapture` (design D4) — verify moves outside the editor's
       own box still reach the handler, which is the measurement that motivated it
       (docs/research/node-drag-and-drop section 5); negative control: listening on the editor root

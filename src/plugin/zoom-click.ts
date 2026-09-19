@@ -79,10 +79,34 @@ const GUIDE_HOVERING_CLASS = 'to-decor-guide-hovering';
 /** The events a handled press has to swallow, in the order they arrive. */
 const TRAILING_EVENTS = ['mousedown', 'mouseup', 'click'] as const;
 
+/**
+ * How far a press moves before it stops being a click.
+ *
+ * A threshold rather than the first move: a pointer reports movement a hand
+ * never intended, and turning a tremor into a drag would make the zoom
+ * unreachable for anyone whose hand is not perfectly still.
+ */
+const DRAG_THRESHOLD_PX = 4;
+
+/** A press on a mark, from its arrival until the button comes up. */
+interface MarkPress {
+  readonly pointerId: number;
+  readonly startX: number;
+  readonly startY: number;
+  /** The mark itself, so the release resolves against the document as it is
+   * THEN rather than against a line number taken before the press. */
+  readonly mark: HTMLElement;
+  /** Set once the press has moved past the threshold, and never unset: a
+   * gesture that wanders and comes back is still a drag. */
+  dragging: boolean;
+}
+
 class ZoomClickPlugin implements PluginValue {
   private readonly onPointerDown: (event: Event) => void;
   private readonly onTrailing: (event: Event) => void;
   private readonly onPointerMove: (event: Event) => void;
+  private readonly onPointerUp: (event: Event) => void;
+  private readonly onPointerLost: (event: Event) => void;
   /** Where the pointer last was, so the hover can be re-applied after the
    * view rebuilds under it — the fold a press makes replaces the very lines
    * the band was on, and left the guide dark until the pointer moved. */
@@ -93,6 +117,9 @@ class ZoomClickPlugin implements PluginValue {
   private readonly Element: typeof Element;
   /** A press this gesture took, until its own trailing events are spent. */
   private consuming = false;
+  /** The press in flight, if any — a mark is held and its meaning is not yet
+   * decided. */
+  private press: MarkPress | null = null;
 
   constructor(private readonly view: EditorView) {
     this.Element = view.dom.ownerDocument.defaultView?.Element ?? Element;
@@ -100,12 +127,19 @@ class ZoomClickPlugin implements PluginValue {
     // `'pointerdown'` is only ever invoked with a `PointerEvent`, whichever
     // window built it, so a cast is exact here — unlike `event.target` below,
     // which needs the real check because nothing pins its type this way.
-    this.onPointerDown = (event) => this.handle(event as MouseEvent);
+    this.onPointerDown = (event) => this.handle(event as PointerEvent);
     this.onTrailing = (event) => this.swallow(event);
-    this.onPointerMove = (event) => this.trackGuide(event as MouseEvent);
+    this.onPointerMove = (event) => this.onMove(event as PointerEvent);
+    this.onPointerUp = (event) => this.release(event as PointerEvent);
+    this.onPointerLost = () => this.cancelPress();
     this.view.dom.addEventListener('pointerdown', this.onPointerDown, true);
-    this.view.dom.addEventListener('pointermove', this.onPointerMove, { passive: true });
-    this.view.dom.addEventListener('pointerleave', this.onPointerMove, { passive: true });
+    // Not passive any more: a drag in flight is the one case that has to be
+    // able to refuse the platform's own interpretation of the same movement.
+    this.view.dom.addEventListener('pointermove', this.onPointerMove);
+    this.view.dom.addEventListener('pointerleave', this.onPointerMove);
+    this.view.dom.addEventListener('pointerup', this.onPointerUp, true);
+    this.view.dom.addEventListener('pointercancel', this.onPointerLost, true);
+    this.view.dom.addEventListener('lostpointercapture', this.onPointerLost, true);
     for (const type of TRAILING_EVENTS) {
       this.view.dom.addEventListener(type, this.onTrailing, true);
     }
@@ -138,10 +172,14 @@ class ZoomClickPlugin implements PluginValue {
   }
 
   destroy(): void {
+    this.cancelPress();
     this.clearGuideHover();
     this.view.dom.removeEventListener('pointermove', this.onPointerMove);
     this.view.dom.removeEventListener('pointerleave', this.onPointerMove);
     this.view.dom.removeEventListener('pointerdown', this.onPointerDown, true);
+    this.view.dom.removeEventListener('pointerup', this.onPointerUp, true);
+    this.view.dom.removeEventListener('pointercancel', this.onPointerLost, true);
+    this.view.dom.removeEventListener('lostpointercapture', this.onPointerLost, true);
     for (const type of TRAILING_EVENTS) {
       this.view.dom.removeEventListener(type, this.onTrailing, true);
     }
@@ -170,6 +208,117 @@ class ZoomClickPlugin implements PluginValue {
   }
 
   /**
+   * Every pointer move over the editor, routed by whether a mark is held.
+   *
+   * A press in flight owns the movement: its meaning is the question the
+   * threshold answers, and the guide hover has no business lighting up under a
+   * held button — it dispatches a transaction, which lands in the middle of
+   * whatever the press is doing.
+   */
+  private onMove(event: PointerEvent): void {
+    if (this.press && event.type === 'pointermove' && event.pointerId === this.press.pointerId) {
+      this.trackPress(event);
+      return;
+    }
+    this.trackGuide(event);
+  }
+
+  /**
+   * A held mark's movement: below the threshold nothing has happened yet, and
+   * past it the press is a drag for good — a gesture that wanders and comes
+   * back is still a drag, so `dragging` is never unset.
+   */
+  private trackPress(event: PointerEvent): void {
+    const press = this.press;
+    if (!press) return;
+    if (!press.dragging) {
+      const dx = event.clientX - press.startX;
+      const dy = event.clientY - press.startY;
+      if (Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
+      press.dragging = true;
+      this.beginDrag(press);
+    }
+  }
+
+  /**
+   * The threshold has been passed. The pointer is captured on the editor ROOT
+   * rather than on the mark: a drag autoscrolls, which takes the source line
+   * out of the viewport where CodeMirror recycles it, and nothing measured
+   * says the mark survives that. The root is stable by construction, is
+   * already the listener's element, and gives `lostpointercapture` as the one
+   * place a cancelled drag cleans up from.
+   */
+  private beginDrag(press: MarkPress): void {
+    try {
+      this.view.dom.setPointerCapture(press.pointerId);
+    } catch {
+      // A pointer the platform has already finished with. The drag goes on
+      // without capture rather than not at all.
+    }
+  }
+
+  /**
+   * The button comes up, and the press says which gesture it was. `pointerup`
+   * and not `click`: a gesture that leaves the mark before releasing fires no
+   * click on it at all, which is exactly the case the threshold has to judge.
+   */
+  private release(event: PointerEvent): void {
+    const press = this.press;
+    if (!press || event.pointerId !== press.pointerId) return;
+    this.press = null;
+    this.releaseCapture(press.pointerId);
+    if (press.dragging) return;
+    this.zoomToMark(press.mark);
+  }
+
+  /** Every path that ends a press without resolving it: a cancelled pointer,
+   * capture lost to something else, the view going away. */
+  private cancelPress(): void {
+    const press = this.press;
+    if (!press) return;
+    this.press = null;
+    this.releaseCapture(press.pointerId);
+  }
+
+  private releaseCapture(pointerId: number): void {
+    try {
+      if (this.view.dom.hasPointerCapture(pointerId)) {
+        this.view.dom.releasePointerCapture(pointerId);
+      }
+    } catch {
+      // Already released, or a pointer that no longer exists.
+    }
+  }
+
+  /**
+   * The zoom a press delivers when it never became a drag.
+   *
+   * Resolved from the MARK rather than from a line number taken at the press,
+   * so the answer is against the document as it is when the button comes up.
+   */
+  private zoomToMark(mark: HTMLElement): void {
+    let pos: number;
+    try {
+      pos = this.view.posAtDOM(mark);
+    } catch {
+      return;
+    }
+    const { doc } = parsedDoc(this.view.state.doc);
+    const scope = resolveZoom(doc, this.view.state.doc.lineAt(pos).number - 1);
+    if (!scope) return;
+    const rootStart = this.view.state.doc.line(scope.startLine + 1).from;
+    this.view.dispatch({
+      effects: zoomTo.of(rootStart),
+      // ALWAYS moved, where the command leaves an empty selection alone. The
+      // command zooms to the node the caret is already in; a click can name any
+      // node on screen, so the caret is usually outside the scope this creates
+      // and has to come along. The root's own start is the position the caret
+      // policy then resolves onto that node's content.
+      selection: { anchor: rootStart },
+    });
+  }
+
+  /**
    * The guide gesture's hover feedback: the guide under the pointer, as editor
    * state the decoration pass paints thicker on every line it runs through
    * (`guide-hover.ts` says why state and not a style) — and the cursor, on the
@@ -186,7 +335,7 @@ class ZoomClickPlugin implements PluginValue {
    * frequent, and an unchanged guide costs one arithmetic pass and no style
    * write.
    */
-  private trackGuide(event: MouseEvent): void {
+  private trackGuide(event: PointerEvent): void {
     if (event.type === 'pointerleave') {
       this.lastPointer = null;
       this.clearGuideHover();
@@ -345,11 +494,13 @@ class ZoomClickPlugin implements PluginValue {
     return true;
   }
 
-  private handle(event: MouseEvent): void {
+  private handle(event: PointerEvent): void {
     // A fresh gesture starting is also the only reliable point to notice a
     // PREVIOUS one that dragged off the mark and never produced its `click` —
-    // see `swallow`'s own comment for why that leaves this set.
+    // see `swallow`'s own comment for why that leaves this set. A press whose
+    // release never arrived goes the same way.
     this.consuming = false;
+    this.cancelPress();
     if (event.button !== 0) return;
     // A modified click is someone else's gesture — Obsidian's own follow-link
     // and multi-caret bindings live there — and never this one.
@@ -392,8 +543,9 @@ class ZoomClickPlugin implements PluginValue {
       return;
     }
     const { doc } = parsedDoc(this.view.state.doc);
-    const scope = resolveZoom(doc, this.view.state.doc.lineAt(pos).number - 1);
-    if (!scope) return;
+    // Resolved here only to decide whether the press is this gesture's at all.
+    // What it delivers is decided when the button comes up.
+    if (!resolveZoom(doc, this.view.state.doc.lineAt(pos).number - 1)) return;
 
     // Both, and in the capture phase: `preventDefault` alone leaves CM6's own
     // handler on `contentDOM` to run and start a selection drag from the mark,
@@ -402,16 +554,16 @@ class ZoomClickPlugin implements PluginValue {
     event.preventDefault();
     event.stopPropagation();
     this.consuming = true;
-    const rootStart = this.view.state.doc.line(scope.startLine + 1).from;
-    this.view.dispatch({
-      effects: zoomTo.of(rootStart),
-      // ALWAYS moved, where the command leaves an empty selection alone. The
-      // command zooms to the node the caret is already in; a click can name any
-      // node on screen, so the caret is usually outside the scope this creates
-      // and has to come along. The root's own start is the position the caret
-      // policy then resolves onto that node's content.
-      selection: { anchor: rootStart },
-    });
+    // Claimed on arrival, before its meaning is known: nothing else acts on it
+    // while it is undecided. A press that moves past the threshold is a drag;
+    // one that does not is the zoom it has always been.
+    this.press = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      mark,
+      dragging: false,
+    };
   }
 }
 

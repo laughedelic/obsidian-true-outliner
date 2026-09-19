@@ -50,6 +50,11 @@ const LABELS = {
   61: 'clipboard',
   62: 'clipboard',
   67: 'clipboard',
+  // Its own group, for 94's reason: the drag is driven by a real OS-level
+  // cursor under a shared Xvfb display, so another worker's own pointer move
+  // can land mid-gesture and steal it. A drag is more exposed than 94 is —
+  // it holds the button across several moves rather than clicking once.
+  81: 'dragging',
   // Zoom joined this group when its boundary catalogue gained the two paste
   // rows: a refusal whose splice lands beside the root, and an allowance whose
   // splice lands inside it. Both need a REAL paste, which is the one thing the
