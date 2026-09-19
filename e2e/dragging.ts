@@ -118,7 +118,9 @@ export function startRecording(): Promise<void> {
         return { line: line.number - 1, ch: offset - line.from };
       };
       const selected: number[] = [];
-      for (const el of dom.querySelectorAll('.to-decor-node-selected')) {
+      // `Array.from` rather than iterating the NodeList: the e2e project's own
+      // target does not give it an iterator.
+      for (const el of Array.from(dom.querySelectorAll('.to-decor-node-selected'))) {
         try {
           selected.push(cm.state.doc.lineAt(cm.posAtDOM(el)).number - 1);
         } catch {
