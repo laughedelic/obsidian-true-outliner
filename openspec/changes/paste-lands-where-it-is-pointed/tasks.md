@@ -150,9 +150,12 @@
 - [x] 6b.6 Neutralize the `at-h6-bound` cue, now reachable from a paste rather than an indent
 - [x] 6b.7 Tests for the two requirements that had none: setext in the HEADING arm, and the
       three insert paths compared as trees rather than as substrings across three documents
-- [ ] 6b.8 Follow-up change for the two parked mechanisms this one widens the reach of — atoms
-      losing their kind past column 3, and a converted heading splitting an ordered run. Both
-      measured in `docs/research/paste-across-encoding-regimes` (P5, P6)
+- [x] 6b.8 The two pre-existing mechanisms this one widens the reach of are filed as issues, not
+      carried as a follow-up change — AGENTS.md's "A follow-up is an issue" replaced the parking
+      lots while this branch was open. Re-validated against `main` at `ca828aa` first: P5 is
+      [#158](https://github.com/laughedelic/obsidian-true-outliner/issues/158), P6 is
+      [#159](https://github.com/laughedelic/obsidian-true-outliner/issues/159). Validating P5
+      turned up the mechanism behind its node-loss half, which the entry did not have
 
 ## 7. Land
 

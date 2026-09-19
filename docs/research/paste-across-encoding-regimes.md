@@ -353,11 +353,14 @@ on absorption was argued from the parent's level, the argument read as obviously
 false for every scope whose headings skip a level. The fix is the rule the content regime
 already used — take it from your siblings, not from your parent.
 
-## Parked: two pre-existing mechanisms this change widens the reach of
+## Two pre-existing mechanisms this change widens the reach of
 
 Both are real, both are measured, neither is caused by the re-encode rule — and both now fire on
-payloads that previously could not reach them at all. Deferred deliberately rather than folded
-in, since fixing either properly is its own change.
+payloads that previously could not reach them at all. Both were re-validated against `main` at
+`ca828aa` and filed as issues, which is where their diagnosis and what closing them would involve
+now live: **P5 is [#158](https://github.com/laughedelic/obsidian-true-outliner/issues/158)** and
+**P6 is [#159](https://github.com/laughedelic/obsidian-true-outliner/issues/159)**. What stays here
+is the research they came out of.
 
 ### P5. `hr`, `quote`, `callout` and `html` lose their kind past column 3
 
@@ -382,6 +385,12 @@ kind loss is old; reaching it from a caret on a heading's own line is not.)*
 This falsifies design D7's "atoms move as opaque units and land at the right column", which was
 measured only at depth 1.
 
+Filed as [#158](https://github.com/laughedelic/obsidian-true-outliner/issues/158). Re-validating it
+for filing added the mechanism behind the node-loss half: `finalize` normalizes boundaries on the
+tree BEFORE encoding, so the seam is judged on the node's current kind while the parse sees the
+kind its new column gives it — a `quote` needs no separator before a paragraph, but the paragraph
+it becomes at column 4 does.
+
 ### P6. A converted heading is always a `-`, which splits an ordered run
 
 `headingAsListItem` hardcodes `{ type: 'bullet', marker: '-' }`, as the paragraph→list-item
@@ -393,6 +402,9 @@ second CommonMark list.
 
 A plain bullet payload does the same today, so the mechanism is old and the renumbering half of
 it is arguably the sharper bug of the two.
+
+Filed as [#159](https://github.com/laughedelic/obsidian-true-outliner/issues/159), with the
+plain-bullet control re-run as the thing that establishes it is not heading-specific.
 
 ## What Obsidian does with a heading inside a list item (tasks 2.2, 2.3)
 
