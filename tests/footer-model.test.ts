@@ -9,7 +9,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse } from '../src/parse';
-import { buildRows, lineageKey, splitPath, type FooterRow } from '../src/plugin/footer-model';
+import { buildRows, lineageKey, lineageSegment, splitPath, type FooterRow } from '../src/plugin/footer-model';
 import type { OutlineNode } from '../src/model';
 import type { PlacedReference } from '../src/plugin/backlink-index';
 
@@ -192,6 +192,20 @@ describe('footer model', () => {
       }
     }
     expect(headings).toBeGreaterThan(2);
+  });
+
+  /**
+   * The zoom trail builds its crumbs with the same constructor, so a heading
+   * crumb names its level there too — without it the trail cannot draw a
+   * heading's mark at all.
+   *
+   * Negative control: drop the level from `lineageSegment`.
+   */
+  it('gives a heading’s lineage segment its level, wherever the segment is built', () => {
+    const heading = parse('## Two\n\nprose\n').children[0]!;
+    expect(heading.kind).toBe('heading');
+    expect(lineageSegment(heading).level).toBe(2);
+    expect(lineageSegment(heading.children[0]!).level).toBeUndefined();
   });
 
   it('keys a lineage on each segment’s level, so retyping a heading level rebuilds it', () => {

@@ -38,7 +38,7 @@
       that the six levels draw identical primitives under each, and that `H` alone equals the
       heading fixture from 2.1, today's mark. Negative control: drawing the `H`-alone glyph with
       the twin's derived box fails the fixture equality
-- [ ] 2.5 `buildMarkerIcon` takes the subject and materialises `markerShapes` into the existing
+- [x] 2.5 `buildMarkerIcon` takes the subject and materialises `markerShapes` into the existing
       `<svg>`, still through DOM calls on a detached element. Verify with `npm run build`, the
       lint (the `no-restricted-syntax` DOM guard included) and `52-block-markers-icons.e2e.ts`
       passing unchanged
@@ -50,7 +50,7 @@
       `src/plugin/settings/appearance.ts`. Each option's label says what it draws; each row's
       description says it changes only heading marks. Verify with a unit test that
       `normalizePluginData` fills both defaults when absent and rejects an unknown value
-- [ ] 3.2 Getter/setter pair on the plugin, plus their `WRITERS` rows. The setter saves, bumps
+- [x] 3.2 Getter/setter pair on the plugin, plus their `WRITERS` rows. The setter saves, bumps
       the footer revision, then calls `nudgeFooters` and `repaintFooters`. It does not rely on
       `forceRedraw`, which reaches only the active view (design D9). A single
       `headingMarkerStyle` getter resolves both keys into the style value (design D3). Verify
@@ -60,10 +60,10 @@
 
 ## 4. The editor
 
-- [ ] 4.1 `computeMarkers` passes the fact's level and the source's style into `MarkerWidget`.
+- [x] 4.1 `computeMarkers` passes the fact's level and the source's style into `MarkerWidget`.
       `eq` compares level and style alongside kind and shift (design D4). Verify with 6.2.
       Negative control: dropping level from `eq` leaves an H2 mark after `##` becomes `###`
-- [ ] 4.2 `MarkerWidget.toDOM` sets `data-kind` on the wrapper, and `data-level` for a heading
+- [x] 4.2 `MarkerWidget.toDOM` sets `data-kind` on the wrapper, and `data-level` for a heading
       (design D7). Verify with 6.1, which locates marks by these attributes and then asserts on
       the drawing
 
@@ -74,29 +74,29 @@
       the row's fact instead of a bare kind, and that fact carries the level after task 1.2
       (design D2). Verify with `npm run build`: a call site
       that passes a heading kind without a level no longer compiles
-- [ ] 5.2 The zoom trail's widget key joins the style (design D4). Verify with 6.4. Negative
+- [x] 5.2 The zoom trail's widget key joins the style (design D4). Verify with 6.4. Negative
       control: leaving it out keeps the old trail glyph after a style change
 
 ## 6. End-to-end
 
-- [ ] 6.1 New spec `e2e/specs/52-heading-level-markers.e2e.ts`: a note with one heading per level,
+- [x] 6.1 New spec `e2e/specs/52-heading-level-markers.e2e.ts`: a note with one heading per level,
       in outline mode. Each heading's mark carries its `data-level`, the six SVG markups are
       pairwise distinct, and every heading mark's box equals a paragraph mark's box. With the
       position set to `none`, the six markups are identical and `data-level` still names each
       level. Iterate with
       `npm run test:e2e:narrow -- 52-heading-level-markers`
-- [ ] 6.2 Same spec: retyping `## Title` as `### Title` redraws that mark to equal the level-3 markup
+- [x] 6.2 Same spec: retyping `## Title` as `### Title` redraws that mark to equal the level-3 markup
       drawn elsewhere in the note. Negative control: task 4.1's
-- [ ] 6.3 Same spec: with the note open in two panes, the second one zoomed so it shows a trail,
+- [x] 6.3 Same spec: with the note open in two panes, the second one zoomed so it shows a trail,
       switching each setting switches every heading mark in both panes, the inactive one included,
       and the trail's heading segment. No line's text moves: every heading's text rect is
       unchanged across the switch. Negative control: a setter that repaints through
       `forceRedraw` alone leaves the inactive pane's marks on the old style
-- [ ] 6.4 Same spec: with a heading ancestor in a backlinks footer's lineage and in a zoom trail,
+- [x] 6.4 Same spec: with a heading ancestor in a backlinks footer's lineage and in a zoom trail,
       each heading mark's SVG markup equals the editor's for that level and style, before and
       after a style change. Negative control: dropping `repaintFooters` from the setter leaves
       the footer on the old style
-- [ ] 6.5 Re-run `52-block-markers-icons`, `57-marker-gap` and `74-footer-chrome-pass` narrow and
+- [x] 6.5 Re-run `52-block-markers-icons`, `57-marker-gap` and `74-footer-chrome-pass` narrow and
       unchanged. They pin the box size, the gutter derivation (the checkbox stays the widest
       mark) and the footer's marks sharing the editor's column
 

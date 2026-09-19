@@ -24,9 +24,8 @@ import { StateField, type EditorState, type Extension } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view';
 import { Component, editorInfoField } from 'obsidian';
 import type { OutlineNode } from '../model';
-import { segmentContent } from '../node-text';
 import { nodeStartLine } from '../locate';
-import { lineageKey, rowFact, splitPath, type LineageSegment } from './footer-model';
+import { lineageKey, lineageSegment, rowFact, splitPath, type LineageSegment } from './footer-model';
 import { renderLineageContent } from './lineage-row';
 import { renderInline, segmentGlyph, separatorGlyph } from './backlinks-footer';
 import { lineChrome, applyLineChrome, OWN_CHROME_CLASS } from './chrome-line';
@@ -130,13 +129,9 @@ function segmentsFor(fileName: string, trail: readonly OutlineNode[]): LineageSe
     // A note's name is not markdown, so it is rendered as what it is. Running it
     // through the renderer would make a file called `**draft**` come out bold.
     { markdown: fileName, render: 'text', nodeId: FILE_SEGMENT_ID, kind: 'paragraph' },
-    // The same rule the footer's own lineage segments come from, so a crumb and
-    // a segment naming the same node say the same thing (docs/research/lineage-text-rendering).
-    ...trail.map((node) => ({
-      ...segmentContent(node),
-      nodeId: node.id,
-      kind: node.kind,
-    })),
+    // The footer's own lineage segments, so a crumb and a segment naming the
+    // same node say the same thing (docs/research/lineage-text-rendering).
+    ...trail.map(lineageSegment),
   ];
 }
 

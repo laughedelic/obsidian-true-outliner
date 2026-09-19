@@ -183,6 +183,21 @@ export interface LineageSegment {
 }
 
 /**
+ * A node as one element of a lineage: the footer's collapsed chains and the zoom
+ * trail's crumbs alike. One constructor for both, because a field one of them
+ * forgets is a mark the two surfaces draw differently — or, for a heading's
+ * level, a mark that cannot be drawn at all.
+ */
+export function lineageSegment(node: OutlineNode): LineageSegment {
+  return {
+    ...segmentContent(node),
+    nodeId: node.id,
+    kind: node.kind,
+    ...(node.level === undefined ? {} : { level: node.level }),
+  };
+}
+
+/**
  * The widget's identity: every field of every segment that changes what is
  * DRAWN.
  *
@@ -324,12 +339,7 @@ export function buildRows(
         // (docs/research/structured-backlinks, D5).
         segments: row.elements.map((n) => {
           visible.add(n.id);
-          return {
-            ...segmentContent(n),
-            nodeId: n.id,
-            kind: n.kind,
-            ...(n.level === undefined ? {} : { level: n.level }),
-          };
+          return lineageSegment(n);
         }),
         kind: row.kind,
       });
