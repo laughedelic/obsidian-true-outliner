@@ -898,7 +898,8 @@ for decoration work; this section is kept as the original record.)*
   pattern is worth copying regardless of the visual: a `data-level` attribute plus a
   CSS-custom-property indirection (`--heading-marker`, consumed by `content:`) lets
   themes/snippets restyle markers per level without touching the plugin — our markers
-  could expose `data-kind` (and `data-level`) the same way.
+  could expose `data-kind` (and `data-level`) the same way. *Taken up by the
+  `heading-level-markers` change; see [heading-level-markers.md](heading-level-markers.md).*
 - **Marker interactivity.** Lapel's markers are clickable: a `Menu` listing heading
   levels 1–6 (checked state on the current level, `lucide-heading-N` icons) plus a
   "Body" option, dispatching a line rewrite. This is exactly the "future interactivity"
