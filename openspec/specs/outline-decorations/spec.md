@@ -88,10 +88,15 @@ rendered line. A paragraph, fence, table, quote or callout written as a child of
 therefore begin on its own depth's column, and SHALL begin on the same column whether the file
 indented it with a tab or with any number of spaces.
 
-A run that states a depth rather than restating one SHALL be left as it is. A line under a heading
+A run that states a depth rather than restating one SHALL be left standing. A line under a heading
 or at the top level takes its depth from its ancestor, so its leading whitespace is ordinary
-content and SHALL render at its own width — at the top level it is also the only thing
-distinguishing an indented code block from a paragraph.
+content — at the top level it is also the only thing distinguishing an indented code block from a
+paragraph — and SHALL render at the width of its own characters. Obsidian resolves such a run into
+boxes of four columns each and states their width from its own list-indent value, which is wider
+than the spaces inside them; that width SHALL NOT reach the rendered line, so every position in a
+standing run renders at its own character's advance and a tab renders to its own tab stop. What
+this costs against stock rendering — a narrower run, and a text column that moves left with it —
+is accepted: the characters are what the run states, and they state it at their own size.
 
 What a line carries BEYOND its node's own indentation is not structure either and SHALL be left
 standing, as the characters it is: a line indented deeper than the node it belongs to — code
@@ -176,7 +181,27 @@ already decided by the time this layer runs.
 #### Scenario: A child of a heading keeps its own leading whitespace
 
 - **WHEN** a paragraph written with leading spaces sits under a heading, or at the top level
-- **THEN** its whitespace renders at its own width, as stock Obsidian renders it
+- **THEN** its whitespace renders at the width of those characters, with nothing wider than them
+  standing between the line's own start and its text
+
+#### Scenario: A standing run of four columns or more steps one character at a time
+
+- **WHEN** the caret walks the leading whitespace of a top-level line indented four columns or
+  more
+- **THEN** each press moves it by one space's own advance, with no position rendering at a box
+  edge, and a click inside the run lands on the character it is over
+
+#### Scenario: A list written inside a quote steps by its own characters
+
+- **WHEN** a nested list is written inside a block quote, whose lines are one node and whose levels
+  are therefore not tree levels
+- **THEN** each of its levels steps by the width of the characters that indent it, not by the
+  outline unit and not by the width Obsidian would state for them
+
+#### Scenario: A tab-indented top-level line and a four-space one agree
+
+- **WHEN** the same top-level line is written once indented with a tab and once with four spaces
+- **THEN** both render their text on the same column
 
 #### Scenario: Outline mode off is stock
 
@@ -200,7 +225,10 @@ the run itself", "walks a line's surplus one character at a time", "crosses the 
 indentation in one press, and draws the caret at both ends", "leaves deletion to stock, in the
 surplus and in the run alike", "draws the caret on a line Shift+Enter opens, which is indentation
 alone", "leaves the item's own indentation to the list rules", "touches nothing with outline mode
-off"); `tests/decorate.test.ts` ("decorate: source indentation (indentCh)").
+off", "renders a standing run at the width of its own characters", "walks a standing run one
+character at a time", "puts the caret where a click inside a standing run points", "puts a
+tab-indented top-level line on the same column as a four-space one", "steps a list written inside a
+quote by its own characters"); `tests/decorate.test.ts` ("decorate: source indentation (indentCh)").
 
 ### Requirement: One grid, one unit, from one declaration
 

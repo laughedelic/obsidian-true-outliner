@@ -33,6 +33,6 @@
 - [x] 3.3 Remove the probe spec once its figures are in
   `docs/research/source-indentation-width`.
 - [x] 3.4 `openspec validate a-standing-run-renders-at-its-own-width --strict`
-- [ ] 3.5 Sync the delta into `openspec/specs/outline-decorations/spec.md`.
-- [ ] 3.6 Archive the change.
-- [ ] 3.7 `npm version patch`, which rewrites `manifest.json` and `versions.json` and cuts no tag.
+- [x] 3.5 Sync the delta into `openspec/specs/outline-decorations/spec.md`.
+- [x] 3.6 Archive the change.
+- [x] 3.7 `npm version patch`, which rewrites `manifest.json` and `versions.json` and cuts no tag.
