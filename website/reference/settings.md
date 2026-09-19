@@ -2,6 +2,8 @@
 
 Every setting, in the order it appears under **Settings → True Outliner**. On Obsidian 1.13 and later they are also found by Obsidian's settings search. Settings take effect immediately in every open pane unless noted.
 
+<Shot name="settings" alt="The True Outliner settings tab" caption="The settings tab, as it opens." />
+
 ## General
 
 | Setting | Choices | Default |
