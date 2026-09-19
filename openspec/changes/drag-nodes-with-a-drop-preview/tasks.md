@@ -246,9 +246,12 @@
       said against what landed
 - [ ] 7.2 Real-device pass on a phone via the beta build: the long press, the drag, the preview at
       the mobile unit, and the cancel — record it, since the harness cannot drive it
-- [ ] 7.3 Fold the pass's findings into docs/research/node-drag-and-drop's open-questions section,
-      and close the affordance-budget entry in docs/research/decoration-follow-ups against what
-      this change settled and what it left open
+- [ ] 7.3 Fold the pass's findings into docs/research/node-drag-and-drop's open-questions section.
+      The affordance-budget entry in docs/research/decoration-follow-ups is settled in half by this
+      change — the handle question is answered, the task's ZOOM is not — and the parking lots are
+      closed to new entries, so that residue MOVES OUT to an issue as this change touches it,
+      with the user's go-ahead, rather than being edited in place. Its measurements stay in the
+      note; the issue carries the diagnosis and what closing it would involve
 
 ## 8. Land
 
