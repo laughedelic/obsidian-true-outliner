@@ -14,10 +14,10 @@
       list for every kind (design D1). The drawing subject is the union in design D2, and the
       non-heading kinds keep their exact current shapes. Verify with a unit test that each
       non-heading kind's primitives equal the ones `buildMarkerIcon` draws today, copied into the
-      test as fixtures
+      test as fixtures, along with today's heading `H` for 2.4
 - [ ] 2.2 The heading glyphs (`H`, `#`), the six monoline digit paths and the placement helpers,
       exactly as in `docs/research/heading-level-markers.md` "Geometry" and "The digits". The
-      digit stroke is scale-compensated (design D6). Verify with unit tests over all four styles ×
+      digit stroke is scale-compensated (design D6). Verify with unit tests over all six styles ×
       six levels that every primitive's extent, stroke included, lies inside the viewBox
       (bounded by path control points), and that the six digit paths are pairwise distinct.
       Negative control: moving the twin digit box one unit right pushes a digit's stroke out of
@@ -27,7 +27,11 @@
       draws at its table weights, and that the `H`-beside glyph's top and bottom equal the
       digit's ink extent to within 0.01 units. Negative control: a constant full-height `H` box
       fails the equality
-- [ ] 2.4 `buildMarkerIcon` takes the subject and materialises `markerShapes` into the existing
+- [ ] 2.4 The two no-digit styles: the glyph alone, the same for every level. Verify with unit tests
+      that the six levels draw identical primitives under each, and that `H` alone equals the
+      heading fixture from 2.1, today's mark. Negative control: drawing the `H`-alone glyph with
+      the twin's derived box fails the fixture equality
+- [ ] 2.5 `buildMarkerIcon` takes the subject and materialises `markerShapes` into the existing
       `<svg>`, still through DOM calls on a detached element. Verify with `npm run build`, the
       lint (the `no-restricted-syntax` DOM guard included) and `52-block-markers-icons.e2e.ts`
       passing unchanged
@@ -35,7 +39,7 @@
 ## 3. The settings
 
 - [ ] 3.1 Declare `headingMarkerGlyph` (`H` | `hash`, default `H`) and `headingMarkerLevel`
-      (`beside` | `subscript`, default `beside`) as `choice` settings in
+      (`beside` | `subscript` | `none`, default `beside`) as `choice` settings in
       `src/plugin/settings/appearance.ts`. Each option's label says what it draws; each row's
       description says it changes only heading marks. Verify with a unit test that
       `normalizePluginData` fills both defaults when absent and rejects an unknown value
@@ -68,7 +72,9 @@
 
 - [ ] 6.1 New spec `e2e/specs/52-heading-level-markers.e2e.ts`: a note with one heading per level,
       in outline mode. Each heading's mark carries its `data-level`, the six SVG markups are
-      pairwise distinct, and every heading mark's box equals a paragraph mark's box. Iterate with
+      pairwise distinct, and every heading mark's box equals a paragraph mark's box. With the
+      position set to `none`, the six markups are identical and `data-level` still names each
+      level. Iterate with
       `npm run test:e2e:narrow -- 52-heading-level-markers`
 - [ ] 6.2 Same spec: retyping `## Title` as `### Title` redraws that mark to equal the level-3 markup
       drawn elsewhere in the note. Negative control: task 4.1's
@@ -86,8 +92,8 @@
 ## 7. Manual testing and landing
 
 - [ ] 7.1 Add `test-vault/Notes/Heading level markers.md`, a nested H1–H6 outline with
-      paragraphs, a list and a reference from another note. Verify by manual review of all four
-      styles, light and dark, desktop and mobile emulation, footer and zoom trail included
+      paragraphs, a list and a reference from another note. Verify by manual review of all six
+      styles, `#` alone's weight in particular, light and dark, desktop and mobile emulation, footer and zoom trail included
 - [ ] 7.2 `npm run lint` and the unit suite pass, and the research index row for
       `heading-level-markers.md` resolves
 - [ ] 7.3 `openspec validate heading-level-markers --strict`

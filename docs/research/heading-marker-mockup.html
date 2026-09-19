@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Heading level markers</title>
 <!--
-  Mockup for heading-level-markers.md: the four heading marker styles — `H` or
-  `#`, with the level digit beside the glyph or as a subscript — drawn at the
-  plugin's real geometry. Each is shown in a nested document beside the
+  Mockup for heading-level-markers.md: the six heading marker styles — `H` or
+  `#`, with the level digit beside the glyph, as a subscript, or not shown —
+  drawn at the plugin's real geometry. Each is shown in a nested document beside the
   paragraph and bullet marks it has to sit with, then at 46px, and at both
   shipped box sizes.
 
@@ -129,8 +129,8 @@
 <main>
   <header>
     <h1>Heading level markers</h1>
-    <p>Two axes, four styles: <strong>H</strong> or <strong>#</strong>, with the level beside the glyph or as a
-      subscript. Each style carries its own fixed weights. See
+    <p>Two axes, six styles: <strong>H</strong> or <strong>#</strong>, with the level beside the glyph, as a
+      subscript, or not shown. Each style carries its own fixed weights. See
       <a href="heading-level-markers.md">heading-level-markers.md</a> for the geometry and the rounds that led
       here.</p>
   </header>
@@ -151,7 +151,7 @@
   </section>
 
   <section>
-    <h2>The four styles</h2>
+    <h2>The six styles</h2>
     <p>At 46px for the geometry, then at the editor's 13.6px and the footer's 11.8px box.</p>
     <div id="proofs"></div>
   </section>
@@ -247,6 +247,15 @@
         return glyphHash(0.5, 1.4, 9.2, 9.6, 1.7 * this.lw) + digit(l, SUB_DIGIT, T_MONO * this.dw * SUB_TSCALE, m);
       },
     },
+    /* No digit: every level draws the same mark. `H` is today's mark exactly. */
+    'H/none': {
+      name: 'H, no level', lw: 1.0, dw: null,
+      draw() { return glyphH(3.0, 2.0, 10.0, 12.0, 2.0 * this.lw); },
+    },
+    'hash/none': {
+      name: '#, no level', lw: 1.0, dw: null,
+      draw() { return glyphHash(2.4, 2.0, 11.2, 12.0, 1.8 * this.lw); },
+    },
   };
 
   const S = { glyph: 'H', layout: 'twin', digit: 'mono' };
@@ -291,7 +300,7 @@
     $('proofs').innerHTML = Object.entries(STYLES).map(([k, st]) => `
       <div class="proof${k === key() ? ' is-current' : ''}">
         <div><div class="name">${st.name}</div>
-          <div class="weights">glyph ${st.lw.toFixed(2)}× · digit ${st.dw.toFixed(2)}×</div></div>
+          <div class="weights">glyph ${st.lw.toFixed(2)}×${st.dw === null ? '' : ` · digit ${st.dw.toFixed(2)}×`}</div></div>
         <div>
           <div class="art-row">${[1, 2, 3, 4, 5, 6].map(l => `<div class="cell"><div class="art">${svg(st, l)}</div><div class="lvl">H${l}</div></div>`).join('')}</div>
           <div class="true">
@@ -317,7 +326,7 @@
   }
 
   seg('glyph', [['H', 'H'], ['hash', '#']], 'glyph');
-  seg('layout', [['twin', 'beside'], ['subscript', 'subscript']], 'layout');
+  seg('layout', [['twin', 'beside'], ['subscript', 'subscript'], ['none', 'none']], 'layout');
   seg('digit', [['mono', 'outline'], ['seg', 'segment'], ['type', 'type']], 'digit');
 
   $('size').addEventListener('input', e => {

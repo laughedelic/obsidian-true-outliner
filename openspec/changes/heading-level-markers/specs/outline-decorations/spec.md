@@ -1,17 +1,18 @@
 ## ADDED Requirements
 
-### Requirement: A heading's marker names its level, in a chosen style
-A heading's marker SHALL name the heading's level, 1 to 6, as well as its kind. It SHALL be
-drawn as a heading glyph and a level digit, and every level SHALL draw a different mark, so no
-two of the six levels are confusable.
-
-Two settings SHALL choose the style, independently of each other:
+### Requirement: A heading's marker can name its level, in a chosen style
+A heading's marker SHALL be drawn as a heading glyph, optionally followed by a digit naming the
+heading's level, 1 to 6. Two settings SHALL choose the style, independently of each other:
 
 - The **glyph**: the letter `H`, or `#` (markdown's own heading syntax).
-- The **level digit's position**: *beside* the glyph, standing as tall as it, or as a
-  *subscript*, smaller, below and to the right of it.
+- The **level digit's position**: *beside* the glyph, standing as tall as it; as a *subscript*,
+  smaller, below and to the right of it; or *none*, where no digit is drawn.
 
-The four combinations SHALL each draw at weights fixed by the style itself; no setting SHALL
+With the digit shown, every level SHALL draw a different mark, so no two of the six levels are
+confusable. With no digit, every level SHALL draw the same mark: the glyph alone. With `H`, that
+mark SHALL be the heading marker this layer drew before levels existed, unchanged.
+
+The six combinations SHALL each draw at weights fixed by the style itself; no setting SHALL
 adjust a style's weights. The defaults SHALL be `H`, with the digit *beside* it.
 
 The level SHALL change the ink inside the marker's box and nothing else. At every level and in
@@ -28,20 +29,31 @@ Every surface that draws a node's kind mark SHALL draw the same level mark for t
 level and style. Those surfaces are the editor's marker, the backlinks footer's marker and
 inline lineage segments, and the zoom trail's segments.
 
-The mark SHALL follow the document. When a heading's level changes, the next render SHALL draw
-the new level's mark, even though the node's kind and column are unchanged.
+The mark SHALL follow the document. While the digit is shown and a heading's level changes, the
+next render SHALL draw the new level's mark, even though the node's kind and column are
+unchanged.
 
 #### Scenario: Six levels, six marks
-- **WHEN** a note holds one heading at each level from H1 to H6, in outline mode
+- **WHEN** a note holds one heading at each level from H1 to H6, in outline mode, with the digit
+  shown *beside* the glyph or as a *subscript*
 - **THEN** each heading's marker is drawn differently from the other five, and each names its
   own level
 
+#### Scenario: No digit, one mark
+- **WHEN** the same note is rendered with the digit's position set to *none*
+- **THEN** all six headings draw the same mark, the glyph alone
+
+#### Scenario: `H` without a digit is the mark from before levels existed
+- **WHEN** the glyph is `H` and the digit's position is *none*
+- **THEN** a heading's marker is drawn exactly as a heading's marker was drawn before this change
+
 #### Scenario: The mark follows a level change
-- **WHEN** the reader turns `## Title` into `### Title` by typing a third `#`
+- **WHEN** the reader turns `## Title` into `### Title` by typing a third `#`, with the digit
+  shown
 - **THEN** the heading's marker names level 3 on the next render, not level 2
 
 #### Scenario: The box is the same at every level and in every style
-- **WHEN** H1 and H6 headings and a paragraph are rendered under each of the four styles
+- **WHEN** H1 and H6 headings and a paragraph are rendered under each of the six styles
 - **THEN** every marker's rendered width and height are identical to the paragraph's, and each
   heading mark's ink lies inside its box
 
@@ -55,7 +67,7 @@ the new level's mark, even though the node's kind and column are unchanged.
 - **THEN** heading markers draw `H`, with the level digit beside it at the same height
 
 #### Scenario: The gutter does not move
-- **WHEN** the style changes between any two of the four styles
+- **WHEN** the style changes between any two of the six styles
 - **THEN** no line's text moves, and the widest mark the gutter is derived from is unchanged
 
 #### Scenario: A style change reaches every surface without a rebuild
@@ -71,8 +83,9 @@ the new level's mark, even though the node's kind and column are unchanged.
 ### Requirement: A marker states the kind it draws
 Every marker this layer draws for a node SHALL carry that node's kind as a `data-kind` attribute,
 on plain lines as well as widget-replaced atoms. A heading's marker SHALL also carry its level as
-a `data-level` attribute. The attributes SHALL always agree with what the marker draws. They SHALL
-NOT change how anything renders, and this layer's own styles SHALL NOT depend on them.
+a `data-level` attribute, whether or not the style draws the digit. The attributes SHALL always
+name the node the marker marks. They SHALL NOT change how anything renders, and this layer's own
+styles SHALL NOT depend on them.
 
 #### Scenario: A plain-line marker names its kind
 - **WHEN** a paragraph and a code fence render markers in outline mode
@@ -80,5 +93,4 @@ NOT change how anything renders, and this layer's own styles SHALL NOT depend on
 
 #### Scenario: A heading's marker names its level
 - **WHEN** an H3 heading renders its marker
-- **THEN** the marker carries `data-kind="heading"` and `data-level="3"`, and draws the level-3
-  mark
+- **THEN** the marker carries `data-kind="heading"` and `data-level="3"`, under every style

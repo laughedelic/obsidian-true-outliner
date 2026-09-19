@@ -26,8 +26,8 @@ The mark it must draw, with exact geometry, is the same note's "Decision".
 ## Goals / Non-Goals
 
 **Goals:**
-- Draw the four styles exactly as the research note's geometry table specifies, from one
-  definition every surface shares.
+- Draw the six styles exactly as the research note's geometry table specifies, from one
+  definition every surface shares. `H` with no digit reproduces today's heading mark exactly.
 - Make the geometry checkable by the unit suite, which has no DOM
   ([#156](https://github.com/laughedelic/obsidian-true-outliner/issues/156)).
 - Give every identity check on the drawing path the level and the style, so neither an edit nor a
@@ -62,23 +62,25 @@ gain `level`, present exactly when the kind is `heading`, forwarded from the nod
 `segmentMarker`'s kind-only fallback, for a chain with no elements, takes the row's own fact
 instead of a bare kind, so it too has a level to pass.
 
-*Alternative.* Defaulting a missing level to 1, or drawing the glyph without a digit. Either
+*Alternative.* Defaulting a missing level to 1, or falling back to the no-digit mark. Either
 would make a model defect render as a plausible mark instead of failing to compile.
 
 ### D3. The style travels as data with the other drawing inputs
 
 The two settings resolve to one `HeadingMarkerStyle` value, `{ glyph: 'H' | 'hash', level:
-'beside' | 'subscript' }`. It is read fresh per recompute through the source interfaces that
+'beside' | 'subscript' | 'none' }`. With `none`, the drawing ignores the subject's level. The
+subject still carries it (D2), so `data-level` stays true and the identity checks in D4 need no
+special case. It is read fresh per recompute through the source interfaces that
 already carry marker settings: `DecorationSource` for the editor, `FooterSource` for the footer,
 and `ZoomTrailSource` for the trail. The fixed weights live in a table keyed by the style inside
 the geometry module. They appear nowhere else.
 
-*Alternative considered.* Draw all four styles into every heading mark and select one by an
+*Alternative considered.* Draw all six styles into every heading mark and select one by an
 attribute on `body`. A setting change would then be paint-only. It is rejected for two reasons:
 
 - `57-marker-gap.e2e.ts` reads a mark's ink as the union of its children's rects, and a
   `display: none` child reports a zero rect at the origin, which corrupts that union.
-- Every heading would carry four drawings to show one.
+- Every heading would carry six drawings to show one.
 
 ### D4. The level and the style join every identity check on the drawing path
 
@@ -120,11 +122,13 @@ so the tests never trust the label (D8).
     conservatively by the path's control points;
   - the six digit paths are pairwise distinct;
   - each style's weights match the table;
-  - the `H`-beside glyph's top and bottom equal the digit's ink extent.
+  - the `H`-beside glyph's top and bottom equal the digit's ink extent;
+  - with no digit, the six levels draw identical primitives, and `H` alone equals today's
+    heading primitives.
 - **Unit (model)**: a heading's fact and lineage segment carry its level, and no other kind
   carries one. `lineageKey` differs between two segments that differ only in level.
 - **e2e (editor)**, all in a new decorations-group spec:
-  - the six levels mount six different SVG markups;
+  - the six levels mount six different SVG markups, or one shared markup with no digit;
   - retyping a level redraws the mark;
   - each setting switches every mounted heading mark;
   - the width and height equality against a paragraph still holds.
@@ -135,9 +139,11 @@ so the tests never trust the label (D8).
 
 ## Risks / Trade-offs
 
-- **[Risk]** Every heading changes its look on upgrade, because there is no "plain `H`" style to
-  keep. → That is the decision as specified (proposal, Non-goals). Adding a third value to the
-  level-position axis would be a small follow-up if review asks for it.
+- **[Risk]** Every heading changes its look on upgrade, because the default shows the level. →
+  `H` with no digit is today's mark exactly, one setting away. A unit test pins it to today's
+  primitives.
+- **[Risk]** `#` with no digit has not been reviewed at real size. → It is drawn to the `H`'s
+  footprint and weight, and manual review (task 7.1) settles its weight before landing.
 - **[Risk]** `#95` and `#124` touch the footer's and the drag preview's calls into
   `buildMarkerIcon`. → The call sites change in only a few lines each. Whichever lands second
   passes the subject from D2. The type change makes a missed site a compile error, not a silent

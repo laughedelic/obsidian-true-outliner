@@ -11,7 +11,7 @@ Node kind notation — the marker drawn beside a node — SHALL be identical bet
 element and a referencing node: the same glyph for the same kind and, for a heading, the same
 level, at the same size and in the same colour. It SHALL also be the glyph the editor draws for
 that kind and level, in the heading marker style the reader has chosen
-(`outline-decorations`, "A heading's marker names its level, in a chosen style"). Emphasis
+(`outline-decorations`, "A heading's marker can name its level, in a chosen style"). Emphasis
 SHALL be carried by text treatment alone, with lineage rendered dimmer than the referencing node
 it leads to.
 

@@ -9,9 +9,9 @@ technical objection, and the roadmap carries it as part of "Marker configurabili
 ([#157](https://github.com/laughedelic/obsidian-true-outliner/issues/157)).
 
 This note records the design pass that settled the mark: the constraints any candidate had to
-meet, what three review rounds tried and why each rejected candidate lost, and the four styles
+meet, what three review rounds tried and why each rejected candidate lost, and the six styles
 that came out of it, with their exact geometry. The companion
-[heading-marker-mockup.html](heading-marker-mockup.html) draws the four at real size in a nested
+[heading-marker-mockup.html](heading-marker-mockup.html) draws the six at real size in a nested
 document, beside the paragraph and bullet marks they have to sit with — open it in a browser. It
 is a mockup, not a measurement: what it settles is which marks to build.
 
@@ -121,16 +121,22 @@ opacity; Stacked put the glyph above the digit, each at the full width.
 - **Subscript** looked best in both glyphs at glyph 0.85×, digit 0.90×. The glyph steps back far
   enough that the small digit no longer reads as an afterthought.
 - **A tall `#` for subscript** (8.6 × 12.2 units) was tried and rejected.
+- **A glyph with no digit** was asked for at proposal review, for both glyphs, so that the
+  level stays optional. With `H` this is today's mark exactly. With `#` it is new geometry
+  (below): it was drawn to the `H`'s footprint and weight, and no review round has looked at
+  it at real size.
 
 ## Decision
 
-Two independent axes, four styles, each with fixed weights. The axes are settings; the weights
+Two independent axes, six styles, each with fixed weights. The axes are settings; the weights
 are part of each style and are not exposed.
 
-| | **Twin** — digit beside the glyph | **Subscript** — digit below and right |
-| --- | --- | --- |
-| **`H`** | glyph 1.00×, digit 1.00×; `H` height matched to the digit's ink | glyph 0.85×, digit 0.90× |
-| **`#`** | glyph 0.90×, digit 1.00× | glyph 0.85×, digit 0.90× |
+| | **Twin**: digit beside the glyph | **Subscript**: digit below and right | **None**: glyph only |
+| --- | --- | --- | --- |
+| **`H`** | glyph 1.00×, digit 1.00×; `H` height matched to the digit's ink | glyph 0.85×, digit 0.90× | today's `H`, unchanged |
+| **`#`** | glyph 0.90×, digit 1.00× | glyph 0.85×, digit 0.90× | `#` at the `H`'s footprint |
+
+Without a digit, every level draws the same mark, so the heading's level is not shown.
 
 ### Geometry
 
@@ -143,6 +149,8 @@ weight is applied.
 | `#` twin | `0.4, 4.2, 7.2, 7.6` | 1.35 | `9.2, 2.2, 6.2, 11.6` | 1.55 |
 | `H` subscript | `0.8, 1.4, 8.2, 10.4` | 1.70 | `10.0, 7.4, 5.4, 7.2` | 1.28 |
 | `#` subscript | `0.5, 1.4, 9.2, 9.6` | 1.45 | `10.0, 7.4, 5.4, 7.2` | 1.28 |
+| `H` alone | `3.0, 2.0, 10.0, 12.0` | 2.00 | — | — |
+| `#` alone | `2.4, 2.0, 11.2, 12.0` | 1.80 | — | — |
 
 - **`H`**: two stems `t` wide and a crossbar `t` tall, centred on the box.
 - **`#`**: two stems at `x + 0.20w` and `x + 0.62w`, slanted by `min(0.9, 0.11w)` from top to
@@ -173,6 +181,8 @@ the stroke width is divided by the scale, so `t` above is the stroke as drawn in
 | --- | ---: | ---: | ---: |
 | Twin (either glyph) | 8.3px tall | 7.2px tall | +6.51px |
 | Subscript (either glyph) | 6.0px tall | 5.2px tall | +6.07px |
+| `H` alone | — | — | +4.25px |
+| `#` alone | — | — | +4.76px |
 
 The twin's rightmost ink, the digit's stroke, reaches 96% of the box's half-width and leaves 7.49px
 to its text. That clears the stated 6.00px gap, and the checkbox's +8.00px is still the widest
@@ -181,9 +191,8 @@ move, and neither does `57-marker-gap.e2e.ts`.
 
 ## What the decision leaves
 
-- **Keeping today's plain `H`** would need a third value on the layout axis, "no level", which
-  none of the four styles covers. Whether it earns a place is a question for the change's review,
-  not something this pass measured.
+- **`#` alone** has not been reviewed at real size. Its weight is a first guess, matched to the
+  `H` it stands beside in the settings; the mockup draws it for review.
 - **Font-drawn digits** remain the best-looking option and the one we rejected. They would become
   worth revisiting only if the ink stopped being part of the gap derivation.
 - **Configuring the other kinds' marks** (an off switch for the marker layer, per-kind icons, a
