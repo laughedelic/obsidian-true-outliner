@@ -10,8 +10,10 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from 
 import { onContentUpdated, useData } from 'vitepress';
 import { ancestors, buildTree, descendants, labelOf, type ONode, type OTree } from './tree';
 import { ICONS } from './icons';
+import { outlineOn } from './state';
 
 const STORAGE_KEY = 'true-outliner:docs-view';
+const EDIT_ROOT = 'https://github.com/laughedelic/obsidian-true-outliner/edit/main/website/';
 
 interface Mark {
   node: ONode;
@@ -28,7 +30,7 @@ interface Guide {
 
 const { frontmatter, page } = useData();
 const enabled = computed(() => frontmatter.value.outlineView !== false);
-const outline = ref(true);
+const outline = outlineOn;
 const layer = ref<HTMLElement | null>(null);
 const tree = shallowRef<OTree | null>(null);
 // Shallow: a node must stay the object the tree holds, not a reactive proxy
@@ -281,20 +283,19 @@ onBeforeUnmount(() => {
 <template>
   <nav v-if="enabled && outline && zoomRoot" class="to-o-trail" aria-label="Zoom trail">
     <button type="button" class="to-o-crumb to-o-crumb-page" @click="zoomTo(null)" title="Zoom out fully">
-      <span class="to-o-zoomout" aria-hidden="true" v-html="ICONS.zoomOut"></span>{{ page.title }}
+      <span class="to-o-zoomout" aria-hidden="true" v-html="ICONS.zoomOut"></span><span class="to-o-crumb-text">{{ page.title }}</span>
     </button>
     <template v-for="a in trail" :key="a.id">
       <span class="to-o-sep" aria-hidden="true">›</span>
-      <button type="button" class="to-o-crumb" @click="zoomTo(a)">{{ labelOf(a) }}</button>
+      <button type="button" class="to-o-crumb" @click="zoomTo(a)"><span class="to-o-crumb-text">{{ labelOf(a, 80) }}</span></button>
     </template>
   </nav>
   <Teleport to="body">
     <div v-if="enabled" class="to-o-status" role="toolbar" aria-label="Page view">
       <template v-if="outline">
-        <button type="button" title="Fold all" aria-label="Fold all" @click="foldAll(true)" v-html="ICONS.foldAll"></button>
+        <button type="button" aria-label="Fold all" @click="foldAll(true)" v-html="ICONS.foldAll"></button>
         <button
           type="button"
-          title="Unfold all"
           aria-label="Unfold all"
           :disabled="!anyFolded"
           @click="foldAll(false)"
@@ -304,7 +305,6 @@ onBeforeUnmount(() => {
       </template>
       <button
         type="button"
-        title="Outline view"
         aria-label="Outline view"
         :aria-pressed="outline"
         @click="setOutline(true)"
@@ -312,12 +312,19 @@ onBeforeUnmount(() => {
       ></button>
       <button
         type="button"
-        title="Long-form view"
         aria-label="Long-form view"
         :aria-pressed="!outline"
         @click="setOutline(false)"
         v-html="ICONS.longForm"
       ></button>
+      <span class="to-o-status-sep" aria-hidden="true"></span>
+      <a
+        :href="EDIT_ROOT + page.relativePath"
+        target="_blank"
+        rel="noreferrer"
+        aria-label="Edit this page on GitHub"
+        v-html="ICONS.edit"
+      ></a>
     </div>
   </Teleport>
   <div v-if="enabled" ref="layer" class="to-o-layer" :class="{ 'is-on': outline }" aria-hidden="false">

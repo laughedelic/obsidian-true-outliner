@@ -90,10 +90,6 @@ export default defineConfig({
       ],
     },
     socialLinks: [{ icon: 'github', link: 'https://github.com/laughedelic/obsidian-true-outliner' }],
-    editLink: {
-      pattern: 'https://github.com/laughedelic/obsidian-true-outliner/edit/main/website/:path',
-      text: 'Edit this page on GitHub',
-    },
     search: { provider: 'local' },
     footer: {
       message: 'Released under the MIT License.',

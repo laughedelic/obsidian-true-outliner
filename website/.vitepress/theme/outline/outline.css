@@ -35,7 +35,8 @@
   border-bottom: 0;
   border-radius: 8px 0 0 0;
 }
-.to-o-status button {
+.to-o-status :is(button, a) {
+  position: relative;
   display: grid;
   place-items: center;
   width: 24px;
@@ -47,7 +48,7 @@
   color: inherit;
   cursor: pointer;
 }
-.to-o-status button:hover:not(:disabled) {
+.to-o-status :is(button, a):hover:not(:disabled) {
   color: var(--vp-c-text-1);
   background: var(--vp-c-default-soft);
 }
@@ -59,13 +60,38 @@
   color: var(--vp-c-brand-1);
   background: var(--vp-c-brand-soft);
 }
+.to-o-status :is(button, a) > svg {
+  width: 16px;
+  height: 16px;
+}
+.to-o-status :is(button, a)::after {
+  content: attr(aria-label);
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+  color: var(--vp-c-bg);
+  background: var(--vp-c-text-1);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s;
+}
+.to-o-status :is(button, a):is(:hover, :focus-visible)::after {
+  opacity: 1;
+  transition-delay: 0.25s;
+}
 .to-o-status-sep {
   width: 1px;
   height: 14px;
   margin: 0 4px;
   background: var(--vp-c-divider);
 }
-.to-o-status button:focus-visible,
+.to-o-status :is(button, a):focus-visible,
+.to-o-backlinks :is(button, [role='link']):focus-visible,
 .to-o-trail button:focus-visible,
 .to-o-layer button:focus-visible {
   outline: 2px solid var(--vp-c-brand-1);
@@ -91,13 +117,15 @@
   cursor: pointer;
   line-height: 1.5;
   padding: 0.1rem 0.35rem;
-  max-width: 22ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+}
+.to-o-crumb-text {
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .to-o-crumb:hover {
   color: var(--vp-c-text-1);
@@ -167,21 +195,25 @@
   margin: 0;
 }
 
-/* A folded node says how much it hides, after its own text. */
+/* A folded node says how much it hides, after its own text: the plugin's
+ * ellipsis and count. */
+.to-o-count::before {
+  content: '…';
+  margin-right: 0.3em;
+}
 .vp-doc .to-o-on .to-o-folded::after {
-  content: attr(data-to-hidden);
+  content: '… ' attr(data-to-hidden);
+}
+.vp-doc .to-o-on .to-o-folded::after,
+.to-o-count {
   display: inline-block;
-  margin-left: 0.5em;
-  padding: 0 0.45em;
-  border-radius: 999px;
+  margin-left: 0.4em;
   font-family: var(--vp-font-family-base);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.6;
+  font-size: 0.85em;
+  font-weight: 400;
   letter-spacing: 0;
-  vertical-align: middle;
-  color: var(--vp-c-text-2);
-  background: var(--vp-c-default-soft);
+  color: var(--vp-c-text-3);
+  user-select: none;
 }
 
 /* Zooming into an item leaves its ancestor items in the flow, because they
@@ -309,6 +341,144 @@
   left: 4.5px;
 }
 
+/* ---- Structured backlinks ------------------------------------------- */
+
+.to-o-backlinks {
+  margin-top: 4rem;
+  font-size: 15px;
+}
+.to-o-backlinks button {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.to-o-bl-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  margin-bottom: 0.6rem;
+  color: var(--vp-c-text-2);
+}
+.to-o-bl-icon,
+.to-o-bl-chevron {
+  width: 0.9rem;
+  height: 0.9rem;
+  flex: none;
+  color: var(--vp-c-text-3);
+}
+.to-o-bl-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+.to-o-bl-totals {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--vp-c-text-3);
+}
+.to-o-bl-group {
+  margin-bottom: 0.6rem;
+  padding: 0.5rem 0.75rem 0.6rem;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  background: var(--vp-c-bg-soft);
+}
+.to-o-bl-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  width: 100%;
+}
+.to-o-bl-chevron {
+  align-self: center;
+  transition: transform 0.12s;
+}
+.to-o-bl-chevron.is-folded {
+  transform: rotate(-90deg);
+}
+.to-o-bl-note {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--vp-c-text-1);
+}
+.to-o-bl-folder,
+.to-o-bl-count {
+  font-size: 12.5px;
+  color: var(--vp-c-text-3);
+}
+.to-o-bl-count {
+  margin-left: auto;
+}
+.to-o-bl-rows {
+  margin-top: 0.25rem;
+}
+.to-o-bl-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  padding: 0.12rem 0.25rem 0.12rem calc(var(--to-o-d, 0) * var(--to-o-unit));
+  border-radius: 4px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+.to-o-bl-row:hover {
+  background: var(--vp-c-default-soft);
+}
+.to-o-bl-row.is-dim,
+.to-o-bl-row.is-dim .to-o-bl-mark {
+  color: var(--vp-c-text-3);
+}
+.to-o-bl-guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--to-o-g) * var(--to-o-unit) + var(--to-o-gutter) / 2);
+  width: 1px;
+  background: var(--to-o-guide);
+}
+.to-o-bl-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--to-o-gutter);
+  height: 1.6em;
+  color: var(--to-o-mark);
+}
+.to-o-bl-mark > span {
+  width: var(--to-o-icon);
+  height: var(--to-o-icon);
+  display: block;
+}
+.to-o-bl-mark.is-item > span {
+  width: 0.7rem;
+  height: 0.7rem;
+}
+.to-o-bl-mark.is-ordinal {
+  width: auto;
+  min-width: var(--to-o-gutter);
+  padding-right: 0.3rem;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.to-o-bl-text {
+  min-width: 0;
+}
+.to-o-bl-text a {
+  color: var(--vp-c-brand-1);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.to-o-bl-text code {
+  font-size: 0.875em;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: var(--vp-c-default-soft);
+}
+
 @media (max-width: 640px) {
   :root {
     --to-o-unit: 1.4rem;
@@ -316,13 +486,16 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .to-o-chevron {
+  .to-o-chevron,
+  .to-o-bl-chevron,
+  .to-o-status :is(button, a)::after {
     transition: none;
   }
 }
 @media print {
   .to-o-status,
   .to-o-trail,
+  .to-o-backlinks,
   .to-o-layer {
     display: none;
   }
