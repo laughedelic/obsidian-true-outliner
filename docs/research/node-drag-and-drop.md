@@ -263,6 +263,34 @@ preview owes the reader: the seam and the column say where the run lands, and sa
 the rows below it changing parent. A preview that draws only the landing place is accurate and
 still leaves the reader surprised.
 
+## 7b. A move inside one scope is not a removal and an insertion
+
+Measured while building the operation, over the same generated corpus the closure properties use
+(`tests/generators.ts`, `arbTree()`): every scope of every document, every member as the run, every
+index as the destination.
+
+Composing `deleteSubtreeGroups` with the insertion rewrites a run that has not changed scope. The
+insertion reads the destination's context from the tree the removal left, and where the destination
+IS the scope the run came from, the run was part of that context. Three rewrites follow, all of
+them visible to a reader who dragged a bullet two rows and expected two rows:
+
+| what the composition did | why |
+| --- | --- |
+| a bullet among paragraphs came back a paragraph | the regime rule read the siblings the run was the counter-evidence to |
+| a run returning to the top of a tight list came back loosened | the boundary it had occupied was gone, so the parent's nesting gap answered in its place |
+| the file's terminating newline moved into the middle of the document | the gap travelled with the node that used to end the file |
+
+Counts, over ~200 generated documents: **21347 of 43937** moves changed the document they should
+have restored with the composition as it stood; **1550 of 23016** after the insertion learned to
+read a scope's first boundary at index zero rather than the parent's gap (kept: it fixes the same
+loosening for a paste); **0 of 28579** once a same-scope move is taken as a REORDER instead —
+gaps positional, no re-encode, which is what `moveSurgery` has always done for the one-step form.
+
+The remaining accepted-but-not-restored cases are all absorption: 3586 of them, every one a scope
+whose member count changed because a heading took its neighbours into a section. That is stated
+behaviour (section 7a), and the round-trip property scopes itself by the member count rather than
+by predicting which operands absorb.
+
 ## 8. What stays open
 
 - **Zoom on a task's mark.** Section 4 frees the checkbox's press for a drag, not its click. The

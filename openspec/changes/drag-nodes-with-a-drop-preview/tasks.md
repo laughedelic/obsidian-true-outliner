@@ -1,10 +1,10 @@
 ## 1. The operation in the algebra
 
-- [ ] 1.1 Add `moveSubtreesTo(doc, groups, destination)` to `src/ops.ts`, expressed once over the
+- [x] 1.1 Add `moveSubtreesTo(doc, groups, destination)` to `src/ops.ts`, expressed once over the
       existing removal, insertion and re-encoding machinery (design D9) — verify it returns the
       same `OpResult<OpOutput>` shape as `indent` and `moveGroupsUp` and compiles with
       `npm run build`
-- [ ] 1.2 Reject a destination inside the operand's own subtrees, a destination that no longer
+- [x] 1.2 Reject a destination inside the operand's own subtrees, a destination that no longer
       exists, and the two the insertion rule refuses after the layer below — a payload-root atom
       into a paragraph's children, and a heading run whose deepest heading would re-level past the
       last level markdown has — verify in `tests/ops.test.ts` by asserting each reason and a
@@ -12,32 +12,32 @@
       the first case's reason from the guard's own to `node-not-found`, since the removal runs
       first and takes the anchor with it — the assertion is on the REASON, and a test that only
       asserted "rejected" would pass either way
-- [ ] 1.3 Close the atom-parent gap in the shared re-encode step, beside the guards the layer
+- [x] 1.3 Close the atom-parent gap in the shared re-encode step, beside the guards the layer
       below already moved there: measured on this branch, it accepts a payload under a `code`,
       `table` or `quote` parent, though an atom is a leaf and `indent` refuses one as a target —
       verify with unit tests per atom kind asserting a rejection; negative control: with the
       guard absent, a list item is accepted as a code fence's child and the result re-parses to a
       different tree than it was built as
-- [ ] 1.4 Cover the absorption a moved heading inherits from the insertion rule — the anchor's
+- [x] 1.4 Cover the absorption a moved heading inherits from the insertion rule — the anchor's
       following siblings joining the moved heading's section, bounded by the destination scope's
       end — verify in `tests/ops.test.ts` against the re-parsed tree; negative control: bounding
       absorption at the anchor instead of at the scope leaves a following sibling outside the
       section and fails
-- [ ] 1.5 Unit tests for the gap arithmetic on both sides — a run leaving from between two
+- [x] 1.5 Unit tests for the gap arithmetic on both sides — a run leaving from between two
       siblings and arriving between two others — in `tests/ops.test.ts`; negative control:
       carrying the anchor's trailing gap on the removal side as well as the insertion side
       doubles a blank line and fails the arrival assertion
-- [ ] 1.6 Unit tests for ordered renumbering on both sides, a run moved out of one ordered run and
+- [x] 1.6 Unit tests for ordered renumbering on both sides, a run moved out of one ordered run and
       into the middle of another; negative control: resolving the destination index against the
       post-removal document rather than the pre-removal one puts the run one position off when the
       source sits above the destination in the same parent — the renumber itself is not a knob
       this change owns, since `deleteSubtreeGroups` already calls `renumberOrderedAgainst`
-- [ ] 1.7 Unit tests for re-encoding at the destination across depth and across regime, asserting
+- [x] 1.7 Unit tests for re-encoding at the destination across depth and across regime, asserting
       internal relative nesting is preserved; negative control: resolving the destination's
       sibling context from the PRE-removal document, so the re-encode reads a sibling that the
       move itself took away, mis-levels a heading run landing where its own former sibling stood
       — the re-encode is internal to the insertion, so there is no caller-side variant to omit
-- [ ] 1.8 A round-trip property in `tests/ops.test.ts`, scoped to operands that ABSORB NOTHING —
+- [x] 1.8 A round-trip property in `tests/ops.test.ts`, scoped to operands that ABSORB NOTHING —
       non-heading roots, and heading roots landing where the next sibling is a heading of the same
       level: moved to another destination in the same scope and moved back, the document is byte
       for byte the original; negative control: a deliberate off-by-one in the destination index
@@ -45,13 +45,13 @@
       case, since the property is false there by construction — measured on this branch, moving
       `## Move me` after `para A` takes `para B` into its section, so the return trip's anchor is
       inside the run it would move
-- [ ] 1.9 A closure property in `tests/closure.test.ts` asserting that every node the run carried
+- [x] 1.9 A closure property in `tests/closure.test.ts` asserting that every node the run carried
       is still a node after the move — the form the layer below arrived at after finding its first
       closure assertion could not fail, because `finalize` returns `parse(encode(surgery))` and
       re-checking that round trip is blind to a surgery the re-parse reads differently; negative
       control: with the atom-parent guard of 1.3 removed, a run landing under a code fence loses
       nodes on the re-parse and the property fails
-- [ ] 1.10 A move whose destination is the run's current place produces no document change — verify
+- [x] 1.10 A move whose destination is the run's current place produces no document change — verify
       by a unit test asserting an empty changeset rather than a no-op rewrite; negative control:
       resolving the destination before comparing it with the run's current place emits a
       remove-and-reinsert that rewrites identical bytes, which the changeset assertion catches
