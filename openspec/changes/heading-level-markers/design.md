@@ -10,9 +10,10 @@ three surfaces:
 - **The zoom trail**: it reuses `segmentGlyph`.
 
 The level exists on `OutlineNode.level` but stops there. Neither `LineDecorationFact` nor the
-footer's `LineageSegment` carries it. The footer also makes facts for rows that have no node
-(`rowFact`): a collapsed lineage row takes the kind of its chain's first element, so its fact can
-be `heading` without any level to give.
+footer's `LineageSegment` carries it. The footer also makes facts outside `decorate()`: `rowFact` for
+a row that has no node, where a collapsed lineage row takes the kind of its chain's first element
+and so can be `heading` without any level to give, and `syntheticFact` for an emitted descendant.
+And the zoom trail built its crumbs with its own copy of the footer's segment literal.
 
 Each surface decides whether to rebuild its DOM with an identity check, and today that check
 knows only the kind:
@@ -62,7 +63,9 @@ The drawing input is a union: `{ kind: 'heading', level, style }` or `{ kind: <o
 site can ask for a heading mark without a level. `LineDecorationFact` and `LineageSegment` each
 gain `level`, present exactly when the kind is `heading`, forwarded from the node. A synthetic
 lineage fact takes its level from the same first element its kind comes from, so the invariant
-holds for every fact, projected or not. `segmentMarker`'s kind-only fallback, for a chain with no
+holds for every fact, projected or not: `syntheticFact` forwards its node's level too. The
+footer's lineage segments and the zoom trail's crumbs are built by one constructor,
+`lineageSegment`, so neither surface can drop a field the other carries. `segmentMarker`'s kind-only fallback, for a chain with no
 elements, takes the row's own fact instead of a bare kind, so it too has a level to pass.
 
 *Alternative.* Defaulting a missing level to 1, or falling back to the no-digit mark. Either
