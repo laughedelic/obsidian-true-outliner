@@ -126,7 +126,7 @@ import { foldedChrome } from './fold-service';
 import { foldableEntries } from './fold-model';
 import { guideHoverField, type GuideHover } from './guide-hover';
 import { dragPreviewField } from './drag-state';
-import { seamIndicator, seamLayer } from './drag-preview';
+import { ghostMark, ghostMarkLeftExpr, seamIndicator, seamLayer, type SeamIndicator } from './drag-preview';
 import { toggleFoldAtLine } from './fold-commands';
 import {
   markerShapes,
@@ -1047,6 +1047,55 @@ class MarkerWidget extends WidgetType {
   }
 }
 
+/**
+ * The mark the run will have where it lands, drawn at the destination's own
+ * column — the other half of what the seam indicator says.
+ *
+ * Absolutely positioned, unlike `MarkerWidget`: that one stays in inline flow
+ * so it tracks the surrounding TEXT's font metrics, and this one has no text
+ * to sit beside. It hangs on the seam, which is a row's edge rather than a
+ * place in its content, so it is positioned against the row's box and pulled
+ * half its own height back onto the edge.
+ */
+class GhostMarkWidget extends WidgetType {
+  constructor(
+    private readonly subject: MarkSubject,
+    private readonly leftExpr: string,
+    private readonly below: boolean,
+  ) {
+    super();
+  }
+
+  override eq(other: GhostMarkWidget): boolean {
+    return (
+      markKey(other.subject) === markKey(this.subject) &&
+      other.leftExpr === this.leftExpr &&
+      other.below === this.below
+    );
+  }
+
+  toDOM(): HTMLElement {
+    const wrapper = createSpan({
+      cls: `to-decor-marker-icon ${GHOST_MARK_CLASS}${this.below ? ` ${GHOST_MARK_BELOW_CLASS}` : ''}`,
+    });
+    stateMark(wrapper, this.subject);
+    wrapper.setCssProps({ '--to-marker-left': this.leftExpr });
+    // Detached DOM, mounted by CM6's own path — the same guard `MarkerWidget`
+    // carries, and for the same reason.
+    // eslint-disable-next-line no-restricted-syntax -- detached DOM: CM6 mounts toDOM()'s result via its own supported path
+    wrapper.appendChild(buildMarkerIcon(this.subject));
+    return wrapper;
+  }
+
+  override ignoreEvent(): boolean {
+    return true;
+  }
+}
+
+/** The ghost mark's own classes; `90-dragging.css` positions them. */
+export const GHOST_MARK_CLASS = 'to-drag-ghost';
+export const GHOST_MARK_BELOW_CLASS = 'to-drag-ghost-below';
+
 /** The class a folded node's own line carries, so the marker can say so. */
 export const FOLDED_NODE_CLASS = 'to-decor-folded';
 
@@ -1316,6 +1365,10 @@ interface LineRender {
   readonly folded: boolean;
   /** A folded multi-line node's last own line (`FOLDED_TAIL_CLASS`). */
   readonly foldedTail: boolean;
+  /** The drop indicator this row carries, if it carries one. The layer is
+   * already folded into `guides`; this is what the ghost mark needs, which is
+   * an element and cannot be. */
+  readonly seam: SeamIndicator | undefined;
   /** What a fold hides, counted after this line's text; 0 where nothing. */
   readonly hidden: number;
 }
@@ -1393,7 +1446,8 @@ function renderInputs(state: EditorState, modes: DecorationSource): RenderInputs
     // that draws no guide still gets the overlay when it carries the seam —
     // a depth-0 destination beside a top-level node is an ordinary case.
     const layers: string[] = [];
-    if (seam && seam.lineNumber === lineNumber) layers.push(seamLayer(seam));
+    const onSeam = seam && seam.lineNumber === lineNumber ? seam : undefined;
+    if (onSeam) layers.push(seamLayer(onSeam));
     if (hasOverlay(depths)) {
       layers.push(guideBackground(depths, trail.byLine.get(lineNumber), litGuideOn(hover, lineNumber)));
     }
@@ -1405,6 +1459,7 @@ function renderInputs(state: EditorState, modes: DecorationSource): RenderInputs
       marker: fact ? markerClasses(trail, lineNumber, markerAccent) : '',
       folded: foldedMarkers.has(lineNumber),
       foldedTail: foldedTails.has(lineNumber),
+      seam: onSeam,
       hidden: foldedCounts.get(lineNumber) ?? 0,
     });
   }
@@ -1489,6 +1544,24 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
       continue;
     }
     builder.add(line.from, line.from, lineDecoration(line.text, render.fact, render));
+    // The ghost mark, where this row carries the seam. An element rather than
+    // a background layer, because it is a drawn glyph — the indicator itself
+    // rides the overlay, and the two are positioned from the same column.
+    const ghost = render.seam ? ghostMark(render.seam.firstLine) : null;
+    if (render.seam && ghost) {
+      builder.add(
+        line.from,
+        line.from,
+        Decoration.widget({
+          widget: new GhostMarkWidget(
+            markSubject(ghost, modes.headingMarkerStyle),
+            ghostMarkLeftExpr(render.seam.depth),
+            render.seam.below,
+          ),
+          side: -1,
+        }),
+      );
+    }
     // At the END of the node's own text, where a reader's eye already is when
     // they reach the end of what is visible — and where Obsidian puts its own
     // placeholder, which this one replaces.

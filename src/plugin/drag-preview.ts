@@ -18,7 +18,9 @@
  * be right for list destinations and wrong for the rest, or the reverse.
  */
 
-import { columnExpr } from './chrome-line';
+import { columnExpr, markerAnchorLeftExpr } from './chrome-line';
+import { parse } from '../parse';
+import { nodeMark, type NodeMark } from './marker-shapes';
 import type { DragPreview } from './drag-state';
 
 /** The line a seam draws on, and which of its edges. */
@@ -28,6 +30,9 @@ export interface SeamIndicator {
    * last seam has no row below it to sit above. */
   readonly below: boolean;
   readonly depth: number;
+  /** The run's first line as this destination would write it — what the
+   * ghost mark is read from. */
+  readonly firstLine: string;
 }
 
 /**
@@ -45,14 +50,48 @@ export function seamIndicator(
 ): SeamIndicator | null {
   if (preview === null) return null;
   const depth = preview.destination.depth;
+  const firstLine = preview.destination.firstLine;
   if (factLines.has(preview.seamLine)) {
-    return { lineNumber: preview.seamLine, below: false, depth };
+    return { lineNumber: preview.seamLine, below: false, depth, firstLine };
   }
   let last = -1;
   for (const line of factLines) {
     if (line < preview.seamLine && line > last) last = line;
   }
-  return last < 0 ? null : { lineNumber: last, below: true, depth };
+  return last < 0 ? null : { lineNumber: last, below: true, depth, firstLine };
+}
+
+/**
+ * The mark the run will have WHERE IT LANDS, read from the line the
+ * destination would write it as.
+ *
+ * From the written line and not from the run's current kind, which is the
+ * whole of design D7: a heading section dropped into a list is re-encoded as a
+ * list item carrying its own `#` run as text, and a preview drawing the glyph
+ * the run has in flight would state a result that is not going to happen. The
+ * line itself comes from the same `reencodeBlocksForDestination` call the
+ * release makes, so there is no second derivation to drift.
+ *
+ * Null where the line parses to no node at all — nothing this module can
+ * draw, and not a case to guess at.
+ */
+export function ghostMark(firstLine: string): NodeMark | null {
+  const node = parse(firstLine).children[0];
+  return node === undefined ? null : nodeMark(node);
+}
+
+/**
+ * Where the ghost mark's own left edge goes, relative to the row it is mounted
+ * in.
+ *
+ * The row's box has already been shifted right by its own depth, so the column
+ * is reached by undoing that first — the same correction the guide overlay
+ * makes, through the same property the row already carries. Then the icon is
+ * centred on the column by the shared helper, so the ghost sits exactly where
+ * a real mark at that depth would.
+ */
+export function ghostMarkLeftExpr(depth: number): string {
+  return markerAnchorLeftExpr(`calc(${columnExpr(depth)} - var(--to-own-shift, 0px))`);
 }
 
 /** The indicator's colour and thickness; `90-dragging.css` declares both. */

@@ -431,6 +431,86 @@ describe('node dragging: the press and the drag it can become', function () {
     expect(await h.getBuffer()).toBe(DOC);
   });
 
+  /*  0 | ## Section
+      1 |
+      2 | - one
+      3 | - two
+      4 |
+      5 | ### Move me
+      6 |
+      7 | body text
+      8 |                                                                    */
+  const CONVERTING = [
+    '## Section',
+    '',
+    '- one',
+    '- two',
+    '',
+    '### Move me',
+    '',
+    'body text',
+    '',
+  ].join('\n');
+
+  it('previews the mark the run will have, not the one it has', async function () {
+    // Design D7, and the reason the preview and the release share ONE
+    // resolution: a heading section dropped INTO a list is re-encoded as a
+    // list item carrying its own `#` run as text, and a preview drawing the
+    // glyph the run has in flight would state a result that is not going to
+    // happen. The same seam one column left keeps it a heading — so one sweep
+    // over one boundary draws two different marks, which is the whole claim.
+    await h.setBuffer(CONVERTING);
+    await browser.pause(250);
+
+    // `### Move me`, dragged by its own mark, to the seam between `- one` and
+    // `- two`: at the list's own depth it stays a heading, one level inside
+    // `- one` it becomes a list item.
+    const heading = await markPoint('.to-decor-marker-icon', 1);
+    // `- one` and `- two` are SIBLINGS, so both bullets stand on the same
+    // column and the fixture has no mark one level deeper. The unit is the
+    // step between the two columns it does have — `## Section` at the root
+    // and the list one level in — and the deeper column is one more of it.
+    const root = await columnOfMark('.to-decor-marker-icon', 0, 'centre');
+    const asSibling = await columnOfMark(BULLET, 0, 'left');
+    const asChild = asSibling + (asSibling - root);
+    const one = await markPoint(BULLET, 0);
+    const two = await markPoint(BULLET, 1);
+    const y = (one.y + two.y) / 2;
+
+    await startRecording();
+    await dragThenEscape(heading, [
+      { x: heading.x + 20, y: heading.y - 10 },
+      { x: asSibling, y },
+      { x: asSibling + 1, y },
+      { x: asChild, y },
+      { x: asChild + 1, y },
+    ]);
+    await browser.pause(250);
+
+    const drawn = (await recorded()).filter((sample) => sample.ghost !== null);
+    expect(drawn.length).toBeGreaterThan(0);
+    const marks = new Map<number, string>();
+    for (const sample of drawn) {
+      expect(sample.preview).not.toBe(null);
+      marks.set(sample.preview!.depth, sample.ghost!.kind);
+    }
+    // Both columns of that one seam, and the mark each of them makes of the
+    // run. A preview drawing the operand's CURRENT kind draws a heading at
+    // both, which is what this pair of columns exists to tell apart.
+    expect([...marks.entries()].sort()).toEqual([
+      [1, 'heading'],
+      [2, 'list-item'],
+    ]);
+    // And the heading column says which heading: the run re-levels to its
+    // destination rather than keeping the level it came with.
+    const asHeading = drawn.find((sample) => sample.preview!.depth === 1)!;
+    expect(asHeading.ghost!.level).toBe('3');
+
+    expect(await h.getBuffer()).toBe(CONVERTING);
+    await h.setBuffer(DOC);
+    await browser.pause(200);
+  });
+
   it('drops the run where the preview named it', async function () {
     await dropOneBeforeThree();
     expect(await h.getBuffer()).toBe(AFTER_DROP);

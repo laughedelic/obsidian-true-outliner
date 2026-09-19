@@ -50,6 +50,12 @@ export interface MoveSample {
    * `null` while nothing is drawn.
    */
   readonly indicator: { readonly line: number; readonly x: number } | null;
+  /**
+   * The ghost mark the preview draws: the kind the run will BE where it
+   * lands, and its level where that is a heading. Read off the mark's own
+   * `data-kind`/`data-level`, which every marker this plugin draws states.
+   */
+  readonly ghost: { readonly kind: string; readonly level: string | null } | null;
   /** Where the drag would land at that move, as the gesture itself resolved
    * it — `null` before a destination is named, and after one is dropped. */
   readonly preview: {
@@ -205,10 +211,15 @@ export function startRecording(): Promise<void> {
         }
         break;
       }
+      const ghostEl = dom.querySelector('.to-drag-ghost') as HTMLElement | null;
+      const ghost = ghostEl
+        ? { kind: ghostEl.dataset.kind ?? '', level: ghostEl.dataset.level ?? null }
+        : null;
       w.__toDragSamples.push({
         x: event.clientX,
         y: event.clientY,
         indicator,
+        ghost,
         buttons: event.buttons,
         inside:
           event.clientX >= r.left &&

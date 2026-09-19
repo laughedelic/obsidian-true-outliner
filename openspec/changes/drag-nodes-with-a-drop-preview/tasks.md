@@ -158,7 +158,7 @@
       resolved left edge against a marker's column at the same depth, as a RELATION not an
       absolute; negative control: positioning from a list bullet's box puts it a few px out on
       list destinations only, which the cross-kind assertion catches
-- [ ] 4.3 Draw the mark the run will have after re-encoding at that column, from the same
+- [x] 4.3 Draw the mark the run will have after re-encoding at that column, from the same
       resolution the release uses (design D7) — verify a heading section dragged into a list
       previews a list mark; negative control: drawing the operand's current kind previews a
       heading glyph and fails

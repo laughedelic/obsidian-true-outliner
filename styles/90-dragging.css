@@ -42,3 +42,32 @@
   --to-drop-color: var(--to-decor-accent);
   --to-drop-width: 2px;
 }
+
+/*
+ * The ghost mark: what the run will BE where it lands, drawn on the
+ * destination's own column.
+ *
+ * Absolutely positioned, where the editor's plain-line marker deliberately
+ * stays in inline flow: that one tracks the font metrics of the text it sits
+ * beside, and this one sits beside nothing — it hangs on a row's EDGE. Pulled
+ * half its own height back so it straddles that edge rather than sitting under
+ * it. Its containing block is the row, which is `position: relative` because
+ * the row carries the guide overlay — and it always does while it carries the
+ * seam, since the indicator rides in that same overlay.
+ *
+ * `left` is the shared `--to-marker-left`, so the ghost is centred on its
+ * column by exactly the arithmetic every other marker is.
+ */
+.markdown-source-view.mod-cm6 .cm-content .to-drag-ghost {
+  position: absolute;
+  top: 0;
+  transform: translateY(-50%);
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.markdown-source-view.mod-cm6 .cm-content .to-drag-ghost-below {
+  top: auto;
+  bottom: 0;
+  transform: translateY(50%);
+}
