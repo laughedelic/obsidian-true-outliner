@@ -125,8 +125,8 @@ already decided by the time this layer runs.
 #### Scenario: A child of a heading keeps its own leading whitespace
 
 - **WHEN** a paragraph written with leading spaces sits under a heading, or at the top level
-- **THEN** its whitespace stays in the rendering, and the line's text begins exactly that many
-  character advances into the line
+- **THEN** its whitespace renders at the width of those characters, with nothing wider than them
+  standing between the line's own start and its text
 
 #### Scenario: A standing run of four columns or more steps one character at a time
 
@@ -164,4 +164,5 @@ surplus and in the run alike", "draws the caret on a line Shift+Enter opens, whi
 alone", "leaves the item's own indentation to the list rules", "touches nothing with outline mode
 off"); `tests/decorate.test.ts` ("decorate: source indentation (indentCh)"); `e2e/specs/56-source-indent.e2e.ts` ("renders a
 standing run at the width of its own characters", "walks a standing run one character at a time",
-"puts a tab-indented top-level line on the same column as a four-space one").
+"puts the caret where a click inside a standing run points", "puts a tab-indented top-level line on
+the same column as a four-space one").
