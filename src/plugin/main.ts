@@ -76,6 +76,7 @@ import { transactionFilterExtension } from './transaction-filter';
 import { viewRegistryExtension } from './view-registry';
 import { zoomStateExtension } from './zoom-state';
 import { guideHoverExtension } from './guide-hover';
+import { dragPreviewExtension, dragPreviewField, type DragPreview } from './drag-state';
 import { isOutlineMode, outlineStateExtension, outlineToggled } from './outline-state';
 import { zoomClickExtension } from './zoom-click';
 import { zoomDecorationsExtension } from './zoom-decorations';
@@ -483,6 +484,9 @@ export default class TrueOutlinerPlugin extends Plugin {
     // it and the reading order matches the dependency.
     this.registerEditorExtension(zoomStateExtension());
     this.registerEditorExtension(guideHoverExtension());
+    // The drag in flight, for the same reason as the hover above: a bare
+    // StateField the gesture writes and the decoration pass reads.
+    this.registerEditorExtension(dragPreviewExtension());
     // Before every extension that GATES on the mode, so the field it reads is
     // installed by the time their own `create` runs.
     this.registerEditorExtension(outlineStateExtension(this));
@@ -1018,6 +1022,21 @@ export default class TrueOutlinerPlugin extends Plugin {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     const cm = view?.file ? viewFor(view) : undefined;
     return cm ? isOutlineMode(cm.state) : undefined;
+  }
+
+  /**
+   * Where a drag in flight would currently land, or `null` when none is.
+   *
+   * An observability surface in the same style as `stats` and
+   * `activeTabOutlineMode`: almost everything a drag promises exists only
+   * while a button is held, and the harness cannot stop mid-gesture to look —
+   * a held button does not survive the end of the call that drove it. So the
+   * state is readable, and the suite samples it as the gesture runs.
+   */
+  activeDragPreview(): DragPreview | null {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const cm = view?.file ? viewFor(view) : undefined;
+    return cm ? (cm.state.field(dragPreviewField, false) ?? null) : null;
   }
 
   /**

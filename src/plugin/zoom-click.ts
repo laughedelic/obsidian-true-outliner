@@ -49,6 +49,19 @@ import { resolveZoom } from '../zoom';
 import { dragOperand } from '../operand';
 import { nodeAtLine } from '../locate';
 import { linePosToOffset, toLineRange } from './cm-pos';
+import { indentUnit } from '@codemirror/language';
+import { walkNodes, type OutlineDoc, type OutlineNode } from '../model';
+import { dropSeams, resolveDestination } from '../drop-destinations';
+import { dragGeometry } from './drag-geometry';
+import {
+  dragPreviewField,
+  sameDestination,
+  setDragPreview,
+  type DragPreview,
+} from './drag-state';
+import { foldedChrome } from './fold-service';
+import { entryAtLine } from './fold-model';
+import { zoomScope } from './zoom-scope';
 import { parsedDoc } from './parsed-doc';
 import { GUIDES_CLASS } from './chrome-line';
 import { guideOwnerAt, toggleGuideAt } from './fold-commands';
@@ -273,7 +286,55 @@ class ZoomClickPlugin implements PluginValue {
       if (Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
       press.dragging = true;
       this.beginDrag(press);
+      // Not on this move. Collapsing to a cover puts the covered rows into
+      // block-selection mode, and a row that stops rendering raw can change
+      // height — so the seams are read once that has settled, which is the
+      // next move at the earliest.
+      return;
     }
+    this.previewDrop(press, event.clientX, event.clientY);
+  }
+
+  /**
+   * Where the run would land if the button came up here, published as state
+   * for the preview to draw and the release to apply — one resolution, so the
+   * two cannot disagree.
+   *
+   * Dispatched only when the destination CHANGES. A pointer emits moves far
+   * faster than the destination changes under it, and a transaction per sample
+   * is a rebuild per sample.
+   */
+  private previewDrop(press: MarkPress, x: number, y: number): void {
+    const next = this.resolveDrop(press, x, y);
+    const current = this.view.state.field(dragPreviewField, false) ?? null;
+    if (sameDestination(current, next)) return;
+    this.view.dispatch({ effects: setDragPreview.of(next) });
+  }
+
+  private resolveDrop(press: MarkPress, x: number, y: number): DragPreview | null {
+    if (!press.groups) return null;
+    // Under a zoom the seams are resolved against the scope's OWN re-rooted
+    // document, so no destination outside the scope exists to be offered in
+    // the first place.
+    const scope = zoomScope(this.view.state);
+    const tree = scope ? scope.document : parsedDoc(this.view.state.doc).doc;
+    const wanted = new Set(press.groups.flat());
+    const roots: OutlineNode[] = [];
+    for (const node of walkNodes(tree)) {
+      if (wanted.has(node.id)) roots.push(node);
+    }
+    if (roots.length !== wanted.size) return null;
+
+    const seams = dropSeams(tree, roots, {
+      folded: foldedIds(this.view, tree),
+      // The gesture holds the view, so it reads the editor's live unit where
+      // the command path has to fall back to a default.
+      fallbackIndentUnit: this.view.state.facet(indentUnit),
+    });
+    const geometry = dragGeometry(this.view, seams, scope ? scope.startLine : 0);
+    if (!geometry) return null;
+    const resolved = resolveDestination(seams, geometry, { x, y });
+    return resolved ? { seamLine: resolved.seam.line, destination: resolved.destination } : null;
   }
 
   /**
@@ -359,6 +420,7 @@ class ZoomClickPlugin implements PluginValue {
     this.press = null;
     this.releaseCapture(press.pointerId);
     this.view.dom.ownerDocument.removeEventListener('keydown', this.onKeyDown, true);
+    this.clearPreview();
     if (press.dragging) {
       // No destination is resolved yet, and a release that names none cancels
       // with nothing written — which includes putting back the selection the
@@ -386,7 +448,15 @@ class ZoomClickPlugin implements PluginValue {
     this.press = null;
     this.releaseCapture(press.pointerId);
     this.view.dom.ownerDocument.removeEventListener('keydown', this.onKeyDown, true);
+    this.clearPreview();
     this.restoreSelection(press);
+  }
+
+  /** Nothing of a drag outlives it. */
+  private clearPreview(): void {
+    if (this.view.state.field(dragPreviewField, false)) {
+      this.view.dispatch({ effects: setDragPreview.of(null) });
+    }
   }
 
   private releaseCapture(pointerId: number): void {
@@ -795,6 +865,22 @@ function guideHit(lineEl: HTMLElement, clientX: number): number | null {
     return Math.max(0, Math.round(x / unit));
   }
   return null;
+}
+
+/**
+ * The nodes whose children are hidden right now, as ids.
+ *
+ * Read from the folds the editor actually holds rather than from the tree,
+ * because a fold is view state: the same document renders with different
+ * depths available depending on what the reader has collapsed.
+ */
+function foldedIds(view: EditorView, tree: OutlineDoc): Set<number> {
+  const ids = new Set<number>();
+  for (const chrome of foldedChrome(view.state)) {
+    const entry = entryAtLine(tree, chrome.markerLine);
+    if (entry) ids.add(entry.node.id);
+  }
+  return ids;
 }
 
 export function zoomClickExtension(): Extension {

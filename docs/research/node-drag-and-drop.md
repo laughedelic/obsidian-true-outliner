@@ -190,6 +190,49 @@ take its own source line off screen, and nothing here says the mark survives tha
 is stable by construction and answers the same question section 5 raises, so it is the cheaper
 place for the capture either way.
 
+## 6a. A depth's column is the content box plus depth times the unit
+
+Measured because the resolution needs a pointer x in the same space as a column, and every other
+surface in this plugin positions itself in CSS instead — nothing had ever needed the number.
+
+Fixture: a heading with four nested list items under it, default appearance.
+
+| read | value |
+| --- | --- |
+| `--to-decor-unit` on the content DOM | `2rem`, unresolved |
+| a probe element's width at `width: var(--to-decor-unit)` | **32px** |
+| the guide overlay's `background-size` | `32px 100%` |
+| content DOM's own left, padding included | **376** |
+| `.list-bullet` lefts, depths 1 to 4 | 408, 440, 472, 504 |
+
+So `column(depth) = contentLeft + depth × unit`, exactly: 408 = 376 + 32, 440 = 376 + 64, and so
+on. A bullet's own box STARTS on its column — its centre is 4.45px right of it — which is the
+asymmetry section 1 recorded from the other side.
+
+Two things this settles. The unit resolves through a probe element and not through
+`getComputedStyle`, which hands back the unresolved `2rem` for a custom property. And the origin is
+the CONTENT box, not the line box: a line at depth 1 reports `left: 408` and `margin-left: 32`, so
+reading a line's own rect would fold the depth in twice. The overlay's `background-size` agrees
+with the probe, but reading it would tie the drag to guides being painted, which a display setting
+can switch off.
+
+## 6b. The collapse's own layout shift could not be observed
+
+Design D9a reasons that resolving seams on the same frame as the selection collapse reads
+pre-mode geometry: a row that stops rendering raw can change height, and every seam below it moves.
+The gesture defers the first resolution by one move for that reason.
+
+Tried to make it bite, and could not. Two fixtures, both driven with the pointer held still across
+several moves so any drift would show as two different answers: plain list items, and a list whose
+CARET ROW is a long link whose raw form wraps over several rendered lines. With the deferral
+removed, both give the same destination on the collapse frame as on the move after it.
+
+So the deferral stands on its reasoning rather than on a measurement — it costs one pointer sample
+and nothing else — and the case that covers it asserts stability rather than claiming a control it
+does not have. What would settle it is a row whose raw and rendered heights are known to differ by
+a whole row at the moment of the collapse; neither fixture here achieved that, and finding one is
+its own measurement.
+
 ## 7. Where a drop can land: the seam and its depths
 
 Not a measurement — the model the sections above leave to be chosen, recorded here so the design

@@ -39,6 +39,15 @@ export interface MoveSample {
    * Empty wherever the plugin's decorations are not running at all, which is
    * what a decline looks like from the outside. */
   readonly selected: readonly number[];
+  /** Where the drag would land at that move, as the gesture itself resolved
+   * it — `null` before a destination is named, and after one is dropped. */
+  readonly preview: {
+    readonly seamLine: number;
+    readonly depth: number;
+    readonly index: number;
+    readonly parentId: number | 'root';
+    readonly firstLine: string;
+  } | null;
 }
 
 /** The viewport centre of the nth mark matching a selector. */
@@ -127,6 +136,10 @@ export function startRecording(): Promise<void> {
           // An element the view has already moved past.
         }
       }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const held = (app as any).plugins?.plugins?.['true-outliner'];
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+      const live = held?.activeDragPreview?.() ?? null;
       w.__toDragSamples.push({
         x: event.clientX,
         y: event.clientY,
@@ -138,6 +151,21 @@ export function startRecording(): Promise<void> {
           event.clientY <= r.bottom,
         selection: { anchor: at(main.anchor), head: at(main.head) },
         selected,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        preview: live
+          ? {
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+              seamLine: live.seamLine,
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+              depth: live.destination.depth,
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+              index: live.destination.index,
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+              parentId: live.destination.parentId,
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+              firstLine: live.destination.firstLine,
+            }
+          : null,
       });
     };
     dom.addEventListener('pointermove', w.__toDragRecorder, true);

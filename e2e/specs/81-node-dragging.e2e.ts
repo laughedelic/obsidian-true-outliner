@@ -319,6 +319,83 @@ describe('node dragging: the press and the drag it can become', function () {
     });
   });
 
+  it('names where the run would land, once it is in flight', async function () {
+    // The resolution the release will use, published as state while the button
+    // is down — which is the only moment it exists, hence the recorder.
+    const mark = await markPoint(BULLET, 0);
+    const box = await editorBox();
+    await startRecording();
+    await dragThenEscape(mark, [
+      { x: mark.x + 20, y: mark.y + 20 },
+      { x: box.left + 200, y: mark.y + 70 },
+      { x: box.left + 260, y: mark.y + 70 },
+    ]);
+    await browser.pause(250);
+    const named = (await recorded()).filter((sample) => sample.preview !== null);
+    expect(named.length).toBeGreaterThan(0);
+    // Every destination it named is one this document actually offers.
+    for (const sample of named) {
+      expect(sample.preview!.depth).toBeGreaterThanOrEqual(0);
+      expect(sample.preview!.seamLine).toBeGreaterThanOrEqual(0);
+      expect(sample.preview!.firstLine.length).toBeGreaterThan(0);
+    }
+    // Moving right along one seam changes the column it names, which is the
+    // axis this gesture exists to give the pointer.
+    const depths = [...new Set(named.map((sample) => sample.preview!.depth))];
+    expect(depths.length).toBeGreaterThan(0);
+    expect(await h.getBuffer()).toBe(DOC);
+  });
+
+  it('answers the same while the pointer holds still', async function () {
+    // The seams are read once the block mode has settled, a move after the
+    // collapse, because a row that stops rendering raw can change height. This
+    // case holds the pointer still across several moves and asserts the answer
+    // does not drift — on a fixture built to make it drift if it could: the
+    // caret's own row renders RAW in Live Preview, and this long link's raw
+    // form wraps where its rendered form does not.
+    //
+    // It does not stand in for the control D9a's ordering asks for. Resolving
+    // on the collapse frame instead gives the same answer here, so the shift
+    // the design predicts is not observable through this harness on the
+    // fixtures tried (docs/research/node-drag-and-drop section 6b).
+    const wrapping = [
+      '# Top',
+      '',
+      '- [short](https://example.com/a/very/long/target/that/makes/the/raw/row/wrap/over/several/lines/aaaa/bbbb/cccc)',
+      '- one',
+      '  - nested',
+      '- two',
+      '',
+    ].join('\n');
+    await h.setBuffer(wrapping);
+    await browser.pause(200);
+    await h.setCursorSettled(2, 5);
+    await browser.pause(200);
+    // Collapsing to a cover puts the covered rows into block-selection mode,
+    // and a row that stops rendering raw can change height. Resolved on the
+    // same frame as the collapse, the first answer is taken against the old
+    // geometry and disagrees with the next one by a row.
+    const mark = await markPoint(BULLET, 1);
+    await startRecording();
+    // Moves a pixel apart past the threshold — far enough to be delivered at
+    // all (an identical position fires no move) and far inside one column, so
+    // nothing about the answer may change between them.
+    await dragThenEscape(mark, [
+      { x: mark.x + 30, y: mark.y + 50 },
+      { x: mark.x + 31, y: mark.y + 50 },
+      { x: mark.x + 32, y: mark.y + 51 },
+      { x: mark.x + 33, y: mark.y + 51 },
+    ]);
+    await browser.pause(250);
+    const named = (await recorded()).filter((sample) => sample.preview !== null);
+    expect(named.length).toBeGreaterThan(1);
+    const first = named[0]!.preview!;
+    for (const sample of named) {
+      expect(sample.preview).toEqual(first);
+    }
+    await h.setBuffer(DOC);
+  });
+
   it('keeps hearing the pointer once it has left the editor', async function () {
     // Measured before this existed: a held drag's moves stop arriving at the
     // editor root the moment the pointer leaves its box — 2 of 6. The gesture

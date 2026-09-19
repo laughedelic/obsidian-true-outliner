@@ -1,0 +1,23 @@
+/*
+ * The node drag: what it measures with, and what it draws.
+ *
+ * Its own part, per the one-part-per-feature rule — the root `styles.css` is a
+ * build output, so nothing shared is edited to add this.
+ */
+
+/*
+ * The probe the gesture resolves a depth's column with.
+ *
+ * `--to-decor-unit` is a plain custom property, so `getComputedStyle` hands
+ * back the unresolved token rather than a length. An element declared at that
+ * width reports it as a number, which is the only route to one
+ * (docs/research/node-drag-and-drop section 6a). It exists for a single
+ * synchronous measurement and never paints.
+ */
+.to-drag-unit-probe {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  height: 0;
+  width: var(--to-decor-unit);
+}

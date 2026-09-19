@@ -148,7 +148,7 @@
 
 ## 4. The preview
 
-- [ ] 4.1 Carry the resolved destination as editor state through a `StateEffect` and `StateField`,
+- [x] 4.1 Carry the resolved destination as editor state through a `StateEffect` and `StateField`,
       dispatched only when the destination changes (design D10) — verify by a unit test over the
       field's updates that an unchanged destination dispatches nothing; negative control:
       dispatching per move instead emits one transaction per pointer sample, which a counter in
