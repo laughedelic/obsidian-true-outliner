@@ -211,8 +211,8 @@ describe('dropSeams', () => {
     const scope = resolveZoom(source, 2)!;
     const zoomed = scope.document;
     const seams = dropSeams(zoomed, [byLine(zoomed, '  - a1')]);
-    // Resolution runs over the scope's own re-rooted document, so nothing
-    // outside it exists to be offered in the first place.
+    // Resolution runs over the scope's own re-rooted document, so no node
+    // outside it can be named as a parent at all.
     for (const seam of seams) {
       for (const candidate of seam.candidates) {
         expect(
@@ -222,6 +222,29 @@ describe('dropSeams', () => {
       }
     }
     expect([...walkNodes(zoomed)].map((n) => n.lines[0])).toEqual(['- a', '  - a1']);
+  });
+
+  it('a scoped document offers nothing at the zoom root\u2019s own level', () => {
+    const source = parse(['# One', '', '- a', '  - a1', '', '# Two', '', '- b', ''].join('\n'));
+    const scope = resolveZoom(source, 2)!;
+    const zoomed = scope.document;
+    const operand = [byLine(zoomed, '  - a1')];
+
+    // The re-rooted document's own top level is the zoom ROOT's level, so a
+    // `'root'` candidate is a SIBLING of the root — reachable in the source,
+    // and outside the scope. Nothing in a document says whether it is a
+    // scope's or a file's, so the caller that applied the zoom says so.
+    expect(dropSeams(zoomed, operand).some((s) => s.candidates.some((c) => c.parentId === 'root')))
+      .toBe(true);
+    const scoped = dropSeams(zoomed, operand, { scoped: true });
+    expect(scoped.some((s) => s.candidates.some((c) => c.parentId === 'root'))).toBe(false);
+    // And what is left is still a place to drop: the root's own children.
+    expect(scoped.length).toBeGreaterThan(0);
+    for (const seam of scoped) {
+      for (const candidate of seam.candidates) {
+        expect(candidate.parentId).toBe(byLine(zoomed, '- a').id);
+      }
+    }
   });
 });
 

@@ -90,14 +90,16 @@ describe('node dragging: the press and the drag it can become', function () {
   it('a press that moves past the threshold does not zoom', async function () {
     const mark = await markPoint(BULLET, 0);
     await startRecording();
-    await dragFrom(mark, [
+    // Cancelled rather than released: a release now drops, and what this case
+    // asks about is which of the two meanings the movement chose.
+    await dragThenEscape(mark, [
       { x: mark.x + 12, y: mark.y + 4 },
       { x: mark.x + 40, y: mark.y + 60 },
     ]);
     await browser.pause(250);
     // The press meant one of two things and the movement chose. Nothing was
-    // written either — the drop half is not built yet, so the buffer is the
-    // assertion that the gesture did not fall through to something else.
+    // written either, which is the assertion that the gesture did not fall
+    // through to something else.
     expect(await zoomed()).toBe(false);
     expect(await h.getBuffer()).toBe(DOC);
     // And the moves reached the gesture while the button was still down, which
@@ -214,8 +216,12 @@ describe('node dragging: the press and the drag it can become', function () {
         (sample) => sample.selection.anchor.line === 2 && sample.selection.head.line === 2,
       );
       expect(covers.length).toBeGreaterThan(0);
-      // And its checked state is untouched.
-      expect(await h.getBuffer()).toBe(TASKS);
+      // And its checked state is untouched. The buffer itself is not the
+      // assertion any more: the release drops the task somewhere, which is the
+      // gesture working. What the press must not have done is toggle it.
+      const dropped = await h.getBuffer();
+      expect(dropped).toContain('- [ ] an open task');
+      expect(dropped).not.toContain('[x]');
     });
 
     it('still toggles on its own click', async function () {
@@ -303,20 +309,129 @@ describe('node dragging: the press and the drag it can become', function () {
   });
 
   it('writes nothing when a drag is released with no destination', async function () {
-    // Every release resolves no destination until the drop is built, so this
-    // is the cancel path a release takes today — and the rule it will keep.
+    // The move that crosses the threshold resolves nothing: the seams are read
+    // once the block mode has settled, which is the next move at the earliest.
+    // A drag released on the move that started it therefore names no
+    // destination, and a release that names none cancels — including putting
+    // back the selection the pick-up collapsed.
     await h.setCursor(0, 3);
     const mark = await markPoint(BULLET, 0);
-    await dragFrom(mark, [
-      { x: mark.x + 30, y: mark.y + 30 },
-      { x: mark.x + 80, y: mark.y + 60 },
-    ]);
+    await dragFrom(mark, [{ x: mark.x + 10, y: mark.y + 6 }]);
     await browser.pause(250);
     expect(await h.getBuffer()).toBe(DOC);
     expect(await h.getSelection()).toEqual({
       anchor: { line: 0, ch: 3 },
       head: { line: 0, ch: 3 },
     });
+  });
+
+  /*  0 | # Top
+      1 |
+      2 | - two
+      3 | - one
+      4 |   - nested
+      5 | - three
+      6 |                                                                    */
+  const AFTER_DROP = ['# Top', '', '- two', '- one', '  - nested', '- three', ''].join('\n');
+
+  /**
+   * A seam's own y, as a RELATION between the two marks it separates: halfway
+   * between their centres is the boundary between their rows, and the seams on
+   * either side are a whole row away. Taken from the marks rather than from a
+   * measured line top so the aim survives a layout that differs by theme,
+   * platform or heading size.
+   */
+  async function seamBetween(above: number, below: number): Promise<number> {
+    const [top, bottom] = await Promise.all([markPoint(BULLET, above), markPoint(BULLET, below)]);
+    return (top.y + bottom.y) / 2;
+  }
+
+  /** `- one` dropped on the seam between `- two` and `- three`, at the
+   * shallowest column that seam offers — a sibling of both. */
+  async function dropOneBeforeThree(): Promise<void> {
+    const mark = await markPoint(BULLET, 0);
+    const box = await editorBox();
+    const y = await seamBetween(2, 3);
+    await dragFrom(mark, [
+      // Past the threshold, then a move for the mode to settle under, then the
+      // destination itself — twice, since the resolution the release applies
+      // is the one a MOVE published.
+      { x: mark.x + 20, y: mark.y + 10 },
+      { x: box.left + 4, y },
+      { x: box.left + 4, y: y + 1 },
+    ]);
+    await browser.pause(300);
+  }
+
+  it('drops the run where the preview named it', async function () {
+    await dropOneBeforeThree();
+    expect(await h.getBuffer()).toBe(AFTER_DROP);
+    // The run that was in flight is the run that is selected when it lands:
+    // `- one` through its own child's content end.
+    expect(await h.getSelection()).toEqual({
+      anchor: { line: 3, ch: 0 },
+      head: { line: 4, ch: '  - nested'.length },
+    });
+  });
+
+  it('agrees with the command that names the same move', async function () {
+    // The gesture is a THIRD entry point, and `selection-structural-ops`
+    // requires every one of them to reach the same document and the same
+    // selection. It holds a view where the other two hold an `Editor`, which
+    // is a difference in the adapter and must not be one in the result.
+    await dropOneBeforeThree();
+    const dropped = await h.getBuffer();
+    const droppedSelection = await h.getSelection();
+
+    await h.setBuffer(DOC);
+    await browser.pause(200);
+    // The same operand the drag picks up, stated as a selection: `- one`
+    // through its own child.
+    await h.setSelection({ line: 2, ch: 0 }, { line: 3, ch: '  - nested'.length });
+    await browser.pause(150);
+    await h.runCommand('move-node-down');
+    await browser.pause(300);
+
+    expect(await h.getBuffer()).toBe(dropped);
+    expect(await h.getSelection()).toEqual(droppedSelection);
+  });
+
+  it('is one undo step', async function () {
+    await dropOneBeforeThree();
+    expect(await h.getBuffer()).toBe(AFTER_DROP);
+    await h.keys.undo();
+    await browser.pause(300);
+    expect(await h.getBuffer()).toBe(DOC);
+  });
+
+  it('writes nothing when the run is dropped where it already is', async function () {
+    // A known edit first, so the undo has somewhere to land: a write that is
+    // immediately reverted leaves the buffer identical and the history one
+    // entry longer, which the buffer alone cannot tell from nothing at all.
+    await h.setCursorSettled(5, '- three'.length);
+    await browser.keys('!');
+    await browser.pause(200);
+    const edited = await h.getBuffer();
+    expect(edited).toContain('- three!');
+
+    const mark = await markPoint(BULLET, 0);
+    const box = await editorBox();
+    // The seam between `- nested` and `- two`, which is where `- one`'s own
+    // subtree already ends — dropping it there moves it nowhere.
+    const y = await seamBetween(1, 2);
+    await dragFrom(mark, [
+      { x: mark.x + 20, y: mark.y + 10 },
+      { x: box.left + 4, y },
+      { x: box.left + 4, y: y + 1 },
+    ]);
+    await browser.pause(300);
+    expect(await h.getBuffer()).toBe(edited);
+
+    // ONE undo takes the typing back — not an empty write the drop left on the
+    // stack in front of it.
+    await h.keys.undo();
+    await browser.pause(300);
+    expect(await h.getBuffer()).toBe(DOC);
   });
 
   it('names where the run would land, once it is in flight', async function () {
@@ -406,7 +521,7 @@ describe('node dragging: the press and the drag it can become', function () {
     const box = await editorBox();
     const outside = Math.max(4, box.left - 40);
     await startRecording();
-    await dragFrom(mark, [
+    await dragThenEscape(mark, [
       { x: mark.x + 12, y: mark.y + 12 },
       { x: outside, y: mark.y + 20 },
       { x: outside, y: mark.y + 40 },

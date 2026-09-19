@@ -128,6 +128,12 @@ export function dropSeams(
   options: {
     readonly folded?: ReadonlySet<number>;
     readonly fallbackIndentUnit?: string;
+    /** True when `doc` is a zoom scope's re-rooted document rather than a
+     * file's own. Such a document's top level is the zoom ROOT's level, so a
+     * destination parented at `'root'` is a sibling of the root — reachable in
+     * the source and outside the scope, which `node-dragging` refuses. The
+     * caller says so, because nothing in a document says which it is. */
+    readonly scoped?: boolean;
   } = {},
 ): DropSeam[] {
   if (operandRoots.length === 0) return [];
@@ -148,6 +154,7 @@ export function dropSeams(
     for (let depth = shallow; depth <= deep; depth++) {
       const placed = placeAt(depth, above, below);
       if (!placed) continue;
+      if (placed.parentId === 'root' && options.scoped === true) continue;
       if (placed.parentId !== 'root' && operandIds.has(placed.parentId)) continue;
       const written = writtenFirstLine(doc, placed, operandRoots, operandRootIds, options);
       if (written === undefined) continue;

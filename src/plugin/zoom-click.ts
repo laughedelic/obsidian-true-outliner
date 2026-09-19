@@ -45,13 +45,13 @@
 
 import { ViewPlugin, type EditorView, type PluginValue, type ViewUpdate } from '@codemirror/view';
 import type { Extension } from '@codemirror/state';
-import { resolveZoom } from '../zoom';
+import { reresolveZoom, resolveZoom, type ZoomScope } from '../zoom';
 import { dragOperand } from '../operand';
 import { nodeAtLine } from '../locate';
-import { linePosToOffset, toLineRange } from './cm-pos';
+import { linePosToOffset, offsetToLinePos, toLineRange } from './cm-pos';
 import { indentUnit } from '@codemirror/language';
 import { walkNodes, type OutlineDoc, type OutlineNode } from '../model';
-import { dropSeams, resolveDestination } from '../drop-destinations';
+import { dropSeams, resolveDestination, type DropDestination } from '../drop-destinations';
 import { dragGeometry } from './drag-geometry';
 import {
   dragPreviewField,
@@ -63,6 +63,13 @@ import { foldedChrome } from './fold-service';
 import { entryAtLine } from './fold-model';
 import { zoomScope } from './zoom-scope';
 import { parsedDoc } from './parsed-doc';
+import { subtreeDocument } from '../project';
+import { moveSubtreesTo } from '../ops';
+import { placeOutline } from './decorate';
+import { openPlaceLine } from './provisional-cleanup';
+import { changesToSpec } from './dispatch';
+import { offsetInLines, planStructural } from './structural-run';
+import { noticeRejection } from './notices';
 import { GUIDES_CLASS } from './chrome-line';
 import { guideOwnerAt, toggleGuideAt } from './fold-commands';
 import { foldLines } from './fold-model';
@@ -135,6 +142,15 @@ interface MarkPress {
   readonly zooms: boolean;
   /** What the drag picked up, once it became one. */
   groups: readonly (readonly number[])[] | undefined;
+  /** The tree the whole gesture is resolved against: taken once at the
+   * pick-up, and the same one the seams, the preview and the drop all read.
+   * The ids have to agree across the three, and a document change under the
+   * drag cancels it, so there is nothing to re-derive. */
+  tree: OutlineDoc | undefined;
+  /** The provisional position open at the pick-up, if any (`outline-keyboard-
+   * grammar`). Read before the collapse, which is a selection dispatch with no
+   * `userEvent` and so destroys the record. */
+  placeLine: number | undefined;
   /** The selection as it was BEFORE the drag collapsed it — what a cancel
    * puts back. The collapse belongs to the drag, so undoing the drag undoes
    * the collapse with it. */
@@ -312,12 +328,14 @@ class ZoomClickPlugin implements PluginValue {
   }
 
   private resolveDrop(press: MarkPress, x: number, y: number): DragPreview | null {
-    if (!press.groups) return null;
+    if (!press.groups || !press.tree) return null;
     // Under a zoom the seams are resolved against the scope's OWN re-rooted
     // document, so no destination outside the scope exists to be offered in
-    // the first place.
-    const scope = zoomScope(this.view.state);
-    const tree = scope ? scope.document : parsedDoc(this.view.state.doc).doc;
+    // the first place. Re-resolved against the press's tree first: the scope
+    // was built from the view's cached parse, and over an open position that
+    // is a different tree with different ids.
+    const scope = this.scopeFor(press.tree);
+    const tree = scope ? subtreeDocument(scope.root) : press.tree;
     const wanted = new Set(press.groups.flat());
     const roots: OutlineNode[] = [];
     for (const node of walkNodes(tree)) {
@@ -330,6 +348,10 @@ class ZoomClickPlugin implements PluginValue {
       // The gesture holds the view, so it reads the editor's live unit where
       // the command path has to fall back to a default.
       fallbackIndentUnit: this.view.state.facet(indentUnit),
+      // Which document this is, which is the other half of applying the zoom:
+      // a scope's top level is the zoom root's own level, and a run dropped
+      // there leaves the view it was dragged in.
+      scoped: scope !== null,
     });
     const geometry = dragGeometry(this.view, seams, scope ? scope.startLine : 0);
     if (!geometry) return null;
@@ -377,13 +399,27 @@ class ZoomClickPlugin implements PluginValue {
       this.cancelPress();
       return;
     }
-    const { doc } = parsedDoc(this.view.state.doc);
+    const main = this.view.state.selection.main;
+    // The OUTLINE a provisional position stands for, on the same terms the
+    // keyboard and the palette resolve it on (`selection-structural-ops`): a
+    // blank line one of our own keypresses opened is a node to the other two
+    // entry points, so a seam it offers is a place they can already act on.
+    //
+    // Read HERE and not at the release. The collapse below is a selection
+    // dispatch carrying no `userEvent`, and `placeLineAfter` recognises
+    // neither a creating nor a carrying dispatch without one, so the record is
+    // gone by the time the button comes up.
+    const text = this.view.state.doc.toString();
+    press.placeLine = openPlaceLine(this.view) ?? undefined;
+    const doc =
+      placeOutline(text, offsetToLinePos(this.view.state.doc, main.head), press.placeLine) ??
+      parsedDoc(this.view.state.doc).doc;
+    press.tree = doc;
     const pressed = nodeAtLine(doc, this.view.state.doc.lineAt(pos).number - 1);
     if (!pressed) {
       this.cancelPress();
       return;
     }
-    const main = this.view.state.selection.main;
     const operand = dragOperand(doc, toLineRange(this.view.state.doc, main), pressed.id);
     if (!operand) {
       this.cancelPress();
@@ -420,15 +456,91 @@ class ZoomClickPlugin implements PluginValue {
     this.press = null;
     this.releaseCapture(press.pointerId);
     this.view.dom.ownerDocument.removeEventListener('keydown', this.onKeyDown, true);
-    this.clearPreview();
     if (press.dragging) {
-      // No destination is resolved yet, and a release that names none cancels
-      // with nothing written — which includes putting back the selection the
-      // pick-up collapsed. The drop replaces this branch, not the rule.
-      this.restoreSelection(press);
+      // What the preview NAMED, rather than a second resolution from the
+      // release's own coordinates: the reader acted on what they were shown,
+      // and two resolutions are two chances to disagree. Read before the
+      // preview is cleared, which is a dispatch of its own.
+      const preview = this.view.state.field(dragPreviewField, false) ?? null;
+      this.clearPreview();
+      // A release that names no destination cancels with nothing written,
+      // which includes putting back the selection the pick-up collapsed.
+      if (!preview || !this.drop(press, preview.destination)) this.restoreSelection(press);
       return;
     }
+    this.clearPreview();
     if (press.zooms) this.zoomToMark(press.mark);
+  }
+
+  /**
+   * The drop: the move the preview named, through the shared command funnel.
+   *
+   * Through it rather than beside it, because `selection-structural-ops`
+   * requires every entry point to reach the same document and the same
+   * selection — the gesture is a third one, and what it would otherwise have
+   * to reproduce is the single transaction, the undo grouping, the caret
+   * policy, the fold carry and the rejection cue. It enters one step further
+   * along than the other two: the operand is the run the pointer is holding,
+   * not the one a selection resolves to.
+   *
+   * True when the drop was applied — including a move that writes nothing
+   * because the run is already where it was aimed. Its selection is still the
+   * run, which is what the reader dropped.
+   */
+  private drop(press: MarkPress, destination: DropDestination): boolean {
+    if (!press.groups || !press.tree) return false;
+    const before = this.view.state.doc;
+    const main = this.view.state.selection.main;
+    // The gesture holds the view, so it reads the editor's live unit where the
+    // command path has to fall back to a default.
+    const unit = this.view.state.facet(indentUnit);
+    const outcome = planStructural({
+      text: before.toString(),
+      opDoc: press.tree,
+      groups: press.groups,
+      // Always: the run that was in flight is the run that is selected when it
+      // lands, whether the drag picked up a cover or made one.
+      wasCover: true,
+      op: (doc, groups) => moveSubtreesTo(doc, groups, destination, unit),
+      caret: { kind: 'subject' },
+      ...(press.placeLine === undefined ? {} : { placeLine: press.placeLine }),
+      scope: this.scopeFor(press.tree),
+      backward: main.anchor > main.head,
+    });
+    if (!outcome.ok) {
+      noticeRejection(outcome.reason);
+      return false;
+    }
+    const anchor = offsetInLines(outcome.newLines, outcome.from);
+    const selection = {
+      anchor,
+      head: outcome.to === undefined ? anchor : offsetInLines(outcome.newLines, outcome.to),
+    };
+    if (outcome.changes.length === 0) {
+      // A run dropped where it already is. The move is real and its
+      // after-state stands; there is simply nothing to write, and an empty
+      // changeset must not become an undo entry.
+      this.view.dispatch({ selection });
+      return true;
+    }
+    this.view.dispatch({
+      changes: changesToSpec(before, outcome.changes),
+      selection,
+      // The same annotation the keyboard path's own moves carry, which is what
+      // makes this one undo step rather than one joined to whatever preceded
+      // it.
+      userEvent: 'move.structure',
+      scrollIntoView: true,
+    });
+    return true;
+  }
+
+  /** The zoom scope re-resolved against the tree this gesture is working in —
+   * over an open position that is a different parse from the view's cached
+   * one, and `parse()` allocates every node a new id. */
+  private scopeFor(tree: OutlineDoc): ZoomScope | null {
+    const scope = zoomScope(this.view.state);
+    return scope ? reresolveZoom(tree, scope) : null;
   }
 
   /** Every path that ends a press without resolving it: a cancelled pointer,
@@ -695,6 +807,8 @@ class ZoomClickPlugin implements PluginValue {
       dragging: false,
       zooms: false,
       groups: undefined,
+      tree: undefined,
+      placeLine: undefined,
       selectionBefore: undefined,
     };
     return true;
@@ -777,6 +891,8 @@ class ZoomClickPlugin implements PluginValue {
       dragging: false,
       zooms: true,
       groups: undefined,
+      tree: undefined,
+      placeLine: undefined,
       selectionBefore: undefined,
     };
   }
@@ -866,6 +982,7 @@ function guideHit(lineEl: HTMLElement, clientX: number): number | null {
   }
   return null;
 }
+
 
 /**
  * The nodes whose children are hidden right now, as ids.

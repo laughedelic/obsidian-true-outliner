@@ -139,7 +139,7 @@
       same three; negative control: matching a mark by selector alone picks up the trail's own
       mark, which the zoom-out crumb case then fails on
 
-- [ ] 3.8 Enter the shared command funnel rather than dispatching beside it, so the drop gets the
+- [x] 3.8 Enter the shared command funnel rather than dispatching beside it, so the drop gets the
       single transaction, undo grouping, caret policy, fold carry and rejection cue the other two
       entry points get — noting the gesture holds a view where they hold an `Editor`
       (`selection-structural-ops` delta) — verify a drop and the equivalent command produce an
