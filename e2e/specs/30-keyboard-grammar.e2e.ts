@@ -799,6 +799,39 @@ describe('keyboard grammar', function () {
     expect(moved[0]!.children).toEqual([]);
   });
 
+  it('a SECOND structural key still knows the place the first one carried', async function () {
+    // Issue #142. Every measurement of place behaviour before it took ONE
+    // structural keypress from a freshly opened place, where the record the
+    // operation path reads is still live. `input.structure.indent` re-established
+    // none, so the key after a Tab read an ordinary blank line: the item's
+    // continuation came back to its old width while the place was left a level
+    // deeper, and the caret dropped to the item's content start.
+    //
+    // Shift+Tab undoes what the Tab did, so the buffer has to come back to what
+    // the Shift+Enter alone left — byte-exactly, since no new indentation is
+    // written and the vault's own unit never enters it.
+    await grammarNote('- one\n- foo\n  bar\n', 1, '- foo'.length);
+    await h.keys.shiftEnter();
+    const opened = await h.getBuffer();
+    expect(opened).toBe('- one\n- foo\n  \n  bar\n');
+    const openedAt = await h.getCursor();
+
+    await h.keys.tab();
+    await h.keys.shiftTab();
+
+    expect(await h.getBuffer()).toBe(opened);
+    expect(await h.getCursor()).toEqual(openedAt);
+
+    // And the place is still the item's continuation position, not a blank line
+    // the outdent left between two nodes: typing there makes the item's own
+    // second line.
+    await h.keys.type('x');
+    const doc = parse(await h.getBuffer());
+    expect(doc.children.map((n) => n.lines[0])).toEqual(['- one', '- foo']);
+    expect(doc.children[1]!.lines.map((l) => l.trim())).toEqual(['- foo', 'x', 'bar']);
+    expect(doc.children[1]!.children).toEqual([]);
+  });
+
   it('Mod-A on an interior position abandons the place rather than selecting half a node', async function () {
     // The tree-level fix for the ladder is covered in
     // `tests/select-all-ladder.test.ts`; what this pins is the interaction that

@@ -19,6 +19,16 @@
  * reverts everything, including a block selection the same keypress deleted. It
  * also leaves a real history entry, so one undo returns to the empty place.
  *
+ * The module also keeps a SECOND, smaller fact, for a different consumer: WHICH
+ * LINE an open place occupies, which the operation path is told because the
+ * document cannot say (`openPlaceLine`). The two are separate records with
+ * separate conditions, and the separation is the point. "Was a place created
+ * here" is what the removal needs and is deliberately narrow; "is this blank
+ * line a place" is what an operation needs and holds for as long as the place
+ * is open, across the keys that carry it. One answer served both until a second
+ * structural keypress on the same place was measured reading it as an ordinary
+ * blank line and editing the document accordingly.
+ *
  * The safety of the whole mechanism rests on a property of this plugin's own
  * `userEvent` values: `@codemirror/commands` joins a change into the previous
  * history entry only for the `input.type` and `delete` families, so a structural
@@ -110,18 +120,30 @@ interface CreatedPlace {
 const created = new WeakMap<EditorView, CreatedPlace>();
 
 /**
- * The dispatches whose UNDO removes an empty place and leaves the document as
- * if the keypress had not happened. That is a narrower test than "leaves the
- * caret on an empty place", and the difference matters.
+ * The line an OPEN PLACE occupies in this view, for as long as it is open.
  *
- * The empty-item ladder's two operations are both absent, for the same reason:
- * neither CREATES the place. `outdent` moves an item that was already empty, so
- * undoing it puts that item back one level deeper. `unwrap` converts an empty
- * item into a blank position, so undoing it restores the `- ` — which would
- * make abandoning an Enter-Enter (make an empty item, then leave the list)
- * leave a bullet behind that would not be there without this feature at all.
- * The blank line the unwrap leaves is the result of a deliberate act, not
- * debris from an unused keypress.
+ * A separate record from `created` above, written from the same update and
+ * dropped by the same document change, because it answers a different question
+ * for a different consumer. `created` says a place was MADE by the keypress in
+ * front of it and how to remove it; this says a blank line IS a place, which is
+ * what a structural operation has to know to act on the node the place is
+ * inside (`grammar.ts`, `placeOutline`).
+ *
+ * Holding one record for both scoped this one to a single keypress: the
+ * conditions that make a removal safe — a creating event, a stated removal
+ * edit, an unmoved undo depth — are all about the keypress, and a place outlives
+ * the keypress that made it. A key that carried a place therefore left nothing
+ * for the key after it to read (docs/research/decoration-follow-ups).
+ */
+const openPlace = new WeakMap<EditorView, number>();
+
+/**
+ * The empty-item ladder's two operations, `outdent` and `unwrap`, are in this
+ * GAP list and out of the NODE one below, and the split is the whole point.
+ * Neither CREATES a node: `outdent` moves an item that was already empty, and
+ * `unwrap` converts one into a blank position, so undoing either would restore
+ * a bullet the user deliberately left the list to escape. What they do leave is
+ * a gap line, which nothing occupied before — hence the asymmetry.
  */
 /**
  * A dispatch of ours that leaves the caret on a GAP line necessarily created
@@ -152,6 +174,39 @@ const NODE_PLACE_EVENTS: readonly string[] = [
   'input.structure.split',
   'input.structure.sibling-heading',
   'input.structure.continue',
+];
+
+/**
+ * The dispatches that CARRY a place they did not create.
+ *
+ * Both re-emit the lines of the node the place belongs to, and both leave the
+ * caret on the place they moved — which is the rule
+ * `caret-placement-policy` states for a derived caret, and what lets the carry
+ * be tested at the caret rather than through the change set. Mapping the place
+ * line's own offset forward cannot answer it: `editsToChanges` emits line-level
+ * replacements, so the mapped position lands at the replaced block's start
+ * rather than on the place.
+ *
+ * `move.structure` is absent by MEASUREMENT, not by category. A move's caret is
+ * its subject's content start, so it leaves no place at the caret for this to be
+ * about — and `placeOutline` resolves only where the place line and the caret
+ * agree, so a record kept through a move would not be read either. The place a
+ * move relocated is left behind with its node, which is the parking-lot entry
+ * beside this one rather than this one.
+ *
+ * `outdent` is here for the rule rather than for its effect, and the difference
+ * is worth stating so the next reader does not have to re-derive it. Over a GAP
+ * place `recordablePlace` answers first — `GAP_PLACE_EVENTS` names `outdent` —
+ * so the carry branch is never reached. It IS reached over a NODE place, and
+ * there no consumer reads the answer: a node place's own line is a first line,
+ * which `positionJoinsANode` refuses, so `placeOutline` resolves nothing. Only
+ * `indent` therefore changes what any consumer sees today. The entry stays
+ * because the rule is about what an operation DOES to a place, not about which
+ * of two lists happens to name the event.
+ */
+const CARRY_PLACE_EVENTS: readonly string[] = [
+  'input.structure.indent',
+  'input.structure.outdent',
 ];
 
 /** The userEvent the abandon edit carries: plugin-own, so the verdict layer
@@ -189,6 +244,15 @@ function emptyPlaceAt(state: EditorState): { line: number; kind: 'gap' | 'node' 
 
 function emptyPlaceLine(state: EditorState): number | null {
   return emptyPlaceAt(state)?.line ?? null;
+}
+
+/** A sole, empty cursor on this line. The shape every place question starts
+ * from: a selection is not a caret parked on a place, and neither is one of
+ * several cursors. */
+function caretIsOnLine(state: EditorState, line: number): boolean {
+  const sel = state.selection.main;
+  if (!sel.empty || state.selection.ranges.length !== 1) return false;
+  return state.doc.lineAt(sel.head).number - 1 === line;
 }
 
 /**
@@ -249,6 +313,54 @@ export function recordablePlace(
 }
 
 /**
+ * The line holding an open place AFTER this transaction, or `null`.
+ *
+ * `startedOn` is the open place the caret was on when the transaction began, or
+ * `null` when it was on none. That half is what stops the rule from inventing a
+ * place: a Tab from an ordinary caret cannot mark a blank line as one, however
+ * its caret happens to land.
+ *
+ * Two ways to end up with a place, and the order is not arbitrary. A dispatch
+ * that CREATED one starts a record where there was none, on exactly the terms
+ * the removal path uses — nothing here widens that test. A dispatch that CARRIED
+ * one keeps a record that already exists. A key can do the first while doing
+ * neither of the second's halves, so asking `recordablePlace` first also keeps
+ * the carry list from having to name every creating event a second time.
+ *
+ * Keyed on this plugin's own `userEvent` values throughout, never on the shape
+ * of the change, for the reason `isCreatingTransaction` states: CodeMirror's own
+ * Enter runs inside outline mode whenever the grammar declines, and a rule that
+ * recognised a dispatch by its shape recognised that one too.
+ */
+/**
+ * The open place a keypress BEGAN on, or `null` — the first half of the carry
+ * rule, read from the state as the transaction found it.
+ *
+ * Exported so the listener and the tests share one copy rather than two that
+ * agree today. A test that restates this is testing its own restatement: the
+ * rule is small, and that is exactly what makes it easy to restate wrongly.
+ */
+export function carriedPlace(
+  startState: EditorState,
+  openBefore: number | null | undefined,
+): number | null {
+  if (openBefore === undefined || openBefore === null) return null;
+  return caretIsOnLine(startState, openBefore) ? openBefore : null;
+}
+
+export function placeLineAfter(
+  state: EditorState,
+  userEvent: string | undefined,
+  startedOn: number | null,
+): number | null {
+  const madeHere = recordablePlace(state, userEvent);
+  if (madeHere) return madeHere.line;
+  if (startedOn === null) return null;
+  if (userEvent === undefined || !CARRY_PLACE_EVENTS.includes(userEvent)) return null;
+  return emptyPlaceAt(state)?.line ?? null;
+}
+
+/**
  * Remove the place, as its own undoable edit.
  *
  * NOT an undo of the keypress (design D6, revised): undo reverts everything the
@@ -285,9 +397,7 @@ function liveRecord(view: EditorView): CreatedPlace | undefined {
 }
 
 /**
- * The line holding the place THIS view's last structural keypress created, or
- * null — the same guard the cleanup itself uses, exposed for the one other
- * question that needs it.
+ * The line holding the place THIS view currently has open, or null.
  *
  * A structural operation acting on a bisected node has to know that the blank
  * line inside it is a PLACE, and the document cannot say: a blank line the user
@@ -302,11 +412,35 @@ function liveRecord(view: EditorView): CreatedPlace | undefined {
  * docs/research/decoration-follow-ups). An OPERATION cannot: measured, Tab with the caret on the
  * gap between `para` and `last` treated the two paragraphs as one node and
  * indented both. So the operation path asks this instead, which is the same
- * "told apart by whether a structural keypress of ours created the position"
- * rule `node-edit-enforcement` already states for its own gap-line case.
+ * "told apart by whether a structural keypress of ours put the position there"
+ * rule `node-edit-enforcement` already states for its own gap-line case —
+ * PUT rather than CREATED, since a key that carried one put it where it is.
+ *
+ * Reads `openPlace`, not the removal record, and carries NO undo-depth guard.
+ * `liveRecord`'s guard is there because a removal is an EDIT and the editor
+ * joins typing into the keypress's own history entry, so a depth that moved
+ * unseen can mean an entry holding the user's work. This issues no edit, and
+ * every history movement that could move a place changes the document — which
+ * is the invalidation `openPlace` already has. It was named `createdPlaceLine`,
+ * and the name was the defect: the caller means OPEN, and the record it read
+ * answered CREATED.
+ *
+ * The answer is CONFIRMED against the live state before it is given, which is
+ * what keeps this record's failure direction the same as the removal record's.
+ * Both are keyed on the VIEW and both are maintained from an update listener,
+ * so a path that swaps a view's state without producing an update — Obsidian
+ * reusing one editor across files is the shape to worry about — leaves whatever
+ * was remembered behind. A stale removal record fails safe, because it only ever
+ * declines to remove; a stale place line fails the other way, and its consumer
+ * rewrites the user's document around a blank line nothing opened. Re-deriving
+ * costs nothing (`parsedDoc` is cached, and both callers are about to parse
+ * anyway) and makes the record self-validating rather than dependent on every
+ * mutation being observed.
  */
-export function createdPlaceLine(view: EditorView): number | null {
-  return liveRecord(view)?.line ?? null;
+export function openPlaceLine(view: EditorView): number | null {
+  const line = openPlace.get(view);
+  if (line === undefined) return null;
+  return emptyPlaceAt(view.state)?.line === line ? line : null;
 }
 
 /**
@@ -415,6 +549,7 @@ export function provisionalCleanup(inOutlineMode: (view: EditorView) => boolean)
     // note would be undone the moment the caret moved away. Reported by review.
     if (!inOutlineMode(view)) {
       created.delete(view);
+      openPlace.delete(view);
       return;
     }
 
@@ -422,11 +557,23 @@ export function provisionalCleanup(inOutlineMode: (view: EditorView) => boolean)
       // Any document change replaces whatever was remembered: either it IS the
       // creating keypress (recorded below), or it is something else — including
       // the user typing on the place, which USES it and must never be undone.
+      // Both records go, and both are re-established from this same transaction
+      // or not at all — which is what keeps them from drifting apart while
+      // answering different questions.
+      const openBefore = openPlace.get(view);
       created.delete(view);
+      openPlace.delete(view);
 
       const last = update.transactions[update.transactions.length - 1];
       if (last) {
         const event = last.annotation(Transaction.userEvent) ?? undefined;
+        // The place a CARRYING dispatch could have moved: the one this view had
+        // open, and only when the caret was actually on it when the transaction
+        // began. A key pressed anywhere else carries nothing.
+        const startedOn = carriedPlace(last.startState, openBefore);
+        const open = placeLineAfter(view.state, event, startedOn);
+        if (open !== null) openPlace.set(view, open);
+
         // BOTH must agree, and they are independent by contract: the dispatch
         // states how to remove a place, this module decides whether one was
         // left. Neither is evidence for the other — Shift+Tab states a removal
@@ -449,14 +596,24 @@ export function provisionalCleanup(inOutlineMode: (view: EditorView) => boolean)
     }
 
     if (!update.selectionSet) return;
+
+    // The caret leaving a place ends it, whether or not a removal record is
+    // still live for it. That is the same gesture the cleanup reads as
+    // declining, and the two facts differ in their CONDITIONS rather than in
+    // how long a place lasts: a place the user has walked away from is not one
+    // an operation should still be acting on.
+    //
+    // Belt-and-braces rather than the only defence: `openPlaceLine` re-derives
+    // from the live state before answering, so a record this misses is refused
+    // there instead of believed. Dropping it here keeps the map from holding
+    // what it has no business holding.
+    const open = openPlace.get(view);
+    if (open !== undefined && !caretIsOnLine(view.state, open)) openPlace.delete(view);
+
     const record = liveRecord(view);
     if (!record) return;
     const sel = view.state.selection.main;
-    const stillThere =
-      sel.empty &&
-      view.state.selection.ranges.length === 1 &&
-      view.state.doc.lineAt(sel.head).number - 1 === record.line;
-    if (stillThere) return;
+    if (caretIsOnLine(view.state, record.line)) return;
 
     const target = sel.head;
     queueMicrotask(() => {

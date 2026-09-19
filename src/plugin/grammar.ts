@@ -579,7 +579,7 @@ export function planKey(
   // buffer's own text so the edits it produces are correct against the buffer.
   //
   // `placeLine` — the line a structural keypress of OURS put a place on, which
-  // only the adapter can know (`provisional-cleanup.ts`'s `createdPlaceLine`) —
+  // only the adapter can know (`provisional-cleanup.ts`'s `openPlaceLine`) —
   // is what makes this safe, and `placeOutline` declines without it. The
   // document alone cannot tell a place from a blank line the user authored
   // between two paragraphs, and here the difference has teeth: measured, Tab

@@ -699,7 +699,7 @@ describe('grammar planner: a structural key acts on the node a position is insid
   // cannot derive. Passing it here is the precondition, not a convenience: the
   // document alone cannot tell this blank line from one the user authored
   // between two paragraphs, and an operation that guesses indents both of them
-  // (`createdPlaceLine`).
+  // (`openPlaceLine`).
   function press(text: string, cursor: { line: number; ch: number }, key: GrammarKey): string {
     return plannedText(text, cursor, key, cursor.line);
   }

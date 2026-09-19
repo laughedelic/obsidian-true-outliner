@@ -500,21 +500,79 @@ column inside its own line") holds the two together. Three other conversions of 
 `offsetInLines` — do not clamp, and agree with this one only while every position they are handed
 is in range.
 
+### An indent writes its unit on the first line and spaces on the continuation lines
+
+Found while re-measuring the entry below, and unrelated to places: it reproduces with none open, so
+it belongs to the indent operation.
+
+With the editor's indent unit set to a TAB, `indent` writes the unit on the node's own first line
+and SPACES on the lines below it. Measured on `- top` / `- foo` / `␣␣bar` with the caret in `foo`
+and no place open:
+
+| Unit | Result |
+|---|---|
+| `⇥` | `- top` / `⇥- foo` / `␣␣␣␣␣␣bar` — a tab on the marker line, six spaces below it |
+| `␣␣␣␣` | `- top` / `␣␣␣␣- foo` / `␣␣␣␣␣␣bar` |
+| `␣␣` | `- top` / `␣␣- foo` / `␣␣␣␣bar` |
+
+The space units are self-consistent; the tab unit is not. The continuation lines come out at the
+item's content COLUMN counted in characters, which is the right column only while the unit is
+spaces — so a tab-indented vault gets a node whose own lines are indented two ways, which
+`source-indentation-collapses` then has to render.
+
+Not diagnosed further. Closing it starts with which of `indent`'s two writers computes the
+continuation prefix, and whether a column is the right currency for it at all when the unit is a
+tab.
+
 ### The place record is single-shot, so a SECOND structural key mistreats the place
 
-Found in the manual pass on #129. `grammar.ts` is told which blank line holds a place by
-`createdPlaceLine`, which reads `provisional-cleanup`'s record. That record is re-established only
-by a keypress the module counts as CREATING one — `GAP_PLACE_EVENTS` and `NODE_PLACE_EVENTS`, which
-list split, sibling-heading, continue, unwrap, and (for a gap place only) outdent. `indent` is in
-neither list. So a Tab that carried a place along leaves no record behind, and a second structural
-keypress sees an ordinary blank line.
+**Closed** by `a-carried-place-keeps-its-record` (issue #142). Kept with its measurements, because
+the re-measurement below retires one of the two rows the issue reported and the two residuals it
+names are still parked.
 
-Both halves of the damage follow, and both were reported from the real app:
+**The gap, as it was.** `grammar.ts` is told which blank line holds a place by what was then
+`createdPlaceLine`, which reads `provisional-cleanup`'s record. That record was re-established only
+by a keypress the module counts as CREATING one — `GAP_PLACE_EVENTS` and `NODE_PLACE_EVENTS`, which
+list split, sibling-heading, continue, unwrap, and (for a gap place only) outdent. `indent` was in
+neither list. So a Tab that carried a place along left no record behind, and a second structural
+keypress saw an ordinary blank line.
+
+Both halves of the damage followed, and both were reported from the real app:
 
 | Gesture | Result |
 |---|---|
 | `- top` / `⇥- foo` / `⇥␣␣bar`, Shift+Enter, Shift+Tab, Tab | `- top` / `␣␣- foo` / `␣␣` / `␣␣␣␣bar`, caret 1:4 — the place keeps two columns while the item moves to four, and the caret is off it |
 | `- one` / `- foo` / `␣␣bar`, Shift+Enter, Tab, Shift+Tab | `- one` / `- foo` / `␣␣␣␣` / `␣␣bar`, caret 1:2 — the caret lands at the start of `foo`, and the place is left deeper than the item |
+
+**Re-measured in the real app** once `a-trailing-place-moves-with-its-node` was in, and only the
+SECOND row survives. The first row is closed by that change rather than by this entry: it fixed
+Shift+Tab's caret, which used to leave the place, and a caret that stays ON the place is what
+`recordablePlace` needs to re-establish the record for the `outdent` its event list already
+names. The Tab after it now acts on the place. Measured in Obsidian, indent unit a tab:
+`- top` / `⇥- foo` / `⇥␣␣` / `⇥␣␣bar` → Shift+Tab → caret 2:2 on the place → Tab →
+`- top` / `⇥- foo` / `␣␣␣␣␣␣` / `␣␣␣␣␣␣bar`, caret 2:6, which is the planner's own answer WITH the place
+line (without it the place stays two columns wide and the caret drops to 1:3).
+
+The second row reproduces unchanged, in the real app, on the same base: `- one` / `- foo` /
+`␣␣bar` → Shift+Enter → Tab → `- one` / `␣␣␣␣- foo` / `␣␣␣␣␣␣` / `␣␣␣␣␣␣bar` with the caret on the place
+— and then Shift+Tab → `- one` / `- foo` / `␣␣␣␣␣␣` / `␣␣bar`, caret 1:2. `indent` leaves no record,
+so the key after it reads an ordinary blank line.
+
+Which keys keep the record today, each measured with a place open on `- one` / `␣␣- foo` /
+`␣␣␣␣bar` / `␣␣- two`:
+
+| Key after a place | Caret after | Record after |
+|---|---|---|
+| Tab (`input.structure.indent`) | on the place | none — the event is in neither list |
+| Shift+Tab (`input.structure.outdent`) | on the place | the place |
+| Move up / down (`move.structure`) | the moved node's content start | none |
+
+The moves are a separate shape rather than a third case of this one. `caret-placement-policy`'s
+SUBJECT rule sends their caret to the node, not to the place, so there is no place at the caret
+for any record to be about — and `placeOutline` resolves only where the place line and the caret
+agree, so a record kept through a move would not be read either. A place the user left behind by
+moving its node is the parking-lot entry above ("A structural key pressed on a provisional
+position leaves the blank line in the file"), not this one.
 
 The grammar is right in both: handed the place line, `planKey` produces the correct document and
 caret for every step of both sequences. Only the live path differs, and only from the second
@@ -537,7 +595,24 @@ it even for a key the event lists do name, and abandoning it leaves it in the fi
 two questions above does not reach that one; giving `runOp` the plan's `abandon` form does.
 
 Not caused by #129, which touches only `dispatch.ts`'s `{line, ch}` conversion: both sequences
-reproduce identically against `main`'s own `dispatch.ts`.
+reproduced identically against `main`'s own `dispatch.ts`.
+
+**How it closed.** The record splits in two. A PLACE record holds the line an open place occupies,
+started by a creating dispatch and kept by one of ours that began with the caret on that place and
+left the caret on an empty place; the removal record keeps every condition it had, including the
+`undoDepth` backstop, which a fact issuing no edit does not need. `createdPlaceLine` became
+`openPlaceLine`, the name being the defect in miniature.
+
+**Still parked**, both named above: the ABANDON record does not survive a carrying key either, so
+walking away after a Tab still leaves the blank line in the file (the entry above this one); and
+the palette writes no record at all, for or against, because `runOp` dispatches with no `userEvent`
+and states no `abandon` edit.
+
+**And newly reachable**: after a carrying key the place record answers while the removal record does
+not, which is the state `keymap.ts`'s note about the selection handlers said did not exist. It is a
+slice of the shapes rather than the general case, so the handlers stay on the raw parse and the note
+now says so.
+
 
 ### The palette path does not resolve a place at all
 
