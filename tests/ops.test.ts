@@ -982,12 +982,32 @@ describe('moveSubtreesTo', () => {
     expect(first.children.map((c) => c.lines[0])).toEqual(['body']);
   });
 
+  it('carries the note’s terminating newline out of the end it leaves', () => {
+    // A move's removal is not refilled at the place it left, so whichever node
+    // ends the document afterwards carries the newline the run was holding.
+    const src = ['- one', '  - a', '- two', ''].join('\n');
+    const doc = parse(src);
+    const result = moveSubtreesTo(doc, [[byLine(doc, '- two')]], {
+      parentId: byLine(doc, '- one'),
+      index: 0,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe(['- one', '  - two', '  - a', ''].join('\n'));
+
+    // Negative control: a note written without one is not given one.
+    const flush = parse(['- one', '  - a', '- two'].join('\n'));
+    const kept = moveSubtreesTo(flush, [[byLine(flush, '- two')]], {
+      parentId: byLine(flush, '- one'),
+      index: 0,
+    });
+    expect(kept.ok).toBe(true);
+    if (!kept.ok) return;
+    expect(encode(kept.value.doc)).toBe(['- one', '  - two', '  - a'].join('\n'));
+  });
+
   it('round-trips a run that absorbs nothing, and does not when it absorbs', () => {
-    // Absorbs nothing: a list item has no section to open. The run is kept
-    // clear of the document's LAST node at both ends, because a removal there
-    // takes the file's terminating newline with it — issue #160, reproducible
-    // with a plain `deleteSubtrees` and inherited here through the same
-    // removal, not introduced by the move.
+    // Absorbs nothing: a list item has no section to open.
     const tight = ['- one', '- two', '- three', '- four', ''].join('\n');
     const there = parse(tight);
     const out = moveSubtreesTo(there, [[byLine(there, '- one')]], { parentId: 'root', index: 3 });

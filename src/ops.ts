@@ -1863,20 +1863,8 @@ export function deleteSubtreeGroups(
   const { resolved } = removal.value;
   let surgery = removal.value.surgery;
 
-  // A document's terminating newline is ONE EMPTY GAP LINE on its last node
-  // rather than a property of the document, so a removal that takes the node
-  // holding it takes the newline with it. Every other gap a removal takes is a
-  // separation the deleted run owned — which is the rule everywhere else — but
-  // the last node's gap separates it from nothing, so the node that now ends
-  // the document takes it over instead.
-  //
-  // Only where the document HAD one, and only onto a node that ends flush: a
-  // note genuinely written without a final newline is not given one by an edit
-  // elsewhere in it, and a survivor that already ends in a gap already carries
-  // the terminator.
-  //
-  // `spliceFollows` is the caller that will fill the place this run leaves —
-  // a type-over, or a paste onto an empty anchor. There the survivor does not
+  // `spliceFollows` is the caller that will fill the place this run leaves — a
+  // type-over, or a paste onto an empty anchor. There the survivor does not
   // end the document afterwards, and the terminator travels with the gap the
   // deleted run is carrying to the insertion, so restoring it here would put a
   // blank line between the survivor and what lands next to it.
@@ -2583,7 +2571,7 @@ export function moveSubtreesTo(
         reordered.map((node, slot) => setFinalGap(node, gaps[slot]!)),
       );
     });
-    return finalize(doc, surgery, ordered[0]!.id);
+    return finalize(doc, keepDocumentTerminator(doc, surgery), ordered[0]!.id);
   }
 
   const removal = removeGroups(doc, groups);
@@ -2629,5 +2617,13 @@ export function moveSubtreesTo(
   // Against the ORIGINAL document, so the edits describe the whole move as one
   // change rather than the insertion alone. A move that lands the run where it
   // already was produces no edits at all, which is the honest answer.
-  return finalize(doc, spliced.value.surgery, spliced.value.firstId);
+  //
+  // A move's removal is not refilled at the place it left — the run went
+  // somewhere else — so the note that ended in a newline still does, whichever
+  // node ends it now.
+  return finalize(
+    doc,
+    keepDocumentTerminator(doc, spliced.value.surgery),
+    spliced.value.firstId,
+  );
 }
