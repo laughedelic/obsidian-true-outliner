@@ -570,8 +570,9 @@ The fourth and fifth are open, and are recorded with what has been measured so f
    A segment carries `role="link"` and a tab stop; since `lineage-text-rendering` its markdown
    renders, so an ancestor whose text carries a link puts a real `<a>` inside that role, which
    ARIA does not allow. Nothing is functionally wrong — the pointer and the keyboard both reach
-   the right target — which is why a manual pass does not surface it. The three ways out, and why
-   the first reverses D1, are in the issue.
+   the right target — which is why a manual pass does not surface it. The three ways out are in the
+   issue: moving the navigation to the segment's kind mark, dropping the role from a segment that
+   contains a link, or rendering a chain's links as inert text — the last of which reverses D1.
 
 ## Prototype
 

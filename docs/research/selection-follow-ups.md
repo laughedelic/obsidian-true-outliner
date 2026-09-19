@@ -897,29 +897,15 @@ replay path for Backspace, Delete, Tab and the arrows.
 
 ### Follow-up: the modifier-key guard has no automated regression net (opened 2026-07-28, PR #32 review)
 
-Raised by automated review, and correct: the fix above is a one-line early return with nothing
-asserting it. Someone deleting that line reintroduces the bug silently.
-
-Not closed in the same PR, for reasons worth stating rather than leaving as an omission:
-
-- **No e2e in this repo asserts focus or blur at all** (`grep activeElement|hasFocus|blur e2e/`
-  is empty). This mechanism's own design note already says why — "focus/blur timing interacting
-  with real keyboard input is exactly the kind of thing unlikely to test reliably through the
-  automated e2e harness" — and the blur is additionally deferred through `setTimeout(0)`, with
-  the refocus happening on a `keydown` the harness would have to synthesise.
-- **A test that cannot be negative-controlled is worse than none here.** Q28 records three tests
-  in this project written to prove a fix that could not fail, every one of them a case where the
-  negative control was skipped. An e2e added blind, verifiable only by pushing to CI, is that
-  same shape.
-- **A unit test would guard the wrong thing.** The rule is a `Set` membership check; the real
-  regression risk is the early return being removed, which set-membership assertions cannot see.
-  `decorations.ts` imports `obsidian`, so the listener itself is not unit-testable without a DOM
-  environment the project does not have.
-
-What would actually close it: a DOM-level test environment (jsdom) for the view-plugin layer,
-which would also unlock `history-caret.ts`'s ViewPlugin wiring, `MarginCompensation`, and the
-`onDocumentKeyDown` replay path — all currently tested only through their pure cores. That is a
-harness change worth doing deliberately, not a test to bolt onto this PR.
+**Extracted to [#156](https://github.com/laughedelic/obsidian-true-outliner/issues/156).** The guard is a one-line early return with nothing asserting it, and
+closing that needs a DOM test environment for the view-plugin layer rather than a test bolted onto
+the listener — which would also reach `history-caret.ts`'s ViewPlugin wiring, `MarginCompensation`
+and the `onDocumentKeyDown` replay path. Two claims this entry carried were stale by the time it was
+filed, and the issue records both: e2e specs DO assert `document.activeElement` now
+(`75-footer-behaviour`, `00-smoke`), and the blur is deferred through `requestAnimationFrame`
+(`decorations.ts:2509`), not the `setTimeout(0)` written here. What survives unchanged is the reason
+not to add a test blind: Q28 records three tests in this project written to prove a fix that could
+not fail, every one a case where the negative control was skipped.
 
 ## Measured: only `table` captures focus, and structural keys are not gated against it (2026-07-29, `caret-placement-policy` task 1.3/1.4)
 

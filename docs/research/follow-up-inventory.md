@@ -35,9 +35,9 @@ sort into five groups by what should happen to each, not by severity.
 
 ## Tier 1 — defects, diagnosed and located
 
-Each of these has a measured reproduction and a named mechanism. The first six are user-visible
-enough that a user would report them; the rest are polish or are confined to a shape that is hard
-to reach.
+Each of these has a measured reproduction, and all but one a named mechanism — row 6, the viewport
+jump, is reproduced and located but not yet diagnosed. The first six are user-visible enough that a
+user would report them; the rest are polish or are confined to a shape that is hard to reach.
 
 | # | Item | Note | State |
 | --- | --- | --- | --- |
