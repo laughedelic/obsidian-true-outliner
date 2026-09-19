@@ -37,6 +37,43 @@ describe('deleteSubtrees', () => {
     expect(encode(result.value.doc)).toBe('A.\n\nC.\n');
   });
 
+  it('leaves the terminating newline on the node that now ends the note', () => {
+    // A document's terminating newline is one empty gap line on its LAST node,
+    // so a removal that takes that node takes the newline with it (#160). It
+    // is the one gap a deletion does not own: it separates the last node from
+    // nothing.
+    const runToTheEnd = parse('- a\n- b\n- c\n');
+    const tail = ['- b', '- c'].map((line) => byLine(runToTheEnd, line).id);
+    const swept = deleteSubtrees(runToTheEnd, tail);
+    if (!swept.ok) throw new Error(swept.rejection.reason);
+    expect(encode(swept.value.doc)).toBe('- a\n');
+
+    // The same where the note's last node is a child: the survivor that now
+    // ends the document is its parent.
+    const child = parse('- one\n  - a\n');
+    const only = deleteSubtrees(child, [byLine(child, '  - a').id]);
+    if (!only.ok) throw new Error(only.rejection.reason);
+    expect(encode(only.value.doc)).toBe('- one\n');
+  });
+
+  it('gives no newline to a note written without one', () => {
+    // Negative control: the terminator is restored, never invented. A note
+    // that genuinely ends flush is not rewritten by an edit elsewhere in it.
+    const flush = parse('- a\n- b');
+    const result = deleteSubtrees(flush, [byLine(flush, '- b').id]);
+    if (!result.ok) throw new Error(result.rejection.reason);
+    expect(encode(result.value.doc)).toBe('- a');
+  });
+
+  it('gives no second newline to a survivor that already ends in a gap', () => {
+    // Negative control: where a blank line already separated the survivor from
+    // the run that left, it is already carrying the terminator.
+    const loose = parse('- a\n\n- b\n');
+    const result = deleteSubtrees(loose, [byLine(loose, '- b').id]);
+    if (!result.ok) throw new Error(result.rejection.reason);
+    expect(encode(result.value.doc)).toBe('- a\n');
+  });
+
   it('heading deletion removes its whole section', () => {
     const md = '# One\n\nBody one.\n\n## Sub\n\nSub body.\n\n# Two\n\nBody two.\n';
     const doc = parse(md);

@@ -424,6 +424,39 @@ describe('computeVerdict: single exact-cover deletion (fix-orphan-gap-on-node-de
   });
 });
 
+describe('a deletion at the end of a note keeps its terminating newline (#160)', () => {
+  it('a selection running to the end of the note', () => {
+    // The reported symptom: every note starts with a terminating newline, and
+    // a structural deletion that took the node holding it took the newline.
+    const md = '- a\n- b\n- c\n';
+    const doc = parse(md);
+    const edit: EditFact = { from: pos(1, 0), to: pos(2, '- c'.length), insert: '' };
+    const verdict = computeVerdict('boundary-crossing-edit', doc, edit);
+    expect(applyVerdict(md, verdict)).toBe('- a\n');
+  });
+
+  it('a type-over at the end neither loses the newline nor gains a blank line', () => {
+    // A type-over deletes the covered run and splices into the place it left,
+    // so the terminator travels with the gap that run was carrying. Restoring
+    // it on the survivor as well would separate the survivor from what lands
+    // next to it — which is why the deletion asks whether a splice follows.
+    const md = '- a\n- b\n';
+    const doc = parse(md);
+    const edit: EditFact = { from: pos(1, 0), to: pos(2, 0), insert: '- x\n  - y\n' };
+    expect(applyVerdict(md, computeVerdict('boundary-crossing-edit', doc, edit))).toBe(
+      '- a\n- x\n  - y\n',
+    );
+
+    // The same where the parent outlives the child that was typed over.
+    const nested = '- one\n  - a\n';
+    const nestedDoc = parse(nested);
+    const nestedEdit: EditFact = { from: pos(1, 0), to: pos(2, 0), insert: '- x\n  - y\n' };
+    expect(
+      applyVerdict(nested, computeVerdict('boundary-crossing-edit', nestedDoc, nestedEdit)),
+    ).toBe('- one\n  - x\n    - y\n');
+  });
+});
+
 describe('computeVerdictForRanges: multi-range structural deletion (D2/D3)', () => {
   it('deletes two disjoint exact-cover ranges in one rewrite, taking each owned gap', () => {
     const md = 'Alpha.\n\nBravo.\n\nCharlie.\n\nDelta.\n';
@@ -515,6 +548,11 @@ describe('computeVerdictForRanges: multi-range structural deletion (D2/D3)', () 
     // exactly "no orphaned nodes, no leftover gap lines" would show up as).
     const subtreeLineCount = (node: OutlineNode): number =>
       node.lines.length + node.trailingGap.length + node.children.reduce((sum, c) => sum + subtreeLineCount(c), 0);
+    /** The node whose own gap ends a subtree — where a terminator would sit. */
+    const deepestLast = (node: OutlineNode): OutlineNode => {
+      const last = node.children[node.children.length - 1];
+      return last ? deepestLast(last) : node;
+    };
 
     fc.assert(
       fc.property(arbTree(), fc.array(fc.nat(10), { minLength: 2, maxLength: 4 }), (tree, rawIndices) => {
@@ -534,7 +572,19 @@ describe('computeVerdictForRanges: multi-range structural deletion (D2/D3)', () 
         const finalText = applyVerdict(text, verdict);
         const finalDoc = parse(finalText);
         const removedLines = indices.reduce((sum, i) => sum + subtreeLineCount(doc.children[i]!), 0);
-        const expectedLineCount = text.split('\n').length - removedLines;
+        // One line inside the removed span can survive: the document's
+        // terminating newline is an empty gap line on its LAST node, so a
+        // deletion that takes that node leaves it on the node that now ends
+        // the document (#160). Predicted here rather than allowed for.
+        const survivors = doc.children.filter((_, i) => !indices.includes(i));
+        const lastSurvivor = survivors[survivors.length - 1];
+        const restoresTerminator =
+          text.endsWith('\n') &&
+          indices.includes(doc.children.length - 1) &&
+          lastSurvivor !== undefined &&
+          deepestLast(lastSurvivor).trailingGap.length === 0;
+        const expectedLineCount =
+          text.split('\n').length - removedLines + (restoresTerminator ? 1 : 0);
         // `''.split('\n')` is `['']` (length 1), not 0 — an empty final
         // document has zero lines of actual content, so it's special-cased
         // here rather than in the counting convention used everywhere else.
@@ -768,16 +818,16 @@ describe('computeVerdict: deletion of a mixed-depth forest cover (selection-as-s
     expect(verdict.kind).toBe('rewrite');
     // `c1` survives under `P`; `S` and both its children are gone. Nothing
     // is orphaned: `t1`/`t2` left with their parent, not without it. `t2`'s
-    // owned gap — the document's final newline — goes with it, the same
-    // convention a single last-node deletion follows.
-    expect(applyVerdict(md, verdict)).toBe('- P\n  - c1');
+    // owned gap was the document's final newline rather than a separation, so
+    // `c1` takes it over and the note still ends in one (#160).
+    expect(applyVerdict(md, verdict)).toBe('- P\n  - c1\n');
   });
 
   it('the deletion is one structural pass — the result re-parses to a valid tree', () => {
     const edit: EditFact = { from: pos(2, 0), to: pos(6, 0), insert: '' };
     const verdict = computeVerdict('boundary-crossing-edit', doc, edit);
     const after = parse(applyVerdict(md, verdict));
-    expect(encode(after)).toBe('- P\n  - c1');
+    expect(encode(after)).toBe('- P\n  - c1\n');
     expect(after.children).toHaveLength(1);
     expect(after.children[0]!.children.map((n) => n.lines[0])).toEqual(['  - c1']);
   });
@@ -836,9 +886,18 @@ describe('computeVerdict: deletion of a mixed-depth forest cover (selection-as-s
         // must remove EXACTLY the lines in [lo, hi] and leave every other
         // line byte-identical. That is computable from the span alone,
         // without reference to how the deletion was implemented.
-        const expected = lines
-          .filter((_, i) => i < lo.line || i > hi.line)
-          .join('\n');
+        const survivors = lines.filter((_, i) => i < lo.line || i > hi.line);
+        // One line inside the span can survive: the document's terminating
+        // newline is an empty gap line on its LAST node, so a cover reaching
+        // the end takes it and the deletion puts it back on the node that now
+        // ends the document (#160). A note that ended in a newline still does,
+        // unless the deletion left no node at all.
+        const expected =
+          survivors.length > 0 &&
+          lines[lines.length - 1] === '' &&
+          survivors[survivors.length - 1] !== ''
+            ? [...survivors, ''].join('\n')
+            : survivors.join('\n');
         return applyVerdict(text, verdict) === expected;
       }),
       { numRuns: 400 },

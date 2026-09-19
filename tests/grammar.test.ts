@@ -507,11 +507,13 @@ describe('grammar planner: a block selection is removed structurally', () => {
 
   it('selecting to the end of a document no longer declines', () => {
     // The range's start pointed at a gap line there, so the key fell through
-    // to stock behavior and the nodes were simply deleted.
+    // to stock behavior and the nodes were simply deleted. The note keeps its
+    // terminating newline, which the removal's own last node was carrying
+    // (#160).
     const src = '1. a\n2. b\n3. c\n';
     const outcome = coverPlan(src, 1, 2);
     if (!outcome || !('plan' in outcome)) throw new Error('expected a plan');
-    expect(applyPlan(src, outcome.plan).text).toBe('1. a\n2. ');
+    expect(applyPlan(src, outcome.plan).text).toBe('1. a\n2. \n');
   });
 
   it('an ordered run renumbers around the replacement', () => {

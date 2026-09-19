@@ -385,7 +385,10 @@ function deleteAndSplice(
   parsedBlocks: readonly OutlineNode[],
   fallbackIndentUnit: string | undefined,
 ): Verdict {
-  const deletion = deleteSubtrees(doc, ids);
+  // With blocks to splice, the deletion is not the whole edit: the place the
+  // run leaves is filled below, and the terminator it was carrying travels
+  // with `displacedGap` rather than being restored onto the survivor.
+  const deletion = deleteSubtrees(doc, ids, parsedBlocks.length > 0);
   if (!deletion.ok) return vetoFrom(deletion);
 
   if (parsedBlocks.length === 0) {
