@@ -1,0 +1,38 @@
+{
+  "title": "B. A page per visual feature",
+  "items": [
+    "outlineByDefault", "statusBarMode", "rememberFolds",
+    { "group": "Appearance", "items": [
+      "outlineUnit", "hideGapLines",
+      { "page": "Guides", "desc": "The vertical lines that connect a node to its ancestors.", "value": "guideVisibility", "items": [
+        { "key": "guideVisibility", "name": "Levels drawn" },
+        { "key": "guideIntensity", "name": "Strength" },
+        { "key": "guideHighlight", "name": "Highlight at the cursor" },
+        { "key": "guideHideSingleRoot", "name": "Hide the outermost guide under a single root" }
+      ] },
+      { "page": "Markers", "desc": "The icon at the start of a node.", "value": "markerVisibility", "items": [
+        { "key": "markerVisibility", "name": "Nodes with a marker" },
+        { "key": "headingMarkerGlyph", "name": "Heading glyph" },
+        { "key": "headingMarkerLevel", "name": "Heading level" },
+        "preview",
+        { "key": "markerHighlight", "name": "Highlight at the cursor" }
+      ] }
+    ] },
+    { "group": "Features", "items": [
+      { "page": "Backlinks", "desc": "The structured backlinks footer below a note.", "value": "backlinksFooter", "items": [
+        { "key": "backlinksFooter", "name": "Show backlinks below notes" },
+        { "key": "backlinksSuppressCore", "name": "Hide Obsidian’s own backlinks section" },
+        { "group": "Amount", "items": [
+          { "key": "backlinksOverallCap", "name": "References to show" },
+          { "key": "backlinksGroupHeight", "name": "Height of one note’s references" }
+        ] },
+        { "group": "Lineage rows", "items": [
+          { "key": "backlinksSegmentIcons", "name": "Markers" },
+          { "key": "backlinksSeparator", "name": "Separator" },
+          { "key": "backlinksGuides", "name": "Guide lines" }
+        ] }
+      ] }
+    ] },
+    { "group": "Advanced", "items": [ { "key": "debugCrossCheck", "name": "Cross-check the parser against the metadata cache" } ] }
+  ]
+}

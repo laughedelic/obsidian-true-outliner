@@ -307,5 +307,8 @@ And these are the decisions left open, with a reading on each:
 ## Re-running the probe
 
 `prototypes/settings-probe/settings-probe.e2e.ts.txt` carries the instructions in its header.
-It writes screenshots and per-row measurements under `PROBE_OUT`, one directory per platform,
-and asserts nothing, which is why it is kept out of `e2e/specs/`.
+Candidate layouts are JSON files under `prototypes/settings-probe/layouts/` (the README there
+gives the format); the probe installs each one, screenshots its top level and every page on both
+platforms, and `prototypes/settings-probe/gallery.mjs` folds the runs into one HTML page for
+comparing them side by side. Trying a new arrangement is one JSON file and two runs of about
+half a minute each. The probe asserts nothing, which is why it is kept out of `e2e/specs/`.

@@ -1,0 +1,35 @@
+{
+  "title": "C. Per aspect: behaviour on the tab, appearance on one page",
+  "items": [
+    "outlineByDefault", "statusBarMode", "rememberFolds",
+    { "group": "Behaviour", "items": [
+      { "key": "hideGapLines", "name": "Collapse blank lines between nodes" },
+      { "key": "backlinksFooter", "name": "Show backlinks below notes" },
+      { "key": "backlinksSuppressCore", "name": "Hide Obsidian’s own backlinks section" }
+    ] },
+    { "page": "Appearance", "desc": "Width, guides and markers of the outline, and the footer’s rows.", "value": "outlineUnit", "items": [
+      "outlineUnit",
+      { "group": "Guides", "items": [
+        { "key": "guideVisibility", "name": "Levels drawn" },
+        { "key": "guideIntensity", "name": "Strength" },
+        { "key": "guideHighlight", "name": "Highlight at the cursor" },
+        { "key": "guideHideSingleRoot", "name": "Hide the outermost guide under a single root" }
+      ] },
+      { "group": "Markers", "items": [
+        { "key": "markerVisibility", "name": "Nodes with a marker" },
+        { "key": "headingMarkerGlyph", "name": "Heading glyph" },
+        { "key": "headingMarkerLevel", "name": "Heading level" },
+        "preview",
+        { "key": "markerHighlight", "name": "Highlight at the cursor" }
+      ] },
+      { "group": "Backlinks footer", "items": [
+        { "key": "backlinksOverallCap", "name": "References to show" },
+        { "key": "backlinksGroupHeight", "name": "Height of one note’s references" },
+        { "key": "backlinksSegmentIcons", "name": "Markers on a lineage row" },
+        { "key": "backlinksSeparator", "name": "Separator between ancestors" },
+        { "key": "backlinksGuides", "name": "Guide lines" }
+      ] }
+    ] },
+    { "group": "Advanced", "items": [ { "key": "debugCrossCheck", "name": "Cross-check the parser against the metadata cache" } ] }
+  ]
+}

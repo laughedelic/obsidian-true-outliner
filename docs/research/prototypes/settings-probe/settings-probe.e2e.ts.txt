@@ -1,14 +1,17 @@
 /**
- * The probe behind docs/research/settings-tab-structure.md: screenshots and
- * measures the current settings tab, then injects two prototype layouts through
- * the tab's own `getSettingDefinitions()` and `update()` and measures those,
- * plus what the settings search index makes of each.
+ * The probe behind docs/research/settings-tab-structure.md: measures and
+ * screenshots the current settings tab, then every candidate layout under
+ * `layouts/` (see its README for the format), installed at runtime through the
+ * tab's own `getSettingDefinitions()` and `update()`: the top level, every page,
+ * and what the settings search index makes of it.
  *
- * To re-run it: copy to `e2e/specs/99-settings-probe.e2e.ts`, then
- *   PROBE_OUT=/tmp/settings-probe PROBE_PLATFORM=desktop \
+ * To run it: copy to `e2e/specs/99-settings-probe.e2e.ts`, then
+ *   PROBE_OUT=/tmp/settings-probe PROBE_PLATFORM=desktop OBSIDIAN_VERSION=1.13.7 \
  *     sh e2e/docker/start-xvfb-and-run.sh npm run test:e2e:narrow -- 99-settings-probe
- * and again with `PROBE_PLATFORM=mobile` and `--mobile`. It asserts nothing and
- * writes PNGs and JSON under PROBE_OUT, which is why it is kept out of the suite.
+ * and again with `PROBE_PLATFORM=mobile` and `--mobile`; then
+ *   node docs/research/prototypes/settings-probe/gallery.mjs /tmp/settings-probe
+ * folds both runs into one `gallery.html`. It asserts nothing and is kept out of
+ * the suite for that reason.
  */
 
 import { browser } from '@wdio/globals';
@@ -17,8 +20,21 @@ import * as path from 'node:path';
 
 const OUT = process.env.PROBE_OUT ?? '/tmp/settings-probe';
 const PLATFORM = process.env.PROBE_PLATFORM ?? 'desktop';
+const LAYOUTS = process.env.PROBE_LAYOUTS ?? 'docs/research/prototypes/settings-probe/layouts';
 const DIR = path.join(OUT, PLATFORM);
 fs.mkdirSync(DIR, { recursive: true });
+
+interface Layout {
+  title: string;
+  keepDesc?: boolean;
+  items: unknown[];
+}
+
+const layouts: { id: string; layout: Layout }[] = fs
+  .readdirSync(LAYOUTS)
+  .filter((f) => f.endsWith('.json'))
+  .sort()
+  .map((f) => ({ id: f.replace(/\.json$/, ''), layout: JSON.parse(fs.readFileSync(path.join(LAYOUTS, f), 'utf8')) }));
 
 async function shot(name: string): Promise<void> {
   await browser.pause(400);
@@ -32,12 +48,12 @@ function record(name: string, data: unknown): void {
 async function openTab(): Promise<void> {
   await browser.executeObsidian(({ app }) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const setting = (app as any).setting;
+    const a = app as any;
     // The 1.13 desktop default opens settings in a popout window, which a
     // screenshot of the main window never sees.
-    (app as any).vault.setConfig('settingsPopoutWindow', false);
-    setting.open();
-    setting.openTabById('true-outliner');
+    a.vault.setConfig('settingsPopoutWindow', false);
+    a.setting.open();
+    a.setting.openTabById('true-outliner');
   });
   await browser.pause(500);
 }
@@ -50,157 +66,125 @@ async function closeSettings(): Promise<void> {
   await browser.pause(300);
 }
 
-/** Geometry of the open tab: how many viewports it scrolls, and every row. */
-async function measureTab(): Promise<unknown> {
+async function scrollToBottom(): Promise<boolean> {
   return browser.executeObsidian(({ app }) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const setting = (app as any).setting;
+    const page = setting.pageStack?.[setting.pageStack.length - 1]?.page;
     const tab = setting.pluginTabs.find((t: any) => t.id === 'true-outliner');
-    const content = tab.containerEl.closest('.vertical-tab-content') ?? tab.containerEl;
-    const rows = Array.from(tab.containerEl.querySelectorAll('.setting-item')) as HTMLElement[];
-    const lh = parseFloat(getComputedStyle(document.body).lineHeight) || 0;
+    const content = page
+      ? (page.rootEl.querySelector('.setting-page-content') ?? page.rootEl)
+      : (tab.containerEl.closest('.vertical-tab-content') ?? tab.containerEl);
+    const scrolls = content.scrollHeight > content.clientHeight + 4;
+    content.scrollTop = content.scrollHeight;
+    return scrolls;
+  });
+}
+
+/** Geometry of what is open: the tab, or the page on top of the stack. */
+async function measure(): Promise<unknown> {
+  return browser.executeObsidian(({ app }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const setting = (app as any).setting;
+    const page = setting.pageStack?.[setting.pageStack.length - 1]?.page;
+    const tab = setting.pluginTabs.find((t: any) => t.id === 'true-outliner');
+    const root: HTMLElement = page ? page.rootEl : tab.containerEl;
+    const content = page
+      ? (root.querySelector('.setting-page-content') ?? root)
+      : (root.closest('.vertical-tab-content') ?? root);
+    const rows = Array.from(root.querySelectorAll('.setting-item')) as HTMLElement[];
     return {
+      title: page ? page.title : null,
       viewport: { w: window.innerWidth, h: window.innerHeight },
-      content: { clientHeight: content.clientHeight, scrollHeight: content.scrollHeight },
+      clientHeight: content.clientHeight,
+      scrollHeight: content.scrollHeight,
       viewports: +(content.scrollHeight / content.clientHeight).toFixed(2),
-      rowCount: rows.length,
       rows: rows.map((r) => {
         const desc = r.querySelector('.setting-item-description') as HTMLElement | null;
         const descH = desc ? desc.getBoundingClientRect().height : 0;
-        const descLh = desc ? parseFloat(getComputedStyle(desc).lineHeight) : lh;
+        const lh = desc ? parseFloat(getComputedStyle(desc).lineHeight) : 0;
         return {
           name: (r.querySelector('.setting-item-name') as HTMLElement | null)?.textContent ?? '',
-          cls: r.className,
+          kind: r.classList.contains('setting-item-heading')
+            ? 'heading'
+            : r.classList.contains('mod-navigable')
+              ? 'page'
+              : 'row',
           h: +r.getBoundingClientRect().height.toFixed(1),
-          descH: +descH.toFixed(1),
-          descLines: descLh ? Math.round(descH / descLh) : 0,
+          descLines: lh ? Math.round(descH / lh) : 0,
         };
       }),
     };
   });
 }
 
-/** Search results for a query, as the index resolves them: tab, page, item names. */
+/** Search results for a query, as the index resolves them for our tab. */
 async function search(query: string): Promise<unknown> {
   return browser.executeObsidian(({ app }, q: string) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const setting = (app as any).setting;
-    const groups = setting.searchIndex.search(q) as any[];
+    const groups = (app as any).setting.searchIndex.search(q) as any[];
     return groups
       .filter((g) => g.tab?.id === 'true-outliner')
-      .map((g) => ({
-        tab: g.tab.name,
-        page: g.page?.name ?? null,
-        results: g.results.map((r: any) => r.entry.definition.name),
-      }));
+      .map((g) => ({ page: g.page?.name ?? null, results: g.results.map((r: any) => r.entry.definition.name) }));
   }, query);
 }
 
-/** The first sentence of a description, for the prototypes. */
-function firstSentence(s: string): string {
-  const m = /^(.*?[.!?])(\s|$)/.exec(s);
-  return m ? m[1]! : s;
-}
-
-type Def = Record<string, unknown>;
-
-/** Builds prototype definitions from the tab's own current rows, keyed. */
-async function installPrototype(variant: 'A' | 'B'): Promise<void> {
+/** Installs a layout: the JSON is turned into definitions inside Obsidian,
+ * against the tab's own current rows so every control keeps its binding. */
+async function install(layout: Layout): Promise<void> {
   await browser.executeObsidian(
-    ({ app }, v: string, first: string) => {
+    ({ app }, spec: Layout) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const setting = (app as any).setting;
-      const tab = setting.pluginTabs.find((t: any) => t.id === 'true-outliner');
-      // eslint-disable-next-line no-new-func
-      const firstSentence = new Function('s', first) as (s: string) => string;
+      const tab = (app as any).setting.pluginTabs.find((t: any) => t.id === 'true-outliner');
       if (!tab.__original) tab.__original = tab.getSettingDefinitions.bind(tab);
       const rows: any[] = tab.__original();
       const byKey: Record<string, any> = {};
       for (const r of rows) if (r.control) byKey[r.control.key] = r;
-      const row = (key: string, name?: string): any => {
-        const r = byKey[key];
-        if (!r) throw new Error(`no row ${key}`);
-        const desc = typeof r.desc === 'string' ? r.desc : r.desc?.textContent ?? '';
-        return { ...r, name: name ?? r.name, desc: firstSentence(desc) };
-      };
       const preview = rows.find((r) => r.render);
+      const firstSentence = (s: string): string => {
+        const m = /^(.*?[.!?])(\s|$)/.exec(s);
+        return m ? m[1] : s;
+      };
       const data = () => tab.plugin.data;
-      const onOff = (k: string) => () => (data()[k] ? 'On' : 'Off');
-
-      const guides = [
-        row('guideVisibility', 'Which guides to draw'),
-        row('guideIntensity', 'Strength'),
-        row('guideHighlight', 'Highlight at the cursor'),
-        row('guideHideSingleRoot', 'Hide the outermost guide under a single root'),
-      ];
-      const markers = [
-        row('markerVisibility', 'Which nodes get a marker'),
-        row('headingMarkerGlyph', 'Heading glyph'),
-        row('headingMarkerLevel', 'Heading level'),
-        { ...preview },
-        row('markerHighlight', 'Highlight at the cursor'),
-      ];
-      const backlinks = [
-        row('backlinksFooter', 'Show backlinks below notes'),
-        row('backlinksSuppressCore', 'Hide Obsidian’s own backlinks section'),
-        {
-          type: 'group',
-          heading: 'Amount',
-          items: [row('backlinksOverallCap', 'References to show'), row('backlinksGroupHeight', 'Height of one note’s references')],
-        },
-        {
-          type: 'group',
-          heading: 'Lineage rows',
-          items: [row('backlinksSegmentIcons', 'Markers'), row('backlinksSeparator', 'Separator'), row('backlinksGuides', 'Guide lines')],
-        },
-      ];
-      const top = [row('outlineByDefault'), row('statusBarMode'), row('rememberFolds')];
-      const layout = [row('outlineUnit'), row('hideGapLines')];
-      const advanced = [row('debugCrossCheck', 'Cross-check the parser against the metadata cache')];
-
-      const defsA = [
-        ...top,
-        { type: 'group', heading: 'Layout', items: layout },
-        { type: 'group', heading: 'Guides', items: guides },
-        { type: 'group', heading: 'Markers', items: markers },
-        {
-          type: 'page',
-          name: 'Backlinks',
-          desc: 'The structured backlinks footer below a note.',
-          displayValue: onOff('backlinksFooter'),
-          items: backlinks,
-        },
-        { type: 'group', heading: 'Advanced', items: advanced },
-      ];
-      const defsB = [
-        ...top,
-        {
-          type: 'group',
-          heading: 'Appearance',
-          items: [
-            ...layout,
-            { type: 'page', name: 'Guides', desc: 'The vertical lines that connect a node to its ancestors.', displayValue: () => ({ all: 'Every level', ancestors: 'Ancestors', subtree: 'Subtree', off: 'Off' })[data().guideVisibility as string], items: guides },
-            { type: 'page', name: 'Markers', desc: 'The icon at the start of a node.', displayValue: () => ({ all: 'All', 'with-children': 'Branches', 'headings-and-paragraphs': 'Headings and paragraphs' })[data().markerVisibility as string], items: markers },
-          ],
-        },
-        {
-          type: 'group',
-          heading: 'Features',
-          items: [
-            { type: 'page', name: 'Backlinks', desc: 'The structured backlinks footer below a note.', displayValue: onOff('backlinksFooter'), items: backlinks },
-          ],
-        },
-        { type: 'group', heading: 'Advanced', items: advanced },
-      ];
-      tab.getSettingDefinitions = () => (v === 'A' ? defsA : defsB);
+      const valueOf = (key: string) => (): string => {
+        const r = byKey[key];
+        const v = data()[key];
+        if (!r) return '';
+        if (r.control.type === 'toggle') return v ? 'On' : 'Off';
+        return r.control.options?.[v] ?? String(v);
+      };
+      const build = (item: any): any => {
+        if (item === 'preview') return { ...preview };
+        if (typeof item === 'string') item = { key: item };
+        if (item.group) return { type: 'group', heading: item.group, items: item.items.map(build) };
+        if (item.page) {
+          return {
+            type: 'page',
+            name: item.page,
+            desc: item.desc ?? '',
+            ...(item.value ? { displayValue: valueOf(item.value) } : {}),
+            items: item.items.map(build),
+          };
+        }
+        const r = byKey[item.key];
+        if (!r) throw new Error(`no setting ${item.key}`);
+        const desc = typeof r.desc === 'string' ? r.desc : (r.desc?.textContent ?? '');
+        return {
+          ...r,
+          name: item.name ?? r.name,
+          desc: item.desc ?? (spec.keepDesc ? desc : firstSentence(desc)),
+          ...(item.aliases ? { aliases: item.aliases } : {}),
+        };
+      };
+      const defs = spec.items.map(build);
+      tab.getSettingDefinitions = () => defs;
       tab.update();
     },
-    variant,
-    firstSentence.toString().replace(/^[^{]*\{/, '').replace(/\}$/, ''),
+    layout,
   );
 }
 
-async function restoreTab(): Promise<void> {
+async function restore(): Promise<void> {
   await browser.executeObsidian(({ app }) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tab = (app as any).setting.pluginTabs.find((t: any) => t.id === 'true-outliner');
@@ -212,39 +196,31 @@ async function restoreTab(): Promise<void> {
   });
 }
 
-async function openPage(name: string): Promise<boolean> {
-  const ok = await browser.executeObsidian(({ app }, n: string) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tab = (app as any).setting.pluginTabs.find((t: any) => t.id === 'true-outliner');
-    const rows = Array.from(tab.containerEl.querySelectorAll('.setting-item.mod-navigable')) as HTMLElement[];
-    const row = rows.find((r) => r.querySelector('.setting-item-name')?.textContent === n);
-    if (!row) return false;
-    row.click();
-    return true;
-  }, name);
-  await browser.pause(600);
-  return ok;
-}
-
-async function measurePage(): Promise<unknown> {
+/** The page entries visible at the current level, by name. */
+async function pageNames(): Promise<string[]> {
   return browser.executeObsidian(({ app }) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const setting = (app as any).setting;
     const page = setting.pageStack?.[setting.pageStack.length - 1]?.page;
-    if (!page) return null;
-    const el = page.rootEl as HTMLElement;
-    const content = el.querySelector('.setting-page-content') ?? el;
-    return {
-      title: page.title,
-      clientHeight: content.clientHeight,
-      scrollHeight: content.scrollHeight,
-      rows: (Array.from(el.querySelectorAll('.setting-item')) as HTMLElement[]).map((r) => ({
-        name: r.querySelector('.setting-item-name')?.textContent ?? '',
-        h: +r.getBoundingClientRect().height.toFixed(1),
-        cls: r.className,
-      })),
-    };
+    const tab = setting.pluginTabs.find((t: any) => t.id === 'true-outliner');
+    const root: HTMLElement = page ? page.rootEl : tab.containerEl;
+    return (Array.from(root.querySelectorAll('.setting-item.mod-navigable')) as HTMLElement[]).map(
+      (r) => r.querySelector('.setting-item-name')?.textContent ?? '',
+    );
   });
+}
+
+async function openPage(name: string): Promise<void> {
+  await browser.executeObsidian(({ app }, n: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const setting = (app as any).setting;
+    const page = setting.pageStack?.[setting.pageStack.length - 1]?.page;
+    const tab = setting.pluginTabs.find((t: any) => t.id === 'true-outliner');
+    const root: HTMLElement = page ? page.rootEl : tab.containerEl;
+    const rows = Array.from(root.querySelectorAll('.setting-item.mod-navigable')) as HTMLElement[];
+    rows.find((r) => r.querySelector('.setting-item-name')?.textContent === n)?.click();
+  }, name);
+  await browser.pause(600);
 }
 
 async function closePage(): Promise<void> {
@@ -255,107 +231,43 @@ async function closePage(): Promise<void> {
   await browser.pause(500);
 }
 
-async function typeSearch(q: string): Promise<void> {
-  await browser.executeObsidian(({ app }, query: string) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const setting = (app as any).setting;
-    const input = setting.searchComponent?.inputEl as HTMLInputElement | undefined;
-    if (!input) throw new Error('no search input');
-    input.value = query;
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-  }, q);
-  await browser.pause(600);
+const slug = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+/** Screenshots and measures the current level, then every page under it. */
+async function capture(prefix: string, summary: Record<string, unknown>): Promise<void> {
+  await shot(`${prefix}-top`);
+  const m = (await measure()) as { viewports: number; rows: unknown[] };
+  summary[prefix] = m;
+  if (await scrollToBottom()) await shot(`${prefix}-bottom`);
+  for (const name of await pageNames()) {
+    await openPage(name);
+    await capture(`${prefix}-${slug(name)}`, summary);
+    await closePage();
+  }
 }
 
 describe('settings probe', function () {
-  this.timeout(120000);
+  this.timeout(300000);
 
   it('measures the current tab', async function () {
     await openTab();
-    await shot('current-top');
-    record('current', await measureTab());
-    await browser.executeObsidian(({ app }) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const tab = (app as any).setting.pluginTabs.find((t: any) => t.id === 'true-outliner');
-      const content = tab.containerEl.closest('.vertical-tab-content') ?? tab.containerEl;
-      content.scrollTop = content.scrollHeight;
-    });
-    await shot('current-bottom');
-    record('search-current-guide', await search('guide'));
-    record('search-current-backlinks', await search('backlinks'));
-    await typeSearch('guide');
-    await shot('current-search-guide');
+    const summary: Record<string, unknown> = {};
+    await capture('current', summary);
+    record('current', { title: 'Current', platform: PLATFORM, pages: summary, search: { guide: await search('guide'), backlinks: await search('backlinks') } });
     await closeSettings();
   });
 
-  for (const variant of ['A', 'B'] as const) {
-    it(`measures prototype ${variant}`, async function () {
+  for (const { id, layout } of layouts) {
+    it(`measures layout ${id}`, async function () {
       await openTab();
-      await installPrototype(variant);
+      await install(layout);
       await closeSettings();
       await openTab();
-      await shot(`proto${variant}-top`);
-      record(`proto${variant}`, await measureTab());
-      record(`search-proto${variant}-guide`, await search('guide'));
-      record(`search-proto${variant}-backlinks`, await search('backlinks'));
-      await typeSearch('backlinks');
-      await shot(`proto${variant}-search-backlinks`);
-      await typeSearch('');
-      await openTab();
-      if (await openPage('Backlinks')) {
-        await shot(`proto${variant}-page-backlinks`);
-        record(`proto${variant}-page-backlinks`, await measurePage());
-        await closePage();
-      }
-      if (variant === 'B' && (await openPage('Guides'))) {
-        await shot('protoB-page-guides');
-        record('protoB-page-guides', await measurePage());
-        await closePage();
-      }
-      await restoreTab();
+      const summary: Record<string, unknown> = {};
+      await capture(id, summary);
+      record(id, { title: layout.title, platform: PLATFORM, pages: summary, search: { guide: await search('guide'), backlinks: await search('backlinks') } });
+      await restore();
       await closeSettings();
     });
   }
-
-  it('checks visible() against the search index', async function () {
-    await openTab();
-    await browser.executeObsidian(({ app }) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const tab = (app as any).setting.pluginTabs.find((t: any) => t.id === 'true-outliner');
-      tab.__original = tab.getSettingDefinitions.bind(tab);
-      const rows: any[] = tab.__original();
-      const footer = rows.filter((r) => r.control?.key?.startsWith('backlinks') && r.control.key !== 'backlinksFooter');
-      const rest = rows.filter((r) => !footer.includes(r));
-      tab.getSettingDefinitions = () => [
-        ...rest,
-        { type: 'group', heading: 'Backlinks', visible: () => false, items: footer },
-      ];
-      tab.update();
-    });
-    record('search-hidden-group-backlinks', await search('backlinks'));
-    await browser.executeObsidian(({ app }) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const tab = (app as any).setting.pluginTabs.find((t: any) => t.id === 'true-outliner');
-      const rows: any[] = tab.__original();
-      const footer = rows.filter((r) => r.control?.key?.startsWith('backlinks') && r.control.key !== 'backlinksFooter');
-      const rest = rows.filter((r) => !footer.includes(r));
-      tab.getSettingDefinitions = () => [
-        ...rest,
-        { type: 'group', heading: 'Backlinks', items: footer.map((r) => ({ ...r, control: { ...r.control, disabled: () => true } })) },
-      ];
-      tab.update();
-    });
-    await closeSettings();
-    await openTab();
-    await browser.executeObsidian(({ app }) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const tab = (app as any).setting.pluginTabs.find((t: any) => t.id === 'true-outliner');
-      const content = tab.containerEl.closest('.vertical-tab-content') ?? tab.containerEl;
-      content.scrollTop = content.scrollHeight;
-    });
-    await shot('disabled-group');
-    record('search-disabled-group-backlinks', await search('backlinks'));
-    await restoreTab();
-    await closeSettings();
-  });
 });
