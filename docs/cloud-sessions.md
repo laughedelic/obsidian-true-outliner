@@ -18,6 +18,12 @@ tool added to the repository script reaches the cloud without touching the dialo
 # Tools that do not depend on a clone. scripts/agent-setup.sh fills any gap at
 # session start, so this is a head start rather than a dependency.
 
+# The GitHub CLI from Ubuntu's own repository: cli.github.com is unreachable from
+# a session, and every call a session makes to GitHub is REST, which any gh serves.
+# The extension needs gh on PATH first — installed the other way round, the
+# extension step fails and the session hook reports gh-stack missing.
+apt-get update || true
+apt-get install -y --no-install-recommends gh || true
 gh extension install github/gh-stack || true
 
 # OpenSpec needs Node 20.19+; sessions default to Node 22 on PATH.
@@ -26,7 +32,6 @@ npm install -g @fission-ai/openspec || true
 # e2e: Obsidian is an Electron app, so it needs an X server and Chromium's shared
 # libraries. The t64 names are Ubuntu 24.04's — the unsuffixed ones are virtual
 # packages there with no installation candidate.
-apt-get update || true
 apt-get install -y --no-install-recommends \
   xvfb xauth dbus fonts-liberation \
   libnss3 libdrm2 libgbm1 libcairo2 libpango-1.0-0 \
@@ -45,6 +50,35 @@ that runs past roughly five minutes stops the snapshot building — at which poi
 re-runs the whole thing. The Obsidian download is the first thing to drop if that budget ever
 gets tight: the harness fetches on demand anyway, and pre-fetching only moves the bytes into the
 snapshot the way CI's week-rolled cache key does.
+
+The script is pasted into the environment's setup-script field; nothing in this repository can
+edit it. Updating it is three steps: replace the field's contents with the block above and save;
+start a session on this repository; check the session's first context line. A healthy session
+prints nothing from `agent-setup` except the GraphQL line below. A session that still reports
+`gh missing` or `gh-stack missing` started from a snapshot built before the change — the hook
+installs `gh` itself in that case, and the report is the signal that the snapshot needs
+rebuilding, not a broken session.
+
+## GitHub from a session
+
+Every session's GitHub traffic passes through a policy proxy, and what it allows decides which
+half of our workflow a cloud session can run. Measured in
+[`research/cloud-session-github-access.md`](research/cloud-session-github-access.md):
+
+| | |
+| --- | --- |
+| `git push` to any branch of this repository | allowed — a session pushes `fix/<slug>` as readily as the harness's `claude/<words>` |
+| `git push --delete`, the branch rename and delete-ref REST endpoints | refused |
+| REST (`gh api repos/{owner}/{repo}/...`) on this repository, reads and PR writes | allowed; `GH_TOKEN` is injected by the harness, so `gh` is authenticated on arrival |
+| GraphQL | refused outright |
+| REST on any other repository | refused unless the session attaches it |
+
+The GraphQL refusal is the one that matters: `gh stack`, `gh pr` and `gh repo` open with a
+GraphQL query, so none of them works from a cloud session however `gh` is installed. The
+session hook says so on start. PR work from the cloud goes through the GitHub MCP tools or
+`gh api`, and stack surgery stays where CLAUDE.md already puts it — the primary checkout. The
+`gh auth status` verdict is misleading here: it reports the token invalid while every REST call
+with it succeeds, which is why the hook checks with `gh api user`.
 
 ## Environment variables
 

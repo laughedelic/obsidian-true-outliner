@@ -22,7 +22,12 @@ set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 0
 
 install=false
-if [ "${1:-}" = "--install" ] || [ "${CLAUDE_CODE_REMOTE:-}" = "true" ]; then
+cloud=false
+if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ]; then
+  install=true
+  cloud=true
+fi
+if [ "${1:-}" = "--install" ]; then
   install=true
 fi
 
@@ -49,12 +54,40 @@ if ! command -v openspec >/dev/null 2>&1; then
   fi
 fi
 
-if ! gh extension list 2>/dev/null | grep -q 'github/gh-stack'; then
-  if $install; then
-    gh extension install github/gh-stack && notes+=("installed gh-stack") ||
-      notes+=("gh-stack missing; \`gh extension install github/gh-stack\` failed")
+# The GitHub CLI comes before its extension: with `gh` absent, the extension check
+# used to report gh-stack missing and hide the real gap. Ubuntu's own package is
+# enough — cli.github.com's repository is unreachable from a cloud session, and
+# every call a session makes to GitHub is REST.
+if ! command -v gh >/dev/null 2>&1; then
+  if $install && command -v apt-get >/dev/null 2>&1; then
+    apt-get install -y -q gh >/dev/null 2>&1 && notes+=("installed gh") ||
+      notes+=("gh missing; \`apt-get install gh\` failed")
   else
-    notes+=("gh-stack missing; run \`gh extension install github/gh-stack\`")
+    notes+=("gh missing; install the GitHub CLI (https://cli.github.com)")
+  fi
+fi
+
+if command -v gh >/dev/null 2>&1; then
+  # A REST call rather than `gh auth status`, which reports the cloud session's
+  # GH_TOKEN as invalid while every REST request with it succeeds.
+  if ! gh api user --jq .login >/dev/null 2>&1; then
+    notes+=("gh unauthenticated; set GH_TOKEN or run \`gh auth login\`")
+  fi
+
+  if ! gh extension list 2>/dev/null | grep -q 'github/gh-stack'; then
+    if $install; then
+      gh extension install github/gh-stack && notes+=("installed gh-stack") ||
+        notes+=("gh-stack missing; \`gh extension install github/gh-stack\` failed")
+    else
+      notes+=("gh-stack missing; run \`gh extension install github/gh-stack\`")
+    fi
+  fi
+
+  # The cloud session's proxy refuses GraphQL, which `gh stack`, `gh pr` and
+  # `gh repo` need for their first request (docs/research/cloud-session-github-access.md).
+  # Saying so up front spares the session a round of failed commands.
+  if $cloud && ! gh api graphql -f query='{viewer{login}}' >/dev/null 2>&1; then
+    notes+=("GraphQL is refused by this session's proxy: \`gh stack\`, \`gh pr\` and \`gh repo\` fail here; use \`gh api repos/...\` (REST) or the GitHub MCP tools")
   fi
 fi
 
