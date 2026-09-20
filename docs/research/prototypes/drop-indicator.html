@@ -120,6 +120,23 @@
   }
   .ticks i.on { background: var(--accent); width: 7px; height: 7px; top: -4px; transform: translateX(-3px); }
 
+  /* ---- the absorbed region ----------------------------------------------- */
+  .row.absorbed { background: repeating-linear-gradient(135deg, var(--accent-soft) 0 4px, transparent 4px 9px); }
+  .row.absorbed .label { color: var(--accent); }
+  .row .brace {
+    position: absolute; top: 0; bottom: 0; width: 0;
+    border-left: 2px solid var(--accent); opacity: .7;
+  }
+  .row .brace.first { top: 3px; border-top: 2px solid var(--accent); width: 6px; }
+  .row .brace.last { bottom: 3px; border-bottom: 2px solid var(--accent); width: 6px; }
+  .row .ellipsis { position: absolute; color: var(--accent); font-weight: 600; letter-spacing: .15em; }
+  .seam .badge {
+    position: absolute; top: -10px; right: 1rem; height: 18px; padding: 0 .45rem;
+    border-radius: 9px; background: var(--accent); color: #fff; font-size: .68rem;
+    font-weight: 700; line-height: 18px; letter-spacing: .02em;
+  }
+  .verdict.open { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+
   /* ---- layout ------------------------------------------------------------ */
   .grid { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); max-width: 1180px; }
   .case h3 { font-size: .85rem; margin: 0 0 .35rem; letter-spacing: .01em; }
@@ -179,6 +196,18 @@
   the run will <em>have</em> is the only version that stays true across this case.
 </p>
 <div class="grid" id="regime"></div>
+
+<h2>4. The absorbed region</h2>
+<p class="note">
+  A heading dropped among siblings opens a section, and the anchor's following siblings fall
+  into it — up to the next heading that can stand beside it. Those rows change parent without
+  moving, so nothing at the seam says they are involved. Here <b>Move me</b>, a
+  <code>##</code> heading with a body, is dropped after <b>intro</b>: <b>details</b>,
+  <b>more details</b> and <b>a list</b> join its section, and <b>Next</b>, itself a
+  <code>##</code>, does not. Four ways of saying so; none is carried yet — this is the question
+  design D8 leaves open.
+</p>
+<div class="grid" id="absorb"></div>
 
 <script>
 const UNIT = 32, GUTTER = 14, ICON = 13.6, PAD = 22;
@@ -435,6 +464,118 @@ for (const t of REGIME) {
     style: 'bar', depth: 4, lift: true, ghost: true, ghostKind: t.kind,
     parentRow: 6, litGuideAt: 3,
   });
+}
+
+/* ---- 4: the absorbed region --------------------------------------------- */
+/* A second fixture: a heading section whose children are the anchor and the
+ * rows a dropped heading would take in. `absorbed` marks those rows. */
+const ABSORB_DOC = [
+  { depth: 0, kind: 'heading', text: 'Section' },
+  { depth: 1, kind: 'para',    text: 'intro' },
+  { depth: 1, kind: 'para',    text: 'details',      absorbed: true },
+  { depth: 1, kind: 'para',    text: 'more details', absorbed: true },
+  { depth: 1, kind: 'bullet',  text: 'a list',       absorbed: true },
+  { depth: 1, kind: 'heading', text: 'Next' },
+  { depth: 2, kind: 'para',    text: 'body of Next' },
+  { depth: 1, kind: 'heading', text: 'Move me', lifted: true },
+  { depth: 2, kind: 'para',    text: 'its body', lifted: true },
+];
+const ABSORB_SEAM_AFTER = 1;   /* the seam sits below "intro" */
+const ABSORB_DEPTH = 1;        /* a child of Section, after intro */
+
+function renderAbsorb(host, opts) {
+  host.innerHTML = '';
+  const absorbed = ABSORB_DOC.map((r, i) => i).filter((i) => ABSORB_DOC[i].absorbed);
+  ABSORB_DOC.forEach((r, i) => {
+    const row = { ...r };
+    delete row.absorbed;
+    if (opts.span === 'all' && r.absorbed) row.absorbedNow = true;
+    if (opts.span === 'first' && i === absorbed[0]) row.absorbedNow = true;
+    const el = rowEl(row);
+    if (row.absorbedNow) el.classList.add('absorbed');
+    if (opts.brace && r.absorbed) {
+      const b = document.createElement('div');
+      b.className = 'brace' + (i === absorbed[0] ? ' first' : '') + (i === absorbed[absorbed.length - 1] ? ' last' : '');
+      b.style.left = (col(ABSORB_DEPTH) + 3) + 'px';
+      el.appendChild(b);
+    }
+    if (opts.span === 'first' && i === absorbed[0]) {
+      const e = document.createElement('div');
+      e.className = 'ellipsis';
+      e.style.left = (col(ABSORB_DEPTH) + GUTTER + 90) + 'px';
+      e.textContent = '\u2026 +' + (absorbed.length - 1);
+      el.appendChild(e);
+    }
+    host.appendChild(el);
+    if (i !== ABSORB_SEAM_AFTER) return;
+    const seam = document.createElement('div');
+    seam.className = 'seam';
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    bar.style.left = (col(ABSORB_DEPTH) + 11) + 'px';
+    seam.appendChild(bar);
+    const g = document.createElement('div');
+    g.className = 'ghost';
+    g.style.left = (col(ABSORB_DEPTH) - ICON / 2) + 'px';
+    g.innerHTML = GLYPH.heading;
+    seam.appendChild(g);
+    if (opts.badge) {
+      const badge = document.createElement('div');
+      badge.className = 'badge';
+      badge.textContent = 'takes ' + absorbed.length + ' below';
+      seam.appendChild(badge);
+    }
+    host.appendChild(seam);
+  });
+}
+
+const ABSORB = [
+  {
+    name: 'F. The whole span, tinted',
+    sub: 'every row the section will take, marked distinctly from the lifted run',
+    opts: { span: 'all' },
+    note: 'States the result completely: the reader sees exactly which rows change parent, and ' +
+          'where it stops. The most ink, and on a long section the most of the screen turned ' +
+          'purple.',
+  },
+  {
+    name: 'G. The whole span, as a brace',
+    sub: 'a bracket down the destination column, first row to last',
+    opts: { brace: true },
+    note: 'Same completeness, in the column vocabulary the guides already use: the rows are ' +
+          'shown becoming children of the ghost by the line that will connect them. Less ink; ' +
+          'reads as structure rather than as highlight.',
+  },
+  {
+    name: 'H. The first row, with a count',
+    sub: 'one row marked, the rest stated as a number',
+    opts: { span: 'first' },
+    note: 'Says that absorption happens and where it begins, and asks the reader to trust the ' +
+          'count for where it ends. Bounded ink on any section; the end is not drawn.',
+  },
+  {
+    name: 'I. A count at the seam',
+    sub: 'nothing on the rows; a badge on the indicator',
+    opts: { badge: true },
+    note: 'The least ink and the least information: the rows themselves say nothing, so the ' +
+          'reader has to work out which ones the number means.',
+  },
+];
+const ahost = document.getElementById('absorb');
+for (const t of ABSORB) {
+  const wrap = document.createElement('div');
+  wrap.className = 'case';
+  const h = document.createElement('h3');
+  h.innerHTML = t.name + ' <span>\u2014 ' + t.sub + '</span><span class="verdict open">open</span>';
+  wrap.appendChild(h);
+  const s = document.createElement('div');
+  s.className = 'surface';
+  wrap.appendChild(s);
+  const p = document.createElement('p');
+  p.textContent = t.note;
+  wrap.appendChild(p);
+  ahost.appendChild(wrap);
+  renderAbsorb(s, t.opts);
 }
 
 /* ---- theme -------------------------------------------------------------- */
