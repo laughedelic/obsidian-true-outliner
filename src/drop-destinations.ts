@@ -30,6 +30,11 @@ export interface SeamPlace {
   readonly parentId: number | 'root';
   readonly index: number;
   readonly depth: number;
+  /** Set where the place is SHALLOWER than the parent's children: the node is
+   * written at this same text position at a heading level of its own, and on
+   * re-parse closes the parent's section and takes what follows. Only a
+   * heading can be placed so. */
+  readonly level?: number;
 }
 
 /** A place a run can land, with what the run becomes there. */
@@ -63,8 +68,11 @@ export interface DropSeam {
   readonly line: number;
   readonly aboveId: number | undefined;
   readonly belowId: number | undefined;
-  /** Shallowest first. Never empty — a seam with no legal depth is not a seam
-   * this module returns. */
+  /** Shallowest first. EMPTY at a seam where the run can land nowhere: such a
+   * seam is kept so a pointer near it resolves to nothing, rather than to the
+   * nearest seam that does offer something — the run's own two boundaries are
+   * the common case, and snapping past them would move the run the reader was
+   * putting back. */
   readonly candidates: readonly DropDestination[];
 }
 
@@ -165,10 +173,24 @@ export function seams(
   } = {},
 ): Seam[] {
   const folded = options.folded ?? new Set<number>();
-  const visible = visibleNodes(doc, folded);
-  if (visible.length === 0) return [];
   const outside = options.outside ?? new Set<number>();
   const kind = options.kind ?? 'paragraph';
+  // The run's own rows are not in the tree the drop lands in, so the seams are
+  // read with them skipped: the boundary above the run and the one below it
+  // are ONE seam between its neighbours, whose places include the run's own
+  // (dropped where it is, which writes nothing) and every other reading of that
+  // position — re-levelled in place among them. Their indices still count the
+  // run, since the operation resolves them against the tree before removal.
+  const all = visibleNodes(doc, folded);
+  const visible = all.filter((v) => !outside.has(v.node.id));
+  if (visible.length === 0) return [];
+  const skipped = (index: number): Visible | undefined => {
+    // The first row the run occupies between `visible[index - 1]` and
+    // `visible[index]`, where the run sits between them.
+    const upper = index > 0 ? all.indexOf(visible[index - 1]!) + 1 : 0;
+    const candidate = all[upper];
+    return candidate && outside.has(candidate.node.id) ? candidate : undefined;
+  };
 
   const out: Seam[] = [];
   for (let s = 0; s <= visible.length; s++) {
@@ -186,9 +208,24 @@ export function seams(
       if (placed.parentId !== 'root' && outside.has(placed.parentId)) continue;
       places.push({ ...placed, depth });
     }
+    // A heading can be written shallower than the node below it: at this same
+    // position, at a level that closes the sections above it and takes what
+    // follows into its own — between a heading and its first child at that
+    // heading's own level, or in place one level out. Every depth down to the
+    // root, hung off the shallowest place the seam has, since the text position
+    // is the same for all of them; refused under a zoom for the root's own
+    // level, as any place there is.
+    if (kind === 'heading' && places.length > 0) {
+      const anchor = places[0]!;
+      for (let depth = anchor.depth - 1; depth >= 0; depth--) {
+        if (depth === 0 && options.scoped === true) continue;
+        places.unshift({ parentId: anchor.parentId, index: anchor.index, depth, level: depth + 1 });
+      }
+    }
     if (places.length === 0) continue;
+    const run = skipped(s);
     out.push({
-      line: below ? below.startLine : documentEnd(doc),
+      line: run ? run.startLine : below ? below.startLine : documentEnd(doc),
       aboveId: above?.node.id,
       belowId: below?.node.id,
       places,
@@ -214,33 +251,69 @@ export function dropSeams(
   if (operandRoots.length === 0) return [];
   const operandIds = subtreeIds(operandRoots);
   const operandRootIds = new Set(operandRoots.map((root) => root.id));
-  const starts = startLines(doc);
+  const all = visibleNodes(doc, new Set());
 
+  const first = operandRoots[0]!;
+  const home = placeOf(doc, first.id);
+  // The seams are read with the run taken out, but the algebra's indices count
+  // it: a place inside the run's own parent lands on the run wherever it
+  // names the run's own index or the one just past its last root there.
+  const siblings = home
+    ? operandRoots.filter((root) => placeOf(doc, root.id)?.parentId === home.parentId).length
+    : 0;
   const out: DropSeam[] = [];
   for (const seam of seams(doc, {
     ...options,
     outside: operandIds,
-    kind: operandRoots[0]!.kind,
+    kind: first.kind,
   })) {
     const candidates: DropDestination[] = [];
     for (const place of seam.places) {
+      // Dropped where it already is, as it already is: nothing would be
+      // written, and a destination promising that is not one.
+      if (
+        home &&
+        place.level === undefined &&
+        place.parentId === home.parentId &&
+        place.index >= home.index &&
+        place.index <= home.index + siblings
+      ) {
+        continue;
+      }
       const written = writtenFirstLine(doc, place, operandRoots, operandRootIds, options);
       if (written === undefined) continue;
-      const absorbs = absorbedSpan(doc, place, written, operandRootIds, starts);
+      const absorbs = absorbedSpan(doc, seam, written, operandIds, all);
       candidates.push(absorbs ? { ...place, firstLine: written, absorbs } : { ...place, firstLine: written });
     }
-    if (candidates.length === 0) continue;
     out.push({ line: seam.line, aboveId: seam.aboveId, belowId: seam.belowId, candidates });
+  }
+  // The run's lower boundary. The seam walk merged it into the run's top, so
+  // without a seam of its own here the band under the run would resolve to the
+  // seam below it, and a run set down where it was would move.
+  const roots = all.filter((v) => operandRootIds.has(v.node.id));
+  const lastRoot = roots[roots.length - 1];
+  if (lastRoot) {
+    const after = all.find((v) => v.startLine > lastRoot.startLine && !operandIds.has(v.node.id));
+    const line = after ? after.startLine : documentEnd(doc);
+    if (!out.some((seam) => seam.line === line)) {
+      const at = out.findIndex((seam) => seam.line > line);
+      const bottom: DropSeam = { line, aboveId: lastRoot.node.id, belowId: after?.node.id, candidates: [] };
+      if (at === -1) out.push(bottom);
+      else out.splice(at, 0, bottom);
+    }
   }
   return out;
 }
 
-/** Every node's first line by id, folds ignored: an absorbed span is a span
- * of the document, and a folded node's hidden lines are still in it. */
-function startLines(doc: OutlineDoc): Map<number, number> {
-  const starts = new Map<number, number>();
-  for (const v of visibleNodes(doc, new Set())) starts.set(v.node.id, v.startLine);
-  return starts;
+/** A node's parent and its index among that parent's children. */
+function placeOf(doc: OutlineDoc, id: number): { parentId: number | 'root'; index: number } | undefined {
+  for (const v of visibleNodes(doc, new Set())) {
+    if (v.node.id !== id) continue;
+    const own = v.chain[v.chain.length - 1]!;
+    const parent = v.chain[v.chain.length - 2];
+    return { parentId: parent ? parent.node.id : 'root', index: own.index };
+  }
+  return undefined;
 }
 
 /** A subtree's whole extent in lines, trailing gaps included. */
@@ -249,33 +322,39 @@ function subtreeSpan(node: OutlineNode): number {
 }
 
 /**
- * The lines a drop would take into the run: the siblings after the place that
- * a WRITTEN heading's section runs over, until the first that can stand beside
- * it — a heading of its level or shallower — or the scope's end. Read from the
- * line the destination writes, so a heading that arrives as a list item
- * absorbs nothing, exactly as the release will have it.
+ * The lines a drop would take into the run: what follows the seam, in document
+ * order, until the first heading that can stand beside the WRITTEN one — its
+ * level or shallower — or the document's end. Read from the line the
+ * destination writes, so a heading that arrives as a list item absorbs
+ * nothing, exactly as the release will have it; and a heading written
+ * shallower than its neighbours takes everything up to the next of its own
+ * level, however deep the seam sat. The run's own rows are not in that order.
  */
 function absorbedSpan(
   doc: OutlineDoc,
-  place: SeamPlace,
+  seam: Seam,
   written: string,
-  operandRootIds: ReadonlySet<number>,
-  starts: ReadonlyMap<number, number>,
+  operandIds: ReadonlySet<number>,
+  all: readonly Visible[],
 ): { readonly from: number; readonly to: number } | undefined {
   const head = parse(written).children[0];
   if (head === undefined || head.kind !== 'heading' || head.level === undefined) return undefined;
-  const parent = place.parentId === 'root' ? 'root' : nodeById(doc, place.parentId);
-  if (parent === undefined) return undefined;
-  const siblings = parent === 'root' ? doc.children : parent.children;
+  const level = head.level;
+  const belowAt = seam.belowId === undefined ? -1 : all.findIndex((v) => v.node.id === seam.belowId);
+  if (belowAt < 0) return undefined;
+  void doc;
   let from: number | undefined;
   let to: number | undefined;
-  for (const sibling of siblings.slice(place.index)) {
-    if (operandRootIds.has(sibling.id)) continue;
-    if (sibling.kind === 'heading' && (sibling.level ?? 0) <= head.level) break;
-    const start = starts.get(sibling.id);
-    if (start === undefined) continue;
-    from ??= start;
-    to = start + subtreeSpan(sibling);
+  let deepest = Infinity;
+  for (let i = belowAt; i < all.length; i++) {
+    const v = all[i]!;
+    if (operandIds.has(v.node.id)) continue;
+    if (v.depth > deepest) continue; // inside a node already counted whole
+    deepest = Infinity;
+    if (v.node.kind === 'heading' && (v.node.level ?? 0) <= level) break;
+    from ??= v.startLine;
+    to = v.startLine + subtreeSpan(v.node);
+    deepest = v.depth;
   }
   return from === undefined || to === undefined ? undefined : { from, to };
 }
@@ -351,7 +430,7 @@ function writtenFirstLine(
   const parent = placed.parentId === 'root' ? 'root' : nodeById(doc, placed.parentId);
   if (parent === undefined) return undefined;
   const siblings = parent === 'root' ? doc.children : parent.children;
-  if (siblings.some((sibling) => operandRootIds.has(sibling.id))) {
+  if (placed.level === undefined && siblings.some((sibling) => operandRootIds.has(sibling.id))) {
     return operandRoots[0]!.lines[0]!;
   }
   const result = reencodeBlocksForDestination(
@@ -361,6 +440,7 @@ function writtenFirstLine(
     siblings.slice(placed.index),
     operandRoots,
     options.fallbackIndentUnit,
+    placed.level,
   );
   return result.ok ? result.value[0]!.lines[0]! : undefined;
 }
@@ -419,6 +499,7 @@ export function resolveDestination(
 ): { readonly seam: DropSeam; readonly destination: DropDestination } | undefined {
   if (seams.length === 0) return undefined;
   const seam = seams[nearestIndex(pointer.y, geometry.seamY)]!;
+  if (seam.candidates.length === 0) return undefined;
   const columns = seam.candidates.map((candidate) => geometry.columnX(candidate.depth));
   return { seam, destination: seam.candidates[nearestIndex(pointer.x, columns)]! };
 }

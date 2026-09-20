@@ -2245,6 +2245,16 @@ export function reencodeBlocksForDestination(
   followingSiblings: readonly OutlineNode[],
   parsedBlocks: readonly OutlineNode[],
   fallbackIndentUnit?: string,
+  /**
+   * The level a heading payload is written at, where the caller names one
+   * rather than taking the destination's own. A heading written among a
+   * parent's children at a level SHALLOWER than they take closes the parent's
+   * section on re-parse and takes what follows into its own — which is how a
+   * run is dropped between a heading and its first child at that heading's
+   * level, or re-levelled in place. The destination is the same text
+   * position; only the encoding differs.
+   */
+  level?: number,
 ): OpResult<readonly OutlineNode[]> {
   // A leaf holds no children at any indentation, so there is no encoding for a
   // payload placed inside one. `indent` refuses an atom as a target on the same
@@ -2267,7 +2277,8 @@ export function reencodeBlocksForDestination(
   // run to the attachment rule, which reparents it under whatever paragraph
   // precedes it. The unifying principle's other branch is the honest answer
   // when no encoding exists.
-  const destLevel = destinationHeadingLevel({ parent, precedingSiblings, followingSiblings });
+  const destLevel =
+    level ?? destinationHeadingLevel({ parent, precedingSiblings, followingSiblings });
   if (destLevel !== undefined) {
     for (const block of parsedBlocks) {
       if (block.kind !== 'heading') continue;
@@ -2354,6 +2365,7 @@ function spliceAtIndex(
   parsedBlocks: readonly OutlineNode[],
   fallbackIndentUnit?: string,
   inheritedSeparation?: readonly string[],
+  level?: number,
 ): OpResult<{ readonly surgery: OutlineDoc; readonly firstId: number }> {
   if (parsedBlocks.length === 0) return reject('empty-selection');
   const parent = parentPath.length === 0 ? 'root' : nodeAt(doc, parentPath);
@@ -2370,6 +2382,7 @@ function spliceAtIndex(
     followingSiblings,
     parsedBlocks,
     fallbackIndentUnit,
+    level,
   );
   if (!reencodedResult.ok) return reencodedResult;
   const reencoded = reencodedResult.value;
@@ -2474,6 +2487,9 @@ function spliceAtIndex(
 export interface MoveDestination {
   readonly parentId: number | 'root';
   readonly index: number;
+  /** The level a heading run is written at there, where it is not the level
+   * the parent's children take — see `reencodeBlocksForDestination`. */
+  readonly level?: number;
 }
 
 /**
@@ -2553,7 +2569,9 @@ export function moveSubtreesTo(
   // document behind the run that used to end it. What the reorder implies for
   // the tree — a run crossing a heading joins its section — is `finalize`'s
   // re-parse to state, exactly as it is for every other operation.
-  if (sameScope) {
+  // A named level is a re-encoding, which the reorder below does not do: a run
+  // re-levelled in place goes through the insertion like any other.
+  if (sameScope && destination.level === undefined) {
     const movedIds = new Set(roots.map((root) => root.id));
     const ordered = [...roots].sort(
       (a, b) => destSiblings.indexOf(a) - destSiblings.indexOf(b),
@@ -2599,6 +2617,8 @@ export function moveSubtreesTo(
     destination.index - removedAbove,
     roots,
     fallbackIndentUnit,
+    undefined,
+    destination.level,
   );
   if (!spliced.ok) return spliced;
 

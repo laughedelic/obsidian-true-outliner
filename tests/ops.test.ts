@@ -809,6 +809,42 @@ const KNOWN_MOVE_REASONS = new Set([
   'insertion-not-expressible',
 ]);
 
+describe('moveSubtreesTo, at a level the destination is told', () => {
+  const DOC = ['# Kitchen', '', 'intro', '', '## Plan', '', '1. demolition', '', '## Materials', '', '- tile', '- handles', '', '> quote', ''].join('\n');
+
+  it('writes a heading between a heading and its first child at that heading\u2019s level', () => {
+    const doc = parse(DOC);
+    const r = moveSubtreesTo(doc, [[byLine(doc, '## Plan')]], {
+      parentId: byLine(doc, '## Materials'),
+      index: 0,
+      level: 2,
+    });
+    if (!r.ok) throw new Error(r.rejection.reason);
+    expect(encode(r.value.doc)).toBe(
+      ['# Kitchen', '', 'intro', '', '## Materials', '', '## Plan', '', '1. demolition', '- tile', '- handles', '', '> quote', ''].join('\n'),
+    );
+    // Materials is childless afterwards, and Plan holds its former children.
+    const after = r.value.doc;
+    const materials = [...walkNodes(after)].find((n) => n.lines[0] === '## Materials')!;
+    expect(materials.children).toHaveLength(0);
+    const plan = [...walkNodes(after)].find((n) => n.lines[0] === '## Plan')!;
+    expect(plan.children.map((c) => c.lines[0])).toEqual(['1. demolition', '- tile', '- handles', '> quote']);
+  });
+
+  it('re-levels a heading in place, which is the outdent', () => {
+    const doc = parse(DOC);
+    const r = moveSubtreesTo(doc, [[byLine(doc, '## Plan')]], {
+      parentId: byLine(doc, '# Kitchen'),
+      index: 1,
+      level: 1,
+    });
+    if (!r.ok) throw new Error(r.rejection.reason);
+    expect(encode(r.value.doc)).toBe(
+      ['# Kitchen', '', 'intro', '', '# Plan', '', '1. demolition', '', '## Materials', '', '- tile', '- handles', '', '> quote', ''].join('\n'),
+    );
+  });
+});
+
 describe('moveSubtreesTo', () => {
   /** The document a move produced, or the reason it was refused. */
   function moved(

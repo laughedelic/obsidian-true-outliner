@@ -96,8 +96,12 @@ describe('dropSeams', () => {
     const para = byLine(doc, 'a paragraph that runs');
     // One seam per node boundary, never one per row: no seam between a table's
     // header and its body, inside a fence, or between a paragraph's own lines.
-    // Nor on either side of a trailing gap line, which owns no boundary.
+    // Nor on either side of a trailing gap line, which owns no boundary. The
+    // run's own two boundaries are kept as seams and offer nothing: `- one` is
+    // a leaf at the top level, so the one column at its top puts it back where
+    // it is, and its bottom is dead so the pointer there snaps to no neighbour.
     expect(seams.map((s) => s.line)).toEqual([0, 2, 6, 11, 14]);
+    expect(seams.slice(0, 2).map((s) => s.candidates.length)).toEqual([0, 0]);
     // And an atom offers no level inside itself, so the seams after the table
     // and the fence stay at the depth those nodes sit at.
     const afterTable = seams.find((s) => s.belowId === fence.id)!;
@@ -120,11 +124,14 @@ describe('dropSeams', () => {
     expect(first.aboveId).toBeUndefined();
     expect(first.candidates.map((c) => c.parentId)).toEqual(['root']);
     expect(first.candidates.map((c) => c.index)).toEqual([0]);
-    // And the last seam takes a run to the end of the document at the top
-    // level, rather than having no bound at all for want of a node below it.
+    // And the last seam is the run's own bottom, dead: `- two` already ends the
+    // note. The seam at its top offers what is left once its own place is
+    // gone — the one column inside the node above it.
     expect(last.line).toBe(7);
     expect(last.belowId).toBeUndefined();
-    expect(last.candidates[0]!.depth).toBe(0);
+    expect(last.candidates).toEqual([]);
+    const top = seams.find((s) => s.line === 5)!;
+    expect(top.candidates.map((c) => c.depth)).toEqual([1]);
   });
 
   it('offers no seam or depth inside the run itself', () => {
@@ -140,8 +147,10 @@ describe('dropSeams', () => {
       }
     }
     // The seam between the run's root and its own first child is gone
-    // entirely, having nothing left to offer.
-    expect(seams.some((s) => s.aboveId === review.id)).toBe(false);
+    // entirely; the one seam still naming the root as its upper node is the
+    // run's own bottom, which offers nothing.
+    const under = seams.filter((s) => s.aboveId === review.id);
+    expect(under.map((s) => s.candidates)).toEqual([[]]);
   });
 
   it('takes the deep bound from what is VISIBLE, and lands last inside a fold', () => {
@@ -152,7 +161,11 @@ describe('dropSeams', () => {
     });
     // Everything under `- thread` is off screen, so its levels are not
     // candidates and its descendants' seams do not exist.
-    expect(shape(seams)).toEqual(['0: 0', '2: 1', '3: 2', '10: 0,1,2,3', '12: 0']);
+    // The run is a heading, so every seam also offers it the root's level,
+    // written as `# Next` there — except its own top, where the root's level is
+    // the place it already has, and its own bottom, the document's end, which
+    // offers nothing at all.
+    expect(shape(seams)).toEqual(['0: 0', '2: 0,1', '3: 0,1,2', '10: 1,2,3', '12: ']);
     const afterThread = seams.find((s) => s.line === 10)!;
     // One level inside a folded node is still offered, and names its LAST
     // child — the seam sits after everything the fold hides.
@@ -201,9 +214,11 @@ describe('dropSeams', () => {
     const last = seams[seams.length - 1]!;
     const asChild = last.candidates.find((c) => c.parentId === byLine(doc, '- item').id)!;
     expect(asChild.firstLine.trimStart().startsWith('-')).toBe(true);
-    // And a run that has not left its own scope keeps the line it has.
-    const home = seams.find((s) => s.belowId === byLine(doc, '## A1').id)!;
-    expect(home.candidates.some((c) => c.firstLine === '## A1')).toBe(true);
+    // At the run's own seam its own place is gone — `## A1` where it is
+    // writes nothing — and what remains is the same position read otherwise:
+    // one level out, as `# A1`.
+    const home = seams.find((s) => s.line === 2)!;
+    expect(home.candidates.map((c) => c.firstLine)).toEqual(['# A1']);
   });
 
   it('puts a run dropped between a parent and its first child FIRST', () => {
@@ -231,20 +246,23 @@ describe('dropSeams', () => {
     // innermost heading's own. So the columns are not offered. A heading run
     // is re-levelled there instead, and keeps them.
     const doc = parse(['# H1', '', '## H2', '', '### H3', '', 'para1', '', 'para2', ''].join('\n'));
-    const last = (roots: OutlineNode[]) => dropSeams(doc, roots).at(-1)!;
+    // The seam at the note's end that offers anything: the run's own bottom is
+    // dead, and for `### H3` that is the note's end itself.
+    const last = (roots: OutlineNode[]) =>
+      dropSeams(doc, roots).filter((s) => s.candidates.length > 0).at(-1)!;
     const para = last([byLine(doc, 'para1')]);
     expect(para.candidates.map((c) => c.depth)).toEqual([3, 4]);
     expect(para.candidates.map((c) => c.parentId)).toEqual([
       byLine(doc, '### H3').id,
       byLine(doc, 'para2').id,
     ]);
-    // A heading dragged to the same seam still reaches the root and both
-    // headings, re-levelled to each.
+    // A heading dragged to the same seam still reaches the root and the
+    // heading above, re-levelled to each. Its own column is not offered: the
+    // seam is the run's own top, and `### H3` under `## H2` is where it is.
     const heading = last([byLine(doc, '### H3')]);
     expect(heading.candidates.map((c) => [c.depth, c.firstLine])).toEqual([
       [0, '# H3'],
       [1, '## H3'],
-      [2, '### H3'],
     ]);
   });
 
@@ -280,6 +298,56 @@ describe('dropSeams', () => {
     expect(seams(doc, { kind: 'paragraph' }).map((s) => s.line)).toEqual([0, 2, 4, 6, 8, 10]);
   });
 
+  it('offers a heading run every level shallower than its neighbours, at the same place', () => {
+    // Kitchen Renovation: `## Plan` precedes `## Materials`, whose children
+    // end the note. Dropped between `## Materials` and its first child AT
+    // LEVEL TWO, Plan closes Materials' section and takes its children —
+    // a legal move the interval alone never offered, since the node below
+    // would become a descendant of the drop; for a heading that is the
+    // absorption the drop means, not a different operation.
+    const doc = parse(
+      ['# Kitchen', '', 'intro', '', '## Plan', '', '1. demolition', '', '## Materials', '', '- tile', '- handles', '\t- brass', '', '> quote', ''].join('\n'),
+    );
+    const plan = byLine(doc, '## Plan');
+    const all = dropSeams(doc, [plan]);
+    const underMaterials = all.find((s) => s.aboveId === byLine(doc, '## Materials').id)!;
+    expect(underMaterials.candidates.map((c) => [c.depth, c.firstLine, c.level ?? null])).toEqual([
+      [0, '# Plan', 1],
+      [1, '## Plan', 2],
+      [2, '### Plan', null],
+    ]);
+    // Written at level two, it takes every child of Materials — the quote too.
+    const asPeer = underMaterials.candidates[1]!;
+    expect(asPeer.absorbs).toEqual({ from: 10, to: 16 });
+    const asChild = underMaterials.candidates[2]!;
+    expect(asChild.absorbs).toEqual({ from: 10, to: 16 });
+  });
+
+  it('merges the seams either side of the run, and drops the place it already has', () => {
+    const doc = parse(
+      ['# Kitchen', '', 'intro', '', '## Plan', '', '1. demolition', '', '## Materials', '', '- tile', ''].join('\n'),
+    );
+    const plan = byLine(doc, '## Plan');
+    const all = dropSeams(doc, [plan]);
+    // One seam between `intro` and `## Materials`, drawn at the run's own top.
+    const home = all.find((s) => s.aboveId === byLine(doc, 'intro').id)!;
+    expect(home.belowId).toBe(byLine(doc, '## Materials').id);
+    expect(home.line).toBe(4);
+    // Its own place — a child of Kitchen at index 1 as `## Plan` — is not
+    // offered, since dropping there writes nothing. In place one level out is:
+    // `# Plan`, which is the outdent, taking the rest of the note.
+    expect(home.candidates.map((c) => [c.depth, c.firstLine])).toEqual([
+      [0, '# Plan'],
+      [2, '- ## Plan'],
+    ]);
+    expect(home.candidates[0]!.absorbs).toEqual({ from: 8, to: 12 });
+    // A paragraph gets no shallower level anywhere.
+    const intro = byLine(doc, 'intro');
+    for (const seam of dropSeams(doc, [intro])) {
+      expect(seam.candidates.every((c) => c.level === undefined)).toBe(true);
+    }
+  });
+
   it('offers no destination outside an active zoom', () => {
     const source = parse(
       ['# One', '', '- a', '  - a1', '', '# Two', '', '- b', ''].join('\n'),
@@ -301,7 +369,7 @@ describe('dropSeams', () => {
   });
 
   it('a scoped document offers nothing at the zoom root\u2019s own level', () => {
-    const source = parse(['# One', '', '- a', '  - a1', '', '# Two', '', '- b', ''].join('\n'));
+    const source = parse(['# One', '', '- a', '  - a1', '  - a2', '', '# Two', '', '- b', ''].join('\n'));
     const scope = resolveZoom(source, 2)!;
     const zoomed = scope.document;
     const operand = [byLine(zoomed, '  - a1')];
@@ -314,11 +382,14 @@ describe('dropSeams', () => {
       .toBe(true);
     const scoped = dropSeams(zoomed, operand, { scoped: true });
     expect(scoped.some((s) => s.candidates.some((c) => c.parentId === 'root'))).toBe(false);
-    // And what is left is still a place to drop: the root's own children.
-    expect(scoped.length).toBeGreaterThan(0);
+    // And what is left is still a place to drop: the root's own children. (A
+    // root with the run as its only child offers nothing at all — every
+    // column would put it back where it is.)
+    expect(scoped.some((s) => s.candidates.length > 0)).toBe(true);
+    const inScope = new Set([byLine(zoomed, '- a').id, byLine(zoomed, '  - a2').id]);
     for (const seam of scoped) {
       for (const candidate of seam.candidates) {
-        expect(candidate.parentId).toBe(byLine(zoomed, '- a').id);
+        expect(inScope.has(candidate.parentId as number)).toBe(true);
       }
     }
   });
@@ -402,5 +473,14 @@ describe('resolveDestination', () => {
 
   it('names nothing where there is no seam', () => {
     expect(resolveDestination([], geometry, { x: 0, y: 0 })).toBeUndefined();
+  });
+
+  it('names nothing near the run’s own bottom, rather than the seam past it', () => {
+    // The dead seam exists for this: a pointer setting the run down where it
+    // was must resolve to nothing, not snap to the neighbour below and move it.
+    const review = byLine(doc, '    - prototype review');
+    const bottom = seams.find((s) => s.aboveId === review.id)!;
+    expect(bottom.candidates).toEqual([]);
+    expect(resolveDestination(seams, geometry, { x: 0, y: bottom.line * 20 })).toBeUndefined();
   });
 });
