@@ -23,8 +23,8 @@ selection was ever made — and the transaction says so.
 ## What Changes
 
 - **A new classification fact: whether the pre-edit selection was empty.** The adapter already
-  supplies the pre-edit cursor for the chrome-boundary shapes; it now also supplies
-  `tr.startState.selection.main.empty`. Design D1.
+  supplies the pre-edit cursor for the chrome-boundary shapes; it now also supplies whether every
+  range of `tr.startState.selection` is empty. Design D1.
 - **The multi-block rule declines a replacement made from a caret.** A change on one line that
   deletes something, made while the selection was empty, is the editor rewriting text around the
   caret, and the block sequence its inserted text parses to was never pasted or typed over
@@ -50,7 +50,7 @@ outside it.
 ## Impact
 
 - `src/classify.ts`: `TransactionFacts.emptySelectionBefore`; `isMultiBlockInsertion` reads it.
-- `src/plugin/transaction-filter.ts`: the adapter supplies the fact.
+- `src/plugin/transaction-filter.ts`: the adapter supplies the fact, over every selection range.
 - `tests/classify.test.ts`, `tests/enforce.test.ts`: the caret shape, the selection control, the
   pure-insertion control.
 - `e2e/specs/62-outline-edit-enforcement.e2e.ts`: Enter inside a quote, mid-line, in a callout and

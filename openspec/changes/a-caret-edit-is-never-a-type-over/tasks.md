@@ -11,7 +11,8 @@
 
 - [x] 2.1 `TransactionFacts.emptySelectionBefore` in `src/classify.ts`, optional, with a doc
       comment stating what it tells apart
-- [x] 2.2 `src/plugin/transaction-filter.ts` supplies it from `tr.startState.selection.main.empty`
+- [x] 2.2 `src/plugin/transaction-filter.ts` supplies it: every range of `tr.startState.selection`
+      is empty, so a mixed selection keeps the type-over reading
 
 ## 3. The rule
 

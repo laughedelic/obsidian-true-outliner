@@ -96,9 +96,10 @@ selection was empty is the editor rewriting text around the caret, and the block
 inserted text parses to was never pasted or typed over anything; it SHALL be classified by the
 rules ahead of the multi-block reading and otherwise fall to `within-node-edit`.
 
-Whether the pre-edit main selection was empty is a classification fact the adapter SHALL supply,
-beside the pre-edit cursor it already supplies for the chrome-boundary shapes. A caller that does
-not supply it keeps the reading a replacement has without it.
+Whether every range of the pre-edit selection was empty is a classification fact the adapter SHALL
+supply, beside the pre-edit cursor it already supplies for the chrome-boundary shapes. A selection
+that mixes a caret with a range is not empty, and keeps the type-over reading. A caller that does
+not supply the fact keeps the reading a replacement has without it.
 
 Measured in `docs/research/enter-inside-a-quote`: Obsidian's own Enter inside a quote, which the
 keyboard grammar declines so that stock behaviour runs, replaces the character before the caret

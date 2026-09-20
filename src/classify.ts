@@ -107,14 +107,16 @@ export interface TransactionFacts {
    */
   readonly cursorBefore?: { readonly line: number; readonly ch: number };
   /**
-   * Whether the main selection was EMPTY before the change — a caret rather
-   * than a range. Tells a replacement the user typed or pasted over a
-   * selection from one the editor synthesized around a caret: Obsidian's own
-   * Enter inside a quote replaces the character before the caret with that
-   * character, a line break and the quote's `> `, so the inserted text
-   * re-includes what was removed and parses as two blocks although nothing was
-   * pasted (docs/research/enter-inside-a-quote). Optional so every pre-existing
-   * call site (and test) is unaffected; without it a replacement keeps its
+   * Whether EVERY selection range was empty before the change — carets only,
+   * no range anywhere. Distinguishes a replacement the user typed or pasted
+   * over a selection from one the editor synthesized around a caret:
+   * Obsidian's own Enter inside a quote replaces the character before the
+   * caret with that character, a line break and the quote's `> `, so the
+   * inserted text re-includes what was removed and parses as two blocks
+   * although nothing was pasted (docs/research/enter-inside-a-quote). All
+   * ranges rather than the main one, so a selection that mixes a caret with a
+   * range keeps the type-over reading. Optional so every pre-existing call
+   * site (and test) is unaffected; without it a replacement keeps its
    * type-over reading.
    */
   readonly emptySelectionBefore?: boolean;

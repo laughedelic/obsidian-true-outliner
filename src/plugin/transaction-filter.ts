@@ -274,7 +274,7 @@ export function transactionFilterExtension(
       isComposition,
       changedLineSpans,
       cursorBefore,
-      emptySelectionBefore: tr.startState.selection.main.empty,
+      emptySelectionBefore: tr.startState.selection.ranges.every((range) => range.empty),
     };
     const cls = classify(facts, outlineDoc);
 

@@ -88,10 +88,12 @@ note does not reopen it. What separates #155 from it is that no selection was ev
 
 ## The fact that separates them
 
-The transaction carries it: `tr.startState.selection.main.empty`. Obsidian's continuation runs
-from a caret, a type-over from a range. A replacement whose pre-edit selection was EMPTY is the
-editor rewriting text around the caret, and the block sequence its inserted text parses to was
-never pasted or typed over anything.
+The transaction carries it: whether every range of `tr.startState.selection` is empty. Obsidian's
+continuation runs from a caret, a type-over from a range. A replacement whose pre-edit selection
+was EMPTY is the editor rewriting text around the caret, and the block sequence its inserted text
+parses to was never pasted or typed over anything. Every range rather than the main one: a
+multi-caret continuation is synthesized at each caret, and a selection that mixes a caret with a
+range holds something the user did select, so it keeps the type-over reading.
 
 `classify` already takes one pre-edit selection fact from the adapter, `cursorBefore`, for the
 chrome-boundary deletion shapes. This adds a second, `emptySelectionBefore`, read by exactly one

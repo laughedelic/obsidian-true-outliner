@@ -33,7 +33,10 @@ gates and the same reading reached by a paste over a selected word.
 The transaction carries what separates a continuation from a type-over: whether the selection was
 empty when the change was made. Obsidian's continuation runs from a caret; a type-over runs from a
 range. The adapter already reads the pre-edit selection for `cursorBefore`, and now also supplies
-`emptySelectionBefore` from `tr.startState.selection.main.empty`.
+`emptySelectionBefore`: true when EVERY range of `tr.startState.selection` is empty. Every range
+rather than the main one, because a multi-caret continuation is synthesized at each caret while a
+selection that mixes a caret with a range holds something the user did select — the type-over
+reading stays with it, which is the conservative direction.
 
 Optional, like every fact the chrome-transparency amendment added, so that no pre-existing call
 site or test changes meaning. A caller that does not say keeps today's reading — the conservative
