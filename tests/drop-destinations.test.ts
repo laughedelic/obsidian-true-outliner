@@ -43,11 +43,12 @@ describe('dropSeams', () => {
     const doc = parse(NESTED);
     const seams = dropSeams(doc, [byLine(doc, '    - prototype review')]);
     const last = seams.find((seam) => seam.belowId === byLine(doc, '# The next section').id)!;
-    // Six, as the mockup draws: from a sibling of the heading below, out
-    // through every ancestor of the row above, to one level inside it.
-    expect(last.candidates.map((c) => c.depth)).toEqual([0, 1, 2, 3, 4, 5]);
+    // Five: from a child of the section, out through every ancestor of the
+    // row above, to one level inside it. Not the root, which the mockup's
+    // slider reaches — a bulleted run written before `# The next section` is
+    // still inside `# Section`, so that column is a heading run's alone.
+    expect(last.candidates.map((c) => c.depth)).toEqual([1, 2, 3, 4, 5]);
     expect(last.candidates.map((c) => c.parentId)).toEqual([
-      'root',
       byLine(doc, '# Section').id,
       byLine(doc, '- work').id,
       byLine(doc, '  - thread').id,
@@ -56,7 +57,7 @@ describe('dropSeams', () => {
     ]);
     // Each one sits just past whatever of that parent's children is above the
     // seam, which for the deepest is all of them.
-    expect(last.candidates.map((c) => c.index)).toEqual([1, 1, 1, 3, 1, 0]);
+    expect(last.candidates.map((c) => c.index)).toEqual([1, 1, 3, 1, 0]);
   });
 
   it('offers nothing shallower than the node below the seam', () => {
@@ -223,6 +224,29 @@ describe('dropSeams', () => {
     expect(inside.index).toBe(0);
   });
 
+  it('does not offer a non-heading run the columns of the headings above it', () => {
+    // A paragraph written after a heading is inside it, whatever column it was
+    // dropped on: every one of those drops wrote the same document as the
+    // innermost heading's own. So the columns are not offered. A heading run
+    // is re-levelled there instead, and keeps them.
+    const doc = parse(['# H1', '', '## H2', '', '### H3', '', 'para1', '', 'para2', ''].join('\n'));
+    const last = (roots: OutlineNode[]) => dropSeams(doc, roots).at(-1)!;
+    const para = last([byLine(doc, 'para1')]);
+    expect(para.candidates.map((c) => c.depth)).toEqual([3, 4]);
+    expect(para.candidates.map((c) => c.parentId)).toEqual([
+      byLine(doc, '### H3').id,
+      byLine(doc, 'para2').id,
+    ]);
+    // A heading dragged to the same seam still reaches the root and both
+    // headings, re-levelled to each.
+    const heading = last([byLine(doc, '### H3')]);
+    expect(heading.candidates.map((c) => [c.depth, c.firstLine])).toEqual([
+      [0, '# H3'],
+      [1, '## H3'],
+      [2, '### H3'],
+    ]);
+  });
+
   it('offers no destination outside an active zoom', () => {
     const source = parse(
       ['# One', '', '- a', '  - a1', '', '# Two', '', '- b', ''].join('\n'),
@@ -333,7 +357,7 @@ describe('resolveDestination', () => {
     }
     // Every column of the seam is reachable, in order, and nothing between two
     // of them resolves to none.
-    expect([...new Set(seen)]).toEqual([0, 1, 2, 3, 4, 5]);
+    expect([...new Set(seen)]).toEqual([1, 2, 3, 4, 5]);
   });
 
   it('takes the seam from the vertical axis alone', () => {

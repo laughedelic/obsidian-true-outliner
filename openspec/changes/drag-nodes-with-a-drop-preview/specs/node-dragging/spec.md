@@ -124,6 +124,11 @@ one level inside the deepest trailing descendant of the node ABOVE it THAT CAN H
 Shallower than the node below is excluded because it would make that node a descendant of what was
 dropped, which is a different operation; deeper is excluded because no parent exists at that
 depth — including where the trailing descendant is a leaf, which offers no level inside it at all.
+Within that interval, a depth at which a NON-HEADING run would follow a heading as its sibling
+SHALL NOT be offered either: a paragraph or a list written after a heading is inside its section
+whatever the tree says, so the drop would write the same document as the heading's own column and
+the preview would have stated a place the release cannot reach. A heading run keeps every depth of
+the interval, re-levelled by the destination.
 
 The document's own two ends SHALL be seams, since moving a run to the top or the bottom is among
 the commonest things this gesture is for. Where there is no node below the seam, the shallow bound
@@ -225,6 +230,14 @@ preview, and a release there SHALL cancel.
 #### Scenario: A run cannot land inside itself
 - **WHEN** the pointer moves over the rows of the dragged run's own subtree
 - **THEN** no destination is offered on any of its seams
+
+#### Scenario: A paragraph is not offered the columns of the headings above it
+- **WHEN** a paragraph inside an `###` section nested under `##` and `#` headings is dragged to
+  the note's end
+- **THEN** the seam offers the `###` section's own depth and one level inside the last paragraph,
+  and neither the `#`'s nor the `##`'s column — where the same drop would have written the same
+  document
+- **AND** the `###` heading itself dragged there is offered all three, re-levelled to each
 
 #### Scenario: A zoom bounds the destinations
 - **WHEN** the view is zoomed into a node and a descendant is dragged

@@ -152,6 +152,7 @@ export function dropSeams(
 
     const candidates: DropDestination[] = [];
     for (let depth = shallow; depth <= deep; depth++) {
+      if (followsAHeading(depth, above, operandRoots)) continue;
       const placed = placeAt(depth, above, below);
       if (!placed) continue;
       if (placed.parentId === 'root' && options.scoped === true) continue;
@@ -169,6 +170,27 @@ export function dropSeams(
     });
   }
   return seams;
+}
+
+/**
+ * Whether a non-heading run placed at `depth` would land right after a heading
+ * as its SIBLING — which markdown cannot write. A heading's section runs to the
+ * next heading that can stand beside it, so a paragraph or a list written after
+ * one is inside it, whatever the tree said: a paragraph dragged out of an H3
+ * section to the note's end was offered the H1's and H2's columns, and every
+ * one of those drops wrote the same document as the H3's own. The sibling the
+ * run would follow is the node above's ancestor at that depth, and headings
+ * nest only under headings, so that one node is the whole test. A heading run
+ * is re-levelled by the destination instead, which the re-encode step decides.
+ */
+function followsAHeading(
+  depth: number,
+  above: Visible | undefined,
+  operandRoots: readonly OutlineNode[],
+): boolean {
+  if (!above || operandRoots[0]?.kind === 'heading') return false;
+  const sibling = above.chain[depth];
+  return sibling !== undefined && sibling.node.kind === 'heading';
 }
 
 /** The parent and index a depth names at one seam. */

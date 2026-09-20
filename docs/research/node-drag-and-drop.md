@@ -301,6 +301,16 @@ of its own. Excluded from that pass, the ghost's centre reads 503.98. The same e
 correctly in a plain Chromium page throughout, which is what pointed away from the CSS and at a
 writer.
 
+**A paragraph dragged out of a nested section was offered the outer headings' columns.** With
+`# H1` › `## H2` › `### H3` › two paragraphs, the note's last seam offered the first paragraph
+depths 0 through 4. Run through the algebra, the drops at depths 0, 1 and 2 each wrote the same
+document as the drop at depth 3: a paragraph written after a heading is inside its section, whatever
+the tree said. The preview drew it under the H1's column and the release put it under the H3.
+Those columns are no longer offered to a non-heading run — the sibling it would follow is the node
+above's ancestor at that depth, and headings nest only under headings, so that one node is the whole
+test. A heading run keeps them, re-levelled. The same rule removes the root column from the mockup's
+six-destination seam for a bulleted run; that column was only ever a heading run's.
+
 ## 7. Where a drop can land: the seam and its depths
 
 Not a measurement — the model the sections above leave to be chosen, recorded here so the design
