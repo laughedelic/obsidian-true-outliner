@@ -365,31 +365,31 @@ describe('node dragging: the press and the drag it can become', function () {
   }
 
   it('draws the indicator on the destination depth\u2019s own column', async function () {
-    // The document's LAST seam, which is the one offering all three top-level
-    // depths: beside `# Top` at the root, among its children, and inside
-    // `- three`. Swept left to right, the indicator's left end should land on
-    // each of those columns in turn.
+    // A list at the root with a heading after it. The seam between them
+    // offers two depths: beside the list at the root, and inside `- three`.
+    // (Under a heading the root column would not be offered at all: a
+    // bulleted run written before the next heading is still inside the one
+    // above it.) Swept left to right, the indicator's left end should sit a
+    // fixed distance right of each of those columns in turn.
     //
     // The columns come from the document's own MARKS, of two different kinds,
     // because that is what makes this a relation rather than a constant: a
     // heading's marker icon is centred on its column and a list bullet's span
-    // begins on its. An indicator positioned by measuring one kind's box would
-    // sit right on that kind's destinations and half a bullet out on the
-    // other's, which one column alone cannot tell.
+    // begins on its. Depth 0 is read from the HEADING, so an indicator
+    // positioned by measuring one kind's box would sit right on one depth and
+    // half a bullet out on the other.
+    const ROOTED = ['- one', '  - nested', '- two', '- three', '', '# After', ''].join('\n');
+    await h.setBuffer(ROOTED);
+    await browser.pause(250);
+    // Off the list: the caret's own row renders raw, with no bullet to aim at.
+    await h.setCursorSettled(5, 0);
     const columns = [
-      await columnOfMark('.to-decor-marker-icon', 0, 'centre'), // `# Top`, depth 0
-      await columnOfMark(BULLET, 0, 'left'), // `- one`, depth 1
-      await columnOfMark(BULLET, 1, 'left'), // `  - nested`, depth 2
+      await columnOfMark('.to-decor-marker-icon', 0, 'centre'), // `# After`, depth 0
+      await columnOfMark(BULLET, 1, 'left'), // `  - nested`, depth 1
     ];
-    const last = await markPoint(BULLET, 3);
-    const above = await markPoint(BULLET, 2);
-    // Well past the last row. The last seam sits at the DOCUMENT's own bottom,
-    // which is below the note's terminating gap line and the padding after it
-    // — a row or two down is still nearer the seam above the last row, whose
-    // columns are a subset of this one's and would leave the heading depth
-    // untested. Nothing lies below the last seam, so any y past it resolves
-    // there.
-    const y = last.y + 1.5 * (last.y - above.y);
+    const three = await markPoint(BULLET, 3);
+    const after = await markPoint('.to-decor-marker-icon', 0);
+    const y = (three.y + after.y) / 2;
     const box = await editorBox();
 
     const mark = await markPoint(BULLET, 0);
@@ -404,8 +404,6 @@ describe('node dragging: the press and the drag it can become', function () {
       { x: box.left + 5, y },
       { x: columns[1]!, y },
       { x: columns[1]! + 1, y },
-      { x: columns[2]!, y },
-      { x: columns[2]! + 1, y },
     ]);
     await browser.pause(250);
 
@@ -419,16 +417,22 @@ describe('node dragging: the press and the drag it can become', function () {
       expect(sample.preview).not.toBe(null);
       seen.set(sample.preview!.depth, columns[0]! + sample.indicator!.x);
     }
-    // The sweep has to have reached the HEADING's own depth, not just the two
-    // list ones. Asserted rather than assumed: a sweep naming only list
-    // destinations passes every per-column check while testing one kind of
-    // mark, which is the half this case exists to rule out. Found by running
-    // the control, which did not bite until this line was here.
-    expect([...seen.keys()].sort()).toEqual([0, 1, 2]);
-    for (const [depth, drawnAt] of seen) {
-      expect(Math.abs(drawnAt - columns[depth]!)).toBeLessThan(1);
+    // Both depths by name, so the heading's column is tested and not assumed.
+    expect([...seen.keys()].sort()).toEqual([0, 1]);
+    // The bar starts one marker gutter right of the column, where the run's
+    // text will begin — the ghost mark sits on the column itself. The gutter
+    // is not read here; what is asserted is that the offset from each depth's
+    // own column is the same at every depth, and less than a column.
+    const unit = columns[1]! - columns[0]!;
+    const offsets = [...seen].map(([depth, drawnAt]) => drawnAt - columns[depth]!);
+    for (const offset of offsets) {
+      expect(offset).toBeGreaterThan(0);
+      expect(offset).toBeLessThan(unit);
+      expect(Math.abs(offset - offsets[0]!)).toBeLessThan(1);
     }
-    expect(await h.getBuffer()).toBe(DOC);
+    expect(await h.getBuffer()).toBe(ROOTED);
+    await h.setBuffer(DOC);
+    await browser.pause(200);
   });
 
   /*  0 | ## Section

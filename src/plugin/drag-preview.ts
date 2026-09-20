@@ -19,6 +19,7 @@
  */
 
 import { columnExpr, markerAnchorLeftExpr } from './chrome-line';
+import { MARKER_GUTTER_CSS } from './chrome-tokens';
 import { parse } from '../parse';
 import { nodeMark, type NodeMark } from './marker-shapes';
 import type { DragPreview } from './drag-state';
@@ -99,16 +100,20 @@ const DROP_COLOR = 'var(--to-drop-color)';
 const DROP_WIDTH = 'var(--to-drop-width)';
 
 /**
- * The indicator as one background layer: a bar beginning on the destination's
- * column and running to the row's right edge.
+ * The indicator as one background layer: a bar beginning where the run's TEXT
+ * will start — one marker gutter right of the destination's column — and
+ * running to the row's right edge.
  *
  * It states the depth by where it STARTS, which is the whole point — a
  * full-width rule draws identically for every destination a seam offers, and
- * one seam offers as many as there are levels flanking it (design D8).
+ * one seam offers as many as there are levels flanking it (design D8). The
+ * gutter's width off the column is the ghost mark's place: the mark sits ON the
+ * column, and a bar starting there ran through it.
  */
 export function seamLayer(at: SeamIndicator): string {
   return (
     `linear-gradient(to right, ${DROP_COLOR} 0 100%) ` +
-    `${columnExpr(at.depth)} ${at.below ? 'bottom' : 'top'} / 100% ${DROP_WIDTH} no-repeat`
+    `calc(${columnExpr(at.depth)} + ${MARKER_GUTTER_CSS}) ${at.below ? 'bottom' : 'top'} ` +
+    `/ 100% ${DROP_WIDTH} no-repeat`
   );
 }
