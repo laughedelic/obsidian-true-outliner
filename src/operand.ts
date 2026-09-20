@@ -160,15 +160,15 @@ export function dragOperand(
   }
   if (!pressed) return undefined;
 
+  // The cover is carried only when the press is on one of its ROOTS. A press
+  // on a descendant of a covered root names that node: the reader has a
+  // section selected and reaches into it for one item, and dragging the
+  // whole section instead acts on what they did not point at.
   const covered = coveredForestOf(doc, range);
-  if (covered && covered.roots.some((root) => subtreeHolds(root.node, pressedId))) {
+  if (covered && covered.roots.some((root) => root.node.id === pressedId)) {
     return { groups: groupRootsByParent(covered.roots), collapseTo: undefined };
   }
   return { groups: [[pressed.id]], collapseTo: subtreeCoverOf(doc, pressed) };
-}
-
-function subtreeHolds(node: OutlineNode, id: number): boolean {
-  return node.id === id || node.children.some((child) => subtreeHolds(child, id));
 }
 
 /**

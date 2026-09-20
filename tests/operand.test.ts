@@ -139,14 +139,17 @@ describe('the operand of a drag', () => {
     expect(operand?.collapseTo).toBeUndefined();
   });
 
-  it('counts a press on a covered root\u2019s own descendant as inside', () => {
-    // Not "is one of the roots": `- a1` is drawn as selected, and picking it
-    // out of the cover would drag a part of what the reader can see.
+  it('takes a covered root\u2019s own descendant alone when it is what was pressed', () => {
+    // A press on a ROOT of the cover carries the cover; a press on a node
+    // inside one names that node. The reader has a section selected and
+    // reaches into it for one item, and dragging the section instead acts on
+    // what they did not point at.
     const doc = parse(NESTED);
     const range = coverRange(doc, '- a', '- b');
-    const operand = dragOperand(doc, range, nodeWith(doc, '- a1').id);
-    expect(operand?.groups).toEqual([[nodeWith(doc, '- a').id, nodeWith(doc, '- b').id]]);
-    expect(operand?.collapseTo).toBeUndefined();
+    const a1 = nodeWith(doc, '- a1');
+    const operand = dragOperand(doc, range, a1.id);
+    expect(operand?.groups).toEqual([[a1.id]]);
+    expect(operand?.collapseTo).toEqual(subtreeCoverOf(doc, a1));
   });
 
   it('takes the pressed node alone when the press lands outside the cover', () => {
