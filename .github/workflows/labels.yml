@@ -1,0 +1,35 @@
+name: Labels
+
+# Syncs the repository's labels to `.github/labels.yml`. Pruning is on, so a
+# label dropped from the file is deleted from every issue that carries it —
+# which is why a rename belongs in that file's `aliases` rather than in a
+# delete-and-add pair.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/labels.yml
+      - .github/workflows/labels.yml
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Report the changes without making them"
+        type: boolean
+        default: false
+
+permissions:
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: EndBug/label-sync@v2
+        with:
+          config-file: .github/labels.yml
+          delete-other-labels: true
+          dry-run: ${{ inputs.dry-run || false }}
+          token: ${{ secrets.GITHUB_TOKEN }}

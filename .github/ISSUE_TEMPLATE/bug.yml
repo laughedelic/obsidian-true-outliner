@@ -1,0 +1,71 @@
+name: Bug report
+description: Something the plugin does that contradicts what it should do
+labels: [kind/bug, needs/repro]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A report closes fastest when it draws the editor rather than describing it:
+        the document before, the keys pressed, the document after. Markdown source
+        is more useful than a screenshot for everything except how something looks.
+
+  - type: textarea
+    id: before
+    attributes:
+      label: The document before
+      description: Markdown source, with a `|` where the caret sits.
+      render: markdown
+      placeholder: |
+        - a
+        - b|
+        - c
+    validations:
+      required: true
+
+  - type: input
+    id: keys
+    attributes:
+      label: The keys pressed
+      placeholder: Tab, then Shift+Enter
+    validations:
+      required: true
+
+  - type: textarea
+    id: after
+    attributes:
+      label: What happened, and what we expected instead
+      description: Both documents, marked which is which.
+      render: markdown
+    validations:
+      required: true
+
+  - type: input
+    id: versions
+    attributes:
+      label: Plugin and Obsidian versions
+      placeholder: "plugin 0.9.1, Obsidian 1.12.7"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options: [macOS, Windows, Linux, iOS, Android]
+    validations:
+      required: true
+
+  - type: input
+    id: theme
+    attributes:
+      label: Theme
+      description: Several defects so far were theme-specific, so this matters even when it seems unrelated.
+      placeholder: Default
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Settings in play, whether it survives a restart, whether it happens with other plugins disabled.

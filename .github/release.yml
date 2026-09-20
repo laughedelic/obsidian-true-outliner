@@ -1,0 +1,16 @@
+# Grouping for the notes `gh release create --generate-notes` writes, which the
+# Release workflow cuts from the squashed merge commits since the last release.
+# The labels are the ones the Triage workflow derives, so a PR needs no manual
+# step to land in the right section.
+changelog:
+  categories:
+    - title: Features
+      labels: [kind/feature]
+    - title: Fixes
+      labels: [kind/bug]
+    - title: Dependencies
+      labels: [dependencies]
+    - title: Internal
+      labels: [kind/chore]
+    - title: Other
+      labels: ["*"]

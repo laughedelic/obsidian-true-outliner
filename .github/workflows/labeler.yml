@@ -1,0 +1,55 @@
+name: Triage
+
+# Every label a PR carries is derived, so nothing depends on remembering to add
+# one: the areas come from the paths the diff touches, and the kind comes from
+# the conventional-commit prefix already in the title — which is also the squash
+# commit's subject, so the two cannot disagree.
+#
+# `pull_request_target` runs the workflow from the base branch with a token that
+# can write labels. It checks nothing out: both steps read the API alone, so a
+# PR cannot reach this workflow's permissions through its own contents.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/labeler@v5
+        with:
+          configuration-path: .github/labeler.yml
+          sync-labels: true
+
+      - name: Kind from the title's prefix
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+          # A title without a recognised prefix gets no kind label rather than a
+          # guess; the release notes then file it under Other, which reads as the
+          # reminder it is.
+          case "$TITLE" in
+            feat*) kind=kind/feature ;;
+            fix*) kind=kind/bug ;;
+            chore*|docs*|refactor*|test*|ci*|perf*|style*|build*) kind=kind/chore ;;
+            *) echo "no recognised prefix in: $TITLE"; exit 0 ;;
+          esac
+          for stale in kind/feature kind/bug kind/chore; do
+            [ "$stale" = "$kind" ] && continue
+            gh api -X DELETE "repos/$REPO/issues/$NUMBER/labels/$stale" >/dev/null 2>&1 || true
+          done
+          gh api -X POST "repos/$REPO/issues/$NUMBER/labels" -f "labels[]=$kind" >/dev/null
+          echo "$kind"

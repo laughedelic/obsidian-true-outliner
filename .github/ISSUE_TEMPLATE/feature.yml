@@ -1,0 +1,32 @@
+name: Feature request
+description: A behaviour or a surface the plugin does not have yet
+labels: [kind/feature, needs/decision]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        An open design question — one that does not close by someone implementing
+        it — belongs in Discussions instead, where it can stay open without
+        becoming tracker debt.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is hard today
+      description: The situation that prompts this, rather than the solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What we would do about it
+      description: If it changes what a keystroke does, draw the document before and after.
+    validations:
+      required: true
+
+  - type: input
+    id: prior-art
+    attributes:
+      label: Where this exists already
+      description: Logseq, Workflowy, Roam, Tana, org-mode, another Obsidian plugin.

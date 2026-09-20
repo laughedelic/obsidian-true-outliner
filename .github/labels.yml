@@ -1,0 +1,122 @@
+# The label set, in one declaration. `.github/workflows/labels.yml` syncs the
+# repository to this file, so a label is added, recoloured or renamed here and
+# nowhere else. `aliases` renames an existing label in place, keeping it on every
+# issue that already carries it.
+#
+# Four axes, each its own colour family: kind says what an item is, area says
+# which slice it touches, needs says what is blocking it, and p0-p3 order the
+# work. Issue types would carry kind natively, but they are organization-only and
+# this repository is personal — docs/research/cloud-session-github-access.md.
+
+# Kind. An item has exactly one, matching the conventional-commit prefix a PR
+# title would take.
+- name: kind/bug
+  color: d73a4a
+  description: Behaviour that contradicts what we specify
+  aliases: [bug]
+- name: kind/feature
+  color: 0e8a16
+  description: New behaviour or a new surface
+  aliases: [enhancement]
+- name: kind/chore
+  color: ededed
+  description: Tooling, refactoring, docs and everything that ships no behaviour
+
+# Area. Several are normal: a PR carries one per slice its diff touches, applied
+# from paths by `.github/labeler.yml`, while the scope in its title names the
+# primary one. They agree whenever a change stays in one slice, and a title
+# claiming one scope against three labels is worth a second look.
+- name: area/grammar
+  color: c5def5
+  description: Keyboard grammar, caret placement, provisional positions
+- name: area/ops
+  color: c5def5
+  description: Structural operations, encoding, indentation
+- name: area/parse
+  color: c5def5
+  description: Parsing markdown into the node tree
+- name: area/selection
+  color: c5def5
+  description: Node selection and its extension
+- name: area/decorations
+  color: c5def5
+  description: The outline grid, guides, chrome, stylesheets
+- name: area/markers
+  color: c5def5
+  description: Per-kind block markers and the gutter they stand in
+- name: area/folding
+  color: c5def5
+  description: Folding, its persistence and its chrome
+- name: area/zoom
+  color: c5def5
+  description: Zoom scope, its confinement and its trail
+- name: area/backlinks
+  color: c5def5
+  description: The structured backlinks footer and its index
+- name: area/search
+  color: c5def5
+  description: Search surfaces and the shared matcher
+- name: area/mode
+  color: c5def5
+  description: Outline mode, per tab and its indicators
+- name: area/settings
+  color: c5def5
+  description: Settings declarations and the settings tab
+- name: area/e2e
+  color: c5def5
+  description: The e2e harness, its specs and its containers
+- name: area/ci
+  color: c5def5
+  description: Workflows, release and beta publishing
+- name: area/agents
+  color: c5def5
+  description: Agent instructions, skills and setup scripts
+- name: area/docs
+  color: c5def5
+  description: Research notes, guides and the README
+  aliases: [documentation]
+- name: area/website
+  color: c5def5
+  description: The GitHub Pages site and its media
+
+# Needs. What has to happen before the item is ready to pick up. An item with no
+# needs label and a Ready status is ready; the project's status says whether it
+# has been triaged at all, so absence here is never load-bearing.
+- name: needs/repro
+  color: d4c5f9
+  description: No concrete failure case yet
+- name: needs/diagnosis
+  color: d4c5f9
+  description: Reproduced, mechanism not located
+- name: needs/decision
+  color: d4c5f9
+  description: Diagnosed, blocked on a design choice
+- name: needs/research
+  color: d4c5f9
+  description: Wants a measured note before it can be proposed
+
+# Priority, by consequence rather than by surface. A tooling defect that costs
+# rework on every change ranks with a user-facing one.
+- name: p0
+  color: b60205
+  description: Content the user did not edit is rewritten or lost, or the pipeline is stopped
+- name: p1
+  color: e99695
+  description: A core gesture fails on ordinary documents, or every change pays for it
+- name: p2
+  color: f9d0c4
+  description: Visible in a specific shape, or occasional friction
+- name: p3
+  color: ededed
+  description: Cosmetic, rare, or hard to reach
+
+# Kept from the defaults.
+- name: dependencies
+  color: 0366d6
+  description: Dependency updates
+- name: good first issue
+  color: 7057ff
+  description: Good for newcomers
+- name: help wanted
+  color: 008672
+  description: Extra attention is needed

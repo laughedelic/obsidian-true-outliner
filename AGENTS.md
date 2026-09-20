@@ -133,6 +133,13 @@ A cloud session needs its VM provisioned before any of this runs:
   REST write to a PR body from a cloud session. A body sent through `update_pull_request` is
   stored as given, so that is the rewrite; a `PostToolUse` hook asks for it when the footer is
   there.
+- **The label set is the tracker's write surface.** `.github/labels.yml` declares every label and
+  the workflow syncs the repository to it, so a label is added there and nowhere else. An issue
+  filed by a session carries one `kind/`, one or more `area/`, a `p0`-`p3`, and a `needs/` label
+  when the fix is not yet located; a PR's labels are derived from its paths and its title, so a
+  session sets none. The project's fields and Discussions are out of reach from a cloud session
+  ([`docs/cloud-sessions.md`](docs/cloud-sessions.md)) — a session that wants either says so
+  rather than working around it.
 - **A follow-up is an issue, not a parking-lot entry.** When research or a change turns up a defect
   or a gap outside its own scope, file it as a GitHub issue in the same session — with the user's
   go-ahead — and leave a one-line mention and the link where it was found. The issue carries the
