@@ -495,6 +495,41 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     expect(onResult).toContain('FirstSINGLE paragraph text.');
   });
 
+  it('Enter inside a quote, a callout or a list inside a quote continues it exactly as stock (#155)', async function () {
+    // The grammar declines Enter on an atom and Obsidian's own continuation
+    // runs. Measured (docs/research/enter-inside-a-quote), that continuation is
+    // not an insertion: it REPLACES the character before the caret with that
+    // character, a line break and the `> ` prefix, from a caret. Read as a
+    // paste, the two blocks that text parses to sent the keypress down the
+    // type-over path, which replaced the whole quote with `a` / `> `.
+    const cases: { md: string; caret: { line: number; ch: number } }[] = [
+      { md: '> alpha\n> beta\n', caret: { line: 0, ch: 7 } },
+      { md: '> alpha\n> beta\n', caret: { line: 0, ch: 4 } },
+      { md: '> [!note] title\n> body\n', caret: { line: 1, ch: 6 } },
+      { md: '> \t- nested\n', caret: { line: 0, ch: 11 } },
+    ];
+    for (const [i, { md, caret }] of cases.entries()) {
+      await h.createNote(`Scratch/quote-enter-off-${i}.md`, md);
+      await h.setOutlineMode(false);
+      await h.setCursor(caret.line, caret.ch);
+      await h.keys.enter();
+      const offResult = await h.getBuffer();
+      const offCursor = await h.getCursor();
+
+      await h.createNote(`Scratch/quote-enter-on-${i}.md`, md);
+      await h.setOutlineMode(true);
+      await h.setCursor(caret.line, caret.ch);
+      await h.resetStats();
+      await h.keys.enter();
+      expect(await h.getBuffer()).toBe(offResult);
+      expect(await h.getCursor()).toEqual(offCursor);
+      // Every line the note had is still there: the continuation added one.
+      expect(offResult.split('\n').length).toBe(md.split('\n').length + 1);
+      const snap = await h.getStats();
+      expect(snap.verdictCounts.rewrite ?? 0).toBe(0);
+    }
+  });
+
   // ---- 4.4 Contract scenarios ----------------------------------------------
 
   it('undo after a structural deletion restores the pre-edit buffer byte-identically, in one step', async function () {

@@ -1425,3 +1425,53 @@ describe('an inexpressible paste is refused, never passed through', () => {
     }
   });
 });
+
+// ------------------------------------------- a-caret-edit-is-never-a-type-over
+
+/**
+ * Obsidian's own Enter inside a quote, through BOTH gates
+ * (docs/research/enter-inside-a-quote): the character before the caret is
+ * replaced by itself, a line break and the quote's `> `, from an EMPTY
+ * selection. `fromSelection` is the negative control — the same bytes typed
+ * over a one-character selection ARE a type-over.
+ */
+function stockEnterThroughBothGates(
+  md: string,
+  caret: { line: number; ch: number },
+  continuation: string,
+  fromSelection = false,
+): Verdict {
+  const doc = parse(md);
+  const from = pos(caret.line, caret.ch - 1);
+  const insert = md.split('\n')[caret.line]!.charAt(caret.ch - 1) + continuation;
+  const facts: TransactionFacts = {
+    userEvent: 'input.type',
+    isComposition: false,
+    changedLineSpans: [
+      { fromLine: caret.line, toLine: caret.line, insertedText: insert, fromCh: from.ch,
+        toCh: caret.ch, rangeEnd: caret },
+    ],
+    cursorBefore: caret,
+    emptySelectionBefore: !fromSelection,
+  };
+  const edit: EditFact = { from, to: caret, insert, cursorBefore: caret };
+  return computeVerdict(classify(facts, doc), doc, edit);
+}
+
+describe('a replacement synthesized around a caret passes', () => {
+  it('Enter inside a quote, a callout and a list inside a quote all pass', () => {
+    // Every measured destroying shape of issue #155, each of which the
+    // negative control below turns back into the destroying rewrite.
+    expect(stockEnterThroughBothGates('> alpha\n> beta\n', pos(0, 7), '\n> ').kind).toBe('pass');
+    expect(stockEnterThroughBothGates('> alpha\n> beta\n', pos(0, 4), '\n> ').kind).toBe('pass');
+    expect(stockEnterThroughBothGates('> alpha\n> beta\n', pos(1, 6), '\n> ').kind).toBe('pass');
+    expect(stockEnterThroughBothGates('> [!note] title\n> body\n', pos(1, 6), '\n> ').kind).toBe('pass');
+    expect(stockEnterThroughBothGates('> \t- nested\n', pos(0, 11), '\n> \t- ').kind).toBe('pass');
+  });
+
+  it('the same bytes over a selection replace the whole quote — the reading the caret case fell into', () => {
+    const verdict = stockEnterThroughBothGates('> alpha\n> beta\n', pos(0, 7), '\n> ', true);
+    expect(verdict.kind).toBe('rewrite');
+    expect(applyVerdict('> alpha\n> beta\n', verdict)).toBe('a\n> \n');
+  });
+});
