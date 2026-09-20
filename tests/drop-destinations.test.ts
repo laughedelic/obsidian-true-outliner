@@ -204,6 +204,25 @@ describe('dropSeams', () => {
     expect(home.candidates.some((c) => c.firstLine === '## A1')).toBe(true);
   });
 
+  it('puts a run dropped between a parent and its first child FIRST', () => {
+    // The seam one level inside a node sits after everything it holds only
+    // when it shows no children — a leaf, or a folded node. Between a heading
+    // and its first paragraph the run becomes the first child. Measured before
+    // the two were told apart: dropped there, a subtree landed at the end of
+    // the section.
+    const doc = parse(['# One', '', 'intro', '', '- a', '- b', '', '# Two', '', '- x', ''].join('\n'));
+    const seams = dropSeams(doc, [byLine(doc, '- x')]);
+    const firstChild = seams.find((s) => s.belowId === byLine(doc, 'intro').id)!;
+    expect(firstChild.candidates.map((c) => [c.depth, c.parentId, c.index])).toEqual([
+      [1, byLine(doc, '# One').id, 0],
+    ]);
+    // And the seam AFTER a leaf's own line still puts the run inside it, last —
+    // which for a leaf is also first.
+    const afterLeaf = seams.find((s) => s.aboveId === byLine(doc, '- b').id)!;
+    const inside = afterLeaf.candidates.find((c) => c.parentId === byLine(doc, '- b').id)!;
+    expect(inside.index).toBe(0);
+  });
+
   it('offers no destination outside an active zoom', () => {
     const source = parse(
       ['# One', '', '- a', '  - a1', '', '# Two', '', '- b', ''].join('\n'),

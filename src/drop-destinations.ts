@@ -185,9 +185,18 @@ function placeAt(
     const parent = below.chain[below.chain.length - 2];
     return { parentId: parent ? parent.node.id : 'root', index: own.index };
   }
-  // One level inside the node above: the seam sits after everything it holds,
-  // hidden children included, so the run lands LAST among them.
+  // One level inside the node above. Where the node below is that node's own
+  // child, the seam sits BEFORE it — between a heading and its first paragraph,
+  // the run becomes the first child, not the last. Only where the node above
+  // shows no children (a leaf, or folded so they are hidden) does the seam sit
+  // after everything it holds, and the run lands last among them. Measured
+  // before this distinction existed: a subtree dropped between a heading and
+  // its first child landed at the end of the section.
   if (depth === above.depth + 1) {
+    const inside = below?.chain[above.depth];
+    if (inside && inside.node.id === above.node.id) {
+      return { parentId: above.node.id, index: below.chain[above.depth + 1]!.index };
+    }
     return { parentId: above.node.id, index: above.node.children.length };
   }
   // Otherwise the parent is an ancestor of the node above, and the seam sits
