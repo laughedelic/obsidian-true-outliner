@@ -69,9 +69,16 @@ export function dragGeometry(
     // back, which is what the scope publishes it for.
     const line = seam.line + lineOffset;
     // A seam sits at the TOP of the line below it. Past the last line there is
-    // no line to ask, so the document's own bottom stands for it.
+    // no line to ask, so the bottom of the last line with TEXT stands for it —
+    // not the document's own bottom, which the last block carries along with
+    // the editor's bottom padding: a scroller's worth on a real note, so the
+    // seam sat far below the last row and could not be reached in practice.
+    // The lines skipped are the note's trailing gap lines, blank by
+    // definition.
     if (line >= lastLine) {
-      return top + view.lineBlockAt(view.state.doc.length).bottom;
+      let last = lastLine;
+      while (last > 1 && view.state.doc.line(last).text.trim() === '') last--;
+      return top + view.lineBlockAt(view.state.doc.line(last).from).bottom;
     }
     return top + view.lineBlockAt(view.state.doc.line(line + 1).from).top;
   });
