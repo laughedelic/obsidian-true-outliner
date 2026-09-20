@@ -84,12 +84,16 @@ press states itself under the pointer.
 ### Requirement: What is dragged is the selection's covered subtrees
 
 The operand of a drag SHALL be resolved by the rule `selection-structural-ops` already states for
-every structural operation, and SHALL NOT be a rule of its own:
+every structural operation, with the one refinement a press makes possible — a press names a
+node, where a keyboard command names only the selection:
 
-- When the pressed node lies inside the current selection's cover, the operand is that whole
+- When the pressed node is one of the current selection's covered ROOTS, the operand is that whole
   cover — its covered roots, as one contiguous sibling run per parent, in document order.
 - Otherwise the operand is the pressed node's own subtree, and the selection SHALL become that
-  node's cover, so that what is in flight is always what is drawn as selected.
+  node's cover, so that what is in flight is always what is drawn as selected. A press on a node
+  INSIDE a covered root's subtree is this case, not the first: a reader with a section selected who
+  reaches into it for one item pointed at that item, and dragging the section instead acts on what
+  they did not point at.
 
 The rule SHALL be stated over the selection alone and SHALL NOT consult how the selection was
 produced. A cover reached by dragging, by Shift+Arrow, by Mod+A or by undo drags identically.
@@ -97,6 +101,11 @@ produced. A cover reached by dragging, by Shift+Arrow, by Mod+A or by undo drags
 #### Scenario: Pressing inside a multi-node cover drags the whole cover
 - **WHEN** three sibling items are selected as a cover and the user drags the middle one's bullet
 - **THEN** all three subtrees are in flight and land together, in their original order
+
+#### Scenario: Pressing inside a selected section drags the pressed node
+- **WHEN** a heading section is selected as a cover and the user drags the bullet of a list item
+  inside it
+- **THEN** only that item's subtree is in flight, and the selection is now that item's own cover
 
 #### Scenario: Pressing outside the cover drags only that node
 - **WHEN** a cover is selected elsewhere in the note and the user drags an unrelated item's bullet
@@ -129,6 +138,21 @@ SHALL NOT be offered either: a paragraph or a list written after a heading is in
 whatever the tree says, so the drop would write the same document as the heading's own column and
 the preview would have stated a place the release cannot reach. A heading run keeps every depth of
 the interval, re-levelled by the destination.
+
+Seams SHALL be read with the run TAKEN OUT of the document: the boundaries above and below the run
+are one seam, at the run's top, and its depths are those the nodes flanking the run bound once the
+run is gone. The run's own place — its parent and its index among the siblings it has — SHALL NOT
+be offered at any seam: a drop there writes nothing, and a destination that promises nothing is not
+one. A seam left with no place SHALL NOT be offered either.
+
+A heading run SHALL additionally be offered, at every seam, each level SHALLOWER than the seam's
+shallow bound, down to the top level — or, under an active zoom, the zoom root's own child depth —
+written at the position the seam names and at the level the column names. A heading closes the
+section it lands in: `## Plan` dropped between `## Materials` and its first child at the `##`
+column stands beside Materials, which is left childless, and `## Plan` dropped at its own seam on
+the `#` column is an outdent in place. The release SHALL write the level the column named rather
+than the one the destination's parent would imply, so the preview's mark and the written heading
+agree.
 
 The document's own two ends SHALL be seams, since moving a run to the top or the bottom is among
 the commonest things this gesture is for. Where there is no node below the seam, the shallow bound
@@ -237,7 +261,27 @@ preview, and a release there SHALL cancel.
 - **THEN** the seam offers the `###` section's own depth and one level inside the last paragraph,
   and neither the `#`'s nor the `##`'s column — where the same drop would have written the same
   document
-- **AND** the `###` heading itself dragged there is offered all three, re-levelled to each
+- **AND** the `###` heading itself dragged there is offered the `#`'s and the `##`'s columns,
+  re-levelled to each — and not its own, since that seam is the run's own top and the `###` column
+  there is where it already stands
+
+#### Scenario: The run's own place is not offered
+- **WHEN** a list item is dragged and the pointer rests on the seam at its own top or its own
+  bottom, on the column it already sits at
+- **THEN** no destination is offered there, and a release cancels rather than promising a move that
+  writes nothing
+
+#### Scenario: A heading lands beside the heading above it
+- **WHEN** a `##` section is dragged to the seam between another `##` heading and that heading's
+  first child, and the pointer rests on the `##` column
+- **THEN** the run is offered at that column as a `##` heading, and a drop writes it after the
+  other heading's own lines, taking that heading's former children as its own
+
+#### Scenario: A heading outdents in place
+- **WHEN** a `##` section in the middle of a note is dragged to its own seam and the pointer rests
+  on the `#` column
+- **THEN** the run is offered there as a `#` heading, and a drop rewrites its level without moving
+  it
 
 #### Scenario: A zoom bounds the destinations
 - **WHEN** the view is zoomed into a node and a descendant is dragged
@@ -253,7 +297,10 @@ separately: a preview that can disagree with its own release is worse than none.
 The preview SHALL state three things:
 
 - **Where in the document**: an indicator at the seam, between the two rows the run will land
-  between.
+  between. Where the row above the seam is a heading, or the row below it is an atom, the
+  indicator SHALL sit at the bottom of the row above rather than at the top of the row below: a
+  heading leaves clearance under itself that a line pressed against the next row wastes, and a
+  code block's background paints over a line drawn on its own edge.
 - **At what depth**: the indicator's left end SHALL sit on the column the run's first root's mark
   will occupy — the destination depth's own column, not the row's own indentation and not the
   column the run currently sits at.
@@ -263,7 +310,8 @@ The preview SHALL state three things:
 - **What the drop will take with it**: where the destination would ABSORB content that is not part
   of the run — a dropped heading opening a section over the anchor's following siblings — the
   absorbed rows SHALL be drawn one level in, under the ghost mark, with the guide that will connect
-  them, and nothing else: the result shown as the result. Those rows change parent without moving,
+  them — starting below the mark and ending at the last absorbed row with content — and nothing
+  else: the result shown as the result. Those rows change parent without moving,
   so nothing at the seam would otherwise say they were involved, and a preview that states only the
   landing place states half the result. No tint marks them; on a long section a tint is half a
   page of colour, and the move already says it.
@@ -283,6 +331,15 @@ selection, or persist anything.
 - **WHEN** the pointer moves horizontally across a seam's legal columns
 - **THEN** the indicator's left end moves with it, sitting on each destination's own column in
   turn
+
+#### Scenario: The indicator sits under a heading
+- **WHEN** a paragraph is held over the seam between a heading and the heading's first child
+- **THEN** the indicator is drawn at the bottom of the heading's row, not at the top of the child's
+
+#### Scenario: The indicator is not covered by a code block
+- **WHEN** a run is held over the seam above a code block
+- **THEN** the indicator is drawn at the bottom of the row above the block, where the block's
+  background does not paint
 
 #### Scenario: The ghost mark is the kind the run will have
 - **WHEN** a heading section is dragged to a destination inside a list

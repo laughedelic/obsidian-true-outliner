@@ -106,13 +106,21 @@ pair would have to be added and removed by hand around every exit path.
 
 ### D5. What is dragged is the selection's covered subtrees
 
-The operand rule `selection-structural-ops` states, unchanged and unextended: when the pressed
-node lies inside the current selection's cover, the operand is that whole cover, grouped into
+The operand rule `selection-structural-ops` states, with one refinement: when the pressed node is
+one of the current selection's covered ROOTS, the operand is that whole cover, grouped into
 contiguous sibling runs; otherwise it is the pressed node's own subtree.
 
 Pressing a mark outside the cover first collapses the selection to that node's own cover, so what
 is in flight is always what is drawn as selected — the reader never has to hold in mind that the
 selection and the dragged thing differ.
+
+The refinement is where a press differs from a keystroke. A keyboard command names only the
+selection, so "inside the cover" is the only test it can make; a press names a node. The first
+manual pass had a section selected, from an earlier drop, and a press on a list item inside it
+carried the whole section off — the reader had pointed at one item and moved a page. A press on a
+descendant of a covered root now takes that node and collapses the selection to it, the same as a
+press outside the cover; only a press on a root itself carries the cover. The keyboard rule is
+unchanged, since it has no node to read.
 
 *Alternative.* Always drag exactly the pressed node. Simpler, and it makes a multi-node drag a
 second gesture with a second rule — which is what the operand rule was written to avoid.
@@ -145,6 +153,25 @@ Two filters narrow the interval, and both come from rules that already exist:
   beside the guard it belongs with — rather than keeping a second condition in the candidate rule.
   The deep bound's "that can hold children" above is the belt to that brace, and the two are
   deliberately not one: a bound the resolver can state cheaply should not wait on an oracle.
+
+**The run is taken out before the seams are read.** The two boundaries around the run are one
+seam, at its top, and the depths it offers are those the nodes on either side of the run bound
+once the run is gone — the same reading the release makes, since the algebra removes the run
+before it reads the destination's context. The run's own place is not among them: a drop there
+writes nothing, so the preview would promise an action the release cannot perform. Both of the
+run's own boundaries stay in the seam list with nothing to offer, so a pointer over them resolves
+to nothing and a release there cancels. Dropping them instead let the pointer snap to the
+neighbouring seam, and a run set down where it was moved one place; the e2e case that asserts a
+no-op drop caught it.
+
+**A heading run is offered the levels shallower than the seam's shallow bound.** A section
+dropped between `## Materials` and its first child at the `##` column stands beside Materials and
+takes its children; dropped at its own seam on the `#` column it is outdented in place. Neither is
+a seam-and-depth in the interval above — the shallow bound is the node below's depth — so they are
+added to every seam a heading run is offered, one per level from the shallow bound up to the top
+(the zoom root's child depth, under a zoom), each written at the seam's own position and carrying
+the LEVEL the column names. The algebra takes that level with the destination (D9): the parent
+would imply one level deeper, and the preview and the written heading have to agree.
 
 The horizontal rule is a PARTITION of the axis over the seam's legal columns, clamped at both
 ends: every x resolves to exactly one candidate, the nearest, with everything left of the first
@@ -248,6 +275,11 @@ into the middle of the document behind the run that used to end it. A same-scope
 which this algebra already has, and `moveSurgery` already states its rule: the gaps go with the
 slots. Taking that branch took the corpus from 1550 rewritten round trips in 23016 same-scope moves
 to none in 28579 (docs/research/node-drag-and-drop section 7b).
+
+A destination may name a heading LEVEL along with its parent and index (D6's shallower columns).
+The shared re-encode step takes it in place of the level the destination's parent implies, and a
+named level takes the general path even inside one scope: the same-scope shortcut is a reorder,
+and a heading changing level without moving is a rewrite, not a reorder.
 
 ### D9a. The operand's selection is set at the threshold, not at the press
 
