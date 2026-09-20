@@ -14,6 +14,20 @@ node_modules
 dist
 .obsidian-cache
 
+# Agent worktrees nest under the primary checkout, each a whole checkout with
+# its own node_modules and .obsidian-cache, and a session working in any one of
+# them changes the primary checkout's context. The patterns above match at the
+# context root only, so the nested copies need excluding in their own right.
+.claude/worktrees
+**/node_modules
+**/.obsidian-cache
+
+# Per-machine tool state that git ignores globally rather than through this
+# repo's .gitignore: session logs and further nested checkouts, both of which
+# change between runs.
+.entire
+.delta
+
 # Build output, assembled by esbuild.config.mjs and scripts/styles.mjs.
 /main.js
 /styles.css

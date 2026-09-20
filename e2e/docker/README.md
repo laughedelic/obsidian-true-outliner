@@ -30,7 +30,8 @@ keep using a stale image instead of picking up a `Dockerfile`/`package.json` cha
 What that rebuild costs in disk is a property of the layer order and the build context, and both
 are load-bearing — see [`docs/research/e2e-docker-disk-growth.md`](../../docs/research/e2e-docker-disk-growth.md)
 for the measurements. `COPY . .` is the last layer, and `.dockerignore` excludes everything a run
-regenerates, so a repeat run stores nothing and a run after an edit stores one copy of the source
+regenerates and everything that nests a checkout or machine-local state under the repo root
+(agent worktrees above all), so a repeat run stores nothing and a run after an edit stores one copy of the source
 tree. Adding an expensive `RUN` *below* that copy — a recursive `chown`/`chmod`, an install, a
 build — puts its whole output back on the per-invocation bill. Dangling images do still
 accumulate one per rebuild; `docker image prune -f` clears them.
