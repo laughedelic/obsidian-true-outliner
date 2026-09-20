@@ -21,6 +21,9 @@ import {
   columnOfMark,
   dragFrom,
   dragThenEscape,
+  dragTraces,
+  dragWithHold,
+  interruptWhenPreviewing,
   editorBox,
   markPoint,
   pointOf,
@@ -48,6 +51,26 @@ const TASKS = ['# Top', '', '- [ ] an open task', '- plain', ''].join('\n');
 
 /** The bullet of a top-level list item, by its position among rendered marks. */
 const BULLET = '.list-bullet';
+
+/** A resolved background-image split into its layers — at the commas between
+ * them, never at the ones inside a gradient's own colours and stops. */
+function layersOf(image: string): string[] {
+  const layers: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < image.length; i++) {
+    const ch = image[i];
+    if (ch === '(') depth++;
+    else if (ch === ')') depth--;
+    else if (ch === ',' && depth === 0) {
+      layers.push(image.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  const last = image.slice(start).trim();
+  if (last !== '') layers.push(last);
+  return layers;
+}
 
 /** Whether a zoom is active, by the trail it draws. */
 function zoomed(): Promise<boolean> {
@@ -307,6 +330,9 @@ describe('node dragging: the press and the drag it can become', function () {
     await h.keys.undo();
     await browser.pause(300);
     expect(await h.getBuffer()).toBe(DOC);
+    // And nothing of the drag is left on the page — the lift included, which
+    // a teardown written for the drop alone would have left behind here.
+    expect(await dragTraces()).toEqual({ lifted: 0, ghosts: 0, indicators: 0, preview: false });
   });
 
   it('writes nothing when a drag is released with no destination', async function () {
@@ -324,6 +350,133 @@ describe('node dragging: the press and the drag it can become', function () {
       anchor: { line: 0, ch: 3 },
       head: { line: 0, ch: 3 },
     });
+    expect(await dragTraces()).toEqual({ lifted: 0, ghosts: 0, indicators: 0, preview: false });
+  });
+
+  it('resolves nothing on the move that starts the drag, and the same seam on every move after', async function () {
+    // The pick-up collapses the selection to a cover, and a row that stops
+    // rendering raw can change height — so the seams are read from the NEXT
+    // move on, once that has settled. The sampler runs in the capture phase,
+    // so each sample carries the answer the previous move produced: the
+    // sample after the crossing move says what the crossing move resolved.
+    await h.setCursorSettled(0, 0);
+    const mark = await markPoint(BULLET, 0);
+    const box = await editorBox();
+    const y = await seamBetween(2, 3);
+    await startRecording();
+    await dragThenEscape(mark, [
+      { x: mark.x + 20, y: mark.y + 10 },
+      { x: box.left + 4, y },
+      { x: box.left + 5, y },
+      { x: box.left + 4, y },
+    ]);
+    await browser.pause(250);
+    // The approach to the mark is a move too, so the pressed moves are
+    // counted from the first sample with the button down.
+    const pressed = (await recorded()).filter((sample) => sample.buttons === 1);
+    expect(pressed.length).toBeGreaterThanOrEqual(4);
+    // What the crossing move resolved: nothing, by design — a move that close
+    // to the mark has a seam under it, so a resolution on that frame would
+    // have named one.
+    expect(pressed[1]!.preview).toBe(null);
+    // What the moves on the seam resolved: the same destination each time,
+    // with no shift between the first reading and the next.
+    const first = pressed[2]!.preview;
+    expect(first).not.toBe(null);
+    for (const sample of pressed.slice(3)) expect(sample.preview).toEqual(first);
+    expect(await h.getBuffer()).toBe(DOC);
+  });
+
+  it('cancels when the document changes under it, keeping the change and moving nothing', async function () {
+    // A write while the button is down: the nodes the drag is holding have
+    // moved under it, so the drag cancels rather than dropping them where the
+    // reader did not aim. The write stays; the selection goes back to where
+    // it was before the pick-up collapsed it; and nothing of the drag is left.
+    await h.setCursorSettled(0, 0);
+    const mark = await markPoint(BULLET, 0);
+    const box = await editorBox();
+    const y = await seamBetween(2, 3);
+    await startRecording();
+    await interruptWhenPreviewing('change');
+    await dragWithHold(
+      mark,
+      [{ x: mark.x + 20, y: mark.y + 10 }, { x: box.left + 4, y }, { x: box.left + 5, y }],
+      900,
+      [{ x: box.left + 6, y }],
+    );
+    await browser.pause(300);
+    // The drag was real before the write: a destination had been named.
+    expect((await recorded()).some((sample) => sample.preview !== null)).toBe(true);
+    expect(await h.getBuffer()).toBe(DOC + '- late\n');
+    expect(await h.getSelection()).toEqual({ anchor: { line: 0, ch: 0 }, head: { line: 0, ch: 0 } });
+    expect(await dragTraces()).toEqual({ lifted: 0, ghosts: 0, indicators: 0, preview: false });
+  });
+
+  it('cancels when the pointer is taken back, restoring the selection from before the pick-up', async function () {
+    // A known edit first, so the undo has somewhere to land — and so the
+    // selection put back is one the pick-up's collapse visibly moved away
+    // from: the caret after `- three!`, not the cover of `- one`.
+    await h.setCursorSettled(5, '- three'.length);
+    await browser.keys('!');
+    await browser.pause(200);
+    const edited = await h.getBuffer();
+    const mark = await markPoint(BULLET, 0);
+    const box = await editorBox();
+    const y = await seamBetween(2, 3);
+    await startRecording();
+    await interruptWhenPreviewing('pointercancel');
+    await dragWithHold(
+      mark,
+      [{ x: mark.x + 20, y: mark.y + 10 }, { x: box.left + 4, y }, { x: box.left + 5, y }],
+      900,
+      [{ x: box.left + 6, y }],
+    );
+    await browser.pause(300);
+    expect((await recorded()).some((sample) => sample.preview !== null)).toBe(true);
+    expect(await h.getBuffer()).toBe(edited);
+    expect(await h.getSelection()).toEqual({
+      anchor: { line: 5, ch: '- three!'.length },
+      head: { line: 5, ch: '- three!'.length },
+    });
+    expect(await dragTraces()).toEqual({ lifted: 0, ghosts: 0, indicators: 0, preview: false });
+    // One undo takes the typing back: the cancelled drag left no entry.
+    await h.keys.undo();
+    await browser.pause(300);
+    expect(await h.getBuffer()).toBe(DOC);
+  });
+
+  it('draws the rows in flight as lifted, in place, over the cover\u2019s own chrome', async function () {
+    // `- one` and its child are the run. Both rows wear the lifted treatment
+    // for the whole drag — over a dead band as much as over a seam — on top of
+    // the cover chrome, and neither moves: the tops the sampler reads mid-drag
+    // are the tops the rows had before the press.
+    await h.setCursorSettled(0, 0);
+    const tops = [await h.getLineRect(2), await h.getLineRect(3)].map((r) => r.top);
+    const mark = await markPoint(BULLET, 0);
+    const box = await editorBox();
+    const y = await seamBetween(2, 3);
+    await startRecording();
+    await dragThenEscape(mark, [
+      { x: mark.x + 20, y: mark.y + 10 },
+      { x: box.left + 4, y },
+      { x: box.left + 5, y },
+    ]);
+    await browser.pause(250);
+    const flight = (await recorded()).filter((sample) => sample.lifted.length > 0);
+    expect(flight.length).toBeGreaterThan(0);
+    for (const sample of flight) {
+      expect(sample.lifted.map((row) => row.line)).toEqual([2, 3]);
+      // Composed with the cover's chrome, not in place of it: the same rows
+      // are still the block selection.
+      for (const row of sample.lifted) expect(sample.selected).toContain(row.line);
+      // In place, to the pixel.
+      expect(sample.lifted.map((row) => Math.round(row.top))).toEqual(tops.map(Math.round));
+    }
+    // Lifted before any destination is named, and still lifted once one is.
+    expect(flight.some((sample) => sample.preview === null)).toBe(true);
+    expect(flight.some((sample) => sample.preview !== null)).toBe(true);
+    expect(await h.getBuffer()).toBe(DOC);
+    expect(await dragTraces()).toEqual({ lifted: 0, ghosts: 0, indicators: 0, preview: false });
   });
 
   /*  0 | # Top
@@ -557,6 +710,92 @@ describe('node dragging: the press and the drag it can become', function () {
     await browser.pause(200);
   });
 
+  it('accents the destination parent in the trail\u2019s colour, at the guide\u2019s weight', async function () {
+    // `- three` held one level inside `- one`, after `  - nested`. The parent
+    // is `- one` (line 2), and the one row between it and the seam is
+    // `  - nested` (line 3), which draws `- one`'s guide. The parent's bullet
+    // takes the accent, and so does that guide — at the width it had before
+    // the drag, since a thicker line is the caret trail's own vocabulary. The
+    // caret sits on `# Top`, whose trail reaches no guide in this note, so
+    // every accent read mid-drag is the drag's own.
+    await h.setCursorSettled(0, 0);
+    // A layer's colour is whatever the theme resolves the guide token to — a
+    // `color-mix()` as readily as an `rgb()` — so a layer is read as "colour,
+    // then its stops" rather than by the shape of the colour. The resolved
+    // image spells a two-position stop out as two stops of one colour, and
+    // `transparent` as `rgba(0, 0, 0, 0)`, so a stripe reads as: the colour at
+    // 0px, the same colour at its width, then transparent from that width.
+    const stripe =
+      /^(?:repeating-)?linear-gradient\(to right, (.+?) 0px, \1 ([\d.]+)px, rgba\(0, 0, 0, 0\) \2px/;
+    const guideLayers = (image: string) =>
+      layersOf(image).filter((layer) => layer.startsWith('repeating-linear-gradient('));
+    // The indicator is also a plain `linear-gradient`, with no transparent
+    // stop: it is the one full-width layer, and that is how it is told apart.
+    const accentLayers = (image: string) =>
+      layersOf(image).filter(
+        (layer) => layer.startsWith('linear-gradient(') && layer.includes('rgba(0, 0, 0, 0)'),
+      );
+    const nested = await h.getLineElementInfo(3);
+    const before = stripe.exec(guideLayers(nested.guideBackground)[0] ?? '');
+    if (!before) throw new Error(`no plain guide layer read on line 3: ${JSON.stringify(nested)}`);
+    const [, guideColour, guideWidth] = before;
+
+    const box = await editorBox();
+    const column = await columnOfMark(BULLET, 1, 'left'); // `  - nested`, depth 2
+    const y = await seamBetween(1, 2);
+    const mark = await markPoint(BULLET, 3);
+    await startRecording();
+    await dragThenEscape(mark, [
+      { x: mark.x + 20, y: mark.y + 10 },
+      { x: box.left + 4, y },
+      { x: column, y },
+      { x: column + 1, y },
+    ]);
+    await browser.pause(250);
+
+    // With the caret on `# Top`, the trail accents no guide in this note, so
+    // every accent layer read mid-drag is the drop's. On the inner column the
+    // parent is `- one`: its own row wears the marker accent, the row between
+    // it and the seam carries its guide's accent, and its own row carries
+    // none, since a node's guide begins below the node. On the outer column
+    // the parent is `# Top`, and the same three readings move up one node.
+    const samples = await recorded();
+    const at = (depth: number) =>
+      samples.filter(
+        (sample) => sample.preview !== null && sample.preview.depth === depth && sample.indicator !== null,
+      );
+    const inside = at(2);
+    const beside = at(1);
+    expect(inside.length).toBeGreaterThan(0);
+    expect(beside.length).toBeGreaterThan(0);
+    const oneAccent = (image: string | undefined, accent: string | null) => {
+      const layers = accentLayers(image ?? '');
+      expect(layers).toHaveLength(1);
+      const layer = stripe.exec(layers[0]!);
+      expect(layer).not.toBe(null);
+      // The accent colour, at the plain guide's width and not the trail's: the
+      // drop's accent is drawn at the guide's weight.
+      expect(layer![1]).toBe(accent);
+      expect(layer![2]).toBe(guideWidth);
+    };
+    for (const sample of inside) {
+      expect(sample.accentedRows).toEqual([2]);
+      expect(sample.parentAccent).not.toBe(null);
+      expect(sample.parentAccent).not.toBe(guideColour);
+      oneAccent(sample.guideImages[3], sample.parentAccent);
+      expect(accentLayers(sample.guideImages[2] ?? '')).toEqual([]);
+    }
+    // Negative control: on the other column `- one` is not the parent — its
+    // row is not accented, and its own guide is what now carries the accent,
+    // from the parent above it.
+    for (const sample of beside) {
+      expect(sample.accentedRows).toEqual([0]);
+      oneAccent(sample.guideImages[2], sample.parentAccent);
+      oneAccent(sample.guideImages[3], sample.parentAccent);
+    }
+    expect(await h.getBuffer()).toBe(DOC);
+  });
+
   it('draws the rows an absorbing drop would take one level in', async function () {
     // `## Move me` held after `intro` opens a section over `details`, `more
     // details` and `- a list`, and not over `## Next`, which can stand beside
@@ -606,6 +845,8 @@ describe('node dragging: the press and the drag it can become', function () {
       anchor: { line: 3, ch: 0 },
       head: { line: 4, ch: '  - nested'.length },
     });
+    // The landed run is selected, not lifted: the drop is an end like any other.
+    expect(await dragTraces()).toEqual({ lifted: 0, ghosts: 0, indicators: 0, preview: false });
   });
 
   it('agrees with the command that names the same move', async function () {

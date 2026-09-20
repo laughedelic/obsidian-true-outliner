@@ -122,18 +122,20 @@
       branch; negative control: collapsing at the press puts a plain mark click into block
       selection on its way to zooming, which the e2e case reads off the suppressed native
       highlight
-- [ ] 3.4a Resolve seams AFTER the mode has settled, since a row that stops rendering raw can
+- [x] 3.4a Resolve seams AFTER the mode has settled, since a row that stops rendering raw can
       change height — verify the destination resolved on the first move after the threshold
       matches the one resolved on the second, with no shift; negative control: resolving on the
       same frame as the collapse reads pre-mode row geometry and the two disagree by a row
 - [x] 3.5 Make a task's checkbox a drag source, and verify its own click still toggles — the two
       halves measured in docs/research/node-drag-and-drop section 4; negative control: swallowing
       the checkbox's click along with the press stops the toggle and fails
-- [ ] 3.6 Cancel paths: Escape, a release with no destination, lost capture, a document change
+- [x] 3.6 Cancel paths: Escape, a release with no destination, lost capture, a document change
       under the drag, and view teardown — verify each leaves the buffer byte-identical, adds no
       undo entry, and restores the selection as it was BEFORE 3.4's collapse; negative control:
       restoring the post-collapse selection leaves the pressed node's cover selected after a
-      cancel, which the test names
+      cancel, which the test names. (View teardown is covered by the plugin's `destroy`, which
+      runs the same cancel; the e2e drives the other four, since closing the leaf mid-drag
+      takes the editor the recorder reads with it.)
 - [ ] 3.7 Decline inside nested editors, outside outline mode, and on chrome marks the trail and
       the footer draw — verify by e2e cases mirroring the ones `outline-zoom` already has for the
       same three; negative control: matching a mark by selector alone picks up the trail's own
@@ -167,18 +169,18 @@
       drop whose section reaches three following siblings but not a fourth; negative control:
       taking the region from the anchor alone marks nothing and fails. Settle the treatment against
       the mockup first, per design D8's open question
-- [ ] 4.5 Accent the destination parent with the accent the caret trail already publishes, without
+- [x] 4.5 Accent the destination parent with the accent the caret trail already publishes, without
       changing its weight — verify by reading the resolved colour and width, as
       `hierarchy-position-indicators`'s own coverage does; negative control: accenting by weight
       instead of by colour changes the guide's resolved width, which the assertion compares
-- [ ] 4.6 Render the operand's rows as lifted, in place, composing with the block-selection chrome
+- [x] 4.6 Render the operand's rows as lifted, in place, composing with the block-selection chrome
       they already carry — verify the rows' resolved positions are unchanged mid-drag; negative
       control: replacing the cover's chrome with the lifted treatment rather than composing leaves
       a multi-root operand with no cover edge, which the chrome assertion catches
-- [ ] 4.7 Add a new part under `styles/` for the preview and the lifted treatment, per the
+- [x] 4.7 Add a new part under `styles/` for the preview and the lifted treatment, per the
       one-part-per-feature rule — verify `npm run build:plugin` emits it into `styles.css` in
       cascade order and no shared part was edited
-- [ ] 4.8 Clear every trace on every drag end — verify by asserting the absence of each class and
+- [x] 4.8 Clear every trace on every drag end — verify by asserting the absence of each class and
       of the field's content after Escape, after a drop, and after a cancel; negative control:
       clearing on drop alone leaves the lifted class behind after an Escape, which that case names
 

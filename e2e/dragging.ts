@@ -27,6 +27,9 @@ export interface MoveSample {
   readonly x: number;
   readonly y: number;
   readonly buttons: number;
+  /** The pointer's id, which a synthetic `pointercancel` has to carry to be
+   * taken for the pointer the press belongs to. */
+  readonly pointerId: number;
   /** Whether the pointer was inside the editor's own box at that moment. */
   readonly inside: boolean;
   /** The selection as it stood at that move — what the drag has picked up,
@@ -64,6 +67,20 @@ export interface MoveSample {
   /** Each decorated row's depth as the depth rules see it at that move — the
    * value an absorbed row is drawn one deeper by — keyed by line. */
   readonly rowDepths: Readonly<Record<number, number>>;
+  /** The rows wearing the lifted treatment at that move, 0-based, with each
+   * one's rendered top in viewport y — what "in place" is checked against. */
+  readonly lifted: readonly { readonly line: number; readonly top: number }[];
+  /** The rows wearing a marker accent class at that move — the caret's own
+   * node and ancestors, and during a drag the destination parent. */
+  readonly accentedRows: readonly number[];
+  /** Each guide-bearing row's resolved `::after` background image, keyed by
+   * line: the layer list the guides, the trail and the indicator all ride. */
+  readonly guideImages: Readonly<Record<number, string>>;
+  /** The resolved colour of the first ANCESTOR-accented marker on the page —
+   * a native bullet's dot or a marker icon's ink — or null where none is.
+   * During a drag with the caret's trail out of the way, that is the
+   * destination parent's mark. */
+  readonly parentAccent: string | null;
   /** Where the drag would land at that move, as the gesture itself resolved
    * it — `null` before a destination is named, and after one is dropped. */
   readonly preview: {
@@ -227,6 +244,45 @@ export function startRecording(): Promise<void> {
             x: ghostEl.getBoundingClientRect().left + ghostEl.getBoundingClientRect().width / 2,
           }
         : null;
+      const lifted: { line: number; top: number }[] = [];
+      for (const el of Array.from(dom.querySelectorAll('.to-drag-lifted'))) {
+        try {
+          lifted.push({
+            line: cm.state.doc.lineAt(cm.posAtDOM(el)).number - 1,
+            top: el.getBoundingClientRect().top,
+          });
+        } catch {
+          // An element the view has already moved past.
+        }
+      }
+      const accentedRows: number[] = [];
+      const guideImages: Record<number, string> = {};
+      for (const el of Array.from(dom.querySelectorAll('.cm-content > .cm-line'))) {
+        let line: number;
+        try {
+          line = cm.state.doc.lineAt(cm.posAtDOM(el)).number - 1;
+        } catch {
+          continue;
+        }
+        if (
+          el.classList.contains('to-decor-current') ||
+          el.classList.contains('to-decor-current-native') ||
+          el.classList.contains('to-decor-ancestor') ||
+          el.classList.contains('to-decor-ancestor-native')
+        ) {
+          accentedRows.push(line);
+        }
+        if (el.classList.contains('to-decor-guides')) {
+          guideImages[line] = getComputedStyle(el, '::after').backgroundImage;
+        }
+      }
+      const nativeAccented = dom.querySelector('.to-decor-ancestor-native .list-bullet');
+      const iconAccented = dom.querySelector('.to-decor-ancestor .to-decor-marker-icon');
+      const parentAccent = nativeAccented
+        ? getComputedStyle(nativeAccented, '::after').backgroundColor
+        : iconAccented
+          ? getComputedStyle(iconAccented).color
+          : null;
       const rowDepths: Record<number, number> = {};
       for (const el of Array.from(dom.querySelectorAll('.cm-content > .cm-line'))) {
         const cs = getComputedStyle(el);
@@ -241,9 +297,13 @@ export function startRecording(): Promise<void> {
       w.__toDragSamples.push({
         x: event.clientX,
         y: event.clientY,
+        pointerId: event.pointerId,
         indicator,
         ghost,
         rowDepths,
+        accentedRows,
+        guideImages,
+        parentAccent,
         buttons: event.buttons,
         inside:
           event.clientX >= r.left &&
@@ -252,6 +312,7 @@ export function startRecording(): Promise<void> {
           event.clientY <= r.bottom,
         selection: { anchor: at(main.anchor), head: at(main.head) },
         selected,
+        lifted,
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         preview: live
           ? {
@@ -270,6 +331,39 @@ export function startRecording(): Promise<void> {
       });
     };
     dom.addEventListener('pointermove', w.__toDragRecorder, true);
+  });
+}
+
+/**
+ * Every trace a drag can leave on the page, counted: what a cancel, a drop and
+ * a release with no destination each have to leave at zero.
+ */
+export function dragTraces(): Promise<{
+  readonly lifted: number;
+  readonly ghosts: number;
+  readonly indicators: number;
+  readonly preview: boolean;
+}> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    if (!view) throw new Error('no active markdown view');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cm = (view.editor as any).cm;
+    const dom = cm.dom as HTMLElement;
+    let indicators = 0;
+    for (const el of Array.from(dom.querySelectorAll('.cm-line.to-decor-guides'))) {
+      const sizes = getComputedStyle(el, '::after').backgroundSize.split(',');
+      if (sizes.some((size) => size.trim().startsWith('100%'))) indicators++;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const held = (app as any).plugins?.plugins?.['true-outliner'];
+    return {
+      lifted: dom.querySelectorAll('.to-drag-lifted').length,
+      ghosts: dom.querySelectorAll('.to-drag-ghost').length,
+      indicators,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+      preview: (held?.activeDragPreview?.() ?? null) !== null,
+    };
   });
 }
 
@@ -312,6 +406,87 @@ export async function dragThenEscape(from: Point, through: readonly Point[]): Pr
   for (let i = 0; i < through.length + 2; i++) keys.pause(20);
   keys.down(Key.Escape).up(Key.Escape);
   await browser.actions([pointer, keys]);
+}
+
+/**
+ * A drag that HOLDS still for a while with the button down, then goes on to
+ * its release. The hold is what gives something else time to happen under the
+ * drag — a document change, a cancelled pointer — scheduled in the page before
+ * the call by `interruptLater`, since a second WebDriver call would arrive only
+ * after the button had been auto-released.
+ */
+export async function dragWithHold(
+  from: Point,
+  through: readonly Point[],
+  holdMs: number,
+  after: readonly Point[] = [],
+): Promise<void> {
+  let chain = browser
+    .action('pointer', { parameters: { pointerType: 'mouse' } })
+    .move({ x: Math.round(from.x), y: Math.round(from.y), origin: 'viewport' })
+    .down({ button: 0 });
+  for (const point of through) {
+    chain = chain.move({ x: Math.round(point.x), y: Math.round(point.y), origin: 'viewport' });
+  }
+  chain = chain.pause(holdMs);
+  for (const point of after) {
+    chain = chain.move({ x: Math.round(point.x), y: Math.round(point.y), origin: 'viewport' });
+  }
+  await chain.up({ button: 0 }).perform();
+}
+
+/**
+ * Arms something to happen under a drag in flight, once the drag has named a
+ * destination and the recorder has seen it: a write at the end of the document, or a `pointercancel` for
+ * the pointer the recorder last saw — the event the platform sends when it
+ * takes the pointer back, and the same path `lostpointercapture` cancels
+ * through. Armed on the preview rather than on a delay, because the WebDriver
+ * chain's own pace decides when the drag reaches a seam, and a timer either
+ * fires before the press or after the release.
+ */
+export function interruptWhenPreviewing(how: 'change' | 'pointercancel', giveUpMs = 5000): Promise<void> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, how, giveUpMs) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cm = (view.editor as any).cm;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const held = (app as any).plugins?.plugins?.['true-outliner'];
+      const started = Date.now();
+      const tick = () => {
+        // Armed once the RECORDER has seen a destination, not merely once one
+        // exists: the sampler runs on the next move, and an interruption that
+        // lands between the resolving move and the next one leaves the record
+        // with no evidence that the drag ever named a place.
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+        const live = (held?.activeDragPreview?.() ?? null) !== null;
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+        const seen = ((w.__toDragSamples ?? []) as { preview: unknown }[]).some((s) => s.preview !== null);
+        const previewing = live && seen;
+        if (!previewing) {
+          if (Date.now() - started < giveUpMs) setTimeout(tick, 30);
+          return;
+        }
+        if (how === 'change') {
+          cm.dispatch({ changes: { from: cm.state.doc.length, insert: '- late\n' } });
+          return;
+        }
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+        const last = (w.__toDragSamples ?? []).at(-1);
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        const pointerId: number = last ? last.pointerId : 1;
+        (cm.dom as HTMLElement).dispatchEvent(
+          new PointerEvent('pointercancel', { bubbles: true, pointerId, pointerType: 'mouse' }),
+        );
+      };
+      setTimeout(tick, 30);
+    },
+    how,
+    giveUpMs,
+  );
 }
 
 /**

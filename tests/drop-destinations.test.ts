@@ -97,11 +97,12 @@ describe('dropSeams', () => {
     // One seam per node boundary, never one per row: no seam between a table's
     // header and its body, inside a fence, or between a paragraph's own lines.
     // Nor on either side of a trailing gap line, which owns no boundary. The
-    // run's own two boundaries are kept as seams and offer nothing: `- one` is
-    // a leaf at the top level, so the one column at its top puts it back where
-    // it is, and its bottom is dead so the pointer there snaps to no neighbour.
+    // run's own two boundaries are both seams: the top offers the run's own
+    // place back — `- one` is a leaf at the top level, so that is its one
+    // column — and the bottom is dead, so the pointer there snaps to no
+    // neighbour.
     expect(seams.map((s) => s.line)).toEqual([0, 2, 6, 11, 14]);
-    expect(seams.slice(0, 2).map((s) => s.candidates.length)).toEqual([0, 0]);
+    expect(seams.slice(0, 2).map((s) => s.candidates.map((c) => c.index))).toEqual([[0], []]);
     // And an atom offers no level inside itself, so the seams after the table
     // and the fence stay at the depth those nodes sit at.
     const afterTable = seams.find((s) => s.belowId === fence.id)!;
@@ -125,13 +126,13 @@ describe('dropSeams', () => {
     expect(first.candidates.map((c) => c.parentId)).toEqual(['root']);
     expect(first.candidates.map((c) => c.index)).toEqual([0]);
     // And the last seam is the run's own bottom, dead: `- two` already ends the
-    // note. The seam at its top offers what is left once its own place is
-    // gone — the one column inside the node above it.
+    // note. The seam at its top offers its own place, at the top level, and
+    // the one column inside the node above it.
     expect(last.line).toBe(7);
     expect(last.belowId).toBeUndefined();
     expect(last.candidates).toEqual([]);
     const top = seams.find((s) => s.line === 5)!;
-    expect(top.candidates.map((c) => c.depth)).toEqual([1]);
+    expect(top.candidates.map((c) => c.depth)).toEqual([0, 1]);
   });
 
   it('offers no seam or depth inside the run itself', () => {
@@ -162,10 +163,9 @@ describe('dropSeams', () => {
     // Everything under `- thread` is off screen, so its levels are not
     // candidates and its descendants' seams do not exist.
     // The run is a heading, so every seam also offers it the root's level,
-    // written as `# Next` there — except its own top, where the root's level is
-    // the place it already has, and its own bottom, the document's end, which
-    // offers nothing at all.
-    expect(shape(seams)).toEqual(['0: 0', '2: 0,1', '3: 0,1,2', '10: 1,2,3', '12: ']);
+    // written as `# Next` there — at its own top, that is the place it already
+    // has. Its own bottom, the document's end, offers nothing at all.
+    expect(shape(seams)).toEqual(['0: 0', '2: 0,1', '3: 0,1,2', '10: 0,1,2,3', '12: ']);
     const afterThread = seams.find((s) => s.line === 10)!;
     // One level inside a folded node is still offered, and names its LAST
     // child — the seam sits after everything the fold hides.
@@ -214,11 +214,11 @@ describe('dropSeams', () => {
     const last = seams[seams.length - 1]!;
     const asChild = last.candidates.find((c) => c.parentId === byLine(doc, '- item').id)!;
     expect(asChild.firstLine.trimStart().startsWith('-')).toBe(true);
-    // At the run's own seam its own place is gone — `## A1` where it is
-    // writes nothing — and what remains is the same position read otherwise:
-    // one level out, as `# A1`.
+    // At the run's own seam its own place is offered as it is — `## A1`, the
+    // way out of the drag — beside the same position read one level out, as
+    // `# A1`.
     const home = seams.find((s) => s.line === 2)!;
-    expect(home.candidates.map((c) => c.firstLine)).toEqual(['# A1']);
+    expect(home.candidates.map((c) => c.firstLine)).toEqual(['# A1', '## A1']);
   });
 
   it('puts a run dropped between a parent and its first child FIRST', () => {
@@ -256,13 +256,14 @@ describe('dropSeams', () => {
       byLine(doc, '### H3').id,
       byLine(doc, 'para2').id,
     ]);
-    // A heading dragged to the same seam still reaches the root and the
-    // heading above, re-levelled to each. Its own column is not offered: the
-    // seam is the run's own top, and `### H3` under `## H2` is where it is.
+    // A heading dragged to the same seam still reaches the root and both
+    // headings, re-levelled to each; the seam is the run's own top, so the
+    // `###` column is its own place, offered back.
     const heading = last([byLine(doc, '### H3')]);
     expect(heading.candidates.map((c) => [c.depth, c.firstLine])).toEqual([
       [0, '# H3'],
       [1, '## H3'],
+      [2, '### H3'],
     ]);
   });
 
@@ -323,7 +324,7 @@ describe('dropSeams', () => {
     expect(asChild.absorbs).toEqual({ from: 10, to: 16 });
   });
 
-  it('merges the seams either side of the run, and drops the place it already has', () => {
+  it('merges the seams either side of the run, and keeps the place it already has', () => {
     const doc = parse(
       ['# Kitchen', '', 'intro', '', '## Plan', '', '1. demolition', '', '## Materials', '', '- tile', ''].join('\n'),
     );
@@ -333,14 +334,17 @@ describe('dropSeams', () => {
     const home = all.find((s) => s.aboveId === byLine(doc, 'intro').id)!;
     expect(home.belowId).toBe(byLine(doc, '## Materials').id);
     expect(home.line).toBe(4);
-    // Its own place — a child of Kitchen at index 1 as `## Plan` — is not
-    // offered, since dropping there writes nothing. In place one level out is:
-    // `# Plan`, which is the outdent, taking the rest of the note.
-    expect(home.candidates.map((c) => [c.depth, c.firstLine])).toEqual([
-      [0, '# Plan'],
-      [2, '- ## Plan'],
+    // Its own place — a child of Kitchen at index 1 as `## Plan` — is offered
+    // back, named by its own index rather than the one past it, so the algebra
+    // reads the no-op. In place one level out is `# Plan`, the outdent, taking
+    // the rest of the note.
+    expect(home.candidates.map((c) => [c.depth, c.firstLine, c.index])).toEqual([
+      [0, '# Plan', 1],
+      [1, '## Plan', 1],
+      [2, '- ## Plan', 0],
     ]);
     expect(home.candidates[0]!.absorbs).toEqual({ from: 8, to: 12 });
+    expect(home.candidates[1]!.absorbs).toBeUndefined();
     // A paragraph gets no shallower level anywhere.
     const intro = byLine(doc, 'intro');
     for (const seam of dropSeams(doc, [intro])) {

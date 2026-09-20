@@ -157,10 +157,11 @@ Two filters narrow the interval, and both come from rules that already exist:
 **The run is taken out before the seams are read.** The two boundaries around the run are one
 seam, at its top, and the depths it offers are those the nodes on either side of the run bound
 once the run is gone — the same reading the release makes, since the algebra removes the run
-before it reads the destination's context. The run's own place is not among them: a drop there
-writes nothing, so the preview would promise an action the release cannot perform. Both of the
-run's own boundaries stay in the seam list with nothing to offer, so a pointer over them resolves
-to nothing and a release there cancels. Dropping them instead let the pointer snap to the
+before it reads the destination's context. The run's own place is among them, as the way out of a
+drag the reader thinks better of — set the run down where it was, or move it sideways on the same
+seam — and it is named by the run's own index, which the algebra reads as the no-op it is. The
+run's own bottom stays in the seam list with nothing to offer, so a pointer over it resolves to
+nothing and a release there cancels. Dropping that seam instead let the pointer snap to the
 neighbouring seam, and a run set down where it was moved one place; the e2e case that asserts a
 no-op drop caught it.
 
@@ -233,6 +234,19 @@ guide that will connect them, and no tint — the result shown as the result. A 
 span is half a page of colour on a long section, and the move already says it. It is the one part
 of the preview that moves rows before the release, sideways and only those, so a wrapped row can
 change height; what to accent on those rows, if anything, is left to adjust once it is in hand.
+
+The parent's accent is the trail's colour at the GUIDE's weight, not the trail's: the parent's
+marker takes the ancestor class, and its own guide — the column the run will hang from — takes the
+accent on every row between the parent and the seam. The trail's width is its own vocabulary, and
+a thicker line there would read as the caret's route. Where the caret's trail already accents that
+column, the trail's segment stands. A parent at the root has no row, and nothing is accented.
+
+The rows in flight are lifted by opacity alone, composed with the block-selection chrome the cover
+already wears: the cover's tint and edge stay and say how many roots are travelling, and the fade
+says they are picked up and not yet put down. No transform, margin or size, because nothing about a
+drag may move a row before the release, and the seam geometry is read from these very rows. The
+lift is a second piece of editor state beside the preview, raised at the threshold and lowered on
+every end, since it has to hold over a dead band where the preview is null.
 
 ### D9. The drop is one operation in the algebra
 

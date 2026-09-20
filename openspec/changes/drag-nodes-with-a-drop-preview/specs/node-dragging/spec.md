@@ -141,9 +141,10 @@ the interval, re-levelled by the destination.
 
 Seams SHALL be read with the run TAKEN OUT of the document: the boundaries above and below the run
 are one seam, at the run's top, and its depths are those the nodes flanking the run bound once the
-run is gone. The run's own place — its parent and its index among the siblings it has — SHALL NOT
-be offered at any seam: a drop there writes nothing, and a destination that promises nothing is not
-one. A seam left with no place SHALL NOT be offered either.
+run is gone. The run's own place — its parent and its index among the siblings it has — SHALL be
+offered at that seam, as the way out of a drag the reader thinks better of: a drop there writes
+nothing and leaves no undo entry. The run's own bottom SHALL be a seam that offers nothing, so a
+pointer resting there names no destination rather than the seam past it; a release there cancels.
 
 A heading run SHALL additionally be offered, at every seam, each level SHALLOWER than the seam's
 shallow bound, down to the top level — or, under an active zoom, the zoom root's own child depth —
@@ -261,15 +262,15 @@ preview, and a release there SHALL cancel.
 - **THEN** the seam offers the `###` section's own depth and one level inside the last paragraph,
   and neither the `#`'s nor the `##`'s column — where the same drop would have written the same
   document
-- **AND** the `###` heading itself dragged there is offered the `#`'s and the `##`'s columns,
-  re-levelled to each — and not its own, since that seam is the run's own top and the `###` column
-  there is where it already stands
+- **AND** the `###` heading itself dragged there is offered all three, re-levelled to each — the
+  `###` column being its own place, since that seam is the run's own top
 
-#### Scenario: The run's own place is not offered
-- **WHEN** a list item is dragged and the pointer rests on the seam at its own top or its own
-  bottom, on the column it already sits at
-- **THEN** no destination is offered there, and a release cancels rather than promising a move that
-  writes nothing
+#### Scenario: The run's own place is offered at its top, and nothing at its bottom
+- **WHEN** a list item is dragged and the pointer rests on the seam at its own top, on the column it
+  already sits at
+- **THEN** that place is offered, and a release there writes nothing and leaves no undo entry
+- **WHEN** the pointer rests instead on the seam at the run's own bottom
+- **THEN** no destination is offered there, and a release cancels
 
 #### Scenario: A heading lands beside the heading above it
 - **WHEN** a `##` section is dragged to the seam between another `##` heading and that heading's
@@ -298,9 +299,10 @@ The preview SHALL state three things:
 
 - **Where in the document**: an indicator at the seam, between the two rows the run will land
   between. Where the row above the seam is a heading, or the row below it is an atom, the
-  indicator SHALL sit at the bottom of the row above rather than at the top of the row below: a
-  heading leaves clearance under itself that a line pressed against the next row wastes, and a
-  code block's background paints over a line drawn on its own edge.
+  indicator SHALL NOT sit at the top of the row below: a heading leaves clearance under itself that
+  a line pressed against the next row wastes, and a code block's background paints over a line
+  drawn on its own edge. It SHALL sit in the middle of the gap line between the two rows, or at the
+  bottom of the row above where no gap line separates them.
 - **At what depth**: the indicator's left end SHALL sit on the column the run's first root's mark
   will occupy — the destination depth's own column, not the row's own indentation and not the
   column the run currently sits at.
@@ -333,13 +335,15 @@ selection, or persist anything.
   turn
 
 #### Scenario: The indicator sits under a heading
-- **WHEN** a paragraph is held over the seam between a heading and the heading's first child
-- **THEN** the indicator is drawn at the bottom of the heading's row, not at the top of the child's
+- **WHEN** a paragraph is held over the seam between a heading and the heading's first child, with
+  a blank line between them
+- **THEN** the indicator is drawn across the middle of that blank line, neither against the
+  heading's text nor against the child's
 
 #### Scenario: The indicator is not covered by a code block
 - **WHEN** a run is held over the seam above a code block
-- **THEN** the indicator is drawn at the bottom of the row above the block, where the block's
-  background does not paint
+- **THEN** the indicator is drawn in the gap above the block, or at the bottom of the row above
+  where there is none — where the block's background does not paint
 
 #### Scenario: The ghost mark is the kind the run will have
 - **WHEN** a heading section is dragged to a destination inside a list

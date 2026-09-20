@@ -78,6 +78,24 @@
   transform: translateY(50%);
 }
 
+/* On the middle of a gap line, where the seam under a heading is drawn. */
+.markdown-source-view.mod-cm6 .cm-content .to-drag-ghost-middle {
+  top: 50%;
+}
+
+/*
+ * The rows in flight, lifted.
+ *
+ * Composed with the block-selection chrome the rows already wear: the cover's
+ * tint and edge stay, and say how many roots are travelling; this only fades
+ * the rows, so they read as picked up and not yet put down. Opacity alone —
+ * no transform, no margin, no size — because nothing about a drag may move a
+ * row until the release, and the seam geometry is read from these very rows.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .to-drag-lifted {
+  opacity: 0.55;
+}
+
 /*
  * The ghost's bullet, at the native bullet's size.
  *

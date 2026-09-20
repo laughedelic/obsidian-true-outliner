@@ -25,12 +25,17 @@ import { parse } from '../parse';
 import { nodeMark, type NodeMark } from './marker-shapes';
 import type { DragPreview } from './drag-state';
 
-/** The line a seam draws on, and which of its edges. */
+/** Where on its line a seam is drawn. */
+export type SeamEdge = 'top' | 'bottom' | 'middle';
+
+/** The line a seam draws on, and where on it. */
 export interface SeamIndicator {
   readonly lineNumber: number;
-  /** The seam is the line's BOTTOM edge rather than its top: the document's
-   * last seam has no row below it to sit above. */
-  readonly below: boolean;
+  /** Normally the line's top. The document's last seam has no row below it to
+   * sit above, so it takes the last row's bottom; and the two seams a row's top
+   * misreads (below) take the middle of the gap line before them, or the row
+   * above's bottom where there is no gap. */
+  readonly edge: SeamEdge;
   readonly depth: number;
   /** The run's first line as this destination would write it — what the
    * ghost mark is read from. */
@@ -61,19 +66,24 @@ export function seamIndicator(
     if (line < preview.seamLine && line > last) last = line;
   }
   if (factLines.has(preview.seamLine)) {
-    // Drawn on the row above's bottom edge instead of this row's top where the
-    // top is the wrong place to read it: under a heading, whose own spacing
-    // puts the next row's edge well below its text, so the bar seemed to sit
-    // on the row below rather than under the heading; and above an atom, whose
-    // own background is painted over the overlay this bar rides in.
+    // Drawn away from this row's top where the top is the wrong place to read
+    // it: under a heading, whose own spacing puts the next row's edge well
+    // below its text, so the bar seemed to sit on the row below rather than
+    // under the heading; and above an atom, whose own background is painted
+    // over the overlay this bar rides in. The gap line between the two rows
+    // is the seam's own room, so the bar takes its middle; pressed against
+    // the heading's own text it read as underlining it. Without a gap, the
+    // row above's bottom edge is what is left.
     const here = kindAt(preview.seamLine);
     const above = last >= 0 ? kindAt(last) : undefined;
     if (last >= 0 && ((above && above.kind === 'heading') || (here && here.atom))) {
-      return { lineNumber: last, below: true, depth, firstLine };
+      return preview.seamLine - last >= 2
+        ? { lineNumber: preview.seamLine - 1, edge: 'middle', depth, firstLine }
+        : { lineNumber: last, edge: 'bottom', depth, firstLine };
     }
-    return { lineNumber: preview.seamLine, below: false, depth, firstLine };
+    return { lineNumber: preview.seamLine, edge: 'top', depth, firstLine };
   }
-  return last < 0 ? null : { lineNumber: last, below: true, depth, firstLine };
+  return last < 0 ? null : { lineNumber: last, edge: 'bottom', depth, firstLine };
 }
 
 /**
@@ -170,7 +180,7 @@ const DROP_WIDTH = 'var(--to-drop-width)';
 export function seamLayer(at: SeamIndicator): string {
   return (
     `linear-gradient(to right, ${DROP_COLOR} 0 100%) ` +
-    `calc(${columnExpr(at.depth)} + ${MARKER_GUTTER_CSS}) ${at.below ? 'bottom' : 'top'} ` +
+    `calc(${columnExpr(at.depth)} + ${MARKER_GUTTER_CSS}) ${at.edge === 'middle' ? 'center' : at.edge} ` +
     `/ 100% ${DROP_WIDTH} no-repeat`
   );
 }

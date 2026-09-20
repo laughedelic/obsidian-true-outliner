@@ -70,8 +70,8 @@ export interface DropSeam {
   readonly belowId: number | undefined;
   /** Shallowest first. EMPTY at a seam where the run can land nowhere: such a
    * seam is kept so a pointer near it resolves to nothing, rather than to the
-   * nearest seam that does offer something — the run's own two boundaries are
-   * the common case, and snapping past them would move the run the reader was
+   * nearest seam that does offer something — the run's own bottom is the
+   * common case, and snapping past it would move the run the reader was
    * putting back. */
   readonly candidates: readonly DropDestination[];
 }
@@ -269,27 +269,27 @@ export function dropSeams(
   })) {
     const candidates: DropDestination[] = [];
     for (const place of seam.places) {
-      // Dropped where it already is, as it already is: nothing would be
-      // written, and a destination promising that is not one.
-      if (
-        home &&
+      // Dropped where it already is, as it already is. Offered, as the way
+      // out of a drag the reader thinks better of, and named by the run's own
+      // index so the algebra reads it as the no-op it is.
+      const own =
+        home !== undefined &&
         place.level === undefined &&
         place.parentId === home.parentId &&
         place.index >= home.index &&
-        place.index <= home.index + siblings
-      ) {
-        continue;
-      }
-      const written = writtenFirstLine(doc, place, operandRoots, operandRootIds, options);
+        place.index <= home.index + siblings;
+      const placed = own ? { ...place, index: home.index } : place;
+      const written = writtenFirstLine(doc, placed, operandRoots, operandRootIds, options);
       if (written === undefined) continue;
       const absorbs = absorbedSpan(doc, seam, written, operandIds, all);
-      candidates.push(absorbs ? { ...place, firstLine: written, absorbs } : { ...place, firstLine: written });
+      candidates.push(absorbs ? { ...placed, firstLine: written, absorbs } : { ...placed, firstLine: written });
     }
     out.push({ line: seam.line, aboveId: seam.aboveId, belowId: seam.belowId, candidates });
   }
-  // The run's lower boundary. The seam walk merged it into the run's top, so
-  // without a seam of its own here the band under the run would resolve to the
-  // seam below it, and a run set down where it was would move.
+  // The run's lower boundary. The seam walk merged it into the run's top,
+  // which keeps the run's own place; without a dead seam of its own here the
+  // band under the run would resolve to the seam below it, and a run set down
+  // where it was would move.
   const roots = all.filter((v) => operandRootIds.has(v.node.id));
   const lastRoot = roots[roots.length - 1];
   if (lastRoot) {
@@ -303,6 +303,14 @@ export function dropSeams(
     }
   }
   return out;
+}
+
+/** A node's own first line, or `undefined` for an id the document lacks. */
+export function startLineOf(doc: OutlineDoc, id: number): number | undefined {
+  for (const v of visibleNodes(doc, new Set())) {
+    if (v.node.id === id) return v.startLine;
+  }
+  return undefined;
 }
 
 /** A node's parent and its index among that parent's children. */

@@ -117,6 +117,7 @@ import {
   type ProvisionalMaterialization,
   type PositionTrail,
   type PositionTrailFact,
+  type TrailAccent,
   type TrailExtent,
 } from './decorate';
 import { isOutlineMode } from './outline-state';
@@ -125,7 +126,7 @@ import { isNestedEditor, nestedEditorField } from './nested-editor';
 import { foldedChrome } from './fold-service';
 import { foldableEntries } from './fold-model';
 import { guideHoverField, type GuideHover } from './guide-hover';
-import { dragPreviewField } from './drag-state';
+import { dragLiftField, dragPreviewField } from './drag-state';
 import {
   absorbedGuide,
   absorbedGuideHead,
@@ -135,6 +136,7 @@ import {
   seamIndicator,
   seamLayer,
   type SeamIndicator,
+  type SeamEdge,
 } from './drag-preview';
 import { toggleFoldAtLine } from './fold-commands';
 import {
@@ -326,16 +328,23 @@ function guideBackground(
   guideDepths: readonly number[],
   trail?: PositionTrailFact,
   lit?: number,
+  drop?: TrailAccent,
 ): string {
   const widthOf = (depth: number, rest: string): string =>
     depth === lit ? GUIDE_HOVER_WIDTH : rest;
-  if (!trail) {
+  if (!trail && !drop) {
     return guideDepths.map((depth) => guideLayer(depth, widthOf(depth, GUIDE_WIDTH))).join(', ');
   }
-  const accents = accentsOn(guideDepths, trail);
+  const accents = trail ? accentsOn(guideDepths, trail) : new Map<number, TrailExtent>();
   const layers: string[] = [];
+  // The drop's parent is accented in the trail's colour at the GUIDE's weight:
+  // it names which column the run will hang from, and a thicker line would
+  // read as the caret's own trail, which says something else. Where the
+  // trail already accents that column, the trail's own segment stands.
+  const dropAt = drop && !accents.has(drop.depth) && guideDepths.includes(drop.depth) ? drop.depth : -1;
+  if (drop && dropAt >= 0) accents.set(drop.depth, drop.extent);
   for (const [depth, extent] of accents) {
-    layers.push(accentLayer(depth, extent, widthOf(depth, TRAIL_WIDTH)));
+    layers.push(accentLayer(depth, extent, widthOf(depth, depth === dropAt ? GUIDE_WIDTH : TRAIL_WIDTH)));
   }
   for (const depth of guideDepths) {
     if (accents.get(depth) !== 'full') layers.push(guideLayer(depth, widthOf(depth, GUIDE_WIDTH)));
@@ -803,6 +812,16 @@ function markerClasses(trail: PositionTrail, lineNumber: number, markerAccent: b
   return ancestorIsListItem ? ` ${ANCESTOR_NATIVE_MARKER_CLASS}` : ` ${ANCESTOR_MARKER_CLASS}`;
 }
 
+/**
+ * The destination parent's marker class while a drag is in flight: the
+ * ancestor accent, which is colour alone, in the native-or-synthetic split the
+ * trail's own ancestors use. Added only where the trail puts nothing on the
+ * row; a parent that is also the caret's node or ancestor is accented already.
+ */
+function dropParentMarkerClass(fact: LineDecorationFact): string {
+  return fact.isListItem ? ` ${ANCESTOR_NATIVE_MARKER_CLASS}` : ` ${ANCESTOR_MARKER_CLASS}`;
+}
+
 // ---- Block markers (Experiment 5a: icon markers) ---------------------------
 //
 // See docs/research/experiment-5-block-markers.md (Experiment 5/5a). A
@@ -1070,7 +1089,7 @@ class GhostMarkWidget extends WidgetType {
   constructor(
     private readonly subject: MarkSubject,
     private readonly leftExpr: string,
-    private readonly below: boolean,
+    private readonly edge: SeamEdge,
   ) {
     super();
   }
@@ -1079,13 +1098,13 @@ class GhostMarkWidget extends WidgetType {
     return (
       markKey(other.subject) === markKey(this.subject) &&
       other.leftExpr === this.leftExpr &&
-      other.below === this.below
+      other.edge === this.edge
     );
   }
 
   toDOM(): HTMLElement {
     const wrapper = createSpan({
-      cls: `to-decor-marker-icon ${GHOST_MARK_CLASS}${this.below ? ` ${GHOST_MARK_BELOW_CLASS}` : ''}`,
+      cls: `to-decor-marker-icon ${GHOST_MARK_CLASS} ${GHOST_MARK_EDGE_CLASS[this.edge]}`,
     });
     stateMark(wrapper, this.subject);
     // Its OWN property, not `--to-marker-left`: the pass that keeps plain-line
@@ -1106,7 +1125,11 @@ class GhostMarkWidget extends WidgetType {
 
 /** The ghost mark's own classes; `90-dragging.css` positions them. */
 export const GHOST_MARK_CLASS = 'to-drag-ghost';
-export const GHOST_MARK_BELOW_CLASS = 'to-drag-ghost-below';
+export const GHOST_MARK_EDGE_CLASS: Record<SeamEdge, string> = {
+  top: 'to-drag-ghost-top',
+  bottom: 'to-drag-ghost-below',
+  middle: 'to-drag-ghost-middle',
+};
 
 /** The class a folded node's own line carries, so the marker can say so. */
 export const FOLDED_NODE_CLASS = 'to-decor-folded';
@@ -1444,6 +1467,24 @@ function renderInputs(state: EditorState, modes: DecorationSource): RenderInputs
     }
   }
   const markerAccent = modes.markerHighlight !== 'off';
+  // The destination parent, named rather than counted out of columns (design
+  // D8): its marker takes the accent, and its own guide — the column the run
+  // will hang from — takes it on every row between the parent and the seam.
+  // A parent at the root has no row of its own, and nothing is accented.
+  const dropParent =
+    preview !== null && preview.parentLine !== null && preview.destination.depth > 0
+      ? { line: preview.parentLine, depth: preview.destination.depth - 1 }
+      : null;
+  const dropAccentOn = (lineNumber: number): TrailAccent | undefined => {
+    if (dropParent === null || seam === null || lineNumber <= dropParent.line) return undefined;
+    if (lineNumber < seam.lineNumber) return { depth: dropParent.depth, extent: 'full' };
+    // The seam's own row: through it where the indicator sits at its bottom,
+    // down to the middle where it sits there, and not at all at its top.
+    if (lineNumber === seam.lineNumber && seam.edge !== 'top') {
+      return { depth: dropParent.depth, extent: seam.edge === 'bottom' ? 'full' : 'top' };
+    }
+    return undefined;
+  };
   // Two lookups from one pass: a folded node's treatment belongs on the line
   // its marker is on, and the count of what it hides belongs after its own
   // text — the same line only when the node is a single line long.
@@ -1499,14 +1540,24 @@ function renderInputs(state: EditorState, modes: DecorationSource): RenderInputs
       );
     }
     if (hasOverlay(depths)) {
-      layers.push(guideBackground(depths, trail.byLine.get(lineNumber), litGuideOn(hover, lineNumber)));
+      layers.push(
+        guideBackground(
+          depths,
+          trail.byLine.get(lineNumber),
+          litGuideOn(hover, lineNumber),
+          dropAccentOn(lineNumber),
+        ),
+      );
     }
     lines.push({
       lineNumber,
       fact,
       gap: guide.isGapLine,
       guides: layers.length > 0 ? layers.join(', ') : undefined,
-      marker: fact ? markerClasses(trail, lineNumber, markerAccent) : '',
+      marker: fact
+        ? markerClasses(trail, lineNumber, markerAccent) ||
+          (dropParent !== null && dropParent.line === lineNumber ? dropParentMarkerClass(fact) : '')
+        : '',
       folded: foldedMarkers.has(lineNumber),
       foldedTail: foldedTails.has(lineNumber),
       seam: onSeam,
@@ -1606,7 +1657,7 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
           widget: new GhostMarkWidget(
             markSubject(ghost, modes.headingMarkerStyle),
             ghostMarkLeftExpr(render.seam.depth),
-            render.seam.below,
+            render.seam.edge,
           ),
           side: -1,
         }),
@@ -1641,6 +1692,8 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
 // the same line (CM6 merges same-position line decorations across separate
 // providers), and this never touches the selection itself.
 export const SELECTED_NODE_CLASS = 'to-decor-node-selected';
+/** The rows in flight during a drag; `90-dragging.css` draws them lifted. */
+export const LIFTED_CLASS = 'to-drag-lifted';
 
 // Set on `view.dom` (the outer `.cm-editor`) whenever `allRangesCovered`
 // holds — styles.css uses it to suppress the native character-level
@@ -1840,6 +1893,13 @@ function computeSelectionDecorations(state: EditorState): DecorationSet {
   const { factsByLine } = baseFacts(state);
   const builder = new RangeSetBuilder<Decoration>();
   const targets = Array.from(selectedLineRootTargets(state).entries()).sort((a, b) => a[0] - b[0]);
+  // While a drag is in flight the cover IS the run in flight, so its rows take
+  // the lifted treatment on top of the chrome they already carry — composed,
+  // not swapped, since a multi-root cover's edge is what says how many roots
+  // are travelling.
+  const cls = (state.field(dragLiftField, false) ?? false)
+    ? `${SELECTED_NODE_CLASS} ${LIFTED_CLASS}`
+    : SELECTED_NODE_CLASS;
   for (const [line, rootTarget] of targets) {
     if (line >= totalLines) continue; // stale, defensive only
     const from = state.doc.line(line + 1).from; // CM6 lines are 1-indexed
@@ -1847,7 +1907,7 @@ function computeSelectionDecorations(state: EditorState): DecorationSet {
     // margin/padding-shifted), same fallback `gapLineDecoration` relies on.
     const ownShift = factsByLine.get(line) ? plainOwnShiftExpr(factsByLine.get(line)!) : '0px';
     const style = `--to-selected-left: calc(${rootTarget} - (${ownShift}))`;
-    builder.add(from, from, Decoration.line({ class: SELECTED_NODE_CLASS, attributes: { style } }));
+    builder.add(from, from, Decoration.line({ class: cls, attributes: { style } }));
   }
   return builder.finish();
 }
@@ -2033,6 +2093,7 @@ function clearWidgetPatch(el: HTMLElement): void {
   el.classList.remove(CURRENT_MARKER_CLASS);
   el.classList.remove(ANCESTOR_MARKER_CLASS);
   el.classList.remove(SELECTED_NODE_CLASS);
+  el.classList.remove(LIFTED_CLASS);
   el.classList.remove(WIDGET_PATCHED_CLASS);
   el.style.removeProperty('--to-guides');
   el.style.removeProperty('--to-own-shift');
@@ -3434,6 +3495,7 @@ class MarginCompensation implements PluginValue {
     const inputs = renderInputs(this.view.state, this.modes);
     const nativeBasePx = this.nativeMarginBasePx();
     const selectedLineTargets = selectedLineRootTargets(this.view.state);
+    const lifted = this.view.state.field(dragLiftField, false) ?? false;
     this.measureAccentStops(inputs.trail);
     // The right edge every plain `.cm-line` naturally reaches — read live
     // (not assumed to be `right: 0` relative to a widget's OWN box), since
@@ -3530,6 +3592,7 @@ class MarginCompensation implements PluginValue {
       // below, wherever this widget's own `ownShiftExpr` is in scope.
       const rootTarget = selectedLineTargets.get(lineNumber);
       el.classList.toggle(SELECTED_NODE_CLASS, rootTarget !== undefined);
+      el.classList.toggle(LIFTED_CLASS, rootTarget !== undefined && lifted);
       const render = inputs.byLine.get(lineNumber);
       const fact = render?.fact;
       // Keyed on "this element renders a line that HAS a fact", not on the

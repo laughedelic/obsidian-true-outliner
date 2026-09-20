@@ -31,6 +31,11 @@ export interface DragPreview {
    * reads one line space. */
   readonly seamLine: number;
   readonly destination: DropDestination;
+  /** The destination parent's own first line in the SOURCE, or null when the
+   * parent is the document's root — which has no row to accent. Resolved
+   * where the tree is at hand, so the decoration pass reads a line and never
+   * has to map a node id back to one. */
+  readonly parentLine: number | null;
   /** What maps the destination's own line spans — its absorbed rows — into
    * the source: the zoom root's line, or 0. The seam is already mapped. */
   readonly lineOffset: number;
@@ -70,6 +75,29 @@ export function sameDestination(a: DragPreview | null, b: DragPreview | null): b
   );
 }
 
+export const setDragLift = StateEffect.define<boolean>();
+
+/**
+ * Whether a drag is in flight — from the threshold to whichever end it meets.
+ *
+ * Separate from the preview, which exists only while the pointer names a
+ * destination: the rows in flight are drawn as lifted for the whole drag, over
+ * a dead band as much as over a seam. The rows themselves are the selection
+ * cover, which the pick-up collapses the selection to, so the flag alone says
+ * which rows: the ones already wearing the cover's chrome.
+ */
+export const dragLiftField = StateField.define<boolean>({
+  create: () => false,
+  update(value, tr) {
+    for (const effect of tr.effects) {
+      if (effect.is(setDragLift)) return effect.value;
+    }
+    // A write under the press cancels the drag (`zoom-click.ts`), so nothing
+    // is in flight once the document has changed.
+    return tr.docChanged ? false : value;
+  },
+});
+
 export function dragPreviewExtension(): Extension {
-  return dragPreviewField;
+  return [dragPreviewField, dragLiftField];
 }

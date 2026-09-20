@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { EditorState } from '@codemirror/state';
 import {
+  dragLiftField,
+  dragPreviewExtension,
   dragPreviewField,
   sameDestination,
+  setDragLift,
   setDragPreview,
   type DragPreview,
 } from '../src/plugin/drag-state';
@@ -16,6 +19,7 @@ function fresh(): EditorState {
 const preview = (over: Partial<DragPreview['destination']> = {}, seamLine = 4): DragPreview => ({
   seamLine,
   destination: { parentId: 'root', index: 1, depth: 0, firstLine: '- one', ...over },
+  parentLine: null,
   lineOffset: 0,
 });
 
@@ -45,6 +49,35 @@ describe('the drag preview field', () => {
   it('is cleared by an effect carrying null', () => {
     const held = fresh().update({ effects: setDragPreview.of(preview()) }).state;
     expect(held.update({ effects: setDragPreview.of(null) }).state.field(dragPreviewField)).toBeNull();
+  });
+});
+
+describe('the lift', () => {
+  const lifted = (): EditorState =>
+    EditorState.create({ doc: DOC, extensions: [dragPreviewExtension()] }).update({
+      effects: setDragLift.of(true),
+    }).state;
+
+  it('is raised and lowered by its effect, and starts lowered', () => {
+    expect(EditorState.create({ doc: DOC, extensions: [dragPreviewExtension()] }).field(dragLiftField)).toBe(false);
+    const up = lifted();
+    expect(up.field(dragLiftField)).toBe(true);
+    expect(up.update({ effects: setDragLift.of(false) }).state.field(dragLiftField)).toBe(false);
+  });
+
+  it('outlives a preview coming and going', () => {
+    // The lift is the drag, the preview is the destination: a pointer over a
+    // dead band clears the preview and the rows stay lifted.
+    const held = lifted().update({ effects: setDragPreview.of(preview()) }).state;
+    const dead = held.update({ effects: setDragPreview.of(null) }).state;
+    expect(dead.field(dragPreviewField)).toBeNull();
+    expect(dead.field(dragLiftField)).toBe(true);
+  });
+
+  it('survives a selection change and not a document change', () => {
+    const up = lifted();
+    expect(up.update({ selection: { anchor: 3 } }).state.field(dragLiftField)).toBe(true);
+    expect(up.update({ changes: { from: 0, insert: 'x' } }).state.field(dragLiftField)).toBe(false);
   });
 });
 

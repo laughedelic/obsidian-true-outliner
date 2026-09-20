@@ -324,18 +324,20 @@ one level in. Yet `## Plan` written there is legal (Materials is left childless,
 children), and so is `# Plan` written where Plan already stands. Both are levels SHALLOWER than the
 shallow bound, at the seam's own position. On the Kitchen Renovation fixture, the seam under
 Materials offered a heading run one place before and three after (`###`, `##`, `#`); the seam at
-Plan's own top offered two before, its own place among them, and two after — `#` beside Kitchen's
-children, and one level inside `intro`, as a list item — with its own place gone. The algebra reads the level from the destination for these,
+Plan's own top offered two before and three after — `#` beside Kitchen's children, its own place,
+and one level inside `intro`, as a list item. The algebra reads the level from the destination for these,
 because the parent it lands in implies a level one deeper.
 
 **The seams around the run were two, and both offered a move.** The seam above `- one` and the one
 below its subtree each read the run as one of their flanking nodes, so the positions right above and
 below it were offered and wrote nothing when taken. Reading the seams with the run removed merges
-the two into one at the run's top, whose depths are bounded by the nodes on either side of the run;
-the run's own place is dropped from it. On the unit fixture with `- one` before a table, a fence and
-a paragraph, the seams went from four with a move each to five, the two at the run's own boundaries
-offering nothing. Kept, not dropped: with them gone the pointer over the run's bottom resolved to the
-next seam down and moved the run one place — the e2e no-op case caught that on the first run.
+the two into one at the run's top, whose depths are bounded by the nodes on either side of the run.
+The run's own place stays on that seam: a first cut dropped it, and the second pass wanted it back
+as the way out of a drag — set the run down where it was, or move it sideways on the same seam. The
+run's bottom is kept as a seam offering nothing rather than dropped: with it gone the pointer over
+the run's bottom resolved to the next seam down and moved the run one place — the e2e no-op case
+caught that on the first run. On the unit fixture with `- one` before a table, a fence and a
+paragraph, the seams went from four with a move each to five, with the dead one at the run's bottom.
 
 **The absorbed rows' guide ran a row too far, and covered the ghost mark.** The span ended at the
 last absorbed node's last line, which for a node with a trailing gap is the blank line, one row past
@@ -347,9 +349,11 @@ since it is the guide the dropped heading will own.
 
 **The indicator sat wrong under a heading and above a code block.** Drawn at the top of the row
 below the seam, it pressed against the first child of a heading with the heading's own clearance
-unused above it, and at the top of a fenced block it was painted over by the block's background.
-Where the row above the seam is a heading, or the row below is an atom, the indicator is anchored to
-the bottom of the row above instead.
+unused above it, and at the top of a fenced block it was painted over by the block's background. A
+first correction anchored it to the bottom of the heading's row, which read as underlining the
+heading. Where the row above the seam is a heading, or the row below is an atom, the indicator now
+takes the middle of the gap line between the two rows — the seam's own room — and the row above's
+bottom only where no gap line separates them.
 
 ## 7. Where a drop can land: the seam and its depths
 

@@ -51,11 +51,18 @@ import { nodeAtLine } from '../locate';
 import { linePosToOffset, offsetToLinePos, toLineRange } from './cm-pos';
 import { indentUnit } from '@codemirror/language';
 import { walkNodes, type OutlineDoc, type OutlineNode } from '../model';
-import { dropSeams, resolveDestination, type DropDestination } from '../drop-destinations';
+import {
+  dropSeams,
+  resolveDestination,
+  startLineOf,
+  type DropDestination,
+} from '../drop-destinations';
 import { dragGeometry } from './drag-geometry';
 import {
+  dragLiftField,
   dragPreviewField,
   sameDestination,
+  setDragLift,
   setDragPreview,
   type DragPreview,
 } from './drag-state';
@@ -210,7 +217,14 @@ class ZoomClickPlugin implements PluginValue {
     // under them, and continuing would drop it somewhere they did not aim at.
     // Our own collapse and restore are selection-only, so they do not trip
     // this.
-    if (update.docChanged && this.press) this.cancelPress();
+    if (update.docChanged && this.press) {
+      // The press is dropped now, so no move that lands before the microtask
+      // continues it; the rest of the cancel dispatches, and a dispatch from
+      // inside an update is one CodeMirror refuses.
+      const press = this.press;
+      this.press = null;
+      queueMicrotask(() => this.endPress(press));
+    }
     // A change clears the hover state (its line numbers moved) while the
     // pointer has not. Re-derive from where it last was — and only then. The
     // state survives everything else, the fold a press makes included; and
@@ -359,10 +373,14 @@ class ZoomClickPlugin implements PluginValue {
     if (!resolved) return null;
     // Back into the SOURCE's line space, which is the one every consumer of
     // this state reads.
+    const offset = scope ? scope.startLine : 0;
+    const parent = resolved.destination.parentId;
+    const parentLine = parent === 'root' ? undefined : startLineOf(tree, parent);
     return {
-      seamLine: resolved.seam.line + (scope ? scope.startLine : 0),
+      seamLine: resolved.seam.line + offset,
       destination: resolved.destination,
-      lineOffset: scope ? scope.startLine : 0,
+      parentLine: parentLine === undefined ? null : parentLine + offset,
+      lineOffset: offset,
     };
   }
 
@@ -386,6 +404,11 @@ class ZoomClickPlugin implements PluginValue {
     // editor's own element would not hear the Escape that cancels.
     this.view.dom.ownerDocument.addEventListener('keydown', this.onKeyDown, true);
     this.pickUp(press);
+    // The pick-up may have cancelled the press; only a drag that holds an
+    // operand has rows to lift.
+    if (this.press === press && press.groups) {
+      this.view.dispatch({ effects: setDragLift.of(true) });
+    }
   }
 
   /**
@@ -565,17 +588,24 @@ class ZoomClickPlugin implements PluginValue {
     const press = this.press;
     if (!press) return;
     this.press = null;
+    this.endPress(press);
+  }
+
+  /** What every cancel does once the press has been let go of. */
+  private endPress(press: MarkPress): void {
     this.releaseCapture(press.pointerId);
     this.view.dom.ownerDocument.removeEventListener('keydown', this.onKeyDown, true);
     this.clearPreview();
     this.restoreSelection(press);
   }
 
-  /** Nothing of a drag outlives it. */
+  /** Nothing of a drag outlives it: the preview and the lift both go, in one
+   * transaction, on every path that ends a press. */
   private clearPreview(): void {
-    if (this.view.state.field(dragPreviewField, false)) {
-      this.view.dispatch({ effects: setDragPreview.of(null) });
-    }
+    const effects = [];
+    if (this.view.state.field(dragPreviewField, false)) effects.push(setDragPreview.of(null));
+    if (this.view.state.field(dragLiftField, false)) effects.push(setDragLift.of(false));
+    if (effects.length > 0) this.view.dispatch({ effects });
   }
 
   private releaseCapture(pointerId: number): void {
