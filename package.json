@@ -1,7 +1,7 @@
 {
   "name": "obsidian-true-outliner",
   "version": "0.12.1",
-  "description": "A true outliner for Obsidian — mapping core library",
+  "description": "A true outliner for Obsidian \u2014 mapping core library",
   "main": "src/index.ts",
   "directories": {
     "doc": "docs"
@@ -11,7 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint src tests && node scripts/check-research-index.mjs",
+    "lint": "eslint src tests && node scripts/check-research-index.mjs && node scripts/sync-labels.mjs --check",
     "dev": "node esbuild.config.mjs",
     "build:plugin": "node esbuild.config.mjs production",
     "vault:install": "node esbuild.config.mjs production --dev",
@@ -45,6 +45,7 @@
     "eslint": "^9.39.5",
     "eslint-plugin-obsidianmd": "^0.4.1",
     "fast-check": "^4.9.0",
+    "js-yaml": "^4.3.2",
     "mocha": "^11.7.6",
     "obsidian": "^1.13.1",
     "typescript": "~5.9.0",

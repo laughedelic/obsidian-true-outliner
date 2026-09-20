@@ -1,0 +1,174 @@
+# Path to area label, read by `.github/workflows/labeler.yml`. A PR carries one
+# label per slice its diff touches; the scope in its title names the primary one.
+# `.github/labels.yml` says how a slice earns a label in the first place — the
+# repository's own groupings decide, not this file.
+
+area/parse:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/parse.ts
+          - src/model.ts
+          - src/project.ts
+          - src/locate.ts
+          - src/classify.ts
+          - src/line-pos.ts
+          - src/node-text.ts
+          - src/plugin/parsed-doc.ts
+          - src/plugin/source-tree-cache.ts
+
+area/grammar:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/caret*.ts
+          - src/enforce.ts
+          - src/rules.ts
+          - src/plugin/grammar.ts
+          - src/plugin/keymap.ts
+          - src/plugin/history-caret.ts
+          - src/plugin/provisional-cleanup.ts
+          - src/plugin/record-decision.ts
+          - src/plugin/nested-editor.ts
+          - e2e/specs/3*-*
+
+area/ops:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/ops.ts
+          - src/operand.ts
+          - src/escalate.ts
+          - src/encode.ts
+          - src/reencode.ts
+          - src/own-indent.ts
+          - src/plugin/dispatch.ts
+          - e2e/specs/2*-*
+
+area/selection:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/select-extend.ts
+          - src/select-all-ladder.ts
+          - src/plugin/crosscheck.ts
+          - src/plugin/transaction-filter.ts
+          - e2e/specs/6*-*
+
+# Markers sit here rather than beside this: `marker-shapes.ts` is the icon set,
+# and the placement logic lives in `decorations.ts` with the rest of the grid.
+area/decorations:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/plugin/decorate.ts
+          - src/plugin/decorations.ts
+          - src/plugin/chrome-*.ts
+          - src/plugin/appearance.ts
+          - src/plugin/guide-hover.ts
+          - src/plugin/marker-shapes.ts
+          - src/plugin/heading-marker-preview.ts
+          - src/lineage.ts
+          - styles/**
+          - e2e/specs/5*-*
+
+area/folding:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/plugin/fold-*.ts
+          - e2e/folding.ts
+          - e2e/specs/9*-*
+
+area/zoom:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/zoom.ts
+          - src/plugin/zoom-*.ts
+          - e2e/specs/80-*
+
+area/backlinks:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/search.ts
+          - src/plugin/backlink*.ts
+          - src/plugin/footer-*.ts
+          - src/plugin/lineage-row.ts
+          - e2e/footer.ts
+          - e2e/specs/7*-*
+
+area/mode:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/plugin/outline-state.ts
+          - src/plugin/view-registry.ts
+          - e2e/specs/1*-*
+
+area/shell:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/plugin/main.ts
+          - src/plugin/messages.ts
+          - src/plugin/stats.ts
+          - src/plugin/settings.ts
+          - src/plugin/settings/**
+          - manifest.json
+          - e2e/specs/4*-*
+
+# The harness and the infrastructure under it, never an individual spec or unit
+# test: those belong to the feature they cover, which the globs above already give
+# them. Matching `e2e/` as a whole would put this label on most changes, since
+# almost every one carries the spec that pins it.
+area/testing:
+  - changed-files:
+      - any-glob-to-any-file:
+          - e2e/helpers.ts
+          - e2e/wdio*.mts
+          - e2e/obsidian-target.mts
+          - e2e/tsconfig.json
+          - e2e/docker/**
+          - e2e/fixtures/**
+          - e2e/baselines/**
+          - scripts/run-e2e.mjs
+          - scripts/spec-groups.mjs
+          - .github/actions/e2e/**
+          - vitest.config.ts
+          - codecov.yml
+
+area/ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/workflows/**
+          - .github/actions/**
+          - .github/labels.yml
+          - .github/labeler.yml
+          - .github/release.yml
+          - .github/dependabot.yml
+          - scripts/sync-labels.mjs
+
+area/agents:
+  - changed-files:
+      - any-glob-to-any-file:
+          - AGENTS.md
+          - CLAUDE.md
+          - .claude/**
+          - .agents/**
+          - .github/agents/**
+          - .github/skills/**
+          - openspec/config.yaml
+          - scripts/agent-*
+
+# Every file in the change has to match, not just one. A research note landing
+# beside the code it justifies is part of that change rather than a documentation
+# change, and matching any one file would put this label on most changes for that
+# reason. `openspec/**` is here so a proposal-only PR, which the lifecycle opens
+# before any code, qualifies on its own.
+area/docs:
+  - changed-files:
+      - any-glob-to-all-files:
+          - docs/**
+          - openspec/**
+          - README.md
+          - DEVELOPMENT.md
+          - "*.md"
+
+# The website is its own directory and shares no file with the plugin, so it takes
+# a label of its own the moment that stack lands.
+area/website:
+  - changed-files:
+      - any-glob-to-any-file:
+          - website/**

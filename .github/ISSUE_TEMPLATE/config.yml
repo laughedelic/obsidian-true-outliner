@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question or support
+    url: https://github.com/laughedelic/obsidian-true-outliner/discussions
+    about: How something works, or whether a behaviour is intended.
+  - name: Design question
+    url: https://github.com/laughedelic/obsidian-true-outliner/discussions
+    about: A question that does not close by being worked on, such as how a shape should map onto the outline.
