@@ -147,8 +147,20 @@ primary checkout as context, without touching it:
 A one-file change anywhere under the primary checkout re-sends the whole context and stores
 `COPY . .` again, in the image and in the BuildKit cache. That is the reported figure — 9.3 GB
 to 215 MB in one invocation, ≈ 18 GB for a pair — and with several sessions working in nested
-worktrees the context is never unchanged. The fix in this change does not address it; from a
+worktrees the context is never unchanged. The layer reorder does nothing for it; from a
 worktree, which has no worktrees of its own, it never appears.
+
+`.dockerignore` now excludes `.claude/worktrees`, makes the `node_modules` and
+`.obsidian-cache` patterns recursive, and excludes the per-machine tool state that was the
+next-largest thing in the primary checkout's context (`.entire`, 137 MB of session logs, and
+`.delta`, 14 MB of further nested checkouts — both ignored by git globally, so no tracked file
+names them). The same two builds against the primary checkout, as each group went in:
+
+| `.dockerignore` | Context transferred | `COPY . .` layer | Rebuild after one new file in a nested worktree |
+| --- | --- | --- | --- |
+| Widened for run output only | 6.79 GB | 6.75 GB | re-sends 6.79 GB; host −11.1 GB |
+| Plus the nested worktrees | 166 MB | 165 MB | every step `CACHED`; host +6 MB |
+| Plus the tool state | 107 kB incremental | 10.7 MB | every step `CACHED`; host +3 MB |
 
 The other candidates, settled:
 
@@ -174,10 +186,17 @@ out of the build context, so nothing `COPY . .` brings in can land under either 
 workspace state, the generated backlink hub, `coverage/` and `design/` — everything a run or a
 build regenerates. That is what takes a repeat run from 19 MB to nothing.
 
+It also excludes what nests whole checkouts or machine-local state under the repo root —
+`.claude/worktrees`, `node_modules` and `.obsidian-cache` at any depth, `.entire`, `.delta` —
+which is what takes a run from the primary checkout from ≈ 11 GB to the same nothing.
+
 ## Ongoing cost
 
 A run still adds ≈ 19 MB when source changed, and dangling images accumulate one per rebuild.
 `docker image prune -f` clears those; `docker builder prune -af` clears the build cache, at the
-price of the next build re-running `npm ci`. Neither is needed on a schedule at this rate —
-which is the rate from a worktree. From a primary checkout with worktrees nested under it, a
-run still stores the whole context again, as "Where the 9 GB went" measures.
+price of the next build re-running `npm ci`. Neither is needed on a schedule at this rate,
+which now holds from the primary checkout as well as from a worktree.
+
+What keeps it that way is that nothing large or churning sits in the build context. A new
+directory of generated or per-machine state at the repo root needs a `.dockerignore` line the
+day it appears; "transferring context" in the build output is the figure to watch.
