@@ -260,6 +260,47 @@ does not have. What would settle it is a row whose raw and rendered heights are 
 a whole row at the moment of the collapse; neither fixture here achieved that, and finding one is
 its own measurement.
 
+## 6d. Three things the first manual pass found
+
+The beta's first real-vault pass turned up three flaws the harness had not, each with a different
+cause. Recorded here with the figures that settled them; the fixes carry their own explanations.
+
+**A subtree dropped between a heading and its first child landed at the end of the section.** In
+the seam model, not the geometry: the depth one level inside the node above a seam was always
+placed at `children.length` — right after a leaf or a folded node, whose children the seam sits
+past, and wrong between a parent and its visible first child, where the seam sits before it. Every
+first-child seam in the corpus offered the last index.
+
+**The end of a note could not be targeted.** The last seam's y was the document's own bottom, and
+the last line block carries the editor's bottom padding along with it:
+
+| read, on the drag fixture | value |
+| --- | --- |
+| last text row's block, `top`–`bottom` | 150.19 – 176.56 |
+| terminating gap line's block, `top`–`bottom` | 176.56 – 248.06 |
+
+A 71px gap line on a seven-line fixture; on a real note that padding is a scroller's worth, so the
+seam sat far below the last row. The seam now sits at the bottom of the last line with text.
+
+**The ghost mark sat outside a deep list, while the indicator on the same seam was right.** The
+seam row was a list line four levels in, which Obsidian indents with its own padding and a matching
+negative `text-indent`:
+
+| read, on the seam row and its ghost | value |
+| --- | --- |
+| row `padding-left` / `text-indent` / `margin-left` | 110px / −110px / 32px |
+| indicator, overlay space | 128 (= 4 × 32) |
+| ghost centre, viewport | 394.02 |
+| column 4, viewport | 504.02 |
+| ghost's computed `left` | −7.2px |
+
+−7.2px is `icon × 0.5 − gutter`, the plain-line marker's shift — and the ghost's inline style
+carried it as `left: … !important`. `MarginCompensation` keeps every marker icon it finds on a
+plain line at that shift by writing `left` inline, and the ghost is a marker icon with a placement
+of its own. Excluded from that pass, the ghost's centre reads 503.98. The same expression evaluated
+correctly in a plain Chromium page throughout, which is what pointed away from the CSS and at a
+writer.
+
 ## 7. Where a drop can land: the seam and its depths
 
 Not a measurement — the model the sections above leave to be chosen, recorded here so the design

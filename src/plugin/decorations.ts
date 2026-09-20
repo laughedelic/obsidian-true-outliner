@@ -1079,7 +1079,10 @@ class GhostMarkWidget extends WidgetType {
       cls: `to-decor-marker-icon ${GHOST_MARK_CLASS}${this.below ? ` ${GHOST_MARK_BELOW_CLASS}` : ''}`,
     });
     stateMark(wrapper, this.subject);
-    wrapper.setCssProps({ '--to-marker-left': this.leftExpr });
+    // Its OWN property, not `--to-marker-left`: the pass that keeps plain-line
+    // markers on their column rewrites that one on every marker icon it finds,
+    // and the ghost is a marker icon with a different placement.
+    wrapper.setCssProps({ '--to-drag-ghost-left': this.leftExpr });
     // Detached DOM, mounted by CM6's own path — the same guard `MarkerWidget`
     // carries, and for the same reason.
     // eslint-disable-next-line no-restricted-syntax -- detached DOM: CM6 mounts toDOM()'s result via its own supported path
@@ -3738,7 +3741,13 @@ class MarginCompensation implements PluginValue {
       // active theme. A `querySelector` (not a `decorate()` fact lookup)
       // gates this: only a line `computeMarkers` actually placed an icon
       // on has one to correct.
-      const icon = el.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
+      // Not the drag preview's ghost mark, which is a marker icon with a
+      // placement of its own: it hangs on a seam at the destination's column,
+      // not beside this line's text, and an inline `left` from here would put
+      // it at the plain-line marker's shift regardless of what it was told.
+      const icon = el.querySelector<HTMLElement>(
+        `:scope > .to-decor-marker-icon:not(.${GHOST_MARK_CLASS})`,
+      );
       if (icon) {
         const iconLineStyle = getComputedStyle(el);
         const nativeShift =

@@ -55,7 +55,12 @@ export interface MoveSample {
    * lands, and its level where that is a heading. Read off the mark's own
    * `data-kind`/`data-level`, which every marker this plugin draws states.
    */
-  readonly ghost: { readonly kind: string; readonly level: string | null } | null;
+  readonly ghost: {
+    readonly kind: string;
+    readonly level: string | null;
+    /** The mark's own centre, in viewport x — comparable with `columnOfMark`. */
+    readonly x: number;
+  } | null;
   /** Where the drag would land at that move, as the gesture itself resolved
    * it — `null` before a destination is named, and after one is dropped. */
   readonly preview: {
@@ -213,7 +218,11 @@ export function startRecording(): Promise<void> {
       }
       const ghostEl = dom.querySelector('.to-drag-ghost') as HTMLElement | null;
       const ghost = ghostEl
-        ? { kind: ghostEl.dataset.kind ?? '', level: ghostEl.dataset.level ?? null }
+        ? {
+            kind: ghostEl.dataset.kind ?? '',
+            level: ghostEl.dataset.level ?? null,
+            x: ghostEl.getBoundingClientRect().left + ghostEl.getBoundingClientRect().width / 2,
+          }
         : null;
       w.__toDragSamples.push({
         x: event.clientX,

@@ -389,7 +389,7 @@ describe('node dragging: the press and the drag it can become', function () {
     // columns are a subset of this one's and would leave the heading depth
     // untested. Nothing lies below the last seam, so any y past it resolves
     // there.
-    const y = last.y + 6 * (last.y - above.y);
+    const y = last.y + 1.5 * (last.y - above.y);
     const box = await editorBox();
 
     const mark = await markPoint(BULLET, 0);
@@ -505,8 +505,50 @@ describe('node dragging: the press and the drag it can become', function () {
     // destination rather than keeping the level it came with.
     const asHeading = drawn.find((sample) => sample.preview!.depth === 1)!;
     expect(asHeading.ghost!.level).toBe('3');
+    // And each is centred on its own column, list row or not.
+    expect(Math.abs(asHeading.ghost!.x - asSibling)).toBeLessThan(1);
+    const asItem = drawn.find((sample) => sample.preview!.depth === 2)!;
+    expect(Math.abs(asItem.ghost!.x - asChild)).toBeLessThan(1);
 
     expect(await h.getBuffer()).toBe(CONVERTING);
+    await h.setBuffer(DOC);
+    await browser.pause(200);
+  });
+
+  it('centres the ghost mark on a deep list column', async function () {
+    // The seam row here is a list line four levels in, which Obsidian indents
+    // with its own padding and a matching negative text-indent — and a pass of
+    // ours keeps every marker icon on such a line at the plain-line marker's
+    // shift by writing its `left` inline. Measured before the ghost was
+    // excluded from that pass: at depth 4 the indicator sat on its column and
+    // the ghost three columns left of it, outside the whole list
+    // (docs/research/node-drag-and-drop section 6d).
+    const NESTED = ['# Top', '', '- a', '  - b', '    - c', '      - d', '- e', ''].join('\n');
+    await h.setBuffer(NESTED);
+    await browser.pause(250);
+    const columns = [];
+    for (let i = 0; i < 4; i++) columns.push(await columnOfMark(BULLET, i, 'left'));
+    // The seam below `- d`: the one above it offers depth 4 alone, since
+    // anything shallower would make `- d` a descendant of the drop.
+    const d = await markPoint(BULLET, 3);
+    const e = await markPoint(BULLET, 4);
+    const y = (d.y + e.y) / 2;
+    await startRecording();
+    await dragThenEscape(e, [
+      { x: e.x + 20, y: e.y - 10 },
+      { x: columns[2]!, y },
+      { x: columns[2]! + 1, y },
+      { x: columns[3]!, y },
+      { x: columns[3]! + 1, y },
+    ]);
+    await browser.pause(250);
+    const drawn = (await recorded()).filter((sample) => sample.ghost !== null);
+    const seen = new Map<number, number>();
+    for (const sample of drawn) seen.set(sample.preview!.depth, sample.ghost!.x);
+    expect([...seen.keys()].sort()).toEqual([3, 4]);
+    // The ghost's centre on the column its depth names — `columns` is indexed
+    // from depth 1, the first bullet's.
+    for (const [depth, x] of seen) expect(Math.abs(x - columns[depth - 1]!)).toBeLessThan(1);
     await h.setBuffer(DOC);
     await browser.pause(200);
   });

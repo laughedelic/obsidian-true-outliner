@@ -55,11 +55,17 @@
  * the row carries the guide overlay — and it always does while it carries the
  * seam, since the indicator rides in that same overlay.
  *
- * `left` is the shared `--to-marker-left`, so the ghost is centred on its
- * column by exactly the arithmetic every other marker is.
+ * `left` comes through a property of the ghost's own, not the marker icons'
+ * shared `--to-marker-left`: the pass that keeps plain-line markers on their
+ * column rewrites that placement on every marker icon it finds, and this is a
+ * marker icon with a different placement. The arithmetic behind the value is
+ * still the shared marker anchor, so the ghost is centred on its column
+ * exactly as a real mark at that depth is.
  */
 .markdown-source-view.mod-cm6 .cm-content .to-drag-ghost {
   position: absolute;
+  left: var(--to-drag-ghost-left, 0px);
+  margin-left: 0;
   top: 0;
   transform: translateY(-50%);
   pointer-events: none;
