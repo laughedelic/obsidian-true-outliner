@@ -38,7 +38,9 @@
 
 ## 5. Land
 
-- [x] 5.1 `transaction-classification` gains the requirement stating the rule and its controls
+- [x] 5.1 `transaction-classification` gains the requirement stating the rule and its controls,
+      and its class-coverage sentence says a replacement over a selection is read the same way,
+      so a sync does not leave "pure insertions" beside the new requirement
 - [x] 5.2 `openspec validate a-caret-edit-is-never-a-type-over --strict`
 - [ ] 5.3 Sync the delta spec, archive the change and bump the patch version on this branch before
       merging

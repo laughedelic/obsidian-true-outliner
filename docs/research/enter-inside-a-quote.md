@@ -127,6 +127,12 @@ defect.
 
 ## What this does not cover
 
+Enter with a NON-empty selection inside a quote — a word, the tail of a line, a range spanning two
+quote lines — never reaches the rule either way: measured, Obsidian dispatches
+`{from: selFrom, to: selTo, insert: "\n"}` with `userEvent: "input"`, re-inserting no `> `, so the
+inserted text is one block and the on-mode buffer equals the off-mode one before and after this
+change.
+
 A caret-originated replacement that crosses a boundary by span, or exactly covers a subtree, is
 still boundary-crossing: the fact narrows one rule and nothing before it. And the escalation of a
 partial in-node range to the whole node inside `computeDeletionVerdict` is untouched, so a
