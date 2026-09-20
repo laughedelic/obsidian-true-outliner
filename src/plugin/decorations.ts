@@ -131,7 +131,6 @@ import {
   absorbedGuide,
   absorbedGuideHead,
   absorbedRows,
-  ghostMark,
   ghostMarkLeftExpr,
   seamIndicator,
   seamLayer,
@@ -1642,13 +1641,15 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
           gapLineDecoration(render.guides, modes.hideGapLines),
         );
       }
-      continue;
+    } else {
+      builder.add(line.from, line.from, lineDecoration(line.text, render.fact, render));
     }
-    builder.add(line.from, line.from, lineDecoration(line.text, render.fact, render));
-    // The ghost mark, where this row carries the seam. An element rather than
-    // a background layer, because it is a drawn glyph — the indicator itself
+    // The ghost mark, where this row carries the seam — a gap line as readily
+    // as a row with a fact, since the seam under a heading sits on the blank
+    // line between the heading and its first child. An element rather than a
+    // background layer, because it is a drawn glyph — the indicator itself
     // rides the overlay, and the two are positioned from the same column.
-    const ghost = render.seam ? ghostMark(render.seam.firstLine) : null;
+    const ghost = render.seam ? render.seam.mark : null;
     if (render.seam && ghost) {
       builder.add(
         line.from,

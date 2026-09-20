@@ -203,6 +203,24 @@ describe('dropSeams', () => {
     expect(last.candidates.map((c) => c.depth)).toEqual([0, 1, 2, 3, 4]);
   });
 
+  it('names the kind the run will have, not what its first line parses as', () => {
+    // A table's first line on its own is a paragraph; the mark the preview
+    // draws is the node's. And a heading re-levelled by the column carries
+    // the level it will be written at.
+    const doc = parse(
+      ['# A', '', '| a | b |', '| --- | --- |', '| 1 | 2 |', '', '- item', '', '## B', ''].join('\n'),
+    );
+    const seams = dropSeams(doc, [byLine(doc, '| a | b |')]);
+    const marks = seams.flatMap((s) => s.candidates.map((c) => c.mark.kind));
+    expect(marks.length).toBeGreaterThan(0);
+    expect(new Set(marks)).toEqual(new Set(['table']));
+    const heading = dropSeams(doc, [byLine(doc, '## B')]).find((s) => s.line === 2)!;
+    expect(heading.candidates.map((c) => c.mark)).toEqual([
+      { kind: 'heading', level: 1 },
+      { kind: 'heading', level: 2 },
+    ]);
+  });
+
   it('says what the run will BECOME at each destination', () => {
     const doc = parse(
       ['# A', '', '## A1', '', '# B', '', '- item', '  - child', ''].join('\n'),

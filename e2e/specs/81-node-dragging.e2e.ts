@@ -798,6 +798,92 @@ describe('node dragging: the press and the drag it can become', function () {
     await browser.pause(200);
   });
 
+  it('draws the ghost mark on the gap line under a heading', async function () {
+    // The seam between a heading and its first child is drawn on the blank
+    // line between them, and the ghost has to be there too: a mark that only
+    // mounted on rows with a fact vanished at exactly this destination.
+    await h.setCursorSettled(0, 0);
+    const top = await markPoint('.to-decor-marker-icon', 0);
+    const one = await markPoint(BULLET, 0);
+    const y = (top.y + one.y) / 2;
+    const column = await columnOfMark(BULLET, 0, 'left');
+    const mark = await markPoint(BULLET, 3);
+    await startRecording();
+    await dragThenEscape(mark, [{ x: mark.x + 20, y: mark.y - 10 }, { x: column, y }, { x: column + 1, y }]);
+    await browser.pause(250);
+    const held = (await recorded()).filter((sample) => sample.preview !== null && sample.indicator !== null);
+    expect(held.length).toBeGreaterThan(0);
+    for (const sample of held) {
+      expect(sample.indicator!.line).toBe(1);
+      expect(sample.ghost).not.toBe(null);
+      expect(sample.ghost!.kind).toBe('list-item');
+      expect(sample.ghost!.width).toBeGreaterThan(0);
+      expect(sample.ghost!.height).toBeGreaterThan(0);
+    }
+    expect(await h.getBuffer()).toBe(DOC);
+  });
+
+  it('draws an atom run\u2019s own mark as the ghost', async function () {
+    // A code block, a table and a callout each dragged to the seam between
+    // `- one` and `- two`: the ghost is the kind's own glyph, with a box.
+    const ATOMS = ['# Top', '', '- one', '- two', '', '```js', 'x', '```', '', '| a | b |', '| --- | --- |', '| 1 | 2 |', '', '> [!note] Title', '> body', ''].join('\n');
+    await h.setBuffer(ATOMS);
+    await browser.pause(300);
+    await h.setCursorSettled(0, 0);
+    // Read once the table has rendered: Obsidian pads a table's columns as it
+    // draws it, and that rewrite is its own, not the gesture's.
+    const settled = await h.getBuffer();
+    const y = await seamBetween(0, 1);
+    const column = await columnOfMark(BULLET, 0, 'left');
+    // Marker icons in document order: Top(0), the code block(1), the table(2),
+    // the callout(3) — list items carry native bullets, not icons.
+    const runs: [number, string][] = [
+      [1, 'code'],
+      [2, 'table'],
+      [3, 'callout'],
+    ];
+    // Obsidian pads a table's columns when its widget is pressed, and that
+    // rewrite is its own: table rows are compared with their spacing folded.
+    const folded = (text: string) =>
+      text
+        .split('\n')
+        .map((line) => (line.startsWith('|') ? line.replace(/ +/g, ' ') : line))
+        .join('\n');
+    for (const [icon, kind] of runs) {
+      const mark = await markPoint('.to-decor-marker-icon', icon);
+      await startRecording();
+      await dragThenEscape(mark, [{ x: mark.x + 20, y: mark.y - 10 }, { x: column, y }, { x: column + 1, y }]);
+      await browser.pause(250);
+      const held = (await recorded()).filter((sample) => sample.preview !== null && sample.indicator !== null);
+      expect(held.length).toBeGreaterThan(0);
+      const last = held[held.length - 1]!;
+      expect(last.ghost).not.toBe(null);
+      expect(last.ghost!.kind).toBe(kind);
+      expect(last.ghost!.width).toBeGreaterThan(0);
+      expect(last.ghost!.height).toBeGreaterThan(0);
+    }
+    expect(folded(await h.getBuffer())).toBe(folded(settled));
+    // And landing ABOVE an atom: the seam above a code block is drawn on the
+    // gap line before it, and the ghost is there too.
+    const one = await markPoint(BULLET, 0);
+    const two = await markPoint(BULLET, 1);
+    const code = await markPoint('.to-decor-marker-icon', 1);
+    const aboveCode = two.y + (code.y - two.y) / 2;
+    await startRecording();
+    await dragThenEscape(one, [{ x: one.x + 20, y: one.y + 10 }, { x: column, y: aboveCode }, { x: column + 1, y: aboveCode }]);
+    await browser.pause(250);
+    const above = (await recorded()).filter((sample) => sample.preview !== null && sample.indicator !== null);
+    expect(above.length).toBeGreaterThan(0);
+    for (const sample of above) {
+      expect(sample.ghost).not.toBe(null);
+      expect(sample.ghost!.width).toBeGreaterThan(0);
+      expect(sample.ghost!.height).toBeGreaterThan(0);
+    }
+    expect(folded(await h.getBuffer())).toBe(folded(settled));
+    await h.setBuffer(DOC);
+    await browser.pause(200);
+  });
+
   it('centres the ghost mark on a deep list column', async function () {
     // The seam row here is a list line four levels in, which Obsidian indents
     // with its own padding and a matching negative text-indent — and a pass of

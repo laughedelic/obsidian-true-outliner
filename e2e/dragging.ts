@@ -71,6 +71,10 @@ export interface MoveSample {
     readonly level: string | null;
     /** The mark's own centre, in viewport x — comparable with `columnOfMark`. */
     readonly x: number;
+    /** The mark's rendered box, so a mark that is mounted and paints nothing
+     * can be told from one that is not there. */
+    readonly width: number;
+    readonly height: number;
   } | null;
   /** Each decorated row's depth as the depth rules see it at that move — the
    * value an absorbed row is drawn one deeper by — keyed by line. */
@@ -295,6 +299,8 @@ export function startRecording(): Promise<void> {
             kind: ghostEl.dataset.kind ?? '',
             level: ghostEl.dataset.level ?? null,
             x: ghostEl.getBoundingClientRect().left + ghostEl.getBoundingClientRect().width / 2,
+            width: ghostEl.getBoundingClientRect().width,
+            height: ghostEl.getBoundingClientRect().height,
           }
         : null;
       const lifted: { line: number; top: number }[] = [];

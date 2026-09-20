@@ -43,6 +43,11 @@ export interface DropDestination extends SeamPlace {
    * mark the preview draws, taken from the same re-encoding the release
    * applies rather than from the run's current kind. */
   readonly firstLine: string;
+  /** The kind the run's first root will HAVE where it lands, and its level
+   * for a heading — read off the re-encoded node itself, not off its first
+   * line: a table's first line alone is a paragraph, a code fence's is a
+   * fence, and the mark the preview draws has to be the node's. */
+  readonly mark: { readonly kind: NodeKind; readonly level?: number };
   /** The lines a drop here would take INTO the run: a heading written among
    * siblings opens a section over the ones that follow it, up to the next
    * heading that can stand beside it or the scope's end. Those rows change
@@ -279,10 +284,10 @@ export function dropSeams(
         place.index >= home.index &&
         place.index <= home.index + siblings;
       const placed = own ? { ...place, index: home.index } : place;
-      const written = writtenFirstLine(doc, placed, operandRoots, operandRootIds, options);
+      const written = writtenFirst(doc, placed, operandRoots, operandRootIds, options);
       if (written === undefined) continue;
-      const absorbs = absorbedSpan(doc, seam, written, operandIds, all);
-      candidates.push(absorbs ? { ...placed, firstLine: written, absorbs } : { ...placed, firstLine: written });
+      const absorbs = absorbedSpan(doc, seam, written.firstLine, operandIds, all);
+      candidates.push(absorbs ? { ...placed, ...written, absorbs } : { ...placed, ...written });
     }
     out.push({ line: seam.line, aboveId: seam.aboveId, belowId: seam.belowId, candidates });
   }
@@ -428,18 +433,22 @@ function placeAt(
  * takes that case as a reorder — so it is asked for nothing and keeps the line
  * it has.
  */
-function writtenFirstLine(
+function writtenFirst(
   doc: OutlineDoc,
   placed: SeamPlace,
   operandRoots: readonly OutlineNode[],
   operandRootIds: ReadonlySet<number>,
   options: { readonly fallbackIndentUnit?: string },
-): string | undefined {
+): { readonly firstLine: string; readonly mark: DropDestination['mark'] } | undefined {
   const parent = placed.parentId === 'root' ? 'root' : nodeById(doc, placed.parentId);
   if (parent === undefined) return undefined;
   const siblings = parent === 'root' ? doc.children : parent.children;
+  const written = (node: OutlineNode) => ({
+    firstLine: node.lines[0]!,
+    mark: node.level === undefined ? { kind: node.kind } : { kind: node.kind, level: node.level },
+  });
   if (placed.level === undefined && siblings.some((sibling) => operandRootIds.has(sibling.id))) {
-    return operandRoots[0]!.lines[0]!;
+    return written(operandRoots[0]!);
   }
   const result = reencodeBlocksForDestination(
     doc,
@@ -450,7 +459,7 @@ function writtenFirstLine(
     options.fallbackIndentUnit,
     placed.level,
   );
-  return result.ok ? result.value[0]!.lines[0]! : undefined;
+  return result.ok ? written(result.value[0]!) : undefined;
 }
 
 function nodeById(doc: OutlineDoc, id: number): OutlineNode | undefined {

@@ -353,7 +353,11 @@ unused above it, and at the top of a fenced block it was painted over by the blo
 first correction anchored it to the bottom of the heading's row, which read as underlining the
 heading. Where the row above the seam is a heading, or the row below is an atom, the indicator now
 takes the middle of the gap line between the two rows — the seam's own room — and the row above's
-bottom only where no gap line separates them.
+bottom only where no gap line separates them. The ghost had to follow it: the decoration pass
+drew the ghost only on rows with a fact, so on the gap line the indicator was drawn and the mark
+was not — every drop under a heading, and every drop above a code block, table or callout, lost its
+mark. And the mark itself was read by parsing the destination's first line alone, which for a
+table is a paragraph; the destination now carries the re-encoded node's own kind and level.
 
 ## 6f. What a move costs on a long note
 

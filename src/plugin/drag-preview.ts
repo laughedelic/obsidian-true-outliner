@@ -21,7 +21,6 @@
 import { columnExpr, guideLayer, markerAnchorLeftExpr, stripeStartExpr, GUIDE_WIDTH } from './chrome-line';
 import { UNIT_EXPR } from './chrome-tokens';
 import { MARKER_GUTTER_CSS } from './chrome-tokens';
-import { parse } from '../parse';
 import { nodeMark, type NodeMark } from './marker-shapes';
 import type { DragPreview } from './drag-state';
 
@@ -37,9 +36,8 @@ export interface SeamIndicator {
    * above's bottom where there is no gap. */
   readonly edge: SeamEdge;
   readonly depth: number;
-  /** The run's first line as this destination would write it — what the
-   * ghost mark is read from. */
-  readonly firstLine: string;
+  /** The mark the run's first root will have where it lands — the ghost. */
+  readonly mark: NodeMark;
 }
 
 /**
@@ -60,7 +58,7 @@ export function seamIndicator(
 ): SeamIndicator | null {
   if (preview === null) return null;
   const depth = preview.destination.depth;
-  const firstLine = preview.destination.firstLine;
+  const mark = nodeMark(preview.destination.mark);
   let last = -1;
   for (const line of factLines) {
     if (line < preview.seamLine && line > last) last = line;
@@ -78,12 +76,12 @@ export function seamIndicator(
     const above = last >= 0 ? kindAt(last) : undefined;
     if (last >= 0 && ((above && above.kind === 'heading') || (here && here.atom))) {
       return preview.seamLine - last >= 2
-        ? { lineNumber: preview.seamLine - 1, edge: 'middle', depth, firstLine }
-        : { lineNumber: last, edge: 'bottom', depth, firstLine };
+        ? { lineNumber: preview.seamLine - 1, edge: 'middle', depth, mark }
+        : { lineNumber: last, edge: 'bottom', depth, mark };
     }
-    return { lineNumber: preview.seamLine, edge: 'top', depth, firstLine };
+    return { lineNumber: preview.seamLine, edge: 'top', depth, mark };
   }
-  return last < 0 ? null : { lineNumber: last, edge: 'bottom', depth, firstLine };
+  return last < 0 ? null : { lineNumber: last, edge: 'bottom', depth, mark };
 }
 
 /**
@@ -101,25 +99,6 @@ export function absorbedGuideHead(depth: number): string {
 /** The guide that connects the absorbed rows, on every row after the first. */
 export function absorbedGuide(depth: number): string {
   return guideLayer(depth);
-}
-
-/**
- * The mark the run will have WHERE IT LANDS, read from the line the
- * destination would write it as.
- *
- * From the written line and not from the run's current kind, which is the
- * whole of design D7: a heading section dropped into a list is re-encoded as a
- * list item carrying its own `#` run as text, and a preview drawing the glyph
- * the run has in flight would state a result that is not going to happen. The
- * line itself comes from the same `reencodeBlocksForDestination` call the
- * release makes, so there is no second derivation to drift.
- *
- * Null where the line parses to no node at all — nothing this module can
- * draw, and not a case to guess at.
- */
-export function ghostMark(firstLine: string): NodeMark | null {
-  const node = parse(firstLine).children[0];
-  return node === undefined ? null : nodeMark(node);
 }
 
 /**
