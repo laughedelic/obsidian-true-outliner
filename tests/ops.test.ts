@@ -941,6 +941,30 @@ describe('moveSubtreesTo', () => {
     expect(moved(src, ['# A'], { parent: '##### B4', index: 0 })).toBe('REJECT at-h6-bound');
   });
 
+  it('spans every root of a multi-root run where it lands', () => {
+    // The selection after a drop is the run's cover in its new place: both
+    // roots, not the first alone — in the same scope and across scopes alike.
+    // The run ends the note both times, and a last node's cover runs through
+    // the trailing gap line.
+    const src = ['# Top', '', '- one', '  - nested', '- two', '- three', ''].join('\n');
+    const doc = parse(src);
+    const top = byLine(doc, '# Top');
+    const same = moveSubtreesTo(doc, [[byLine(doc, '- one'), byLine(doc, '- two')]], {
+      parentId: top,
+      index: 3,
+    });
+    if (!same.ok) throw new Error(same.rejection.reason);
+    expect(encode(same.value.doc)).toBe(['# Top', '', '- three', '- one', '  - nested', '- two', ''].join('\n'));
+    expect(same.value.span).toEqual({ start: { line: 3, ch: 0 }, end: { line: 6, ch: 0 } });
+    const across = moveSubtreesTo(doc, [[byLine(doc, '- two'), byLine(doc, '- three')]], {
+      parentId: byLine(doc, '- one'),
+      index: 1,
+    });
+    if (!across.ok) throw new Error(across.rejection.reason);
+    expect(encode(across.value.doc)).toBe(['# Top', '', '- one', '  - nested', '  - two', '  - three', ''].join('\n'));
+    expect(across.value.span).toEqual({ start: { line: 4, ch: 0 }, end: { line: 6, ch: 0 } });
+  });
+
   it('writes no change when the destination is where the run already is', () => {
     const src = ['- one', '- two', '- three', ''].join('\n');
     const doc = parse(src);

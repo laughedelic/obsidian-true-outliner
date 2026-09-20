@@ -55,10 +55,10 @@ import {
   dropSeams,
   resolveDestination,
   startLineOf,
-  type DropDestination,
   type DropSeam,
 } from '../drop-destinations';
 import { dragGeometry, measureUnit } from './drag-geometry';
+import { unfoldEffectsWithin } from './fold-ops';
 import {
   dragLiftField,
   dragPreviewField,
@@ -625,7 +625,7 @@ class ZoomClickPlugin implements PluginValue {
       this.clearPreview();
       // A release that names no destination cancels with nothing written,
       // which includes putting back the selection the pick-up collapsed.
-      if (!preview || !this.drop(press, preview.destination)) this.restoreSelection(press);
+      if (!preview || !this.drop(press, preview)) this.restoreSelection(press);
       return;
     }
     this.clearPreview();
@@ -647,8 +647,19 @@ class ZoomClickPlugin implements PluginValue {
    * because the run is already where it was aimed. Its selection is still the
    * run, which is what the reader dropped.
    */
-  private drop(press: MarkPress, destination: DropDestination): boolean {
+  private drop(press: MarkPress, preview: DragPreview): boolean {
     if (!press.groups || !press.tree) return false;
+    const destination = preview.destination;
+    // A destination inside a folded node opens the fold before the run lands
+    // (`outline-folding`: nothing changes where the reader cannot see it). Its
+    // own dispatch, on the document as it is, since the fold's positions are
+    // stated in that document; and every fold touching the parent's own line
+    // is the parent's — a visible destination cannot sit inside a closed one.
+    if (preview.parentLine !== null) {
+      const head = this.view.state.doc.line(preview.parentLine + 1);
+      const opening = unfoldEffectsWithin(this.view.state, head.from, head.to);
+      if (opening.length > 0) this.view.dispatch({ effects: opening });
+    }
     const before = this.view.state.doc;
     const main = this.view.state.selection.main;
     // The gesture holds the view, so it reads the editor's live unit where the

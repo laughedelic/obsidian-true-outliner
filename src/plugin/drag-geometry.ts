@@ -84,7 +84,19 @@ export function dragGeometry(
       while (last > 1 && view.state.doc.line(last).text.trim() === '') last--;
       return top + view.lineBlockAt(view.state.doc.line(last).from).bottom;
     }
-    return top + view.lineBlockAt(view.state.doc.line(line + 1).from).top;
+    // A line the view hides — the tail a zoom cuts off — starts no block of its
+    // own: it is inside the block of the last line shown, whose top is that
+    // line's, so read as a top the seam fell on the same y as the seam above.
+    // Nor is the block's bottom the answer: the block keeps the height of what
+    // it hides. The seam before hidden content is the bottom of the last
+    // visible line's own text, which the view can say exactly.
+    const from = view.state.doc.line(line + 1).from;
+    const block = view.lineBlockAt(from);
+    if (block.from < from && line > 0) {
+      const shown = view.coordsAtPos(view.state.doc.line(line).to);
+      if (shown) return shown.bottom;
+    }
+    return top + block.top;
   });
 
   return { seamY, columnX: (depth: number) => origin + depth * unit };

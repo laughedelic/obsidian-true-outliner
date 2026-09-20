@@ -204,44 +204,47 @@
 
 ## 6. End-to-end coverage
 
-- [ ] 6.1 Add `e2e/specs/81-node-dragging.e2e.ts` driven by a REAL pointer, per the capability's
+- [x] 6.1 Add `e2e/specs/81-node-dragging.e2e.ts` driven by a REAL pointer, per the capability's
       own verification requirement — verify with `npm run test:e2e:narrow -- 81-node-dragging`
-- [ ] 6.2 Add `e2e/dragging.ts` beside it for the feature's own helpers, leaving `e2e/helpers.ts`
+- [x] 6.2 Add `e2e/dragging.ts` beside it for the feature's own helpers, leaving `e2e/helpers.ts`
       untouched per the helpers-beside-their-specs rule. It carries an IN-PAGE RECORDER: a held
       button does not survive the end of its driving call (measured — the press is auto-released
       when `performActions` returns), so mid-drag state cannot be read by stopping. The recorder
       samples the resolved destination and the preview's state on each `pointermove`, the whole
       drag runs in one call, and the assertions read the recording afterwards
-- [ ] 6.2a Drive Escape mid-drag as a key source and a pointer source ticking together in ONE
+- [x] 6.2a Drive Escape mid-drag as a key source and a pointer source ticking together in ONE
       call, asserting against the recorder — verify the cancel is observed while the button is
       still down; negative control: the same Escape sent as a separate call arrives after the
       auto-release and cancels nothing, which is what the measurement showed
-- [ ] 6.3 Give the spec its own CI group in `scripts/spec-groups.mjs`, as `94-fold-guide-click`
+- [x] 6.3 Give the spec its own CI group in `scripts/spec-groups.mjs`, as `94-fold-guide-click`
       has: it drives a real OS-level cursor under a shared Xvfb display, which is the same
       contention that file already documents — verify `node scripts/spec-groups.mjs --list-groups`
       names it
-- [ ] 6.4 Cover one drop per destination class — as a child of the row above, as a sibling at each
+- [x] 6.4 Cover one drop per destination class — as a child of the row above, as a sibling at each
       intervening level, as a sibling of the row below — asserting the resulting buffer; negative
       control: resolving the depth from the seam alone collapses them all to one and fails every
       case but one
-- [ ] 6.5 Cover a multi-root cover dragged as a unit, and the selection it leaves behind; negative
+- [x] 6.5 Cover a multi-root cover dragged as a unit, and the selection it leaves behind; negative
       control: dragging only the pressed root leaves the others in place, which the buffer names
-- [ ] 6.6 Cover the cases that must NOT move anything: a press that does not pass the threshold, a
+- [x] 6.6 Cover the cases that must NOT move anything: a press that does not pass the threshold, a
       modified press, a drop with no destination, Escape mid-drag, an off-mode note; negative
       control: each case asserts the buffer AND the undo depth, since a write that is immediately
       reverted leaves the buffer identical and the history one entry longer
-- [ ] 6.7 Cover an absorbing drop end to end: the preview's marked region, and the buffer after
+- [x] 6.7 Cover an absorbing drop end to end: the preview's marked region, and the buffer after
       the release showing the absorbed siblings inside the moved heading's section; negative
       control: a fixture whose following sibling is a heading of the same level absorbs nothing,
       so a preview marking a region there is marking one that will not happen
-- [ ] 6.8 Cover the fold cases: no hidden depths offered, a drop into a folded node opening it, and
+- [x] 6.8 Cover the fold cases: no hidden depths offered, a drop into a folded node opening it, and
       the run landing as its LAST child; negative control: landing it first puts the run above
       content the reader could not see, which the resulting buffer names
-- [ ] 6.9 Cover the zoom case: every destination inside the scope, and no drag that leaves it;
+- [x] 6.9 Cover the zoom case: every destination inside the scope, and no drag that leaves it;
       negative control: resolving against the unzoomed tree offers a destination outside the
       scope, which the sweep across the seam finds
-- [ ] 6.10 Run the desktop and mobile suites for the touched groups and record what the mobile run
-      could not drive — `npm run test:e2e -- --group dragging` and the mobile equivalent
+- [x] 6.10 Run the desktop and mobile suites for the touched groups and record what the mobile run
+      could not drive — `npm run test:e2e -- --group dragging` and the mobile equivalent. (Both
+      run in CI on every push. The mobile run skips every real-pointer case, since the harness has
+      no coordinate-addressable press there, and runs the touch cases driven in the page;
+      docs/research/node-drag-and-drop section 8 records the device pass that remains.)
 
 ## 7. Manual pass and record
 

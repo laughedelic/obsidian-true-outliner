@@ -395,6 +395,38 @@ readings cached the same two holds covered 180 and 220px — still a fifth of th
 because every frame that scrolls onto a new seam dispatches a preview, and the deep hold's frames
 were the slow ones. The rate is now stated per second and applied by each frame's elapsed time.
 
+## 6g. What the coverage sweep found
+
+Writing one e2e case per destination class, and one each for a multi-root cover, a fold and a
+zoom, turned up three gaps the earlier passes had not reached.
+
+**A drop into a folded node did not open the fold.** `- three` dropped one level inside a folded
+`- one` landed after the hidden `  - nested`, as the fold rule says it should, and the fold stayed
+closed over both. The reveal rule opens a fold that hides the SELECTION, and the landed run was
+selected — but the run had landed at the fold's end, and the fold carried through the change
+covered the lines it had covered before. The drop now opens every fold touching the destination
+parent's own line before it writes, in a dispatch of its own on the document the fold's positions
+are stated in.
+
+**A multi-root run landed selected as its first root.** `moveSubtreesTo` finalised on the first
+root's id alone, so the cover after a drop of `- one` and `- two` together was `- one`'s subtree.
+`finalize` already takes every subject for the group forms; the move now passes all its roots.
+
+**Under a zoom, the seam after the last visible node could not be reached.** Its line is the first
+line the zoom hides, and that line starts no block of its own: it sits inside the block of the
+last visible line, so the seam read as that block's top — the same y as the dead seam at the
+run's bottom, which then won every tie. Nor is the block's bottom the answer: the block keeps
+the height of what it hides. Measured on the zoomed fixture, with the pointer at 236:
+
+| seam | line below | read as the line's block top | read as the block's bottom | read as the visible text's bottom |
+| --- | --- | --- | --- | --- |
+| before `  - n1` | `  - n1` | 183 | — | — |
+| the run's own bottom | `  - n2` | 209.4 | — | — |
+| after `  - n2` | `- two`, hidden | 209.4 | 283.3 | ≈236 |
+
+The seam before hidden content is now the bottom of the last visible line's own text, which
+`coordsAtPos` states exactly.
+
 ## 7. Where a drop can land: the seam and its depths
 
 Not a measurement — the model the sections above leave to be chosen, recorded here so the design

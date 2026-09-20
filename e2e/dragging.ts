@@ -218,6 +218,14 @@ export function startRecording(): Promise<void> {
     if (w.__toScrollTimer) clearInterval(w.__toScrollTimer);
     w.__toDragSamples = [];
     w.__toScrollSamples = [];
+    // Exceptions a handler throws surface as window `error` events, and a
+    // gesture that threw looks from outside like one that resolved nothing.
+    if (w.__toDragOnError) window.removeEventListener('error', w.__toDragOnError);
+    w.__toDragErrors = [];
+    w.__toDragOnError = (event: ErrorEvent) => {
+      w.__toDragErrors.push(`${event.message} @ ${event.filename}:${event.lineno}`);
+    };
+    window.addEventListener('error', w.__toDragOnError);
     // The scroller's position over TIME, not per move, with the seam the
     // preview names at that moment: an autoscroll runs while the pointer holds
     // still, when no move arrives to sample on.
@@ -431,6 +439,15 @@ export function syntheticPointer(
   );
 }
 
+/** Every uncaught exception the page raised since `startRecording`. */
+export function recordedErrors(): Promise<string[]> {
+  return browser.executeObsidian(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
+    return (w.__toDragErrors ?? []) as string[];
+  });
+}
+
 /** The scroller's position over time, oldest first, since `startRecording`,
  * with the seam the preview named at each reading. */
 export function recordedScroll(): Promise<{ t: number; scrollTop: number; seamLine: number | null }[]> {
@@ -620,6 +637,27 @@ export function interruptWhenPreviewing(how: 'change' | 'pointercancel', giveUpM
     how,
     giveUpMs,
   );
+}
+
+/**
+ * `dragFrom` with Shift held for the whole gesture: the key goes down one tick
+ * before the pointer arrives and comes up one tick after it releases, so every
+ * event of the press carries the modifier.
+ */
+export async function dragFromWithShift(from: Point, through: readonly Point[]): Promise<void> {
+  const keys = browser.action('key').down(Key.Shift);
+  for (let i = 0; i < through.length + 3; i++) keys.pause(20);
+  keys.up(Key.Shift);
+  let pointer = browser
+    .action('pointer', { parameters: { pointerType: 'mouse' } })
+    .pause(20)
+    .move({ x: Math.round(from.x), y: Math.round(from.y), origin: 'viewport' })
+    .down({ button: 0 });
+  for (const point of through) {
+    pointer = pointer.move({ x: Math.round(point.x), y: Math.round(point.y), origin: 'viewport' });
+  }
+  pointer = pointer.up({ button: 0 });
+  await browser.actions([keys, pointer]);
 }
 
 /**

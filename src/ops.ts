@@ -2589,7 +2589,14 @@ export function moveSubtreesTo(
         reordered.map((node, slot) => setFinalGap(node, gaps[slot]!)),
       );
     });
-    return finalize(doc, keepDocumentTerminator(doc, surgery), ordered[0]!.id);
+    // Every root the run carries is the subject, so the span after the move is
+    // the run's cover and not its first root's alone.
+    return finalize(
+      doc,
+      keepDocumentTerminator(doc, surgery),
+      ordered[0]!.id,
+      ordered.map((root) => root.id),
+    );
   }
 
   const removal = removeGroups(doc, groups);
@@ -2645,5 +2652,6 @@ export function moveSubtreesTo(
     doc,
     keepDocumentTerminator(doc, spliced.value.surgery),
     spliced.value.firstId,
+    roots.map((root) => root.id),
   );
 }

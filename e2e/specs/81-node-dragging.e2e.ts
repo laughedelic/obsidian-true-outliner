@@ -17,9 +17,11 @@
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
+import { foldedNodeLines } from '../folding.js';
 import {
   columnOfMark,
   dragFrom,
+  dragFromWithShift,
   dragThenEscape,
   dragTraces,
   dragStepsThenEscape,
@@ -970,6 +972,195 @@ describe('node dragging: the press and the drag it can become', function () {
     });
     // The landed run is selected, not lifted: the drop is an end like any other.
     expect(await dragTraces()).toEqual({ lifted: 0, ghosts: 0, indicators: 0, preview: false });
+  });
+
+  it('drops at each destination class a seam offers: child of the row above, each level between, and its own', async function () {
+    // One seam, four columns, four documents. `- x` is picked up and set down
+    // on the seam at its own top — after `- c`, three levels in — at every
+    // column that seam offers: inside `- c` as its first child, beside `- c`
+    // inside `- b`, beside `- b` inside `- a`, and where it already is.
+    // Resolving the depth from the seam alone would write one of these four
+    // times over.
+    const LADDER = ['# Top', '', '- a', '  - b', '    - c', '- x', ''].join('\n');
+    const expectAt: Record<number, string[]> = {
+      4: ['# Top', '', '- a', '  - b', '    - c', '      - x', ''],
+      3: ['# Top', '', '- a', '  - b', '    - c', '    - x', ''],
+      2: ['# Top', '', '- a', '  - b', '    - c', '  - x', ''],
+      1: ['# Top', '', '- a', '  - b', '    - c', '- x', ''],
+    };
+    for (const depth of [4, 3, 2, 1]) {
+      await h.setBuffer(LADDER);
+      await browser.pause(250);
+      await h.setCursorSettled(0, 0);
+      const columns = [
+        await columnOfMark(BULLET, 0, 'left'), // `- a`, depth 1
+        await columnOfMark(BULLET, 1, 'left'), // `  - b`, depth 2
+        await columnOfMark(BULLET, 2, 'left'), // `    - c`, depth 3
+      ];
+      const unit = columns[1]! - columns[0]!;
+      const x = depth === 4 ? columns[2]! + unit : columns[depth - 1]!;
+      const y = await seamBetween(2, 3);
+      const mark = await markPoint(BULLET, 3);
+      await startRecording();
+      await dragFrom(mark, [{ x: mark.x + 20, y: mark.y - 10 }, { x, y }, { x: x + 1, y }]);
+      await browser.pause(300);
+      const last = (await recorded()).filter((sample) => sample.preview !== null).at(-1)!;
+      expect(last.preview!.depth).toBe(depth);
+      expect(await h.getBuffer()).toBe(expectAt[depth]!.join('\n'));
+    }
+    await h.setBuffer(DOC);
+    await browser.pause(200);
+  });
+
+  it('drops a multi-root cover as one unit, and selects it where it lands', async function () {
+    // `- one` and `- two` selected as a cover, and the press on `- two`'s
+    // bullet: both land after `- three`, in order, and the selection is their
+    // cover in the new place. Dragging the pressed root alone would leave
+    // `- one` behind, which the buffer names. (The cover of a LAST node runs
+    // through the trailing gap line, so a cover ending on `- three`'s own text
+    // never engages block mode; this one ends on `- two`.)
+    await h.setSelection({ line: 2, ch: 0 }, { line: 4, ch: '- two'.length });
+    await browser.pause(300);
+    // The cover blurs the editor and the covered rows render as rows again,
+    // bullets included; a press before that lands on source text, not a mark.
+    await browser.waitUntil(
+      async () => {
+        try {
+          await markPoint(BULLET, 3);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      { timeout: 3000, interval: 100, timeoutMsg: 'the covered rows did not render their bullets' },
+    );
+    const two = await markPoint(BULLET, 2);
+    const three = await markPoint(BULLET, 3);
+    const y = three.y + (three.y - two.y) / 2;
+    const column = await columnOfMark(BULLET, 0, 'left');
+    await dragFrom(two, [{ x: two.x + 20, y: two.y + 10 }, { x: column, y }, { x: column + 1, y }]);
+    await browser.pause(300);
+    expect(await h.getBuffer()).toBe(['# Top', '', '- three', '- one', '  - nested', '- two', ''].join('\n'));
+    // Through the trailing gap line: the run now ends the note.
+    expect(await h.getSelection()).toEqual({
+      anchor: { line: 3, ch: 0 },
+      head: { line: 6, ch: 0 },
+    });
+  });
+
+  it('leaves a modified press to whoever else owns it', async function () {
+    // Shift held through a press and drag on a bullet: not this gesture's.
+    // Nothing is picked up, nothing is drawn, nothing is written.
+    await h.setCursorSettled(0, 0);
+    const mark = await markPoint(BULLET, 0);
+    const y = await seamBetween(2, 3);
+    const box = await editorBox();
+    await startRecording();
+    await dragFromWithShift(mark, [{ x: mark.x + 20, y: mark.y + 10 }, { x: box.left + 4, y }, { x: box.left + 5, y }]);
+    await browser.pause(300);
+    const samples = await recorded();
+    expect(samples.length).toBeGreaterThan(0);
+    expect(samples.every((sample) => sample.preview === null && sample.lifted.length === 0)).toBe(true);
+    expect(await h.getBuffer()).toBe(DOC);
+    expect(await dragTraces()).toEqual({ lifted: 0, ghosts: 0, indicators: 0, preview: false });
+  });
+
+  it('drops an absorbing run, and the absorbed siblings are inside its section', async function () {
+    // The preview's shift, made real: `## Move me` released after `intro`
+    // stands at `##` and takes `details`, `more details` and `- a list` into
+    // its section by their position; `## Next` stands beside it. The same
+    // fixture with `## Next` directly after `intro` would absorb nothing,
+    // which is what the preview case's fourth row already states.
+    const ABSORBING = ['# Section', '', 'intro', '', 'details', '', 'more details', '', '- a list', '', '## Next', '', 'body', '', '## Move me', '', 'its body', ''].join('\n');
+    await h.setBuffer(ABSORBING);
+    await browser.pause(250);
+    await h.setCursorSettled(0, 0);
+    const mark = await markPoint('.to-decor-marker-icon', 6);
+    const intro = await markPoint('.to-decor-marker-icon', 1);
+    const details = await markPoint('.to-decor-marker-icon', 2);
+    const column = await columnOfMark('.to-decor-marker-icon', 1, 'centre'); // depth 1
+    const y = (intro.y + details.y) / 2;
+    await dragFrom(mark, [{ x: mark.x + 20, y: mark.y - 10 }, { x: column, y }, { x: column + 1, y }]);
+    await browser.pause(300);
+    expect(await h.getBuffer()).toBe(
+      ['# Section', '', 'intro', '', '## Move me', '', 'its body', '', 'details', '', 'more details', '', '- a list', '', '## Next', '', 'body', ''].join('\n'),
+    );
+    await h.setBuffer(DOC);
+    await browser.pause(200);
+  });
+
+  it('offers no hidden depth under a fold, and a drop into the fold opens it and lands last', async function () {
+    // `- one` folded over `  - nested`. The seam after it offers beside `- one`
+    // and inside it — never a level under the fold — and `- three` dropped
+    // inside lands after `  - nested`, which the reader could not see, with
+    // the fold opened to show it. Landing first would put the run above
+    // content that was hidden.
+    await h.setCursorSettled(2, 0);
+    await h.runCommand('fold-node');
+    await browser.pause(300);
+    expect(await foldedNodeLines()).toEqual([2]);
+    await h.setCursorSettled(0, 0);
+    const columns = [
+      await columnOfMark('.to-decor-marker-icon', 0, 'centre'), // `# Top`, depth 0
+      await columnOfMark(BULLET, 0, 'left'), // `- one`, depth 1
+    ];
+    const unit = columns[1]! - columns[0]!;
+    // With `- one` folded the bullets are `- one`, `- two`, `- three`: the
+    // seam between the fold and `- two`.
+    const y = await seamBetween(0, 1);
+    const mark = await markPoint(BULLET, 2);
+    await startRecording();
+    await dragFrom(mark, [
+      { x: mark.x + 20, y: mark.y - 10 },
+      { x: columns[1]! - unit, y },
+      { x: columns[1]!, y },
+      { x: columns[1]! + unit, y },
+      { x: columns[1]! + 2 * unit, y },
+      { x: columns[1]! + 2 * unit + 1, y },
+    ]);
+    await browser.pause(300);
+    const depths = new Set(
+      (await recorded()).filter((sample) => sample.preview !== null).map((sample) => sample.preview!.depth),
+    );
+    expect([...depths].sort()).toEqual([1, 2]);
+    expect(await h.getBuffer()).toBe(['# Top', '', '- one', '  - nested', '  - three', '- two', ''].join('\n'));
+    expect(await foldedNodeLines()).toEqual([]);
+  });
+
+  it('offers nothing outside a zoom, and drops inside it', async function () {
+    // Zoomed into `- one`: the seam after `  - n2` offers inside `- one` and
+    // nothing beside it, since a sibling of the zoom root is outside the
+    // scope. Swept from far left, every destination is inside, and the drop
+    // lands `  - n1` after `  - n2`; resolving against the unzoomed tree
+    // would have offered the column beside `- one`.
+    const ZOOM = ['# Top', '', '- one', '  - n1', '  - n2', '- two', ''].join('\n');
+    await h.setBuffer(ZOOM);
+    await browser.pause(250);
+    await h.setCursorSettled(0, 0);
+    const one = await markPoint(BULLET, 0);
+    await h.clickAtPoint(one.x, one.y);
+    await browser.pause(300);
+    expect(await zoomed()).toBe(true);
+    // Zoomed, the bullets rendered are `- one`, `  - n1`, `  - n2`.
+    const n2 = await markPoint(BULLET, 2);
+    const box = await editorBox();
+    const y = n2.y + (n2.y - (await markPoint(BULLET, 1)).y) / 2;
+    const mark = await markPoint(BULLET, 1);
+    await startRecording();
+    await dragFrom(mark, [
+      { x: mark.x + 20, y: mark.y + 10 },
+      { x: box.left + 4, y },
+      { x: box.left + 5, y },
+      { x: n2.x, y },
+      { x: n2.x + 1, y },
+    ]);
+    await browser.pause(300);
+    const samples = await recorded();
+    const previews = samples.filter((sample) => sample.preview !== null).map((sample) => sample.preview!);
+    expect(previews.length).toBeGreaterThan(0);
+    for (const preview of previews) expect(preview.depth).toBeGreaterThanOrEqual(1);
+    expect(await h.getBuffer()).toBe(['# Top', '', '- one', '  - n2', '  - n1', '- two', ''].join('\n'));
+    expect(await zoomed()).toBe(true);
   });
 
   it('agrees with the command that names the same move', async function () {
