@@ -6,6 +6,7 @@ import {
   dropSeams,
   nearestIndex,
   resolveDestination,
+  seams,
   type DropSeam,
 } from '../src/drop-destinations';
 
@@ -245,6 +246,38 @@ describe('dropSeams', () => {
       [1, '## H3'],
       [2, '### H3'],
     ]);
+  });
+
+  it('names the rows a written heading would absorb, and where they stop', () => {
+    // `## Move me` dropped after `intro` opens a section over the three
+    // siblings that follow — up to `## Next`, which can stand beside it. The
+    // span is read from the line the destination WRITES, so the same run
+    // dropped where it arrives as a list item absorbs nothing.
+    const doc = parse(
+      ['# Section', '', 'intro', '', 'details', '', 'more details', '', '- a list', '', '## Next', '', 'body', '', '## Move me', '', 'its body', ''].join('\n'),
+    );
+    const move = byLine(doc, '## Move me');
+    const afterIntro = dropSeams(doc, [move]).find((s) => s.aboveId === byLine(doc, 'intro').id)!;
+    const asChild = afterIntro.candidates.find((c) => c.depth === 1)!;
+    expect(asChild.firstLine).toBe('## Move me');
+    // From `details`'s first line through `- a list`'s gap, not into `## Next`.
+    expect(asChild.absorbs).toEqual({ from: 4, to: 10 });
+    // Dropped inside the list it becomes an item and takes nothing.
+    const intoList = dropSeams(doc, [move]).find((s) => s.aboveId === byLine(doc, '- a list').id)!;
+    const asItem = intoList.candidates.find((c) => c.firstLine.trimStart().startsWith('-'))!;
+    expect(asItem.absorbs).toBeUndefined();
+  });
+
+  it('offers seams with nothing in hand, for an insertion', () => {
+    // The same places a drag resolves, asked about a kind rather than a run:
+    // no interior to exclude, and the heading rule keyed on the kind alone.
+    const doc = parse(['# H1', '', '## H2', '', '### H3', '', 'para1', '', 'para2', ''].join('\n'));
+    const last = seams(doc, { kind: 'paragraph' }).at(-1)!;
+    expect(last.places.map((p) => p.depth)).toEqual([3, 4]);
+    const heading = seams(doc, { kind: 'heading' }).at(-1)!;
+    expect(heading.places.map((p) => p.depth)).toEqual([0, 1, 2, 3, 4]);
+    // Every seam of the document is present, the ones inside `### H3` included.
+    expect(seams(doc, { kind: 'paragraph' }).map((s) => s.line)).toEqual([0, 2, 4, 6, 8, 10]);
   });
 
   it('offers no destination outside an active zoom', () => {

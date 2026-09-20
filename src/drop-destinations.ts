@@ -19,32 +19,64 @@
  * every seam being offered and the ones outside filtered out afterwards.
  */
 
-import { isAtom, type OutlineDoc, type OutlineNode } from './model';
+import { isAtom, type NodeKind, type OutlineDoc, type OutlineNode } from './model';
 import { ownSpan } from './model';
 import { reencodeBlocksForDestination } from './ops';
+import { parse } from './parse';
 
-/** A place a run can land: a parent, a position among its children, and the
- * depth the run's own first mark takes there. */
-export interface DropDestination {
+/** A place at a seam: a parent, a position among its children, and the depth a
+ * node placed there takes. What a seam offers before any run is asked about. */
+export interface SeamPlace {
   readonly parentId: number | 'root';
   readonly index: number;
   readonly depth: number;
+}
+
+/** A place a run can land, with what the run becomes there. */
+export interface DropDestination extends SeamPlace {
   /** The run's first line as it will be written at this destination — the
    * mark the preview draws, taken from the same re-encoding the release
    * applies rather than from the run's current kind. */
   readonly firstLine: string;
+  /** The lines a drop here would take INTO the run: a heading written among
+   * siblings opens a section over the ones that follow it, up to the next
+   * heading that can stand beside it or the scope's end. Those rows change
+   * parent without moving, so nothing at the seam says they are involved
+   * (design D8). `[from, to)` in the tree's own line space; absent where
+   * nothing is absorbed. */
+  readonly absorbs?: { readonly from: number; readonly to: number };
 }
 
-/** The boundary between two nodes, and every destination it offers. */
-export interface DropSeam {
+/** The boundary between two nodes, and every place it offers. */
+export interface Seam {
   /** The line the seam sits above: the first line of the node below it, or the
    * document's line count where there is none. */
+  readonly line: number;
+  readonly aboveId: number | undefined;
+  readonly belowId: number | undefined;
+  /** Shallowest first. Never empty. */
+  readonly places: readonly SeamPlace[];
+}
+
+/** A seam with what a particular run becomes at each of its places. */
+export interface DropSeam {
   readonly line: number;
   readonly aboveId: number | undefined;
   readonly belowId: number | undefined;
   /** Shallowest first. Never empty — a seam with no legal depth is not a seam
    * this module returns. */
   readonly candidates: readonly DropDestination[];
+}
+
+/** What every seam-taking function accepts about the view. */
+export interface SeamOptions {
+  readonly folded?: ReadonlySet<number>;
+  /** True when `doc` is a zoom scope's re-rooted document rather than a
+   * file's own. Such a document's top level is the zoom ROOT's level, so a
+   * destination parented at `'root'` is a sibling of the root — reachable in
+   * the source and outside the scope, which `node-dragging` refuses. The
+   * caller says so, because nothing in a document says which it is. */
+  readonly scoped?: boolean;
 }
 
 interface Step {
@@ -122,54 +154,130 @@ function subtreeIds(roots: readonly OutlineNode[]): Set<number> {
  * re-stating its conditions, and it is why one seam can offer its shallower
  * columns and refuse its deeper ones.
  */
-export function dropSeams(
+export function seams(
   doc: OutlineDoc,
-  operandRoots: readonly OutlineNode[],
-  options: {
-    readonly folded?: ReadonlySet<number>;
-    readonly fallbackIndentUnit?: string;
-    /** True when `doc` is a zoom scope's re-rooted document rather than a
-     * file's own. Such a document's top level is the zoom ROOT's level, so a
-     * destination parented at `'root'` is a sibling of the root — reachable in
-     * the source and outside the scope, which `node-dragging` refuses. The
-     * caller says so, because nothing in a document says which it is. */
-    readonly scoped?: boolean;
+  options: SeamOptions & {
+    /** Subtrees no place may lie inside — a run's own, for a drag. */
+    readonly outside?: ReadonlySet<number>;
+    /** The kind of node that would be placed, where no run is in hand: what
+     * decides whether a place after a heading is one at all. */
+    readonly kind?: NodeKind;
   } = {},
-): DropSeam[] {
-  if (operandRoots.length === 0) return [];
+): Seam[] {
   const folded = options.folded ?? new Set<number>();
   const visible = visibleNodes(doc, folded);
   if (visible.length === 0) return [];
-  const operandIds = subtreeIds(operandRoots);
-  const operandRootIds = new Set(operandRoots.map((root) => root.id));
+  const outside = options.outside ?? new Set<number>();
+  const kind = options.kind ?? 'paragraph';
 
-  const seams: DropSeam[] = [];
+  const out: Seam[] = [];
   for (let s = 0; s <= visible.length; s++) {
     const above = s > 0 ? visible[s - 1]! : undefined;
     const below = s < visible.length ? visible[s]! : undefined;
     const shallow = below ? below.depth : 0;
     const deep = above ? (isAtom(above.node) ? above.depth : above.depth + 1) : shallow;
 
-    const candidates: DropDestination[] = [];
+    const places: SeamPlace[] = [];
     for (let depth = shallow; depth <= deep; depth++) {
-      if (followsAHeading(depth, above, operandRoots)) continue;
+      if (followsAHeading(depth, above, kind)) continue;
       const placed = placeAt(depth, above, below);
       if (!placed) continue;
       if (placed.parentId === 'root' && options.scoped === true) continue;
-      if (placed.parentId !== 'root' && operandIds.has(placed.parentId)) continue;
-      const written = writtenFirstLine(doc, placed, operandRoots, operandRootIds, options);
-      if (written === undefined) continue;
-      candidates.push({ ...placed, depth, firstLine: written });
+      if (placed.parentId !== 'root' && outside.has(placed.parentId)) continue;
+      places.push({ ...placed, depth });
     }
-    if (candidates.length === 0) continue;
-    seams.push({
+    if (places.length === 0) continue;
+    out.push({
       line: below ? below.startLine : documentEnd(doc),
       aboveId: above?.node.id,
       belowId: below?.node.id,
-      candidates,
+      places,
     });
   }
-  return seams;
+  return out;
+}
+
+/**
+ * The seams of a document, each with the destinations it offers, for a run
+ * whose roots are `operandRoots`.
+ *
+ * `seams` above finds the places; this asks what the run becomes at each and
+ * keeps the ones the shared re-encode step accepts — the refusal that depends
+ * on the destination's own depth, which no kind check can see. A seam left
+ * with no accepted place is not a seam this returns.
+ */
+export function dropSeams(
+  doc: OutlineDoc,
+  operandRoots: readonly OutlineNode[],
+  options: SeamOptions & { readonly fallbackIndentUnit?: string } = {},
+): DropSeam[] {
+  if (operandRoots.length === 0) return [];
+  const operandIds = subtreeIds(operandRoots);
+  const operandRootIds = new Set(operandRoots.map((root) => root.id));
+  const starts = startLines(doc);
+
+  const out: DropSeam[] = [];
+  for (const seam of seams(doc, {
+    ...options,
+    outside: operandIds,
+    kind: operandRoots[0]!.kind,
+  })) {
+    const candidates: DropDestination[] = [];
+    for (const place of seam.places) {
+      const written = writtenFirstLine(doc, place, operandRoots, operandRootIds, options);
+      if (written === undefined) continue;
+      const absorbs = absorbedSpan(doc, place, written, operandRootIds, starts);
+      candidates.push(absorbs ? { ...place, firstLine: written, absorbs } : { ...place, firstLine: written });
+    }
+    if (candidates.length === 0) continue;
+    out.push({ line: seam.line, aboveId: seam.aboveId, belowId: seam.belowId, candidates });
+  }
+  return out;
+}
+
+/** Every node's first line by id, folds ignored: an absorbed span is a span
+ * of the document, and a folded node's hidden lines are still in it. */
+function startLines(doc: OutlineDoc): Map<number, number> {
+  const starts = new Map<number, number>();
+  for (const v of visibleNodes(doc, new Set())) starts.set(v.node.id, v.startLine);
+  return starts;
+}
+
+/** A subtree's whole extent in lines, trailing gaps included. */
+function subtreeSpan(node: OutlineNode): number {
+  return ownSpan(node) + hiddenSpan(node);
+}
+
+/**
+ * The lines a drop would take into the run: the siblings after the place that
+ * a WRITTEN heading's section runs over, until the first that can stand beside
+ * it — a heading of its level or shallower — or the scope's end. Read from the
+ * line the destination writes, so a heading that arrives as a list item
+ * absorbs nothing, exactly as the release will have it.
+ */
+function absorbedSpan(
+  doc: OutlineDoc,
+  place: SeamPlace,
+  written: string,
+  operandRootIds: ReadonlySet<number>,
+  starts: ReadonlyMap<number, number>,
+): { readonly from: number; readonly to: number } | undefined {
+  const head = parse(written).children[0];
+  if (head === undefined || head.kind !== 'heading' || head.level === undefined) return undefined;
+  const parent = place.parentId === 'root' ? 'root' : nodeById(doc, place.parentId);
+  if (parent === undefined) return undefined;
+  const siblings = parent === 'root' ? doc.children : parent.children;
+  let from: number | undefined;
+  let to: number | undefined;
+  for (const sibling of siblings.slice(place.index)) {
+    if (operandRootIds.has(sibling.id)) continue;
+    if (sibling.kind === 'heading' && (sibling.level ?? 0) <= head.level) break;
+    const start = starts.get(sibling.id);
+    if (start === undefined) continue;
+    from ??= start;
+    to = start + subtreeSpan(sibling);
+  }
+  return from === undefined || to === undefined ? undefined : { from, to };
 }
 
 /**
@@ -183,12 +291,8 @@ export function dropSeams(
  * nest only under headings, so that one node is the whole test. A heading run
  * is re-levelled by the destination instead, which the re-encode step decides.
  */
-function followsAHeading(
-  depth: number,
-  above: Visible | undefined,
-  operandRoots: readonly OutlineNode[],
-): boolean {
-  if (!above || operandRoots[0]?.kind === 'heading') return false;
+function followsAHeading(depth: number, above: Visible | undefined, kind: NodeKind): boolean {
+  if (!above || kind === 'heading') return false;
   const sibling = above.chain[depth];
   return sibling !== undefined && sibling.node.kind === 'heading';
 }
@@ -239,7 +343,7 @@ function placeAt(
  */
 function writtenFirstLine(
   doc: OutlineDoc,
-  placed: { readonly parentId: number | 'root'; readonly index: number },
+  placed: SeamPlace,
   operandRoots: readonly OutlineNode[],
   operandRootIds: ReadonlySet<number>,
   options: { readonly fallbackIndentUnit?: string },
