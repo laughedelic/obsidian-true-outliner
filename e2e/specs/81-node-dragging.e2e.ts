@@ -18,6 +18,7 @@ import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
 import { foldedNodeLines } from '../folding.js';
+import { openFooter } from '../footer.js';
 import {
   columnOfMark,
   dragFrom,
@@ -1384,5 +1385,55 @@ describe('node dragging: a touch press', () => {
     await browser.pause(300);
     expect(await zoomed()).toBe(true);
     expect(await h.getBuffer()).toBe(DOC);
+  });
+});
+
+describe('node dragging: the marks that are not its own', () => {
+  // The two declines `outline-zoom` already mirrors for its press, mirrored
+  // for the drag: a mark the footer draws answers its own clicks, and a nested
+  // per-cell editor is not the note. Matching a mark by selector alone would
+  // pick up the footer's icon, which is a marker icon like any other.
+  it('picks nothing up from a mark the backlinks footer drew', async function () {
+    if (h.IS_MOBILE_RUN) this.skip();
+    const TARGET = 'Backlinks/Reference target.md';
+    await openFooter(TARGET);
+    const before = await h.getBuffer();
+    const icon = await pointOf('.to-backlinks-row .to-decor-marker-icon', 0);
+    const box = await editorBox();
+    // Aimed INTO the content, so the moves reach the recorder while the button
+    // is still down.
+    await startRecording();
+    await dragFrom(icon, [
+      { x: box.left + 80, y: icon.y - 40 },
+      { x: box.left + 80, y: icon.y - 120 },
+    ]);
+    await browser.pause(300);
+    const samples = await recorded();
+    expect(samples.length).toBeGreaterThan(0);
+    expect(samples.every((sample) => sample.preview === null && sample.lifted.length === 0)).toBe(true);
+    expect(await h.getBuffer()).toBe(before);
+    expect(await dragTraces()).toEqual({ lifted: 0, ghosts: 0, indicators: 0, preview: false });
+  });
+
+  it('picks nothing up inside a nested per-cell table editor', async function () {
+    if (h.IS_MOBILE_RUN) this.skip();
+    const TABLE = ['# Top', '', '| a | b |', '| --- | --- |', '| word | 2 |', '', '- one', '- two', ''].join('\n');
+    await openDraggable();
+    await h.setBuffer(TABLE);
+    await browser.pause(300);
+    await h.clickTableCell();
+    await browser.pause(200);
+    // Read once the cell editor has focus: Obsidian pads the table's columns
+    // when a cell is edited, and that rewrite is its own, not the gesture's.
+    const before = await h.getBuffer();
+    const cell = await pointOf('.cm-table-widget td .table-cell-wrapper', 0);
+    const one = await markPoint(BULLET, 0);
+    await startRecording();
+    await dragFrom(cell, [{ x: cell.x + 20, y: cell.y + 10 }, { x: one.x, y: one.y }, { x: one.x, y: one.y + 20 }]);
+    await browser.pause(300);
+    const samples = await recorded();
+    expect(samples.every((sample) => sample.preview === null && sample.lifted.length === 0)).toBe(true);
+    expect(await h.getBuffer()).toBe(before);
+    expect(await dragTraces()).toEqual({ lifted: 0, ghosts: 0, indicators: 0, preview: false });
   });
 });

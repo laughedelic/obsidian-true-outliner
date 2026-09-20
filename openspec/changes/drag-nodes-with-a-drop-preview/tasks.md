@@ -136,7 +136,7 @@
       cancel, which the test names. (View teardown is covered by the plugin's `destroy`, which
       runs the same cancel; the e2e drives the other four, since closing the leaf mid-drag
       takes the editor the recorder reads with it.)
-- [ ] 3.7 Decline inside nested editors, outside outline mode, and on chrome marks the trail and
+- [x] 3.7 Decline inside nested editors, outside outline mode, and on chrome marks the trail and
       the footer draw — verify by e2e cases mirroring the ones `outline-zoom` already has for the
       same three; negative control: matching a mark by selector alone picks up the trail's own
       mark, which the zoom-out crumb case then fails on
