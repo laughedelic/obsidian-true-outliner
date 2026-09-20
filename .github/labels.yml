@@ -67,9 +67,9 @@
 - name: area/shell
   color: c5def5
   description: The plugin's own surfaces — commands, settings, lifecycle
-- name: area/e2e
+- name: area/testing
   color: c5def5
-  description: The e2e harness, its specs and its containers
+  description: The test harnesses and their infrastructure, not the specs themselves
 - name: area/ci
   color: c5def5
   description: Workflows, release and beta publishing
@@ -78,13 +78,16 @@
   description: Agent instructions, skills and setup scripts
 - name: area/docs
   color: c5def5
-  description: Research notes, guides and the README
+  description: Research notes, guides and the README, on a change that is only those
   aliases: [documentation]
+- name: area/website
+  color: c5def5
+  description: The GitHub Pages site, its docs pages and its media
 
 # Needs. The one thing standing between the item and someone starting work,
 # removed when that thing is answered rather than when work begins. No label
 # means the next person can start, so one left on after its question is answered
-# is worse than none. `docs/triage.md` says what each promises.
+# is worse than none. The `triage` skill says what each promises.
 - name: needs/repro
   color: d4c5f9
   description: No concrete failure case yet
@@ -100,7 +103,7 @@
 
 # Priority, by consequence rather than by surface: what it costs to leave the
 # defect alone, not how visible it is. A tooling defect that costs rework on
-# every change ranks with a user-facing one. `docs/triage.md` carries the
+# every change ranks with a user-facing one. The `triage` skill carries the
 # judgement, including where two rungs are arguable.
 - name: p0
   color: b60205

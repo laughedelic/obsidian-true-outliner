@@ -71,6 +71,7 @@ area/folding:
   - changed-files:
       - any-glob-to-any-file:
           - src/plugin/fold-*.ts
+          - e2e/folding.ts
           - e2e/specs/9*-*
 
 area/zoom:
@@ -108,12 +109,25 @@ area/shell:
           - manifest.json
           - e2e/specs/4*-*
 
-area/e2e:
+# The harness and the infrastructure under it, never an individual spec or unit
+# test: those belong to the feature they cover, which the globs above already give
+# them. Matching `e2e/` as a whole would put this label on most changes, since
+# almost every one carries the spec that pins it.
+area/testing:
   - changed-files:
       - any-glob-to-any-file:
-          - e2e/**
+          - e2e/helpers.ts
+          - e2e/wdio*.mts
+          - e2e/obsidian-target.mts
+          - e2e/tsconfig.json
+          - e2e/docker/**
+          - e2e/fixtures/**
+          - e2e/baselines/**
           - scripts/run-e2e.mjs
           - scripts/spec-groups.mjs
+          - .github/actions/e2e/**
+          - vitest.config.ts
+          - codecov.yml
 
 area/ci:
   - changed-files:
@@ -125,7 +139,6 @@ area/ci:
           - .github/release.yml
           - .github/dependabot.yml
           - scripts/sync-labels.mjs
-          - codecov.yml
 
 area/agents:
   - changed-files:
@@ -139,9 +152,23 @@ area/agents:
           - openspec/config.yaml
           - scripts/agent-*
 
+# Every file in the change has to match, not just one. A research note landing
+# beside the code it justifies is part of that change rather than a documentation
+# change, and matching any one file would put this label on most changes for that
+# reason. `openspec/**` is here so a proposal-only PR, which the lifecycle opens
+# before any code, qualifies on its own.
 area/docs:
   - changed-files:
-      - any-glob-to-any-file:
+      - any-glob-to-all-files:
           - docs/**
+          - openspec/**
           - README.md
           - DEVELOPMENT.md
+          - "*.md"
+
+# The website is its own directory and shares no file with the plugin, so it takes
+# a label of its own the moment that stack lands.
+area/website:
+  - changed-files:
+      - any-glob-to-any-file:
+          - website/**

@@ -1,8 +1,13 @@
+---
+name: triage
+description: How to classify an issue in this repository — which kind, area, priority and needs labels it takes, and what each one commits us to. Use when filing an issue, when triaging one, when re-verifying a stale claim, or whenever choosing a p0-p3 rung or a needs/ label.
+---
+
 # Triage
 
-How an issue is classified, and what each label commits us to. The label set itself is declared
-in [`.github/labels.yml`](../.github/labels.yml); this is the judgement behind it, which a one-line
-description cannot carry.
+Classify an issue on four axes. The label set itself is declared in
+[`.github/labels.yml`](../../../.github/labels.yml); this is the judgement behind it, which a
+one-line description cannot carry.
 
 Four axes, and an item wants all four before it is ready to pick up:
 
@@ -68,7 +73,7 @@ after its question is answered is worse than none.
 ## Re-verify before trusting a claim
 
 An issue is a claim about code, and code moves. The sweep recorded in
-[`research/follow-up-inventory.md`](research/follow-up-inventory.md) found three of fourteen
+[`docs/research/follow-up-inventory.md`](../../../docs/research/follow-up-inventory.md) found three of fourteen
 extracted rows already fixed and one disproved by re-measurement, against notes that were months
 old rather than years.
 
