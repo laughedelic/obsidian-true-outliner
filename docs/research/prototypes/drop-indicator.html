@@ -135,8 +135,7 @@
     border-radius: 9px; background: var(--accent); color: #fff; font-size: .68rem;
     font-weight: 700; line-height: 18px; letter-spacing: .02em;
   }
-  .row.shifted .label, .row.shifted .mark { color: var(--accent); }
-  .row.shifted { background: var(--accent-soft); }
+  /* J draws no tint: the move is the statement. */
   .verdict.open { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
 
   /* ---- layout ------------------------------------------------------------ */
@@ -206,8 +205,8 @@
   moving, so nothing at the seam says they are involved. Here <b>Move me</b>, a
   <code>##</code> heading with a body, is dropped after <b>intro</b>: <b>details</b>,
   <b>more details</b> and <b>a list</b> join its section, and <b>Next</b>, itself a
-  <code>##</code>, does not. Four ways of saying so; none is carried yet — this is the question
-  design D8 leaves open.
+  <code>##</code>, does not. Five ways of saying so. J is carried: the rows drawn where they will
+  sit, and nothing else.
 </p>
 <div class="grid" id="absorb"></div>
 
@@ -566,10 +565,10 @@ const ABSORB = [
     sub: 'the absorbed rows drawn one level in, under the ghost, before anything is written',
     opts: { shift: true },
     note: 'Shows the result as the result: the rows sit where they will sit, under the mark that ' +
-          'will own them, with the guide that will connect them. Nothing else on the seam has ' +
-          'to be explained. It is the one treatment that moves rows while the drag is in ' +
-          'flight — horizontally, and only the absorbed ones — so the wrapped ones can change ' +
-          'height, and every move over a different seam re-lays them out.',
+          'will own them, with the guide that will connect them, and nothing tinted — on a long ' +
+          'section a tint is half a page of colour, and the move already says it. It is the one ' +
+          'treatment that moves rows while the drag is in flight — horizontally, and only the ' +
+          'absorbed ones — so a wrapped row can change height. Chosen.',
   },
   {
     name: 'I. A count at the seam',
@@ -584,7 +583,9 @@ for (const t of ABSORB) {
   const wrap = document.createElement('div');
   wrap.className = 'case';
   const h = document.createElement('h3');
-  h.innerHTML = t.name + ' <span>\u2014 ' + t.sub + '</span><span class="verdict open">open</span>';
+  const chosen = t.name.startsWith('J.');
+  h.innerHTML = t.name + ' <span>\u2014 ' + t.sub + '</span><span class="verdict ' +
+    (chosen ? 'keep' : 'no') + '">' + (chosen ? 'carried' : 'dropped') + '</span>';
   wrap.appendChild(h);
   const s = document.createElement('div');
   s.className = 'surface';

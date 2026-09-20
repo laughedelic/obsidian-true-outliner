@@ -200,10 +200,12 @@ Dropped: a full-width rule, which draws identically for all six destinations on 
 parted slot, which re-lays out the document below the seam on every pointer move and has to put it
 all back when the drag is cancelled.
 
-The absorbed region is the one element the mockup does not yet draw, so how much of it to mark —
-the whole span, its first row, or a count — is carried as an open question rather than settled
-here. That it is marked at all is not open: it is the difference between a preview that states the
-result and one that states half of it.
+How much of the absorbed region to mark was carried as an open question until the mockup drew it
+five ways (panel 4). Settled: the absorbed rows are drawn one level in, under the ghost, with the
+guide that will connect them, and no tint — the result shown as the result. A tint over the whole
+span is half a page of colour on a long section, and the move already says it. It is the one part
+of the preview that moves rows before the release, sideways and only those, so a wrapped row can
+change height; what to accent on those rows, if anything, is left to adjust once it is in hand.
 
 ### D9. The drop is one operation in the algebra
 

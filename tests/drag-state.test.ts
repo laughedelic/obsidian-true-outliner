@@ -16,6 +16,7 @@ function fresh(): EditorState {
 const preview = (over: Partial<DragPreview['destination']> = {}, seamLine = 4): DragPreview => ({
   seamLine,
   destination: { parentId: 'root', index: 1, depth: 0, firstLine: '- one', ...over },
+  lineOffset: 0,
 });
 
 describe('the drag preview field', () => {

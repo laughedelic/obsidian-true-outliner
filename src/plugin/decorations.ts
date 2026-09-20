@@ -126,7 +126,14 @@ import { foldedChrome } from './fold-service';
 import { foldableEntries } from './fold-model';
 import { guideHoverField, type GuideHover } from './guide-hover';
 import { dragPreviewField } from './drag-state';
-import { ghostMark, ghostMarkLeftExpr, seamIndicator, seamLayer, type SeamIndicator } from './drag-preview';
+import {
+  absorbedRows,
+  ghostMark,
+  ghostMarkLeftExpr,
+  seamIndicator,
+  seamLayer,
+  type SeamIndicator,
+} from './drag-preview';
 import { toggleFoldAtLine } from './fold-commands';
 import {
   markerShapes,
@@ -1416,10 +1423,13 @@ function renderInputs(state: EditorState, modes: DecorationSource): RenderInputs
   // Where a drag in flight would land. Read here with the rest of the inputs
   // so the indicator is painted by the same pass as everything else on the
   // grid, rather than positioned over it (design D10).
-  const seam = seamIndicator(
-    state.field(dragPreviewField, false) ?? null,
-    new Set(facts.factsByLine.keys()),
-  );
+  const preview = state.field(dragPreviewField, false) ?? null;
+  const seam = seamIndicator(preview, new Set(facts.factsByLine.keys()));
+  // The rows an absorbing drop would take, drawn one level in under the ghost
+  // for the drag's duration: their facts one deeper, so every depth rule
+  // moves them as one, and the destination's own guide added so the column
+  // that will connect them is drawn.
+  const absorbed = absorbedRows(preview, preview?.lineOffset ?? 0);
   const markerAccent = modes.markerHighlight !== 'off';
   // Two lookups from one pass: a folded node's treatment belongs on the line
   // its marker is on, and the count of what it hides belongs after its own
@@ -1442,8 +1452,21 @@ function renderInputs(state: EditorState, modes: DecorationSource): RenderInputs
   const lines: LineRender[] = [];
   for (const guide of facts.guides) {
     const lineNumber = guide.lineNumber;
-    const fact = facts.factsByLine.get(lineNumber);
-    const depths = drawnGuideDepths(guide, visibility);
+    const taken = absorbed !== null && lineNumber >= absorbed.from && lineNumber < absorbed.to;
+    const own = facts.factsByLine.get(lineNumber);
+    const fact =
+      own && taken
+        ? {
+            ...own,
+            depth: own.depth + 1,
+            supplementalDepth: own.supplementalDepth + 1,
+          }
+        : own;
+    const drawn = drawnGuideDepths(guide, visibility);
+    const depths =
+      taken && !drawn.includes(absorbed.depth - 1)
+        ? [...drawn, absorbed.depth - 1].sort((a, b) => a - b)
+        : drawn;
     // The indicator FIRST, so it draws over the guides rather than under
     // them: it is the one thing on the row the reader is looking for. A row
     // that draws no guide still gets the overlay when it carries the seam —

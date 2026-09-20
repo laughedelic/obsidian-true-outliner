@@ -557,6 +557,46 @@ describe('node dragging: the press and the drag it can become', function () {
     await browser.pause(200);
   });
 
+  it('draws the rows an absorbing drop would take one level in', async function () {
+    // `## Move me` held after `intro` opens a section over `details`, `more
+    // details` and `- a list`, and not over `## Next`, which can stand beside
+    // it. Those three rows are drawn one column in for the drag's duration —
+    // the result shown as the result — and the fourth stays put. Read off the
+    // depth the depth rules see on each row, which is what moves it.
+    //
+    // Negative control: taking the region from the anchor alone marks
+    // nothing, since the anchor's own row is not among the absorbed.
+    const ABSORBING = ['# Section', '', 'intro', '', 'details', '', 'more details', '', '- a list', '', '## Next', '', 'body', '', '## Move me', '', 'its body', ''].join('\n');
+    await h.setBuffer(ABSORBING);
+    await browser.pause(250);
+    await h.setCursorSettled(0, 0);
+    // Marker icons, in document order: Section(0) intro(1) details(2) more
+    // details(3) Next(4) body(5) Move me(6) its body(7).
+    const mark = await markPoint('.to-decor-marker-icon', 6);
+    const intro = await markPoint('.to-decor-marker-icon', 1);
+    const details = await markPoint('.to-decor-marker-icon', 2);
+    const column = await columnOfMark('.to-decor-marker-icon', 1, 'centre'); // depth 1
+    const y = (intro.y + details.y) / 2;
+    await startRecording();
+    await dragThenEscape(mark, [
+      { x: mark.x + 20, y: mark.y - 10 },
+      { x: column, y },
+      { x: column + 1, y },
+    ]);
+    await browser.pause(250);
+    const held = (await recorded()).filter((s) => s.preview?.depth === 1);
+    expect(held.length).toBeGreaterThan(0);
+    const at = held[held.length - 1]!.rowDepths;
+    // The absorbed three, each one deeper than its own depth — the list is a
+    // child of the paragraph before it, so it starts at 2; `## Next` and the
+    // anchor `intro` where they were.
+    expect([at[4], at[6], at[8]]).toEqual([2, 2, 3]);
+    expect([at[2], at[10]]).toEqual([1, 1]);
+    expect(await h.getBuffer()).toBe(ABSORBING);
+    await h.setBuffer(DOC);
+    await browser.pause(200);
+  });
+
   it('drops the run where the preview named it', async function () {
     await dropOneBeforeThree();
     expect(await h.getBuffer()).toBe(AFTER_DROP);

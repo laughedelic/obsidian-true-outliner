@@ -61,6 +61,9 @@ export interface MoveSample {
     /** The mark's own centre, in viewport x — comparable with `columnOfMark`. */
     readonly x: number;
   } | null;
+  /** Each decorated row's depth as the depth rules see it at that move — the
+   * value an absorbed row is drawn one deeper by — keyed by line. */
+  readonly rowDepths: Readonly<Record<number, number>>;
   /** Where the drag would land at that move, as the gesture itself resolved
    * it — `null` before a destination is named, and after one is dropped. */
   readonly preview: {
@@ -224,11 +227,23 @@ export function startRecording(): Promise<void> {
             x: ghostEl.getBoundingClientRect().left + ghostEl.getBoundingClientRect().width / 2,
           }
         : null;
+      const rowDepths: Record<number, number> = {};
+      for (const el of Array.from(dom.querySelectorAll('.cm-content > .cm-line'))) {
+        const cs = getComputedStyle(el);
+        const depth = cs.getPropertyValue('--to-depth') || cs.getPropertyValue('--to-supp-depth');
+        if (depth === '') continue;
+        try {
+          rowDepths[cm.state.doc.lineAt(cm.posAtDOM(el)).number - 1] = Number(depth);
+        } catch {
+          // A row the view has already moved past.
+        }
+      }
       w.__toDragSamples.push({
         x: event.clientX,
         y: event.clientY,
         indicator,
         ghost,
+        rowDepths,
         buttons: event.buttons,
         inside:
           event.clientX >= r.left &&

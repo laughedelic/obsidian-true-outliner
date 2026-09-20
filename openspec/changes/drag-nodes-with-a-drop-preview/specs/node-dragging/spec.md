@@ -262,15 +262,19 @@ The preview SHALL state three things:
   section landing in a list — SHALL show the kind it will have, never the kind it has in flight.
 - **What the drop will take with it**: where the destination would ABSORB content that is not part
   of the run — a dropped heading opening a section over the anchor's following siblings — the
-  absorbed region SHALL be marked. Those rows change parent without moving, so nothing at the seam
-  would otherwise say they were involved, and a preview that states only the landing place states
-  half the result.
+  absorbed rows SHALL be drawn one level in, under the ghost mark, with the guide that will connect
+  them, and nothing else: the result shown as the result. Those rows change parent without moving,
+  so nothing at the seam would otherwise say they were involved, and a preview that states only the
+  landing place states half the result. No tint marks them; on a long section a tint is half a
+  page of colour, and the move already says it.
 
 The destination's PARENT SHALL additionally be distinguished, so the parent is named rather than
 counted out of columns.
 
 The rows in flight SHALL be drawn as lifted for the duration of the drag, and the document SHALL
-NOT move until the release: nothing the drag shows is a document change.
+NOT move until the release: nothing the drag shows is a document change. The absorbed rows' shift
+is the one thing the preview moves, sideways and only those rows; their text, order and lines are
+untouched.
 
 The preview SHALL be derived state only. It SHALL NOT dispatch a document change, alter the
 selection, or persist anything.
@@ -292,8 +296,9 @@ selection, or persist anything.
 #### Scenario: An absorbing drop says what it will absorb
 - **WHEN** a heading-rooted run is held over a destination whose following siblings the dropped
   heading's section would take in
-- **THEN** that region is marked as well as the landing place, and the marking ends where the
-  absorption ends
+- **THEN** those rows are drawn one level in under the ghost mark, as well as the landing place,
+  and the shift ends where the absorption ends — the next heading that can stand beside the
+  dropped one keeps its place
 
 #### Scenario: A drop that absorbs nothing marks nothing extra
 - **WHEN** a run that opens no section is held over any destination

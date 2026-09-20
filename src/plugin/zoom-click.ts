@@ -362,6 +362,7 @@ class ZoomClickPlugin implements PluginValue {
     return {
       seamLine: resolved.seam.line + (scope ? scope.startLine : 0),
       destination: resolved.destination,
+      lineOffset: scope ? scope.startLine : 0,
     };
   }
 

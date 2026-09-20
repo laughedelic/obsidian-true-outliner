@@ -95,6 +95,31 @@ export function ghostMarkLeftExpr(depth: number): string {
   return markerAnchorLeftExpr(`calc(${columnExpr(depth)} - var(--to-own-shift, 0px))`);
 }
 
+/**
+ * The rows a drop would take into the run, in the SOURCE's line space, and the
+ * depth they would then sit at — one level inside the destination. Empty where
+ * the destination absorbs nothing.
+ *
+ * Those rows are drawn one column in for the drag's duration, under the ghost
+ * mark, with the guide that will connect them: the result shown as the result,
+ * rather than a region marked and left to be explained. It is the one part of
+ * the preview that moves rows before the release — horizontally, and only
+ * these — which `node-dragging` states beside its rule that the document does
+ * not.
+ */
+export function absorbedRows(
+  preview: DragPreview | null,
+  lineOffset: number,
+): { readonly from: number; readonly to: number; readonly depth: number } | null {
+  const absorbs = preview?.destination.absorbs;
+  if (!absorbs) return null;
+  return {
+    from: absorbs.from + lineOffset,
+    to: absorbs.to + lineOffset,
+    depth: preview!.destination.depth + 1,
+  };
+}
+
 /** The indicator's colour and thickness; `90-dragging.css` declares both. */
 const DROP_COLOR = 'var(--to-drop-color)';
 const DROP_WIDTH = 'var(--to-drop-width)';

@@ -31,6 +31,9 @@ export interface DragPreview {
    * reads one line space. */
   readonly seamLine: number;
   readonly destination: DropDestination;
+  /** What maps the destination's own line spans — its absorbed rows — into
+   * the source: the zoom root's line, or 0. The seam is already mapped. */
+  readonly lineOffset: number;
 }
 
 export const setDragPreview = StateEffect.define<DragPreview | null>();

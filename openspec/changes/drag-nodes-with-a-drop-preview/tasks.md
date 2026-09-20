@@ -162,7 +162,7 @@
       resolution the release uses (design D7) — verify a heading section dragged into a list
       previews a list mark; negative control: drawing the operand's current kind previews a
       heading glyph and fails
-- [ ] 4.4 Mark the region an absorbing drop would take in, ending where the absorption ends, and
+- [x] 4.4 Mark the region an absorbing drop would take in, ending where the absorption ends, and
       distinguishably from the lifted run and the destination accent — verify against a heading
       drop whose section reaches three following siblings but not a fourth; negative control:
       taking the region from the anchor alone marks nothing and fails. Settle the treatment against
