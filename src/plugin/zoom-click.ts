@@ -56,8 +56,9 @@ import {
   resolveDestination,
   startLineOf,
   type DropDestination,
+  type DropSeam,
 } from '../drop-destinations';
-import { dragGeometry } from './drag-geometry';
+import { dragGeometry, measureUnit } from './drag-geometry';
 import {
   dragLiftField,
   dragPreviewField,
@@ -133,6 +134,40 @@ const TRAILING_EVENTS = ['mousedown', 'mouseup', 'click'] as const;
  */
 const DRAG_THRESHOLD_PX = 4;
 
+/**
+ * How long a touch rests on a mark before it is a drag (design D12). A touch
+ * drag and a scroll are the same gesture until something separates them, and
+ * the dwell is what every touch outliner separates them with: a touch that
+ * moves before it is up is a scroll, and the press is let go.
+ */
+const TOUCH_DWELL_MS = 350;
+
+/**
+ * Autoscroll (design D13): the band inside the scroller's top and bottom edges
+ * where a held pointer scrolls, and the most it scrolls per second — reached at
+ * the band's outer edge and beyond, so the rate is the pointer's distance past
+ * the edge and not a fixed step. Per second and not per frame: a frame that
+ * scrolls onto a new seam dispatches a preview, and a rate stated per frame
+ * would slow down exactly where the view has the most to redraw.
+ */
+const AUTOSCROLL_BAND_PX = 40;
+const AUTOSCROLL_MAX_PX_PER_SECOND = 1440;
+/** The longest a single frame is credited with, so a stalled frame does not
+ * become a jump when the next one arrives. */
+const AUTOSCROLL_MAX_FRAME_MS = 100;
+
+/** What one press resolves its destinations against, held for its duration. */
+interface PressSeams {
+  readonly list: readonly DropSeam[];
+  /** The tree the seams were read from: the zoom scope's own re-rooted
+   * document, or the press's tree. */
+  readonly tree: OutlineDoc;
+  /** The scope's first line, which maps the tree's lines back to the source. */
+  readonly lineOffset: number;
+  /** One depth step in CSS pixels, measured with the seams. */
+  readonly unit: number | null;
+}
+
 /** A press on a mark, from its arrival until the button comes up. */
 interface MarkPress {
   readonly pointerId: number;
@@ -144,6 +179,10 @@ interface MarkPress {
   /** Set once the press has moved past the threshold, and never unset: a
    * gesture that wanders and comes back is still a drag. */
   dragging: boolean;
+  /** A touch press becomes a drag by resting, not by moving (D12). */
+  readonly touch: boolean;
+  /** The dwell timer of a touch press, until it fires or the press ends. */
+  dwell: number | undefined;
   /** Whether a release in place zooms. False for a task's checkbox, whose
    * press was never taken from it. */
   readonly zooms: boolean;
@@ -158,6 +197,11 @@ interface MarkPress {
    * grammar`). Read before the collapse, which is a selection dispatch with no
    * `userEvent` and so destroys the record. */
   placeLine: number | undefined;
+  /** The seams this drag can land on, read once: the tree they are read from
+   * is the press's own, the folds cannot change while a button is held, and
+   * the zoom scope is a function of that tree. Reading them again on every
+   * move was, on a long note, the whole cost of a move. */
+  seams: PressSeams | undefined;
   /** The selection as it was BEFORE the drag collapsed it — what a cancel
    * puts back. The collapse belongs to the drag, so undoing the drag undoes
    * the collapse with it. */
@@ -175,6 +219,9 @@ class ZoomClickPlugin implements PluginValue {
    * view rebuilds under it — the fold a press makes replaces the very lines
    * the band was on, and left the guide dark until the pointer moved. */
   private lastPointer: { x: number; y: number; target: EventTarget | null } | null = null;
+  /** The autoscroll in progress: its frame request, the pointer it reads, and
+   * when its last frame ran. */
+  private autoscroll: { frame: number; pointer: { x: number; y: number }; last: number } | null = null;
   /** This view's OWN `Element`, not the module's global — see the module
    * comment on pop-out windows. Read once: a live view's DOM does not move to
    * a different window without being torn down and rebuilt. */
@@ -314,6 +361,12 @@ class ZoomClickPlugin implements PluginValue {
       const dx = event.clientX - press.startX;
       const dy = event.clientY - press.startY;
       if (Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
+      // A touch that moves before its dwell is up is a scroll, and the press
+      // is let go so the platform's own reading of the movement stands.
+      if (press.touch) {
+        this.cancelPress();
+        return;
+      }
       press.dragging = true;
       this.beginDrag(press);
       // Not on this move. Collapsing to a cover puts the covered rows into
@@ -323,6 +376,70 @@ class ZoomClickPlugin implements PluginValue {
       return;
     }
     this.previewDrop(press, event.clientX, event.clientY);
+    this.trackAutoscroll(press, event.clientX, event.clientY);
+  }
+
+  /**
+   * Autoscroll while the pointer is held within the band at the scroller's
+   * edges (design D13). The scroller scrolls, and nothing else moves: the seam
+   * geometry is re-read against the scrolled view on every frame, so the
+   * preview follows the document under the resting pointer. The rate is the
+   * pointer's distance past the band's inner edge, so a pointer that is barely
+   * in the band creeps and one past the edge moves at the full rate.
+   */
+  private trackAutoscroll(press: MarkPress, x: number, y: number): void {
+    const rate = this.autoscrollRate(y);
+    if (rate === 0) {
+      this.stopAutoscroll();
+      return;
+    }
+    const pointer = { x, y };
+    if (this.autoscroll) {
+      this.autoscroll.pointer = pointer;
+      return;
+    }
+    const win = this.view.dom.ownerDocument.defaultView ?? window;
+    const step = (now: number): void => {
+      const running = this.autoscroll;
+      if (!running || this.press !== press) return;
+      const elapsed = Math.min(now - running.last, AUTOSCROLL_MAX_FRAME_MS);
+      running.last = now;
+      const perSecond = this.autoscrollRate(running.pointer.y);
+      const scroller = this.view.scrollDOM;
+      const before = scroller.scrollTop;
+      scroller.scrollTop = before + (perSecond * elapsed) / 1000;
+      // At the scroller's limit nothing moves, and a frame loop that keeps
+      // asking is a frame loop for nothing.
+      if (perSecond === 0 || (elapsed > 0 && scroller.scrollTop === before)) {
+        this.stopAutoscroll();
+        return;
+      }
+      this.previewDrop(press, running.pointer.x, running.pointer.y);
+      running.frame = win.requestAnimationFrame(step);
+    };
+    this.autoscroll = { frame: win.requestAnimationFrame(step), pointer, last: win.performance.now() };
+  }
+
+  /** Pixels per second for a pointer at viewport `y`: negative above, positive
+   * below, zero outside both bands. */
+  private autoscrollRate(y: number): number {
+    const rect = this.view.scrollDOM.getBoundingClientRect();
+    const past =
+      y < rect.top + AUTOSCROLL_BAND_PX
+        ? -(rect.top + AUTOSCROLL_BAND_PX - y)
+        : y > rect.bottom - AUTOSCROLL_BAND_PX
+          ? y - (rect.bottom - AUTOSCROLL_BAND_PX)
+          : 0;
+    if (past === 0) return 0;
+    const fraction = Math.min(Math.abs(past), AUTOSCROLL_BAND_PX) / AUTOSCROLL_BAND_PX;
+    return Math.sign(past) * fraction * AUTOSCROLL_MAX_PX_PER_SECOND;
+  }
+
+  private stopAutoscroll(): void {
+    if (!this.autoscroll) return;
+    const win = this.view.dom.ownerDocument.defaultView ?? window;
+    win.cancelAnimationFrame(this.autoscroll.frame);
+    this.autoscroll = null;
   }
 
   /**
@@ -342,6 +459,30 @@ class ZoomClickPlugin implements PluginValue {
   }
 
   private resolveDrop(press: MarkPress, x: number, y: number): DragPreview | null {
+    const seams = this.seamsFor(press);
+    if (!seams) return null;
+    // The geometry is the move's: the scroller may have moved under a resting
+    // pointer, and a seam's y is read against the view as it is now.
+    const geometry = dragGeometry(this.view, seams.list, seams.lineOffset, seams.unit);
+    if (!geometry) return null;
+    const resolved = resolveDestination(seams.list, geometry, { x, y });
+    if (!resolved) return null;
+    // Back into the SOURCE's line space, which is the one every consumer of
+    // this state reads.
+    const offset = seams.lineOffset;
+    const parent = resolved.destination.parentId;
+    const parentLine = parent === 'root' ? undefined : startLineOf(seams.tree, parent);
+    return {
+      seamLine: resolved.seam.line + offset,
+      destination: resolved.destination,
+      parentLine: parentLine === undefined ? null : parentLine + offset,
+      lineOffset: offset,
+    };
+  }
+
+  /** The press's seams, read on the first move that asks and held after. */
+  private seamsFor(press: MarkPress): PressSeams | null {
+    if (press.seams) return press.seams;
     if (!press.groups || !press.tree) return null;
     // Under a zoom the seams are resolved against the scope's OWN re-rooted
     // document, so no destination outside the scope exists to be offered in
@@ -357,7 +498,7 @@ class ZoomClickPlugin implements PluginValue {
     }
     if (roots.length !== wanted.size) return null;
 
-    const seams = dropSeams(tree, roots, {
+    const list = dropSeams(tree, roots, {
       folded: foldedIds(this.view, tree),
       // The gesture holds the view, so it reads the editor's live unit where
       // the command path has to fall back to a default.
@@ -367,21 +508,8 @@ class ZoomClickPlugin implements PluginValue {
       // there leaves the view it was dragged in.
       scoped: scope !== null,
     });
-    const geometry = dragGeometry(this.view, seams, scope ? scope.startLine : 0);
-    if (!geometry) return null;
-    const resolved = resolveDestination(seams, geometry, { x, y });
-    if (!resolved) return null;
-    // Back into the SOURCE's line space, which is the one every consumer of
-    // this state reads.
-    const offset = scope ? scope.startLine : 0;
-    const parent = resolved.destination.parentId;
-    const parentLine = parent === 'root' ? undefined : startLineOf(tree, parent);
-    return {
-      seamLine: resolved.seam.line + offset,
-      destination: resolved.destination,
-      parentLine: parentLine === undefined ? null : parentLine + offset,
-      lineOffset: offset,
-    };
+    press.seams = { list, tree, lineOffset: scope ? scope.startLine : 0, unit: measureUnit(this.view) };
+    return press.seams;
   }
 
   /**
@@ -484,6 +612,8 @@ class ZoomClickPlugin implements PluginValue {
     const press = this.press;
     if (!press || event.pointerId !== press.pointerId) return;
     this.press = null;
+    this.clearDwell(press);
+    this.stopAutoscroll();
     this.releaseCapture(press.pointerId);
     this.view.dom.ownerDocument.removeEventListener('keydown', this.onKeyDown, true);
     if (press.dragging) {
@@ -593,6 +723,8 @@ class ZoomClickPlugin implements PluginValue {
 
   /** What every cancel does once the press has been let go of. */
   private endPress(press: MarkPress): void {
+    this.clearDwell(press);
+    this.stopAutoscroll();
     this.releaseCapture(press.pointerId);
     this.view.dom.ownerDocument.removeEventListener('keydown', this.onKeyDown, true);
     this.clearPreview();
@@ -842,12 +974,16 @@ class ZoomClickPlugin implements PluginValue {
       startY: event.clientY,
       mark: checkbox,
       dragging: false,
+      touch: event.pointerType === 'touch',
+      dwell: undefined,
       zooms: false,
       groups: undefined,
       tree: undefined,
       placeLine: undefined,
+      seams: undefined,
       selectionBefore: undefined,
     };
+    this.armDwell(this.press);
     return true;
   }
 
@@ -926,12 +1062,37 @@ class ZoomClickPlugin implements PluginValue {
       startY: event.clientY,
       mark,
       dragging: false,
+      touch: event.pointerType === 'touch',
+      dwell: undefined,
       zooms: true,
       groups: undefined,
       tree: undefined,
       placeLine: undefined,
+      seams: undefined,
       selectionBefore: undefined,
     };
+    this.armDwell(this.press);
+  }
+
+  /**
+   * A touch press becomes a drag by resting on the mark for the dwell, with
+   * the pointer still down and not yet moved. A mouse press is untouched by
+   * this: its drag begins on movement, as `trackPress` says.
+   */
+  private armDwell(press: MarkPress): void {
+    if (!press.touch) return;
+    press.dwell = window.setTimeout(() => {
+      press.dwell = undefined;
+      if (this.press !== press || press.dragging) return;
+      press.dragging = true;
+      this.beginDrag(press);
+    }, TOUCH_DWELL_MS);
+  }
+
+  private clearDwell(press: MarkPress): void {
+    if (press.dwell === undefined) return;
+    window.clearTimeout(press.dwell);
+    press.dwell = undefined;
   }
 }
 

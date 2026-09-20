@@ -23,8 +23,12 @@ import type { DropSeam, PointerGeometry } from '../drop-destinations';
 const UNIT_PROBE_CLASS = 'to-drag-unit-probe';
 
 /** The width of one depth step, in CSS pixels, or `null` where it cannot be
- * resolved — a view being torn down under the measurement. */
-function measureUnit(view: EditorView): number | null {
+ * resolved — a view being torn down under the measurement.
+ *
+ * Measured once per press and handed to `dragGeometry` after: the probe is a
+ * DOM insertion into the editor root and a forced layout, and the unit cannot
+ * change while a button is held. */
+export function measureUnit(view: EditorView): number | null {
   const probe = createDiv({ cls: UNIT_PROBE_CLASS });
   // Safe DOM insertion (see the no-restricted-syntax guard in
   // eslint.config.js, hardening 5.2): the editor ROOT, never a line and never
@@ -49,8 +53,8 @@ export function dragGeometry(
   view: EditorView,
   seams: readonly DropSeam[],
   lineOffset = 0,
+  unit: number | null = measureUnit(view),
 ): PointerGeometry | null {
-  const unit = measureUnit(view);
   if (unit === null || seams.length === 0) return null;
   const content = view.contentDOM.getBoundingClientRect();
   const origin = content.left + parseFloat(getComputedStyle(view.contentDOM).paddingLeft || '0');

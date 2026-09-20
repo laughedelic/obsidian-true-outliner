@@ -186,15 +186,17 @@
 
 ## 5. Touch, autoscroll, and the edges
 
-- [ ] 5.1 Start a touch drag on a dwell rather than on movement alone (design D12) — verify in the
-      mobile-emulation run as far as it can be driven, and record what it could not drive
-- [ ] 5.2 Autoscroll while the pointer is held within the band at the scroller's edges, at a rate
+- [x] 5.1 Start a touch drag on a dwell rather than on movement alone (design D12) — verify in the
+      mobile-emulation run as far as it can be driven, and record what it could not drive. (Driven
+      with pointer events synthesised in the page, on both runs; what a finger reaches is the
+      device pass, per docs/research/node-drag-and-drop section 8.)
+- [x] 5.2 Autoscroll while the pointer is held within the band at the scroller's edges, at a rate
       taken from the distance past the edge (design D13) — verify a destination initially off
       screen becomes reachable without releasing, and that a cancelled autoscrolled drag leaves
       the buffer byte-identical; negative control: scrolling by a fixed step regardless of
       distance past the edge makes the rate independent of the pointer, which the test reads from
       two different overshoots
-- [ ] 5.3 Verify the latency of a preview dispatch against the existing budget on a stress note,
+- [x] 5.3 Verify the latency of a preview dispatch against the existing budget on a stress note,
       recording the figures — the gate pass did not time this
       (docs/research/node-drag-and-drop section 8); negative control: removing 4.1's
       dispatch-on-change guard puts one transaction per pointer sample through the same note,

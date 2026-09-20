@@ -30,6 +30,14 @@ export interface MoveSample {
   /** The pointer's id, which a synthetic `pointercancel` has to carry to be
    * taken for the pointer the press belongs to. */
   readonly pointerId: number;
+  /** The scroller's `scrollTop` at that move. */
+  readonly scrollTop: number;
+  /** How long the page took to finish handling this move, in ms: from the
+   * capture-phase sample to a bubble-phase listener registered after the
+   * plugin's own, so the plugin's handling — the resolution, the preview
+   * dispatch and the decoration rebuild it runs synchronously — is inside
+   * the interval. -1 until the bubble listener has run. */
+  readonly cost: number;
   /** Whether the pointer was inside the editor's own box at that moment. */
   readonly inside: boolean;
   /** The selection as it stood at that move — what the drag has picked up,
@@ -182,6 +190,19 @@ export function editorBox(): Promise<{
   });
 }
 
+/** The SCROLLER's box, which the autoscroll bands are measured from — not the
+ * editor root's, whose bottom edge sits below the scroller's. */
+export function scrollerBox(): Promise<{ left: number; top: number; right: number; bottom: number }> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    if (!view) throw new Error('no active markdown view');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cm = (view.editor as any).cm;
+    const r = (cm.scrollDOM as HTMLElement).getBoundingClientRect();
+    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+  });
+}
+
 /** Begin sampling the moves that reach the gesture, discarding any earlier run. */
 export function startRecording(): Promise<void> {
   return browser.executeObsidian(({ app, obsidian }) => {
@@ -193,7 +214,31 @@ export function startRecording(): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const w = window as any;
     if (w.__toDragRecorder) dom.removeEventListener('pointermove', w.__toDragRecorder, true);
+    if (w.__toDragAfter) dom.removeEventListener('pointermove', w.__toDragAfter);
+    if (w.__toScrollTimer) clearInterval(w.__toScrollTimer);
     w.__toDragSamples = [];
+    w.__toScrollSamples = [];
+    // The scroller's position over TIME, not per move, with the seam the
+    // preview names at that moment: an autoscroll runs while the pointer holds
+    // still, when no move arrives to sample on.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const plugin = (app as any).plugins?.plugins?.['true-outliner'];
+    w.__toScrollTimer = setInterval(() => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+      const preview = plugin?.activeDragPreview?.() ?? null;
+      w.__toScrollSamples.push({
+        t: performance.now(),
+        scrollTop: cm.scrollDOM.scrollTop,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        seamLine: preview ? (preview.seamLine as number) : null,
+      });
+    }, 16);
+    let started = 0;
+    w.__toDragAfter = () => {
+      const samples = w.__toDragSamples as { cost: number }[];
+      const last = samples[samples.length - 1];
+      if (last) last.cost = performance.now() - started;
+    };
     w.__toDragRecorder = (event: PointerEvent) => {
       const r = dom.getBoundingClientRect();
       const main = cm.state.selection.main;
@@ -298,6 +343,8 @@ export function startRecording(): Promise<void> {
         x: event.clientX,
         y: event.clientY,
         pointerId: event.pointerId,
+        scrollTop: cm.scrollDOM.scrollTop,
+        cost: -1,
         indicator,
         ghost,
         rowDepths,
@@ -329,9 +376,95 @@ export function startRecording(): Promise<void> {
             }
           : null,
       });
+      // The clock starts once the sampler's own reading is done, so what the
+      // bubble listener measures is the handling between — the plugin's.
+      started = performance.now();
     };
     dom.addEventListener('pointermove', w.__toDragRecorder, true);
+    // Bubble phase, registered after the plugin's own bubble listener on this
+    // same element, so it runs once the plugin has finished with the move.
+    dom.addEventListener('pointermove', w.__toDragAfter);
   });
+}
+
+/**
+ * One pointer event, synthesised in the page on whatever is under the point —
+ * the way `80-outline-zoom.e2e.ts` drives a mark press, and the only way a
+ * TOUCH press can be driven at all: the harness has no coordinate-addressable
+ * touch (docs/research/node-drag-and-drop section 2). What it proves is the
+ * handler's answer to the event, not the platform's hit-testing.
+ */
+export function syntheticPointer(
+  type: 'pointerdown' | 'pointermove' | 'pointerup',
+  at: Point,
+  pointerType: 'touch' | 'mouse',
+  pointerId = 7,
+): Promise<void> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, type, x, y, pointerType, pointerId) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cm = (view.editor as any).cm;
+      const dom = cm.dom as HTMLElement;
+      const target = (dom.ownerDocument.elementFromPoint(x, y) as HTMLElement | null) ?? dom;
+      target.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          clientX: x,
+          clientY: y,
+          button: 0,
+          buttons: type === 'pointerup' ? 0 : 1,
+          pointerId,
+          pointerType,
+          isPrimary: true,
+        }),
+      );
+    },
+    type,
+    Math.round(at.x),
+    Math.round(at.y),
+    pointerType,
+    pointerId,
+  );
+}
+
+/** The scroller's position over time, oldest first, since `startRecording`,
+ * with the seam the preview named at each reading. */
+export function recordedScroll(): Promise<{ t: number; scrollTop: number; seamLine: number | null }[]> {
+  return browser.executeObsidian(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
+    return (w.__toScrollSamples ?? []) as { t: number; scrollTop: number; seamLine: number | null }[];
+  });
+}
+
+/** A pointer step: a move to a point, or a hold of so many milliseconds. */
+export type DragStep = Point | { readonly holdMs: number };
+
+/**
+ * A drag through moves and holds, cancelled by Escape while the button is still
+ * down — `dragThenEscape` with holds among the moves. Ticks are shared across
+ * the two sources, so a hold on the pointer is a tick the key source waits
+ * through as well; the Escape lands in the tick after the last step.
+ */
+export async function dragStepsThenEscape(from: Point, steps: readonly DragStep[]): Promise<void> {
+  let pointer = browser
+    .action('pointer', { parameters: { pointerType: 'mouse' } })
+    .move({ x: Math.round(from.x), y: Math.round(from.y), origin: 'viewport' })
+    .down({ button: 0 });
+  for (const step of steps) {
+    pointer =
+      'holdMs' in step
+        ? pointer.pause(step.holdMs)
+        : pointer.move({ x: Math.round(step.x), y: Math.round(step.y), origin: 'viewport' });
+  }
+  const keys = browser.action('key');
+  for (let i = 0; i < steps.length + 2; i++) keys.pause(20);
+  keys.down(Key.Escape).up(Key.Escape);
+  await browser.actions([pointer, keys]);
 }
 
 /**

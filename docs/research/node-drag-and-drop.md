@@ -355,6 +355,46 @@ heading. Where the row above the seam is a heading, or the row below is an atom,
 takes the middle of the gap line between the two rows — the seam's own room — and the row above's
 bottom only where no gap line separates them.
 
+## 6f. What a move costs on a long note
+
+The open question in section 8 — the cost of a preview per pointer move, never timed — is closed
+here, on the note the classification and enforcement budgets are measured on: 400 `##` sections
+with a paragraph each, about 2000 lines. A heading is dragged down the view in 6px steps, 71 moves
+with the button down, crossing eight seams; the same path is driven first with no button down, as
+the baseline. What a move costs is read from inside the page as the interval from the recorder's
+capture-phase sample on the editor root to a bubble-phase listener registered after the plugin's
+own, so the plugin's handling of the move is inside it and the recorder's own work is not — after
+the first two runs, whose clock started before the recorder's sweep of the rows.
+
+| run | what a move read | recorder inside the clock | median | p95 | max |
+| --- | --- | --- | --- | --- | --- |
+| 1 | the seams and the unit, per move | yes | 282.1ms | 461.7ms | 736.8ms |
+| 2 | the seams once per press; the unit per move | yes | 249.5ms | 682.4ms | 696.0ms |
+| 3 | as 2 | no | 131.4ms | — | — |
+| 4 | the seams and the unit once per press | no | 0.60ms | 93.7ms | 318.4ms |
+| — | baseline: the same path, no button down | no | 0.20ms | 80.0ms | 213.8ms |
+
+Eight dispatches in the 71 moves, in every run: the guard against a transaction per sample holds,
+and the moves that stay on one seam dispatch nothing.
+
+Three costs, taken apart by the differences. Re-reading the seams on every move — every place at
+every seam re-encoded through the algebra's own call — was about 30ms of it here (1 → 2). The unit
+probe was the bulk: an element appended to the editor root and measured forces a layout, and its
+removal invalidates one, on every move (3 → 4). The recorder's own sweep, `getComputedStyle` on
+every rendered row, was some 120ms of what the first two runs reported (2 → 3), and is no part of
+the gesture. With both readings held for the press, what the gesture adds to a typical move is
+0.4ms over the page's own 0.2ms. The tails are the dispatches: at eight in 71 moves the p95 is one,
+and a dispatch on this note is the decoration rebuild the note's size sets, in the same range as
+the page's own spikes on unpressed moves, which run the guide hover.
+
+The autoscroll loop measured the same cost from the other side before the fix. It re-resolves the
+preview once a frame, and at run 3's cost a frame took the page a tenth of a second: over two
+600ms holds at the scroller's bottom edge the scroller moved 18 → 54 → 134px and the seam under
+the resting pointer from line 23 to 29, where the rate asked for 6 and 20 pixels a frame. With the
+readings cached the same two holds covered 180 and 220px — still a fifth of the ratio asked for,
+because every frame that scrolls onto a new seam dispatches a preview, and the deep hold's frames
+were the slow ones. The rate is now stated per second and applied by each frame's elapsed time.
+
 ## 7. Where a drop can land: the seam and its depths
 
 Not a measurement — the model the sections above leave to be chosen, recorded here so the design
@@ -467,13 +507,14 @@ by predicting which operands absorb.
 
 - **Zoom on a task's mark.** Section 4 frees the checkbox's press for a drag, not its click. The
   affordance-budget entry's task question is untouched.
-- **The mobile gesture.** A touch drag on a mark and a scroll are the same gesture until something
-  discriminates them, and a long press is the usual discriminator. Nothing here measured one, and
-  section 2's harness note says the mobile run cannot drive a coordinate-aimed press at a mark at
-  all — so whatever is built there is a manual pass, as `content-space-caret`'s was.
-- **The cost of a preview per pointer move.** A transaction per move is what a native drag already
-  dispatches, and `guide-hover.ts` already dispatches one per hovered column, so the shape is not
-  new. It was not timed here against the enforcement funnel's budget.
+- **The mobile gesture's hit-testing.** The dwell is built (design D12): a touch that rests on a
+  mark for 350ms is a drag, and one that moves first is let go as the scroll it is. The e2e drives
+  both with pointer events synthesised in the page, on desktop and mobile alike, which proves the
+  handler's reading of a touch and nothing about whether a finger reaches a mark — section 2's
+  harness note still holds, and that half is the device pass.
+- ~~**The cost of a preview per pointer move.**~~ Measured in section 6f: 0.4ms over the page's own
+  cost of a move once the seams and the unit are read per press rather than per move, and a
+  dispatch only when the destination changes.
 - **Where the atom-parent guard belongs.** 7a measures the hole; whether it closes by moving the
   guard into the shared re-encode step, the way the paste layer moved the others, or by the
   candidate rule excluding a childless parent on its own, is not settled here.

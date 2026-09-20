@@ -44,6 +44,16 @@ and a scroll are the same gesture.
 - **THEN** that item's subtree is in flight, no text selection was drawn, and the caret has not
   moved
 
+#### Scenario: A touch that rests on a mark becomes a drag
+- **WHEN** a touch presses a bullet and rests there, unmoved, past the dwell
+- **THEN** that item's subtree is in flight, and lifting the touch over a destination drops it
+  there
+
+#### Scenario: A touch that moves before the dwell is a scroll
+- **WHEN** a touch presses a bullet and moves past the threshold before the dwell is up
+- **THEN** nothing is picked up, the movement is left to the platform's own scroll, and the release
+  neither drops nor zooms
+
 #### Scenario: A press that does not move still zooms
 - **WHEN** the user presses a heading's marker and releases without moving
 - **THEN** the view zooms to that heading, exactly as it did before this capability existed
@@ -457,6 +467,10 @@ scroll position.
 #### Scenario: Dragging to the edge scrolls
 - **WHEN** a run is dragged to within the band at the bottom of the view and held there
 - **THEN** the view scrolls, and destinations below come into reach
+
+#### Scenario: Further past the edge scrolls faster
+- **WHEN** a run is held barely inside the band, and then held nearly on the edge
+- **THEN** the view scrolls both times, and further over the second hold than the first
 
 #### Scenario: Autoscroll writes nothing
 - **WHEN** a drag has autoscrolled and is then cancelled

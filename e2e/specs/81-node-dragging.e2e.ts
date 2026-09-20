@@ -22,8 +22,12 @@ import {
   dragFrom,
   dragThenEscape,
   dragTraces,
+  dragStepsThenEscape,
   dragWithHold,
   interruptWhenPreviewing,
+  recordedScroll,
+  scrollerBox,
+  syntheticPointer,
   editorBox,
   markPoint,
   pointOf,
@@ -51,6 +55,27 @@ const TASKS = ['# Top', '', '- [ ] an open task', '- plain', ''].join('\n');
 
 /** The bullet of a top-level list item, by its position among rendered marks. */
 const BULLET = '.list-bullet';
+
+/*  0 | # Top
+    1 |
+    2 | - two
+    3 | - one
+    4 |   - nested
+    5 | - three
+    6 |                                                                      */
+const AFTER_DROP = ['# Top', '', '- two', '- one', '  - nested', '- three', ''].join('\n');
+
+/**
+ * A seam's own y, as a RELATION between the two marks it separates: halfway
+ * between their centres is the boundary between their rows, and the seams on
+ * either side are a whole row away. Taken from the marks rather than from a
+ * measured line top so the aim survives a layout that differs by theme,
+ * platform or heading size.
+ */
+async function seamBetween(above: number, below: number): Promise<number> {
+  const [top, bottom] = await Promise.all([markPoint(BULLET, above), markPoint(BULLET, below)]);
+  return (top.y + bottom.y) / 2;
+}
 
 /** A resolved background-image split into its layers — at the commas between
  * them, never at the ones inside a gradient's own colours and stops. */
@@ -445,6 +470,125 @@ describe('node dragging: the press and the drag it can become', function () {
     expect(await h.getBuffer()).toBe(DOC);
   });
 
+  it('autoscrolls while the pointer holds at the scroller\u2019s edge, faster the further past it', async function () {
+    // A note taller than the view. The pointer picks up the first item and
+    // rests in the band inside the scroller's bottom edge, twice: barely
+    // inside it, then nearly on the edge. The scroller moves both times, more
+    // the second — a fixed step regardless of distance would move it the same
+    // — and a destination that was off screen at the pick-up is named before
+    // the Escape, which then leaves the note as it was.
+    const LONG = ['# Long', '', ...Array.from({ length: 120 }, (_, i) => `- item ${i}`), ''].join('\n');
+    await h.setBuffer(LONG);
+    await browser.pause(300);
+    await h.setCursorSettled(0, 0);
+    // The band is the SCROLLER's; the editor root reaches below it.
+    const box = await scrollerBox();
+    const mark = await markPoint(BULLET, 0);
+    await startRecording();
+    await dragStepsThenEscape(mark, [
+      { x: mark.x + 20, y: mark.y + 10 },
+      { x: box.left + 40, y: box.bottom - 30 },
+      { holdMs: 600 },
+      { x: box.left + 40, y: box.bottom - 6 },
+      { holdMs: 600 },
+    ]);
+    await browser.pause(300);
+    const pressed = (await recorded()).filter((sample) => sample.buttons === 1);
+    // The move into the band, and the move deeper into it after the first
+    // hold: each carries the scroll position at that moment.
+    const shallow = pressed[1]!;
+    const deep = pressed[2]!;
+    const scroll = await recordedScroll();
+    // The furthest the scroller got WHILE the drag was alive: the cancel puts
+    // the selection back, and the view follows it up again.
+    const alive = scroll.filter((sample) => sample.seamLine !== null);
+    const finalTop = Math.max(...alive.map((sample) => sample.scrollTop));
+    const firstHold = deep.scrollTop - shallow.scrollTop;
+    const secondHold = finalTop - deep.scrollTop;
+    expect(firstHold).toBeGreaterThan(0);
+    expect(secondHold).toBeGreaterThan(firstHold * 1.5);
+    // Reached: a seam well below what the view showed at the pick-up — read
+    // from the timed samples, since the preview moves under a resting pointer
+    // and no move arrives to sample it on.
+    const named = scroll.map((sample) => sample.seamLine ?? -1);
+    expect(Math.max(...named)).toBeGreaterThan(30);
+    expect(await h.getBuffer()).toBe(LONG);
+    expect(await dragTraces()).toEqual({ lifted: 0, ghosts: 0, indicators: 0, preview: false });
+    await h.setBuffer(DOC);
+    await browser.pause(200);
+  });
+
+  it('keeps a preview dispatch within the enforcement budget on a stress note', async function () {
+    // ~2000 lines, the same shape the classification and enforcement budgets
+    // are measured on. A heading is dragged down the note in small steps, so
+    // most moves stay on one seam and a few cross to the next: what a move
+    // costs the page is read as the interval from the capture-phase sample to
+    // the bubble-phase listener registered after the plugin's own, which
+    // brackets the resolution, the preview dispatch and the rebuild it runs.
+    const lines: string[] = [];
+    for (let i = 0; i < 400; i++) {
+      lines.push(`## Section ${i}`, '', `Paragraph text for section ${i}, some words here.`, '');
+    }
+    const STRESS = lines.join('\n') + '\n';
+    await h.setBuffer(STRESS);
+    await browser.pause(500);
+    await h.setCursorSettled(0, 0);
+    const box = await editorBox();
+    // `## Section 1`: the marks alternate heading, paragraph, heading…
+    const mark = await markPoint('.to-decor-marker-icon', 2);
+    const path: { x: number; y: number }[] = [];
+    for (let y = mark.y + 20; y < box.bottom - 60; y += 6) path.push({ x: box.left + 30, y });
+    // The BASELINE first: the same path with no button down, which is what a
+    // move costs the page before this gesture has anything to do with it.
+    await startRecording();
+    let hover = browser.action('pointer', { parameters: { pointerType: 'mouse' } });
+    for (const point of path) hover = hover.move({ x: Math.round(point.x), y: Math.round(point.y), origin: 'viewport' });
+    await hover.perform();
+    await browser.pause(200);
+    const unpressed = (await recorded()).filter((sample) => sample.buttons === 0 && sample.cost >= 0);
+    await startRecording();
+    await dragThenEscape(mark, [{ x: mark.x + 20, y: mark.y + 10 }, ...path]);
+    await browser.pause(300);
+    const pressed = (await recorded()).filter((sample) => sample.buttons === 1 && sample.cost >= 0);
+    expect(unpressed.length).toBeGreaterThan(20);
+    expect(pressed.length).toBeGreaterThan(20);
+    const quantiles = (samples: { cost: number }[]) => {
+      const costs = samples.map((sample) => sample.cost).sort((a, b) => a - b);
+      const at = (q: number) => costs[Math.min(costs.length - 1, Math.floor(q * costs.length))]!;
+      return { median: at(0.5), p95: at(0.95), max: costs[costs.length - 1]! };
+    };
+    const base = quantiles(unpressed);
+    const drag = quantiles(pressed);
+    // The guard: a dispatch only when the destination changes, so the moves
+    // that stay on one seam cost no rebuild. Counted as the samples whose
+    // preview differs from the one before.
+    let dispatches = 0;
+    for (let i = 1; i < pressed.length; i++) {
+      const a = pressed[i - 1]!.preview;
+      const b = pressed[i]!.preview;
+      if ((a === null) !== (b === null) || (a && b && (a.seamLine !== b.seamLine || a.depth !== b.depth))) {
+        dispatches++;
+      }
+    }
+    const fmt = (q: { median: number; p95: number; max: number }) =>
+      `median ${q.median.toFixed(2)}ms, p95 ${q.p95.toFixed(2)}ms, max ${q.max.toFixed(2)}ms`;
+    console.log(
+      `[dragging latency] unpressed moves ${unpressed.length}: ${fmt(base)}; ` +
+        `pressed moves ${pressed.length}, dispatches ${dispatches}: ${fmt(drag)}`,
+    );
+    expect(dispatches).toBeLessThan(pressed.length);
+    // What the gesture adds to a typical move, over the page's own cost of
+    // one, is held to the enforcement budget's median. The tails are not
+    // compared: at eight dispatches in seventy moves the p95 IS a dispatch,
+    // whose cost is the decoration rebuild the note's size sets, and the
+    // page's own spikes sit in the same tail (docs/research/node-drag-and-drop
+    // section 6f records both).
+    expect(drag.median - base.median).toBeLessThanOrEqual(3);
+    expect(await h.getBuffer()).toBe(STRESS);
+    await h.setBuffer(DOC);
+    await browser.pause(200);
+  });
+
   it('draws the rows in flight as lifted, in place, over the cover\u2019s own chrome', async function () {
     // `- one` and its child are the run. Both rows wear the lifted treatment
     // for the whole drag — over a dead band as much as over a seam — on top of
@@ -478,27 +622,6 @@ describe('node dragging: the press and the drag it can become', function () {
     expect(await h.getBuffer()).toBe(DOC);
     expect(await dragTraces()).toEqual({ lifted: 0, ghosts: 0, indicators: 0, preview: false });
   });
-
-  /*  0 | # Top
-      1 |
-      2 | - two
-      3 | - one
-      4 |   - nested
-      5 | - three
-      6 |                                                                    */
-  const AFTER_DROP = ['# Top', '', '- two', '- one', '  - nested', '- three', ''].join('\n');
-
-  /**
-   * A seam's own y, as a RELATION between the two marks it separates: halfway
-   * between their centres is the boundary between their rows, and the seams on
-   * either side are a whole row away. Taken from the marks rather than from a
-   * measured line top so the aim survives a layout that differs by theme,
-   * platform or heading size.
-   */
-  async function seamBetween(above: number, below: number): Promise<number> {
-    const [top, bottom] = await Promise.all([markPoint(BULLET, above), markPoint(BULLET, below)]);
-    return (top.y + bottom.y) / 2;
-  }
 
   /** `- one` dropped on the seam between `- two` and `- three`, at the
    * shallowest column that seam offers — a sibling of both. */
@@ -1007,6 +1130,68 @@ describe('node dragging: the press and the drag it can become', function () {
     const outsideHeld = samples.filter((sample) => !sample.inside && sample.buttons !== 0);
     expect(outsideHeld.length).toBeGreaterThanOrEqual(3);
     expect(await zoomed()).toBe(false);
+    expect(await h.getBuffer()).toBe(DOC);
+  });
+});
+
+describe('node dragging: a touch press', () => {
+  // Driven by events synthesised in the page, on desktop and mobile alike: the
+  // harness has no coordinate-addressable touch, so what these prove is the
+  // handler's reading of a touch — the dwell, and the scroll a moving touch
+  // is — and not the platform's hit-testing, which stays with the device pass.
+  before(async function () {
+    await openDraggable();
+  });
+
+  beforeEach(async function () {
+    await openDraggable();
+  });
+
+  it('becomes a drag by resting on the mark, and drops where the touch is lifted', async function () {
+    await h.setCursorSettled(0, 0);
+    const mark = await markPoint(BULLET, 0);
+    const y = await seamBetween(2, 3);
+    const box = await editorBox();
+    await syntheticPointer('pointerdown', mark, 'touch');
+    // Before the dwell is up nothing has happened: no lift, no cover.
+    await browser.pause(120);
+    expect((await dragTraces()).lifted).toBe(0);
+    await browser.pause(500);
+    expect((await dragTraces()).lifted).toBeGreaterThan(0);
+    await syntheticPointer('pointermove', { x: box.left + 4, y }, 'touch');
+    await syntheticPointer('pointermove', { x: box.left + 5, y }, 'touch');
+    await browser.pause(150);
+    expect((await dragTraces()).preview).toBe(true);
+    await syntheticPointer('pointerup', { x: box.left + 5, y }, 'touch');
+    await browser.pause(300);
+    expect(await h.getBuffer()).toBe(AFTER_DROP);
+    expect(await dragTraces()).toEqual({ lifted: 0, ghosts: 0, indicators: 0, preview: false });
+  });
+
+  it('lets a touch that moves before the dwell go, as the scroll it is', async function () {
+    await h.setCursorSettled(0, 0);
+    const mark = await markPoint(BULLET, 0);
+    await syntheticPointer('pointerdown', mark, 'touch');
+    await syntheticPointer('pointermove', { x: mark.x + 2, y: mark.y + 30 }, 'touch');
+    await browser.pause(600);
+    expect(await dragTraces()).toEqual({ lifted: 0, ghosts: 0, indicators: 0, preview: false });
+    await syntheticPointer('pointerup', { x: mark.x + 2, y: mark.y + 30 }, 'touch');
+    await browser.pause(300);
+    expect(await h.getBuffer()).toBe(DOC);
+    expect(await zoomed()).toBe(false);
+  });
+
+  it('does not turn a resting mouse press into a drag — that press still zooms', async function () {
+    // Negative control for the dwell: it is a touch's discriminator, not a
+    // mouse's, whose drag begins on movement.
+    await h.setCursorSettled(0, 0);
+    const mark = await markPoint(BULLET, 0);
+    await syntheticPointer('pointerdown', mark, 'mouse');
+    await browser.pause(600);
+    expect(await dragTraces()).toEqual({ lifted: 0, ghosts: 0, indicators: 0, preview: false });
+    await syntheticPointer('pointerup', mark, 'mouse');
+    await browser.pause(300);
+    expect(await zoomed()).toBe(true);
     expect(await h.getBuffer()).toBe(DOC);
   });
 });

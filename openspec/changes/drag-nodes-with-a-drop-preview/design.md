@@ -347,11 +347,29 @@ drives its presses in the page. A press driven in the page proves the handler, n
 — so the mobile e2e asserts what it can and the pass records the rest, as `content-space-caret`'s
 did.
 
+Built: a touch press arms a 350ms dwell at the press. The dwell firing with the pointer still down
+and unmoved begins the drag, the same way a mouse press crossing the threshold does; a touch that
+moves past the threshold before the dwell is let go entirely, so the platform's own reading of the
+movement — a scroll — stands, and the release neither drops nor zooms. A mouse press is untouched
+by the dwell: its drag begins on movement. The e2e drives both with pointer events synthesised in
+the page, on desktop and mobile alike, which is the handler's half; the hit-testing half is the
+device pass.
+
 ### D13. Autoscroll is the scroller's, driven by the pointer's distance past its edge
 
 While the pointer is held within a band of the scroller's top or bottom edge, the scroller scrolls,
 at a rate taken from how far past the edge the pointer is. Nothing else moves: the document is
 unchanged until the release, so scrolling during a drag is scrolling.
+
+Built: a 40px band inside each edge, and a frame loop while the pointer rests in it. The rate is the
+pointer's distance past the band's inner edge as a fraction of the band, times 1440px per second, so
+a pointer barely in the band creeps and one on the edge or past it moves at the full rate. Stated
+per second and applied by each frame's elapsed time, not per frame: a frame that scrolls onto a new
+seam dispatches a preview, and a per-frame rate slowed down exactly where the view had the most to
+redraw — measured as two holds, one shallow in the band and one deep, covering 180 and 220px. Each
+frame re-resolves the preview against the scrolled view, since a seam's y is read against the view
+as it is now; the seams themselves are the press's and are not re-read. The loop stops when the
+pointer leaves the band, when the scroller reaches its limit, and on every end of the press.
 
 ## Risks / Trade-offs
 
