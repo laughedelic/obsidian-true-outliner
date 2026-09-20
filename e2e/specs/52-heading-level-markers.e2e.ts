@@ -76,35 +76,77 @@ async function activeMarks(): Promise<Mark[]> {
 const headingsOf = (marks: readonly Mark[]) => marks.filter((m) => m.kind === 'heading');
 
 /**
- * Where each line's text starts, pane by pane — what a marker could move, and
- * what must not.
+ * Where each line's text actually starts, pane by pane, relative to that pane's
+ * own left edge: the first ink that is not chrome, measured as a range over the
+ * text node — the walker `57-marker-gap.e2e.ts` reads a row's text column with.
  *
- * The line's own indentation, not the position of a heading's text span: Live
- * Preview reveals a heading's `#` syntax as an extra span on the line the caret
- * is in and hides it again when focus leaves, so a measurement over those spans
- * tracks the caret rather than the chrome. CI caught exactly that, reading one
- * more span before a style change than after.
+ * Not `padding-inline-start`, which is the line's COLUMN and not its text
+ * origin (`lineBoxes` in helpers.ts records the difference, measured): a
+ * marker's own width, margin or offset could move the text while the column
+ * stood still, and this case exists to catch exactly that.
+ *
+ * The caret is parked off every heading before a reading is taken
+ * (`parkedTextStarts`), because Live Preview reveals a heading's `#` syntax on
+ * the caret's own line, and a revealed `## ` moves that line's words with no
+ * chrome moving at all. CI read that as a change.
  */
-function lineTextStarts(): Promise<number[][]> {
+function textStarts(): Promise<number[][]> {
   return browser.execute(() =>
     Array.from(document.querySelectorAll<HTMLElement>('.workspace-leaf .cm-content'))
       .filter((pane) => pane.getBoundingClientRect().width > 0)
-      .map((pane) =>
-        Array.from(pane.querySelectorAll<HTMLElement>('.cm-line')).map(
-          (el) => +parseFloat(getComputedStyle(el).paddingInlineStart).toFixed(2),
-        ),
-      ),
+      .map((pane) => {
+        const base = pane.getBoundingClientRect().left;
+        const starts: number[] = [];
+        for (const line of Array.from(pane.querySelectorAll<HTMLElement>('.cm-line'))) {
+          const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+          const range = document.createRange();
+          let x: number | null = null;
+          let node: Node | null = walker.nextNode();
+          while (node) {
+            const chrome = node.parentElement?.closest(
+              '.to-decor-marker-icon, .cm-formatting, .cm-hmd-list-indent, .task-list-label',
+            );
+            const raw = node.textContent ?? '';
+            if (!chrome && raw.trim() !== '') {
+              range.setStart(node, raw.length - raw.trimStart().length);
+              range.setEnd(node, raw.length);
+              for (const r of Array.from(range.getClientRects())) {
+                if (r.width === 0) continue;
+                const left = +(r.left - base).toFixed(2);
+                if (x === null || left < x) x = left;
+              }
+            }
+            node = walker.nextNode();
+          }
+          if (x !== null) starts.push(x);
+        }
+        return starts;
+      }),
   );
 }
 
+/** The line a text-origin reading parks the caret on: a paragraph, so no
+ * heading is showing its `#` syntax while the reading is taken. */
+const PARK_LINE = 14;
+
+async function parkedTextStarts(): Promise<number[][]> {
+  await h.setCursorSettled(PARK_LINE, 0);
+  return textStarts();
+}
+
 /**
- * Read until the value holds still, or until it differs from `was`.
+ * Read until the value holds still across two samples — and, where `was` is
+ * given, until it has also left the value it started from.
  *
  * A settings write repaints every open editor and every footer, and those
  * repaints land on render passes this side cannot see. A fixed pause reads
  * whatever they have got to — enough on a developer machine, and not on a CI
  * runner with fifteen spec files in flight, where the trail was still drawing
  * the style before the change.
+ *
+ * Both halves are needed. Holding still alone can hold still at the OLD value,
+ * two samples taken before the repaint; leaving the old value alone can return
+ * a half-drawn state, one pane repainted and the other not.
  */
 async function readSettled<T>(read: () => Promise<T>, was?: T): Promise<T> {
   const target = was === undefined ? undefined : JSON.stringify(was);
@@ -114,14 +156,16 @@ async function readSettled<T>(read: () => Promise<T>, was?: T): Promise<T> {
     async () => {
       last = await read();
       const now = JSON.stringify(last);
-      const settled = target === undefined ? now === previous : now !== target;
+      const held = now === previous;
+      const moved = target === undefined || now !== target;
       previous = now;
-      return settled;
+      return held && moved;
     },
     {
       timeout: h.waitBudget(8000),
       interval: 150,
-      timeoutMsg: `never settled${target === undefined ? '' : ` away from ${target}`}: ${previous}`,
+      timeoutMsg:
+        `never settled${target === undefined ? '' : ` away from ${target}`}, last read: ${previous}`,
     },
   );
   return last;
@@ -323,7 +367,7 @@ describe('heading level markers', function () {
 
     const marksBefore = await readSettled(editorMarks);
     const trailBefore = await readSettled(trailGlyphs);
-    const textBefore = await readSettled(lineTextStarts);
+    const textBefore = await parkedTextStarts();
     expect(marksBefore.length).toBe(2); // two panes, or this proves nothing
     expect(trailBefore.length).toBeGreaterThan(0);
 
@@ -345,7 +389,7 @@ describe('heading level markers', function () {
     // The trail's `# One` is drawn as the first pane now draws its own level 1.
     const levelOne = headingsOf(marksAfter[0]!).find((m) => m.level === '1')!.svg;
     expect(await readSettled(trailGlyphs, trailBefore)).toEqual(trailBefore.map(() => levelOne));
-    expect(await readSettled(lineTextStarts)).toEqual(textBefore);
+    expect(await parkedTextStarts()).toEqual(textBefore);
 
     await browser.executeObsidian(({ app }) => {
       const leaves = app.workspace.getLeavesOfType('markdown');
