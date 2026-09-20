@@ -20,11 +20,10 @@ tool added to the repository script reaches the cloud without touching the dialo
 
 # The GitHub CLI from Ubuntu's own repository: cli.github.com is unreachable from
 # a session, and every call a session makes to GitHub is REST, which any gh serves.
-# The extension needs gh on PATH first — installed the other way round, the
-# extension step fails and the session hook reports gh-stack missing.
+# No gh-stack: every one of its commands opens with a GraphQL query the session's
+# GitHub proxy refuses, so the extension would only ever fail.
 apt-get update || true
 apt-get install -y --no-install-recommends gh || true
-gh extension install github/gh-stack || true
 
 # OpenSpec needs Node 20.19+; sessions default to Node 22 on PATH.
 npm install -g @fission-ai/openspec || true
@@ -55,9 +54,9 @@ The script is pasted into the environment's setup-script field; nothing in this 
 edit it. Updating it is three steps: replace the field's contents with the block above and save;
 start a session on this repository; check the session's first context line. A healthy session
 prints nothing from `agent-setup` except the GraphQL line below. A session that still reports
-`gh missing` or `gh-stack missing` started from a snapshot built before the change — the hook
-installs `gh` itself in that case, and the report is the signal that the snapshot needs
-rebuilding, not a broken session.
+`gh missing` started from a snapshot built before the change — the hook installs `gh` itself
+in that case, and the report is the signal that the snapshot needs rebuilding, not a broken
+session.
 
 ## GitHub from a session
 
@@ -79,7 +78,9 @@ property of the GitHub proxy, not of the environment's network access level: the
 says the proxy applies whichever level is set, serves only a pinned set of GraphQL operations,
 and refuses the rest whatever token the session carries. A Custom allowlist or a personal
 `GH_TOKEN` in the environment does not lift it; only a self-hosted environment routes GitHub
-traffic elsewhere. The
+traffic elsewhere, and we run none. So the setup script installs `gh` and not `gh-stack`, the
+session hook skips the extension in the cloud, and CLAUDE.md's stack instructions give a cloud
+session only the layer's own work. The
 session hook says so on start. PR work from the cloud goes through the GitHub MCP tools or
 `gh api`, and stack surgery stays where CLAUDE.md already puts it — the primary checkout. The
 `gh auth status` verdict is misleading here: it reports the token invalid while every REST call

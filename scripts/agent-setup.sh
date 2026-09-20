@@ -54,7 +54,7 @@ if ! command -v openspec >/dev/null 2>&1; then
   fi
 fi
 
-# The GitHub CLI comes before its extension: with `gh` absent, the extension check
+# The GitHub CLI before its extension: with `gh` absent, the extension check
 # used to report gh-stack missing and hide the real gap. Ubuntu's own package is
 # enough — cli.github.com's repository is unreachable from a cloud session, and
 # every call a session makes to GitHub is REST.
@@ -74,7 +74,9 @@ if command -v gh >/dev/null 2>&1; then
     notes+=("gh unauthenticated; set GH_TOKEN or run \`gh auth login\`")
   fi
 
-  if ! gh extension list 2>/dev/null | grep -q 'github/gh-stack'; then
+  # Not in the cloud: every gh-stack command opens with a GraphQL query the
+  # session's GitHub proxy refuses, so the extension would only ever fail there.
+  if ! $cloud && ! gh extension list 2>/dev/null | grep -q 'github/gh-stack'; then
     if $install; then
       gh extension install github/gh-stack && notes+=("installed gh-stack") ||
         notes+=("gh-stack missing; \`gh extension install github/gh-stack\` failed")
@@ -83,11 +85,11 @@ if command -v gh >/dev/null 2>&1; then
     fi
   fi
 
-  # The cloud session's proxy refuses GraphQL, which `gh stack`, `gh pr` and
-  # `gh repo` need for their first request (docs/research/cloud-session-github-access.md).
+  # The cloud session's proxy refuses GraphQL, which `gh pr` and `gh repo` need
+  # for their first request (docs/research/cloud-session-github-access.md).
   # Saying so up front spares the session a round of failed commands.
   if $cloud && ! gh api graphql -f query='{viewer{login}}' >/dev/null 2>&1; then
-    notes+=("GraphQL is refused by this session's proxy: \`gh stack\`, \`gh pr\` and \`gh repo\` fail here; use \`gh api repos/...\` (REST) or the GitHub MCP tools")
+    notes+=("GraphQL is refused by this session's proxy: no \`gh stack\` here, and \`gh pr\` / \`gh repo\` fail; use \`gh api repos/...\` (REST) or the GitHub MCP tools")
   fi
 fi
 

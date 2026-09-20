@@ -25,10 +25,12 @@ session cannot do either: its proxy refuses branch deletes and renames
 (`docs/research/cloud-session-github-access.md`).
 
 **Before branching, look for work already in flight** — any open PR whose base is not `main` is
-part of a stack:
+part of a stack. The REST form works everywhere, a cloud session included, where `gh pr list`
+does not:
 
 ```bash
-gh pr list --state open --json number,headRefName,baseRefName,isDraft
+gh api 'repos/{owner}/{repo}/pulls?state=open&per_page=100' \
+  --jq '.[] | "\(.number)\t\(.head.ref) -> \(.base.ref)\t\(if .draft then "draft" else "ready" end)"'
 ```
 
 **Stack only what depends on the layer below.** Every layer above a moved one is rewritten, and
@@ -47,9 +49,15 @@ three layers that are genuinely one unit of work. Offer the reading; let the use
 with `gh stack submit`, restacking after the trunk moves, parking worktrees, landing the stack
 whole: [`docs/pr-stacks.md`](docs/pr-stacks.md) carries all of it. It rewrites branches other
 sessions are sitting on, so a session working on a layer leaves it alone and owns one branch:
-commit, push, report. A cloud session has no choice in the matter: its proxy refuses GraphQL,
-which every `gh stack` command needs for its first request
-(`docs/research/cloud-session-github-access.md`).
+commit, push, report.
+
+**A cloud session has no `gh stack` at all**, and does not try to get one: its GitHub proxy
+refuses the GraphQL queries every `gh stack` command opens with, whatever the environment's
+network access level or token (`docs/research/cloud-session-github-access.md`). What a cloud
+session can do with a stack is the layer's own work — commit and push its one branch, and read
+the stack's shape from the open PRs above. Opening a stacked PR, restacking, and landing wait
+for the primary checkout; a cloud session that finishes a layer says so in its report rather
+than reaching for a substitute.
 
 A layer reported as *diverged from origin by N and M commits* is sitting on commits that a
 restack below it replaced. The remote is authoritative there: reset to it, and leave moving the
@@ -164,7 +172,7 @@ two. Regenerate the OpenSpec skills with `openspec update`, which rewrites its o
 the symlinks alone, rather than editing one by hand.
 
 `scripts/agent-setup.sh` is the one list of what an agent session needs — the project's
-dependencies, the OpenSpec CLI, the GitHub CLI and its `gh-stack` extension. The `SessionStart`
+dependencies, the OpenSpec CLI, the GitHub CLI, and outside the cloud its `gh-stack` extension. The `SessionStart`
 hook in `.claude/settings.json` runs it and `copilot-setup-steps.yml` runs it with `--install`,
 so adding a tool means editing that script and nothing else. It installs only in a throwaway
 environment and reports what is missing everywhere else; a cloud environment's own half of the

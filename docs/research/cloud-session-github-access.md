@@ -81,7 +81,10 @@ traffic never uses, so a Custom allowlist naming `api.github.com` is a no-op her
 section documents the repository scope that blocks `gh extension install`, and a push protection
 under which "`git push` works only against the session's current working branch" — our rename
 before the first push keeps that branch current, which is consistent with the push above going
-through. The one documented configuration without this proxy is a self-hosted environment. So a cloud session runs the half of the workflow that is REST and git: commit,
+through. The one documented configuration without this proxy is a self-hosted environment,
+which we do not run. So the extension is not installed in the cloud at all — neither by the
+environment's setup script nor by the session hook — and CLAUDE.md's stack instructions give a
+cloud session the layer's own work only, with a REST `gh api` listing in place of `gh pr list`. So a cloud session runs the half of the workflow that is REST and git: commit,
 push, open and edit a PR through the MCP tools or `gh api`, read CI. Stack surgery stays in the
 primary checkout, where CLAUDE.md already put it for a different reason. The session hook now
 says so at start, so a session does not find out one failed command at a time.
