@@ -135,6 +135,8 @@
     border-radius: 9px; background: var(--accent); color: #fff; font-size: .68rem;
     font-weight: 700; line-height: 18px; letter-spacing: .02em;
   }
+  .row.shifted .label, .row.shifted .mark { color: var(--accent); }
+  .row.shifted { background: var(--accent-soft); }
   .verdict.open { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
 
   /* ---- layout ------------------------------------------------------------ */
@@ -168,14 +170,14 @@
 
 <h2>1. One seam, six destinations</h2>
 <p class="note">
-  The pointer is between <b>touch fallback</b> and <b>The next section</b>. Six destinations sit on
-  that seam, and only the horizontal position tells them apart. Drag the slider to move the
+  The pointer is between <b>touch fallback</b> and <b>The next section</b>. Five destinations sit
+  on that seam for this run, and only the horizontal position tells them apart. Drag the slider to move the
   pointer sideways: the dots are the seam's legal columns, and the indicator's left end is the
   answer.
 </p>
 <div class="controls">
   <label for="depth">pointer x</label>
-  <input type="range" id="depth" min="0" max="5" step="1" value="4">
+  <input type="range" id="depth" min="0" max="4" step="1" value="3">
   <output id="depthOut"></output>
 </div>
 <div class="surface" id="ambiguity"></div>
@@ -256,7 +258,10 @@ const DOC = [
   { depth: 0, kind: 'heading', text: 'The next section' },
 ];
 const SEAM_AFTER = 7;               /* the seam sits below "touch fallback" */
-const LEGAL = [0, 1, 2, 3, 4, 5];   /* columns this seam can legally land on */
+/* Columns this seam can legally land on, for the bulleted run in flight. The
+ * root is not among them: a bulleted run written before "The next section" is
+ * still inside "Section", so that column is a heading run's alone, re-levelled. */
+const LEGAL = [1, 2, 3, 4, 5];
 const NAMES = {
   0: 'a sibling of Section \u2014 top level',
   1: 'a child of Section, after work',
@@ -344,10 +349,9 @@ function drawAmbiguity() {
   const d = LEGAL[+slider.value];
   render(document.getElementById('ambiguity'), {
     // The ghost is the kind the run ARRIVES as, which the destination decides
-    // (D7). At the root, among heading siblings, a bulleted run re-encodes as a
-    // paragraph; everywhere else on this seam it lands in a list scope.
+    // (D7). Every column of this seam is a list scope for this run.
     style: 'bar', depth: d, lift: true, ticks: true, ghost: true,
-    ghostKind: d === 0 ? 'para' : 'bullet',
+    ghostKind: 'bullet',
     parentRow: PARENT_OF[d] ?? -1,
     litGuideAt: PARENT_OF[d] === null ? undefined : d - 1,
   });
@@ -357,7 +361,9 @@ function drawAmbiguity() {
     ' offered \u2014 landing there would make "The next section" a descendant of what was dropped,' +
     ' which is a different operation. Nothing deeper than one level inside the row above is' +
     ' offered either, because no parent exists at that depth. Everything between is a real' +
-    ' destination, which is why there are six of them and not one.';
+    ' destination, which is why there are five of them and not one. A sixth, beside Section' +
+    ' at the root, exists for a heading run only: anything else written there is still inside' +
+    ' Section.';
 }
 slider.addEventListener('input', drawAmbiguity);
 drawAmbiguity();
@@ -491,7 +497,9 @@ function renderAbsorb(host, opts) {
     delete row.absorbed;
     if (opts.span === 'all' && r.absorbed) row.absorbedNow = true;
     if (opts.span === 'first' && i === absorbed[0]) row.absorbedNow = true;
+    if (opts.shift && r.absorbed) { row.depth += 1; row.shifted = true; }
     const el = rowEl(row);
+    if (row.shifted) el.classList.add('shifted');
     if (row.absorbedNow) el.classList.add('absorbed');
     if (opts.brace && r.absorbed) {
       const b = document.createElement('div');
@@ -552,6 +560,16 @@ const ABSORB = [
     opts: { span: 'first' },
     note: 'Says that absorption happens and where it begins, and asks the reader to trust the ' +
           'count for where it ends. Bounded ink on any section; the end is not drawn.',
+  },
+  {
+    name: 'J. The rows shifted a column',
+    sub: 'the absorbed rows drawn one level in, under the ghost, before anything is written',
+    opts: { shift: true },
+    note: 'Shows the result as the result: the rows sit where they will sit, under the mark that ' +
+          'will own them, with the guide that will connect them. Nothing else on the seam has ' +
+          'to be explained. It is the one treatment that moves rows while the drag is in ' +
+          'flight — horizontally, and only the absorbed ones — so the wrapped ones can change ' +
+          'height, and every move over a different seam re-lays them out.',
   },
   {
     name: 'I. A count at the seam',
