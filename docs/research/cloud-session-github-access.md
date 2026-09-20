@@ -119,9 +119,16 @@ Three places could hold the branch convention; only one is early enough.
 | `git push origin --delete claude/x`, `git push origin :claude/x` | allow — deleting one is the convention |
 | `mcp__github__create_pull_request` with `head: claude/x`; `mcp__github__push_files` with `branch: claude/x` | deny |
 | `mcp__github__push_files` with `branch: fix/x` | allow |
+| `git push origin :claude/old fix/x:claude/new` (a delete beside a push) | deny — only the `:` refspec is exempt |
+| `git push --all origin`, `--mirror`, a `refs/heads/*` refspec, with a local `claude/*` branch | deny; allow once no such branch exists |
+| `git commit -m "git push origin claude/x"`, `git commit -m 'fix && git push origin claude/x'` | allow — quotes hide operators and words from the command lexer |
+| `GIT_TRACE=1 git push origin claude/x`, `cd /x && git push origin claude/x`, `echo "a; b" \| git push origin HEAD:claude/x` | deny |
 
-The `PreToolUse` deny carries the same grant as its reason, so the session that hits it has the
-rename in front of it. Denying a push is not stranding: the refused command is a `git push`, the
+The guard reads the command with a small shell lexer — quotes group words and hide operators,
+`VAR=value` prefixes and `git -C <dir>` are stepped over — rather than a regex over the whole
+line. It does not expand `$(…)` or backticks, so a push assembled inside one passes; that is a
+session working against its own hook, not a session missing a grant. The `PreToolUse` deny
+carries the same grant as its reason, so the session that hits it has the rename in front of it. Denying a push is not stranding: the refused command is a `git push`, the
 fix is a `git branch -m`, and both are local.
 
 The PR footer goes the other way round: it cannot be prevented, only rewritten, and only through
