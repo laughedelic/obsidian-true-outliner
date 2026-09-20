@@ -111,12 +111,13 @@ export function absorbedRows(
   preview: DragPreview | null,
   lineOffset: number,
 ): { readonly from: number; readonly to: number; readonly depth: number } | null {
-  const absorbs = preview?.destination.absorbs;
+  if (preview === null) return null;
+  const absorbs = preview.destination.absorbs;
   if (!absorbs) return null;
   return {
     from: absorbs.from + lineOffset,
     to: absorbs.to + lineOffset,
-    depth: preview!.destination.depth + 1,
+    depth: preview.destination.depth + 1,
   };
 }
 
