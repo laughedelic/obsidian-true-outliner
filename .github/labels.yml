@@ -8,8 +8,12 @@
 # work. Issue types would carry kind natively, but they are organization-only and
 # this repository is personal — docs/research/cloud-session-github-access.md.
 
-# Kind. An item has exactly one, matching the conventional-commit prefix a PR
-# title would take.
+# Kind. Exactly one per item, and never set by hand: on a PR it is derived from
+# the conventional-commit prefix already in the title. It exists for two things
+# the title cannot do. Generated release notes group by label alone, and a PR
+# carries several `area/` labels but only one `kind/`, so this is what keeps a
+# changelog split into features and fixes. And an issue has no title prefix to
+# read, nor issue types to carry it, those being organization-only.
 - name: kind/bug
   color: d73a4a
   description: Behaviour that contradicts what we specify
@@ -24,26 +28,30 @@
 
 # Area. Several are normal: a PR carries one per slice its diff touches, applied
 # from paths by `.github/labeler.yml`, while the scope in its title names the
-# primary one. They agree whenever a change stays in one slice, and a title
-# claiming one scope against three labels is worth a second look.
+# primary one.
+#
+# A slice earns a label when the repository already treats it as separable in its
+# own declared groupings — the CI spec groups in `scripts/spec-groups.mjs`, the
+# settings slices under `src/plugin/settings/`, the stylesheet parts under
+# `styles/`, and the OpenSpec capabilities. Where those disagree we take the
+# coarser reading, so marker work sits under decorations rather than beside it,
+# and the settings surface under the shell it is part of. A slice the groupings
+# do not name yet gets its label when they do.
+- name: area/parse
+  color: c5def5
+  description: Parsing markdown into the node tree, and projecting it back
 - name: area/grammar
   color: c5def5
   description: Keyboard grammar, caret placement, provisional positions
 - name: area/ops
   color: c5def5
   description: Structural operations, encoding, indentation
-- name: area/parse
-  color: c5def5
-  description: Parsing markdown into the node tree
 - name: area/selection
   color: c5def5
   description: Node selection and its extension
 - name: area/decorations
   color: c5def5
-  description: The outline grid, guides, chrome, stylesheets
-- name: area/markers
-  color: c5def5
-  description: Per-kind block markers and the gutter they stand in
+  description: The outline grid, guides, markers, chrome, stylesheets
 - name: area/folding
   color: c5def5
   description: Folding, its persistence and its chrome
@@ -53,15 +61,12 @@
 - name: area/backlinks
   color: c5def5
   description: The structured backlinks footer and its index
-- name: area/search
-  color: c5def5
-  description: Search surfaces and the shared matcher
 - name: area/mode
   color: c5def5
   description: Outline mode, per tab and its indicators
-- name: area/settings
+- name: area/shell
   color: c5def5
-  description: Settings declarations and the settings tab
+  description: The plugin's own surfaces — commands, settings, lifecycle
 - name: area/e2e
   color: c5def5
   description: The e2e harness, its specs and its containers
@@ -75,9 +80,6 @@
   color: c5def5
   description: Research notes, guides and the README
   aliases: [documentation]
-- name: area/website
-  color: c5def5
-  description: The GitHub Pages site and its media
 
 # Needs. What has to happen before the item is ready to pick up. An item with no
 # needs label and a Ready status is ready; the project's status says whether it

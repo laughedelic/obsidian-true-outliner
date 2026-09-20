@@ -7,7 +7,9 @@ name: Triage
 #
 # `pull_request_target` runs the workflow from the base branch with a token that
 # can write labels. It checks nothing out: both steps read the API alone, so a
-# PR cannot reach this workflow's permissions through its own contents.
+# PR cannot reach this workflow's permissions through its own contents. It needs
+# no `issues: write` either — the Labels workflow has already created every label
+# this one can apply, with its colour and description.
 
 on:
   pull_request_target:
@@ -23,9 +25,9 @@ concurrency:
 
 jobs:
   label:
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/labeler@v5
+      - uses: actions/labeler@v7
         with:
           configuration-path: .github/labeler.yml
           sync-labels: true

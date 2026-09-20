@@ -1,0 +1,64 @@
+name: Editing behaviour
+description: A keystroke that does the wrong thing to the document
+labels: [kind/bug, area/grammar, needs/repro]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For anything where a key press changes the text: Enter, Tab, Backspace,
+        a paste, a move. Drawing the document is what makes these quick to place,
+        so the three fields below are worth the minute they take. Anything else —
+        how something looks, a click or a drag, a setting, a crash — goes in the
+        general bug report instead.
+
+  - type: textarea
+    id: before
+    attributes:
+      label: The document before
+      description: Markdown source, with a `|` where the caret sits. Mark a selection with `«` and `»`.
+      render: markdown
+      placeholder: |
+        - a
+        - b|
+        - c
+    validations:
+      required: true
+
+  - type: input
+    id: keys
+    attributes:
+      label: The keys pressed
+      placeholder: Tab, then Shift+Enter
+    validations:
+      required: true
+
+  - type: textarea
+    id: after
+    attributes:
+      label: What happened, and what we expected instead
+      description: Both documents, marked which is which, with the caret in each.
+      render: markdown
+    validations:
+      required: true
+
+  - type: input
+    id: versions
+    attributes:
+      label: Plugin and Obsidian versions
+      placeholder: "plugin 0.12.1, Obsidian 1.12.7"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options: [macOS, Windows, Linux, iOS, Android]
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Settings in play, whether it survives a restart, whether it happens with other plugins disabled.
