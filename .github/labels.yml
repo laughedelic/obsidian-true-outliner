@@ -8,6 +8,9 @@
 # work. Issue types would carry kind natively, but they are organization-only and
 # this repository is personal — docs/research/cloud-session-github-access.md.
 
+# Colours are quoted throughout: an all-digit value is a YAML integer otherwise,
+# and the API wants six characters.
+
 # Kind. Exactly one per item, and never set by hand: on a PR it is derived from
 # the conventional-commit prefix already in the title. It exists for two things
 # the title cannot do. Generated release notes group by label alone, and a PR
@@ -15,15 +18,15 @@
 # changelog split into features and fixes. And an issue has no title prefix to
 # read, nor issue types to carry it, those being organization-only.
 - name: kind/bug
-  color: d73a4a
+  color: "d73a4a"
   description: Behaviour that contradicts what we specify
   aliases: [bug]
 - name: kind/feature
-  color: 0e8a16
+  color: "0e8a16"
   description: New behaviour or a new surface
   aliases: [enhancement]
 - name: kind/chore
-  color: ededed
+  color: "ededed"
   description: Tooling, refactoring, docs and everything that ships no behaviour
 
 # Area. Several are normal: a PR carries one per slice its diff touches, applied
@@ -38,50 +41,50 @@
 # and the settings surface under the shell it is part of. A slice the groupings
 # do not name yet gets its label when they do.
 - name: area/parse
-  color: c5def5
+  color: "c5def5"
   description: Parsing markdown into the node tree, and projecting it back
 - name: area/grammar
-  color: c5def5
+  color: "c5def5"
   description: Keyboard grammar, caret placement, provisional positions
 - name: area/ops
-  color: c5def5
+  color: "c5def5"
   description: Structural operations, encoding, indentation
 - name: area/selection
-  color: c5def5
+  color: "c5def5"
   description: Node selection and its extension
 - name: area/decorations
-  color: c5def5
+  color: "c5def5"
   description: The outline grid, guides, markers, chrome, stylesheets
 - name: area/folding
-  color: c5def5
+  color: "c5def5"
   description: Folding, its persistence and its chrome
 - name: area/zoom
-  color: c5def5
+  color: "c5def5"
   description: Zoom scope, its confinement and its trail
 - name: area/backlinks
-  color: c5def5
+  color: "c5def5"
   description: The structured backlinks footer and its index
 - name: area/mode
-  color: c5def5
+  color: "c5def5"
   description: Outline mode, per tab and its indicators
 - name: area/shell
-  color: c5def5
+  color: "c5def5"
   description: The plugin's own surfaces — commands, settings, lifecycle
 - name: area/testing
-  color: c5def5
+  color: "c5def5"
   description: The test harnesses and their infrastructure, not the specs themselves
 - name: area/ci
-  color: c5def5
+  color: "c5def5"
   description: Workflows, release and beta publishing
 - name: area/agents
-  color: c5def5
+  color: "c5def5"
   description: Agent instructions, skills and setup scripts
 - name: area/docs
-  color: c5def5
+  color: "c5def5"
   description: Research notes, guides and the README, on a change that is only those
   aliases: [documentation]
 - name: area/website
-  color: c5def5
+  color: "c5def5"
   description: The GitHub Pages site, its docs pages and its media
 
 # Needs. The one thing standing between the item and someone starting work,
@@ -89,16 +92,16 @@
 # means the next person can start, so one left on after its question is answered
 # is worse than none. The `triage` skill says what each promises.
 - name: needs/repro
-  color: d4c5f9
+  color: "d4c5f9"
   description: No concrete failure case yet
 - name: needs/diagnosis
-  color: d4c5f9
+  color: "d4c5f9"
   description: Reproduced, mechanism not located
 - name: needs/decision
-  color: d4c5f9
+  color: "d4c5f9"
   description: Diagnosed, blocked on a design choice
 - name: needs/research
-  color: d4c5f9
+  color: "d4c5f9"
   description: Wants a measured note before it can be proposed
 
 # Priority, by consequence rather than by surface: what it costs to leave the
@@ -106,25 +109,25 @@
 # every change ranks with a user-facing one. The `triage` skill carries the
 # judgement, including where two rungs are arguable.
 - name: p0
-  color: b60205
+  color: "b60205"
   description: Content the user did not edit is rewritten or lost, or the pipeline is stopped
 - name: p1
-  color: e99695
+  color: "e99695"
   description: A core gesture fails on ordinary documents, or every change pays for it
 - name: p2
-  color: f9d0c4
+  color: "f9d0c4"
   description: Visible in a specific shape, or occasional friction
 - name: p3
-  color: ededed
+  color: "ededed"
   description: Cosmetic, rare, or hard to reach
 
 # Kept from the defaults.
 - name: dependencies
-  color: 0366d6
+  color: "0366d6"
   description: Dependency updates
 - name: good first issue
-  color: 7057ff
+  color: "7057ff"
   description: Good for newcomers
 - name: help wanted
-  color: 008672
+  color: "008672"
   description: Extra attention is needed

@@ -40,18 +40,33 @@ jobs:
           TITLE: ${{ github.event.pull_request.title }}
         run: |
           set -euo pipefail
-          # A title without a recognised prefix gets no kind label rather than a
-          # guess; the release notes then file it under Other, which reads as the
-          # reminder it is.
-          case "$TITLE" in
-            feat*) kind=kind/feature ;;
-            fix*) kind=kind/bug ;;
-            chore*|docs*|refactor*|test*|ci*|perf*|style*|build*) kind=kind/chore ;;
-            *) echo "no recognised prefix in: $TITLE"; exit 0 ;;
-          esac
-          for stale in kind/feature kind/bug kind/chore; do
-            [ "$stale" = "$kind" ] && continue
-            gh api -X DELETE "repos/$REPO/issues/$NUMBER/labels/$stale" >/dev/null 2>&1 || true
-          done
-          gh api -X POST "repos/$REPO/issues/$NUMBER/labels" -f "labels[]=$kind" >/dev/null
-          echo "$kind"
+
+          # The whole conventional-commit prefix, so that a title merely starting
+          # with one of these words is not read as carrying it. A title with no
+          # prefix names no kind, and the release notes file it under Other, which
+          # reads as the reminder it is.
+          kind=""
+          if [[ "$TITLE" =~ ^([a-z]+)(\([^\)]*\))?!?:[[:space:]] ]]; then
+            case "${BASH_REMATCH[1]}" in
+              feat) kind=kind/feature ;;
+              fix) kind=kind/bug ;;
+              chore|docs|refactor|test|ci|perf|style|build|revert) kind=kind/chore ;;
+            esac
+          fi
+
+          # Every kind label the title does not name comes off, including all of
+          # them where it names none: a title edited from one prefix to something
+          # unrecognised would otherwise keep the label the old one gave it. Only
+          # labels the pull request actually carries are removed, so nothing here
+          # needs its failure ignored.
+          gh api "repos/$REPO/issues/$NUMBER/labels" --paginate --jq '.[].name' |
+            while IFS= read -r have; do
+              case "$have" in
+                kind/*) [ "$have" = "$kind" ] || gh api -X DELETE "repos/$REPO/issues/$NUMBER/labels/$have" >/dev/null ;;
+              esac
+            done
+
+          if [ -n "$kind" ]; then
+            gh api -X POST "repos/$REPO/issues/$NUMBER/labels" -f "labels[]=$kind" >/dev/null
+          fi
+          echo "${kind:-no recognised prefix in: $TITLE}"

@@ -1,7 +1,7 @@
 # Grouping for the notes `gh release create --generate-notes` writes, which the
 # Release workflow cuts from the squashed merge commits since the last release.
-# The labels are the ones the Triage workflow derives, so a PR needs no manual
-# step to land in the right section.
+# The labels are the ones the PR labels workflow derives, so a PR needs no
+# manual step to land in the right section.
 changelog:
   categories:
     - title: Features
