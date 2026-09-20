@@ -77,3 +77,15 @@
   bottom: 0;
   transform: translateY(50%);
 }
+
+/*
+ * The ghost's bullet, at the native bullet's size.
+ *
+ * The shared mark vocabulary draws a bullet as a 6-unit dot in a 16-unit box,
+ * sized for the backlinks footer's unwrapped items, where nothing native stands
+ * beside it. On the grid it stands in for `--list-bullet-size`, and a dot
+ * smaller than the bullets around it reads as a different kind of mark.
+ */
+.markdown-source-view.mod-cm6 .cm-content .to-drag-ghost[data-kind='list-item'] circle {
+  r: 3.6;
+}

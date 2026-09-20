@@ -18,7 +18,8 @@
  * be right for list destinations and wrong for the rest, or the reverse.
  */
 
-import { columnExpr, markerAnchorLeftExpr } from './chrome-line';
+import { columnExpr, guideLayer, markerAnchorLeftExpr, stripeStartExpr, GUIDE_WIDTH } from './chrome-line';
+import { UNIT_EXPR } from './chrome-tokens';
 import { MARKER_GUTTER_CSS } from './chrome-tokens';
 import { parse } from '../parse';
 import { nodeMark, type NodeMark } from './marker-shapes';
@@ -48,18 +49,48 @@ export interface SeamIndicator {
 export function seamIndicator(
   preview: DragPreview | null,
   factLines: ReadonlySet<number>,
+  /** What kind of node a line belongs to, for the two rows a seam cannot draw
+   * on its own top edge. */
+  kindAt: (line: number) => { kind: string; atom: boolean } | undefined = () => undefined,
 ): SeamIndicator | null {
   if (preview === null) return null;
   const depth = preview.destination.depth;
   const firstLine = preview.destination.firstLine;
-  if (factLines.has(preview.seamLine)) {
-    return { lineNumber: preview.seamLine, below: false, depth, firstLine };
-  }
   let last = -1;
   for (const line of factLines) {
     if (line < preview.seamLine && line > last) last = line;
   }
+  if (factLines.has(preview.seamLine)) {
+    // Drawn on the row above's bottom edge instead of this row's top where the
+    // top is the wrong place to read it: under a heading, whose own spacing
+    // puts the next row's edge well below its text, so the bar seemed to sit
+    // on the row below rather than under the heading; and above an atom, whose
+    // own background is painted over the overlay this bar rides in.
+    const here = kindAt(preview.seamLine);
+    const above = last >= 0 ? kindAt(last) : undefined;
+    if (last >= 0 && ((above && above.kind === 'heading') || (here && here.atom))) {
+      return { lineNumber: last, below: true, depth, firstLine };
+    }
+    return { lineNumber: preview.seamLine, below: false, depth, firstLine };
+  }
   return last < 0 ? null : { lineNumber: last, below: true, depth, firstLine };
+}
+
+/**
+ * The guide that will connect the absorbed rows to the ghost mark, on the
+ * FIRST of them: begun below the mark rather than at the row's top, where a
+ * full-height stripe ran up through the glyph sitting on that edge.
+ */
+export function absorbedGuideHead(depth: number): string {
+  return (
+    `repeating-linear-gradient(to right, var(--to-guide-color) 0 ${GUIDE_WIDTH}, transparent ${GUIDE_WIDTH} ${UNIT_EXPR}) ` +
+    `${stripeStartExpr(depth, GUIDE_WIDTH)} bottom / ${UNIT_EXPR} calc(100% - var(--to-marker-icon-size, 0.85rem) / 2) no-repeat`
+  );
+}
+
+/** The guide that connects the absorbed rows, on every row after the first. */
+export function absorbedGuide(depth: number): string {
+  return guideLayer(depth);
 }
 
 /**
