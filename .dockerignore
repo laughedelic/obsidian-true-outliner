@@ -1,4 +1,32 @@
+# What the image needs is the source tree. Nothing below is part of it: each
+# path is either supplied at runtime by docker-compose.yml's mounts, or
+# generated — by a build, by an e2e run, or by a tool nothing in the image
+# calls.
+#
+# For the ones an e2e run rewrites, keeping them out matters beyond context
+# size. A run regenerates the build output and the files it installs into the
+# vault, so any of those reaching the context would invalidate `COPY . .` and
+# store a fresh copy of the source tree on the next invocation, however
+# little of it actually changed. With them excluded, a re-run that touched no
+# source rebuilds nothing at all.
 .git
 node_modules
 dist
 .obsidian-cache
+
+# Build output, assembled by esbuild.config.mjs and scripts/styles.mjs.
+/main.js
+/styles.css
+
+# Installed into the vault by vault:install, and Obsidian's own UI state.
+/test-vault/.obsidian/plugins/true-outliner/main.js
+/test-vault/.obsidian/plugins/true-outliner/styles.css
+/test-vault/.obsidian/plugins/true-outliner/manifest.json
+/test-vault/.obsidian/workspace.json
+/test-vault/.obsidian/workspace-mobile.json
+
+# Generated fixtures and reports: scripts/gen-backlink-hub.mjs, npm run
+# test:coverage, and the design canvases.
+/test-vault/Backlinks/Hub
+/coverage
+/design

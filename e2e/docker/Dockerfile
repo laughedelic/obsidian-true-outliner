@@ -42,9 +42,6 @@ WORKDIR /workspace
 # node_modules at runtime instead of the host's node_modules, which never
 # has Linux binaries on a macOS/Windows host — see e2e/docker/README.md.
 COPY package.json package-lock.json .npmrc ./
-RUN npm ci
-
-COPY . .
 
 # scripts/e2e-docker.mjs runs the container as the invoking host UID/GID (not
 # root) so files it writes into the bind-mounted repo — and the object
@@ -54,7 +51,20 @@ COPY . .
 # ownership of what npm ci and obsidian-launcher created as root, so both
 # node_modules and the .obsidian-cache mount points need to be writable by
 # anyone.
-RUN mkdir -p .obsidian-cache/obsidian-app .obsidian-cache/obsidian-installer .obsidian-cache/electron-chromedriver \
+#
+# The chmod shares `npm ci`'s layer, and both sit above `COPY . .`, because a
+# recursive mode change copies every file it touches up into whatever layer
+# runs it: below the repo copy, it stored a second whole copy of node_modules
+# — and, sitting under a copy that any edit invalidates, it was re-run and
+# re-stored on every invocation. Above it, that copy-up is merged into the
+# layer `npm ci` already pays for and is cached with it. Neither `npm ci` nor
+# `mkdir -p` can be affected by the repo copy that now follows them:
+# `.dockerignore` keeps `node_modules` and `.obsidian-cache` out of the build
+# context.
+RUN npm ci \
+  && mkdir -p .obsidian-cache/obsidian-app .obsidian-cache/obsidian-installer .obsidian-cache/electron-chromedriver \
   && chmod -R a+rwX node_modules .obsidian-cache
+
+COPY . .
 
 CMD ["bash"]
