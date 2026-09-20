@@ -74,7 +74,12 @@ half of our workflow a cloud session can run. Measured in
 | REST on any other repository | refused unless the session attaches it |
 
 The GraphQL refusal is the one that matters: `gh stack`, `gh pr` and `gh repo` open with a
-GraphQL query, so none of them works from a cloud session however `gh` is installed. The
+GraphQL query, so none of them works from a cloud session however `gh` is installed. It is a
+property of the GitHub proxy, not of the environment's network access level: the documentation
+says the proxy applies whichever level is set, serves only a pinned set of GraphQL operations,
+and refuses the rest whatever token the session carries. A Custom allowlist or a personal
+`GH_TOKEN` in the environment does not lift it; only a self-hosted environment routes GitHub
+traffic elsewhere. The
 session hook says so on start. PR work from the cloud goes through the GitHub MCP tools or
 `gh api`, and stack surgery stays where CLAUDE.md already puts it — the primary checkout. The
 `gh auth status` verdict is misleading here: it reports the token invalid while every REST call

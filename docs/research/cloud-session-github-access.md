@@ -71,8 +71,17 @@ $ gh stack checkout 124
 ```
 
 `gh pr list`, `gh pr view 173` and `gh repo view` fail the same way. Nothing in this repository
-changes that: it is the harness's policy for every cloud session, and the only remedies are on
-Anthropic's side. So a cloud session runs the half of the workflow that is REST and git: commit,
+or in the environment dialog changes that. The cloud-environments documentation
+(code.claude.com/docs/en/cloud-environments, "GitHub proxy") states it: all GitHub operations go
+through a dedicated proxy "independent of the environment's access level", the proxy "serves only
+a pinned set of GraphQL operations for pull-request workflows" and rejects the rest with a 403
+"regardless of the credentials you supply, so a `GH_TOKEN` you set gets the same 403". The
+network access level (None, Trusted, Full, Custom) governs the session's own egress, which GitHub
+traffic never uses, so a Custom allowlist naming `api.github.com` is a no-op here. The same
+section documents the repository scope that blocks `gh extension install`, and a push protection
+under which "`git push` works only against the session's current working branch" — our rename
+before the first push keeps that branch current, which is consistent with the push above going
+through. The one documented configuration without this proxy is a self-hosted environment. So a cloud session runs the half of the workflow that is REST and git: commit,
 push, open and edit a PR through the MCP tools or `gh api`, read CI. Stack surgery stays in the
 primary checkout, where CLAUDE.md already put it for a different reason. The session hook now
 says so at start, so a session does not find out one failed command at a time.
