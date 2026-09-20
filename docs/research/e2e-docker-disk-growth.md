@@ -52,12 +52,15 @@ same. So each invocation re-ran `COPY . .` and the `chmod` below it, and stored 
 twice over: once in the image (the previous image going dangling, its unique layers retained)
 and once in the BuildKit cache.
 
-Two things this is *not*, both checked: the build context is 14 MB, so `.obsidian-cache`
+Two things this is *not*, both checked: the build context of a checkout with nothing nested
+under it is 14 MB ("On the reported host" covers the one that has), so `.obsidian-cache`
 (≈ 565 MB: the Obsidian installer, the app, per-spec screenshots) was already excluded and
 never reached the image; and the container runs `--rm`, with the three Obsidian downloads on
 named volumes that persist rather than accumulate.
 
 ## Measurements
+
+### In a cloud sandbox
 
 Taken in a Claude cloud sandbox (Ubuntu 24.04, Docker Engine 29.3.1, containerd/overlayfs
 snapshotter, BuildKit via buildx v0.31.1) — **not** on the macOS + OrbStack host the symptom
@@ -91,16 +94,74 @@ So ≈ 440 MB per run becomes ≈ 0 for a repeat run and ≈ 19 MB — one copy 
 for a run that follows an edit. The 19 MB is inherent to `COPY . .` and is where this stops
 being worth chasing.
 
-## What is not explained
+### On the reported host
 
-The sandbox figure is ≈ 0.44 GB per run; the report is several GB. The mechanism above is
-linear in the size of `node_modules` and does not obviously scale to 9 GB in one invocation,
-and OrbStack's storage differs from this sandbox's (its own VM disk image, a different
-snapshotter). Candidates not measured: whether the reported single-run figure spans more than
-one build, and whether the anonymous `node_modules` volume — re-seeded from the image on every
-`docker compose run` — costs more there than it reclaims. **The fix's effect on the reported
-host has not been measured.** Re-running the protocol above on that Mac, with `df -h /` and
-`docker system df -v` on either side of one invocation, is what would close this.
+Re-measured on the Mac the symptom came from: macOS 26.3.1, OrbStack 2.2.3, Docker Engine
+29.4.0, storage driver `overlay2` on a btrfs backing filesystem, buildx v0.33.0. The `apt-get`
+layer is present here (280 MB, cached throughout). Each figure is the change across one
+`npm run test:e2e:docker -- 52-heading-level-markers` invocation, read three ways: `df -k /` on
+the host, the allocated size of OrbStack's sparse `data.img.raw`, and `docker system df`.
+
+Run from a worktree with nothing nested under it (context transfer 1.5 MB on `main`, 0.1 MB
+with the fix):
+
+| Run | Host free space | OrbStack disk image | `docker system df`, images / build cache |
+| --- | --- | --- | --- |
+| `main`, first (image removed beforehand; `npm ci` still cached) | −458 MB | +467 MB | +2.08 GB / +357 MB |
+| `main`, second | −98 MB | +69 MB | +313 MB / +313 MB |
+| `main`, third | −44 MB | +50 MB | +313 MB / +313 MB |
+| fix, first (the changed `RUN` re-runs `npm ci` once) | −796 MB | +791 MB | +373 MB / +373 MB |
+| fix, second | −3 MB | +1 MB | 0 / 0 |
+| fix, third | 0 MB | −1 MB | 0 / 0 |
+
+The fix holds here: a repeat run rebuilds nothing — every step `CACHED` — and stores nothing.
+`docker history` shows the 269 MB `chmod` layer gone and `npm ci`'s layer unchanged at 330 MB
+with the `chmod` inside it.
+
+What differs from the sandbox is how much the old layout really cost. Docker's accounting grew
+by 313 MB per run on `main` — the 269 MB `chmod` layer plus the 44 MB `COPY . .` — but the disk
+grew by 50–100 MB. On btrfs, overlayfs copies a file up by cloning its extents, so a copy-up
+for a mode change stores metadata and no data: `chmod -R` over `node_modules` in a throwaway
+container was reported by Docker as 269 MB and moved the filesystem's used space by 20 MB. The
+sandbox's 440–616 MB is what the same layer costs on a backing filesystem without reflinks.
+
+So the `chmod` layer explains the 23 GB of *reported* images, and almost none of the 9 GB that
+left the host.
+
+### Where the 9 GB went
+
+The image the report left behind had a **6.75 GB `COPY . .` layer**. Runs from the primary
+checkout send `.claude/worktrees/` as part of the build context: nine worktrees, 6.0 GB, of
+which 2.24 GB is their `node_modules` and 3.53 GB their `.obsidian-cache`. The `.dockerignore`
+patterns `node_modules` and `.obsidian-cache` are unanchored but not recursive — they match at
+the context root only — and neither the old nor the widened file excludes the worktrees.
+
+Measured by building the fixed `Dockerfile` with the widened `.dockerignore` against the
+primary checkout as context, without touching it:
+
+| Build | Context transferred | Host free space | OrbStack disk image |
+| --- | --- | --- | --- |
+| First (`npm ci` layer cached) | 6.79 GB | −11.3 GB | +7.3 GB |
+| After one new file in one nested worktree | 6.79 GB | −11.1 GB | +14.5 GB |
+
+A one-file change anywhere under the primary checkout re-sends the whole context and stores
+`COPY . .` again, in the image and in the BuildKit cache. That is the reported figure — 9.3 GB
+to 215 MB in one invocation, ≈ 18 GB for a pair — and with several sessions working in nested
+worktrees the context is never unchanged. The fix in this change does not address it; from a
+worktree, which has no worktrees of its own, it never appears.
+
+The other candidates, settled:
+
+- **The anonymous `node_modules` volume does not accumulate.** `docker volume ls` counted 4
+  volumes before every run, 5 during (the extra one 268.7 MB) and 4 after, across all six runs.
+  Compose's `--rm` removes it.
+- **The single-run figure needs no second build to explain it.** One invalidated `COPY . .` of
+  the primary checkout is ≈ 11 GB on its own. The named volumes were already populated
+  (1.09 GB, unchanged throughout).
+- **OrbStack returns freed space promptly, for every kind of deletion.** Removing the 8.79 GB
+  image gave the host 7.3 GB back within 35 s; `docker image prune` 8.9 GB and
+  `docker builder prune -af` 14.5 GB, each within 45 s; a 1 GiB volume written and removed moved
+  host free space by −1026 MB and +1024 MB.
 
 ## Fix
 
@@ -117,4 +178,6 @@ build regenerates. That is what takes a repeat run from 19 MB to nothing.
 
 A run still adds ≈ 19 MB when source changed, and dangling images accumulate one per rebuild.
 `docker image prune -f` clears those; `docker builder prune -af` clears the build cache, at the
-price of the next build re-running `npm ci`. Neither is needed on a schedule at this rate.
+price of the next build re-running `npm ci`. Neither is needed on a schedule at this rate —
+which is the rate from a worktree. From a primary checkout with worktrees nested under it, a
+run still stores the whole context again, as "Where the 9 GB went" measures.
