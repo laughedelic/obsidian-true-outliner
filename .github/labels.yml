@@ -81,9 +81,10 @@
   description: Research notes, guides and the README
   aliases: [documentation]
 
-# Needs. What has to happen before the item is ready to pick up. An item with no
-# needs label and a Ready status is ready; the project's status says whether it
-# has been triaged at all, so absence here is never load-bearing.
+# Needs. The one thing standing between the item and someone starting work,
+# removed when that thing is answered rather than when work begins. No label
+# means the next person can start, so one left on after its question is answered
+# is worse than none. `docs/triage.md` says what each promises.
 - name: needs/repro
   color: d4c5f9
   description: No concrete failure case yet
@@ -97,8 +98,10 @@
   color: d4c5f9
   description: Wants a measured note before it can be proposed
 
-# Priority, by consequence rather than by surface. A tooling defect that costs
-# rework on every change ranks with a user-facing one.
+# Priority, by consequence rather than by surface: what it costs to leave the
+# defect alone, not how visible it is. A tooling defect that costs rework on
+# every change ranks with a user-facing one. `docs/triage.md` carries the
+# judgement, including where two rungs are arguable.
 - name: p0
   color: b60205
   description: Content the user did not edit is rewritten or lost, or the pipeline is stopped

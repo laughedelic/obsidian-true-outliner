@@ -1,4 +1,4 @@
-name: Labels
+name: Label set
 
 # Reconciles the repository's labels with `.github/labels.yml`. The API creates a
 # label implicitly when one is added to an issue, but only as a grey swatch with

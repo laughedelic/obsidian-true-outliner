@@ -1,4 +1,4 @@
-name: Triage
+name: PR labels
 
 # Every label a PR carries is derived, so nothing depends on remembering to add
 # one: the areas come from the paths the diff touches, and the kind comes from

@@ -42,10 +42,20 @@ body:
       required: true
 
   - type: input
-    id: versions
+    id: plugin-version
     attributes:
-      label: Plugin and Obsidian versions
-      placeholder: "plugin 0.12.1, Obsidian 1.12.7"
+      label: Plugin version
+      description: Settings, Community plugins, True Outliner.
+      placeholder: "0.12.1"
+    validations:
+      required: true
+
+  - type: input
+    id: obsidian-version
+    attributes:
+      label: Obsidian version
+      description: Settings, About, Current version.
+      placeholder: "1.12.7"
     validations:
       required: true
 

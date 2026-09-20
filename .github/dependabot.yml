@@ -24,6 +24,11 @@ updates:
         patterns: ["vitest", "@vitest/*", "vite", "fast-check"]
       lint-build:
         patterns: ["eslint", "typescript", "typescript-eslint", "esbuild", "builtin-modules"]
+      # Last, because a dependency joins the first group whose patterns match it.
+      # Without this one, anything the groups above miss — `@types/node` today —
+      # arrives as a pull request of its own.
+      other:
+        patterns: ["*"]
 
   - package-ecosystem: github-actions
     directory: /
