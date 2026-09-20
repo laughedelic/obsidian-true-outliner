@@ -60,26 +60,34 @@ const sections = ids.map((id) => {
   return `<section id="${esc(id)}"><h2>${esc(title)}</h2>${per}</section>`;
 });
 
-const html = `<!doctype html>
-<meta charset="utf-8">
-<title>Settings tab layouts</title>
+const html = `<title>Settings tab layouts</title>
 <style>
-  body { font: 14px/1.4 system-ui, sans-serif; margin: 24px; color: #222; background: #f6f6f6; }
-  nav a { margin-right: 12px; }
-  section { margin: 32px 0; }
-  h2 { margin: 0 0 8px; }
-  h3 { margin: 12px 0 4px; font-size: 13px; text-transform: uppercase; color: #666; }
+  :root { --bg: #f4f4f2; --panel: #ffffff; --ink: #1f1f1f; --muted: #626262; --line: #d6d6d2; --accent: #6d4fc2; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #1c1c1e; --panel: #2a2a2d; --ink: #ececec; --muted: #a3a3a3; --line: #3c3c40; --accent: #a58cf0; }
+  }
+  :root[data-theme="dark"] { --bg: #1c1c1e; --panel: #2a2a2d; --ink: #ececec; --muted: #a3a3a3; --line: #3c3c40; --accent: #a58cf0; }
+  body { font: 14px/1.45 system-ui, sans-serif; margin: 0; padding-block: 24px; padding-inline: 20px; color: var(--ink); background: var(--bg); }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  p.lede { color: var(--muted); max-width: 64ch; margin: 0 0 16px; }
+  nav { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 8px; }
+  nav a { color: var(--accent); text-decoration: none; }
+  nav a:focus-visible, .strip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  section { margin: 28px 0; padding-top: 16px; border-top: 1px solid var(--line); }
+  h2 { margin: 0 0 4px; font-size: 17px; }
+  h3 { margin: 12px 0 6px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
   .strip { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 8px; }
   figure { margin: 0; flex: 0 0 auto; }
-  figcaption { font-size: 12px; margin-bottom: 4px; }
-  figure img { display: block; height: 520px; border: 1px solid #ccc; margin-bottom: 4px; background: #fff; }
-  .search { font-size: 12px; color: #555; margin: 4px 0 0; padding-left: 18px; }
+  figcaption { font-size: 12px; margin-bottom: 4px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  figcaption b { color: var(--ink); }
+  figure img { display: block; height: 520px; max-width: none; border: 1px solid var(--line); margin-bottom: 4px; background: var(--panel); }
+  .search { font-size: 12px; color: var(--muted); margin: 4px 0 0; padding-left: 18px; }
   .search li { margin: 0; }
+  code { font-family: ui-monospace, monospace; font-size: 11.5px; }
 </style>
 <h1>Settings tab layouts</h1>
-<p>Each layout as Obsidian 1.13.7 renders it: the top level, then every page. The height under a
-picture is how many screens that level scrolls. Search lines give how many rows a query finds,
-per page.</p>
+<p class="lede">Each layout as Obsidian 1.13.7 renders it: the top level, then every page, desktop above phone.
+The figure under a picture is how many screens that level scrolls. The search lines say how many rows a query finds, per page.</p>
 <nav>${ids.map((id) => `<a href="#${esc(id)}">${esc(id)}</a>`).join('')}</nav>
 ${sections.join('\n')}
 `;
