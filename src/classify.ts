@@ -106,6 +106,18 @@ export interface TransactionFacts {
    * classify as boundary-crossing (conservative default).
    */
   readonly cursorBefore?: { readonly line: number; readonly ch: number };
+  /**
+   * Whether the main selection was EMPTY before the change — a caret rather
+   * than a range. Tells a replacement the user typed or pasted over a
+   * selection from one the editor synthesized around a caret: Obsidian's own
+   * Enter inside a quote replaces the character before the caret with that
+   * character, a line break and the quote's `> `, so the inserted text
+   * re-includes what was removed and parses as two blocks although nothing was
+   * pasted (docs/research/enter-inside-a-quote). Optional so every pre-existing
+   * call site (and test) is unaffected; without it a replacement keeps its
+   * type-over reading.
+   */
+  readonly emptySelectionBefore?: boolean;
 }
 
 /** This plugin's own grammar/command userEvent values (grammar.ts) —D2
@@ -252,11 +264,26 @@ export function isStructuralBlockSequence(parsedBlocks: readonly { children: rea
  * structural block sequence (see `isStructuralBlockSequence`), landing on a
  * real node's own line (not the preamble) — the shape node-edit-enforcement
  * D5 splices at a boundary rather than leaving as a raw mid-node character
- * insertion.
+ * insertion. A type-over of a selection inside one line with such text is the
+ * same shape reached through a deletion, and keeps this reading.
+ *
+ * A replacement made from a CARET is neither. The editor rewrote the text
+ * around the caret — Obsidian's own Enter inside a quote replaces the
+ * character before the caret with `a\n> ` — and the block sequence its inserted
+ * text parses to was never pasted or typed over anything. Read as a paste it
+ * reached the type-over path, which escalated the one-character range to the
+ * whole quote and replaced it (docs/research/enter-inside-a-quote).
  */
-function isMultiBlockInsertion(doc: OutlineDoc, span: ChangedLineSpan): boolean {
+function isMultiBlockInsertion(
+  doc: OutlineDoc,
+  facts: TransactionFacts,
+  span: ChangedLineSpan,
+): boolean {
   if (!span.insertedText) return false;
   if (span.fromLine !== span.toLine) return false;
+  const replaces =
+    span.fromCh !== undefined && span.toCh !== undefined && span.fromCh !== span.toCh;
+  if (replaces && facts.emptySelectionBefore) return false;
   if (!nodeAtLine(doc, span.fromLine)) return false; // preamble: out of jurisdiction
   return isStructuralBlockSequence(parse(span.insertedText).children);
 }
@@ -382,7 +409,7 @@ export function classify(facts: TransactionFacts, doc: OutlineDoc): TransactionC
   }
   const other = facts.changedLineSpans.some(
     (span) =>
-      isMultiBlockInsertion(doc, span) ||
+      isMultiBlockInsertion(doc, facts, span) ||
       crossesViaBoundaryDeletion(doc, span) ||
       crossesViaChromeDeletion(doc, facts, span) ||
       isExactSubtreeCoverDeletion(doc, span),

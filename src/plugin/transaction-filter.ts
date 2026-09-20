@@ -269,7 +269,13 @@ export function transactionFilterExtension(
       tr.startState.doc,
       tr.startState.selection.main.head,
     );
-    const facts: TransactionFacts = { userEvent, isComposition, changedLineSpans, cursorBefore };
+    const facts: TransactionFacts = {
+      userEvent,
+      isComposition,
+      changedLineSpans,
+      cursorBefore,
+      emptySelectionBefore: tr.startState.selection.main.empty,
+    };
     const cls = classify(facts, outlineDoc);
 
     let result: Transaction | TransactionSpec | readonly [Transaction, { selection: EditorSelection }] = tr;

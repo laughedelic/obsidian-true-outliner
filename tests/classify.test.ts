@@ -186,6 +186,90 @@ describe('classify: node-edit-enforcement D4/D5 boundary shapes', () => {
   });
 });
 
+describe('classify: a replacement synthesized around a caret is not a paste', () => {
+  // Obsidian's own Enter at the end of `> alpha` (docs/research/enter-inside-a-quote):
+  // the character before the caret is replaced by itself, a line break and the
+  // quote's `> `. The inserted text parses as two blocks — a paragraph and a
+  // quote — although nothing was pasted.
+  const quote = parse('> alpha\n> beta\n');
+  const continuation: ChangedLineSpan = {
+    fromLine: 0,
+    toLine: 0,
+    insertedText: 'a\n> ',
+    fromCh: 6,
+    toCh: 7,
+    rangeEnd: { line: 0, ch: 7 },
+  };
+
+  it('from a caret, the replacement stays within-node', () => {
+    expect(
+      classify(
+        facts({
+          userEvent: 'input.type',
+          changedLineSpans: [continuation],
+          cursorBefore: { line: 0, ch: 7 },
+          emptySelectionBefore: true,
+        }),
+        quote,
+      ),
+    ).toBe('within-node-edit');
+  });
+
+  it('the same bytes over a selection are a type-over, and stay boundary-crossing', () => {
+    // Negative control for the fact itself: it is the selection that decides,
+    // not the shape of the change. Without it, the caret case classified the
+    // same way and the verdict layer replaced the whole quote with `a` / `> `.
+    for (const selection of [{ emptySelectionBefore: false }, {}]) {
+      expect(
+        classify(
+          facts({
+            userEvent: 'input.type',
+            changedLineSpans: [continuation],
+            cursorBefore: { line: 0, ch: 7 },
+            ...selection,
+          }),
+          quote,
+        ),
+      ).toBe('boundary-crossing-edit');
+    }
+  });
+
+  it('a pure multi-block insertion at a caret is still a paste', () => {
+    expect(
+      classify(
+        facts({
+          userEvent: 'input.paste',
+          changedLineSpans: [
+            { fromLine: 0, toLine: 0, insertedText: 'One.\n\nTwo.', fromCh: 7, toCh: 7,
+              rangeEnd: { line: 0, ch: 7 } },
+          ],
+          cursorBefore: { line: 0, ch: 7 },
+          emptySelectionBefore: true,
+        }),
+        quote,
+      ),
+    ).toBe('boundary-crossing-edit');
+  });
+
+  it('a caret replacement that crosses a boundary by span is still boundary-crossing', () => {
+    // The fact narrows one rule, the multi-block reading, and nothing before it.
+    expect(
+      classify(
+        facts({
+          userEvent: 'input.type',
+          changedLineSpans: [
+            { fromLine: 0, toLine: 2, insertedText: 'a\n> ', fromCh: 6, toCh: 0,
+              rangeEnd: { line: 2, ch: 0 } },
+          ],
+          cursorBefore: { line: 0, ch: 7 },
+          emptySelectionBefore: true,
+        }),
+        parse('> alpha\n\nBody.\n'),
+      ),
+    ).toBe('boundary-crossing-edit');
+  });
+});
+
 describe('classify: chrome-boundary deletion shapes (chrome-transparency amendment)', () => {
   const doc = parse('- alpha\n- beta\n');
   // 0 '- alpha' / 1 '- beta'
