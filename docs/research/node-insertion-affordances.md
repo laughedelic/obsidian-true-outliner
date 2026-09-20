@@ -175,6 +175,42 @@ that ships one without the other leaves an intent unreachable.
 - Nothing needs to be inserted to open a place: a provisional position is already a node that is not
   there yet, and abandoning one already removes it.
 
+## What the drag change already carries
+
+`node-dragging` (`feat/drag-nodes-with-a-drop-preview`, read at `ae06d0e`) resolves the same object
+from the other end — a pointer choosing a seam and a column with a run in hand — and has already
+built and measured what an insertion needs. Verified against that branch's source, not its
+description:
+
+- **The seam resolver takes no run.** `src/drop-destinations.ts` splits into `seams(doc, { folded,
+  scoped, outside?, kind? })`, which finds every seam and the places it offers — parent, index,
+  depth — from the tree alone, and `dropSeams(...)`, which adds what a *run* becomes at each place.
+  `kind` defaults to `'paragraph'` and is what an insertion passes. Two rules live in `seams` and
+  apply to an insertion exactly as to a drop: a non-heading node is not offered a depth at which it
+  would follow a heading as its sibling (`followsAHeading` — a paragraph written after a heading is
+  inside it whatever column was aimed at), and under a zoom the root column is not offered. F4 and
+  the drag's end-seam fix are the same finding: the last seam anchors on the last line with text,
+  not below it.
+- **The preview is a decoration.** `src/plugin/drag-preview.ts` draws the seam layer and the ghost
+  mark from `dragPreviewField`, and `decorations.ts` reads them in the same pass as the guides. T6's
+  ghost row is that preview with an empty payload: the same column arithmetic in the overlay's own
+  coordinate space, the same `GhostMarkWidget` with the kind stated rather than re-encoded. One
+  thing not to rediscover: the ghost is a marker icon, and `MarginCompensation` writes
+  `left … !important` inline onto every marker icon it finds on a plain line, which put the drag's
+  ghost three columns out until it was excluded (`node-drag-and-drop` 6d). A ghost row needs the
+  same exclusion.
+- **An absorbed region is already settled.** A heading dropped at a seam takes the anchor's
+  following siblings; `DropDestination.absorbs` carries the span, and the preview draws those rows
+  one level in under the ghost, untinted. A heading inserted at a foot absorbs the same way and can
+  read it from the same place.
+- **The unit resolves once,** in `src/plugin/drag-geometry.ts`'s probe element, because
+  `getComputedStyle` returns the unresolved `2rem` for the custom property. A foot control drawn
+  from state reads it there.
+
+So the open question "what a press dispatches" has a narrower shape than it did: the place comes
+from `seams`, the drawing from the preview field, and only the act — open a provisional position at
+that place, or insert — is this change's own.
+
 ## What it does not settle
 
 - **Which treatment.** T2 is the cheapest against the existing machinery; T5 and T6 are the only
@@ -186,6 +222,7 @@ that ships one without the other leaves an intent unreachable.
   ([outline-mode-surfaces.md](outline-mode-surfaces.md)).
 - **What a press dispatches** — a provisional position at the chosen depth, or a real insertion.
   The first reuses `provisional-cleanup` and the caret policy wholesale; the second needs its own
-  operation and its own history entry.
+  operation and its own history entry. Either way the place is `seams`' and the drawing is the
+  preview field's (above).
 - **Whether any of it is a setting,** and what the default is for a reader who wants no controls in
   the text at all.
