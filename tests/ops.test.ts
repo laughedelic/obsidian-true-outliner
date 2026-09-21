@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { dropSeams } from '../src/drop-destinations';
 import fc from 'fast-check';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
@@ -808,6 +809,90 @@ const KNOWN_MOVE_REASONS = new Set([
   'not-expressible-under-target',
   'insertion-not-expressible',
 ]);
+
+describe('moveSubtreesTo, and the kind a run has where it lands', () => {
+  it('writes a heading one past its new parent, whatever level the siblings sit at', () => {
+    // `## First` moved inside `## Second`, whose only child is an `#####`
+    // section: before that section it is an h3 that takes the section in;
+    // after it, an h3 beside it. Never an h5 — the skipped level is the
+    // scope's irregularity, not a rule for what lands in it.
+    const src = ['## First', '', 'one', '', '## Second', '', '##### Deep', '', 'two', ''].join('\n');
+    const doc = parse(src);
+    const second = byLine(doc, '## Second');
+    const before = moveSubtreesTo(doc, [[byLine(doc, '## First')]], { parentId: second, index: 0 });
+    if (!before.ok) throw new Error(before.rejection.reason);
+    expect(encode(before.value.doc)).toBe(
+      ['## Second', '', '### First', '', 'one', '', '##### Deep', '', 'two', ''].join('\n'),
+    );
+    const after = moveSubtreesTo(doc, [[byLine(doc, '## First')]], { parentId: second, index: 1 });
+    if (!after.ok) throw new Error(after.rejection.reason);
+    expect(encode(after.value.doc)).toBe(
+      ['## Second', '', '##### Deep', '', 'two', '', '### First', '', 'one', ''].join('\n'),
+    );
+  });
+
+  it('keeps a list item a list item wherever the destination can hold one', () => {
+    // Under a heading as its first child, and after another list item: the
+    // kind stays. Right after a paragraph it cannot: the attachment rule would
+    // make it that paragraph's child, so it is written as a paragraph there,
+    // as before.
+    // `- a` before `intro`, since a list after a paragraph is that paragraph's
+    // child: Top's children are the item, the paragraph and the section.
+    const src = ['# Top', '', '- a', '', 'intro', '', '## Other', '', '- b', ''].join('\n');
+    const doc = parse(src);
+    const top = byLine(doc, '# Top');
+    // Kinds and order, not spacing: the scope's own gaps are the gap rule's.
+    const outline = (r: ReturnType<typeof moveSubtreesTo>) => {
+      if (!r.ok) throw new Error(r.rejection.reason);
+      return [...walkNodes(r.value.doc)].map((n) => `${n.kind}: ${n.lines[0]!.trim()}`);
+    };
+    expect(outline(moveSubtreesTo(doc, [[byLine(doc, '- b')]], { parentId: top, index: 0 }))).toEqual([
+      'heading: # Top',
+      'list-item: - b',
+      'list-item: - a',
+      'paragraph: intro',
+      'heading: ## Other',
+    ]);
+    expect(outline(moveSubtreesTo(doc, [[byLine(doc, '- b')]], { parentId: top, index: 1 }))).toEqual([
+      'heading: # Top',
+      'list-item: - a',
+      'list-item: - b',
+      'paragraph: intro',
+      'heading: ## Other',
+    ]);
+    expect(outline(moveSubtreesTo(doc, [[byLine(doc, '- b')]], { parentId: top, index: 2 }))).toEqual([
+      'heading: # Top',
+      'list-item: - a',
+      'paragraph: intro',
+      'paragraph: b',
+      'heading: ## Other',
+    ]);
+  });
+
+  it('refuses to write a task as a paragraph, and keeps it a task everywhere else', () => {
+    const src = ['# Top', '', '- a', '', 'intro', '', '## Other', '', '- [ ] chore', ''].join('\n');
+    const doc = parse(src);
+    const top = byLine(doc, '# Top');
+    const kept = moveSubtreesTo(doc, [[byLine(doc, '- [ ] chore')]], { parentId: top, index: 0 });
+    if (!kept.ok) throw new Error(kept.rejection.reason);
+    expect([...walkNodes(kept.value.doc)].map((n) => `${n.kind}: ${n.lines[0]!.trim()}`)).toEqual([
+      'heading: # Top',
+      'list-item: - [ ] chore',
+      'list-item: - a',
+      'paragraph: intro',
+      'heading: ## Other',
+    ]);
+    const broken = moveSubtreesTo(doc, [[byLine(doc, '- [ ] chore')]], { parentId: top, index: 2 });
+    expect(broken.ok).toBe(false);
+    if (!broken.ok) expect(broken.rejection.reason).toBe('insertion-not-expressible');
+    // And the seam offers no such place: the destination the preview draws is
+    // always one the release can deliver.
+    const chore = [...walkNodes(doc)].find((n) => n.lines[0] === '- [ ] chore')!;
+    const seams = dropSeams(doc, [chore]);
+    const afterIntro = seams.find((s) => s.aboveId === byLine(doc, 'intro'))!;
+    expect(afterIntro.candidates.some((c) => c.parentId === top && c.index === 2)).toBe(false);
+  });
+});
 
 describe('moveSubtreesTo, at a level the destination is told', () => {
   const DOC = ['# Kitchen', '', 'intro', '', '## Plan', '', '1. demolition', '', '## Materials', '', '- tile', '- handles', '', '> quote', ''].join('\n');

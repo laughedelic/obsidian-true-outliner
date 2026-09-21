@@ -98,3 +98,95 @@ A move whose destination is the run's CURRENT place SHALL produce no document ch
 #### Scenario: A move to the current place changes nothing
 - **WHEN** a run is moved to the destination it already occupies
 - **THEN** the result carries no document change
+
+## MODIFIED Requirements
+
+### Requirement: Context-determined encoding on reparent (provisional rule)
+A reparented non-heading content node SHALL keep its own encoding wherever its destination can
+hold that encoding, and SHALL be re-encoded only where the destination cannot:
+
+- A PARAGRAPH landing in a list scope — under a list item or a paragraph, whose children are list
+  items, or beside list items (nearest content sibling, preceding first, else following) — SHALL
+  become a list item, since a paragraph written among list items ends the list.
+- A LIST ITEM landing immediately after a paragraph SHALL become a paragraph, since the attachment
+  rule would otherwise make it that paragraph's child rather than the sibling the destination
+  names. A list item landing anywhere else — as a heading's first child, after another list item,
+  after an atom or a heading — SHALL stay a list item; the reader who wants a paragraph has
+  outdent for it.
+- A TASK ITEM SHALL never be written as a paragraph, since its checkbox is part of its list
+  marker. Where the rule above would convert one, the operation SHALL be rejected with
+  `insertion-not-expressible`, and a destination that would be rejected SHALL NOT be offered by
+  any surface that previews destinations.
+
+A node CREATED at a destination — the first child a split materialises — takes the scope's own
+content kind: the nearest content sibling's, preceding first, else following; with none, a
+paragraph under a heading or the root and a list item under any other parent. These rules SHALL
+be implemented behind isolated strategy functions.
+
+A HEADING node reaching a new destination — which only an insertion or a move can do, since the
+level-shifting operations move a heading by level rather than by reparenting — SHALL take its
+encoding from the same function, with one arm per kind of destination:
+
+- In a HEADING-BEARING scope (the root, or a heading's children) it SHALL remain a heading, at ONE
+  PAST ITS PARENT'S LEVEL, or `h1` at the root — whatever level the destination's heading siblings
+  sit at. A scope that skips a level is that scope's own irregularity, not a rule for what lands in
+  it. A heading written shallower than the siblings that follow it opens a section over them, and
+  they become its children on re-parse: this is the heading's own meaning, the same absorption an
+  inserted heading already performs, and a surface that previews destinations SHALL draw it before
+  the release.
+- In a LIST scope it SHALL become a list item, carrying its own `#` run verbatim into that
+  item's text.
+
+Where the re-levelling would need a level markdown does not have — judged on the payload's
+DEEPEST heading, not its root — the insertion SHALL be rejected with `at-h6-bound`, the reason
+and the reading `indent` already uses for the same shape. Neither alternative keeps the
+payload's own tree: clamping puts two of its levels onto one, and converting to content at
+section level hands the run to the attachment rule.
+
+#### Scenario: Indent then outdent restores a paragraph
+- **WHEN** a top-level paragraph is indented under a paragraph and then outdented back
+- **THEN** it is re-encoded as a list item under the paragraph, whose children are list items,
+  and as a paragraph again on the way back, where it lands right after that paragraph — and the
+  document is byte-identical to the original
+
+#### Scenario: Nested-list documents never flatten
+- **WHEN** outdent is applied to any item in a document consisting entirely of nested list
+  items
+- **THEN** the item remains a list item at its new depth
+
+#### Scenario: A list item keeps its kind under a heading
+- **WHEN** a list item is moved to be a heading's first child, or to follow another list item
+  among a heading's children
+- **THEN** it is written as a list item there
+
+#### Scenario: A list item right after a paragraph becomes a paragraph
+- **WHEN** a list item is moved to the position immediately after a paragraph among a heading's
+  children
+- **THEN** it is written as a paragraph, so that it is the paragraph's sibling and not its child
+
+#### Scenario: A task is refused where it would have to become a paragraph
+- **WHEN** a task item is moved to the position immediately after a paragraph
+- **THEN** the operation is rejected with `insertion-not-expressible` and the document is
+  unchanged; moved to a heading's first child instead, it stays a task
+
+#### Scenario: A heading takes its level from its parent
+- **WHEN** an `h2` section is moved among the children of another `h2` whose only child is an
+  `h5` section
+- **THEN** it is written as an `h3` — before the `h5` section, which becomes its child; after it,
+  beside it — and never as an `h5`
+
+#### Scenario: A heading inserted into a list scope becomes a list item carrying its rank
+- **WHEN** a heading-rooted subtree is inserted below a list item
+- **THEN** the heading encodes as a list item whose text begins with its original `#` run,
+  and outdenting that item back to a heading scope restores a heading of the original rank
+
+#### Scenario: A heading inserted into a heading scope re-levels
+- **WHEN** a heading-rooted subtree is inserted among a heading's children
+- **THEN** it remains a heading, one level past its new parent's, with every heading in the
+  payload shifted by the same delta
+
+#### Scenario: A payload deeper than the destination has room for is refused
+- **WHEN** a heading-rooted subtree whose own deepest heading would land past `h6` is inserted
+  into a heading-bearing scope
+- **THEN** the insertion is rejected with `at-h6-bound` and the document is unchanged — even
+  where the payload's ROOT alone would have fitted

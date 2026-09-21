@@ -431,6 +431,30 @@ the height of what it hides. Measured on the zoomed fixture, with the pointer at
 The seam before hidden content is now the bottom of the last visible line's own text, which
 `coordsAtPos` states exactly.
 
+## 6h. Three encoding answers the second pass read as wrong
+
+Each is a rule the drop inherited from the insertion layer and the first surface to show before
+the release. Recorded here with what changed and what it cost the suite.
+
+**An `h2` dropped under an `h2` whose only child was an `h5` section became an `h5`.** The level
+rule copied the destination's heading siblings, and only fell back to the parent's level plus one
+where there was none. The rule was written to keep a pasted heading from opening a section over
+following siblings in a scope that skipped a level — the very absorption the preview now draws.
+Changed to the parent's level plus one, unconditionally. One test of 1597 pinned the old
+reading, the negative control written for it; it now asserts the absorption.
+
+**A task dropped after a paragraph became a paragraph beginning `[x]`.** The kind rule encoded a
+reparented node like its nearest content sibling. A task cannot be a paragraph; where the
+attachment rule would force it (right after a paragraph, whose child a list item would become),
+the move is refused and the seam filter drops that column. No existing test covered a task's
+re-encoding.
+
+**A list item dropped under a heading became a paragraph.** Same rule. A list item now keeps its
+kind wherever the destination can hold one, and converts only right after a paragraph, for the
+attachment rule's sake. Whether a list after a paragraph should be its child at all is
+[discussion #185](https://github.com/laughedelic/obsidian-true-outliner/discussions/185); the
+conversion is what the current reading of that rule requires, and would go with it.
+
 ## 7. Where a drop can land: the seam and its depths
 
 Not a measurement — the model the sections above leave to be chosen, recorded here so the design

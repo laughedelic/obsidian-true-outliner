@@ -295,6 +295,33 @@ The shared re-encode step takes it in place of the level the destination's paren
 named level takes the general path even inside one scope: the same-scope shortcut is a reorder,
 and a heading changing level without moving is a rewrite, not a reorder.
 
+### D9b. Three encoding rules the drop exposed
+
+The drop is the first surface that shows a re-encoding BEFORE it happens, and the manual pass
+read three of the shared rule's answers as wrong. They are changed in the shared step, not
+around it, so a paste at the same destination writes what the drop previewed.
+
+- **A heading's level is its parent's plus one.** The rule copied the level of the destination's
+  heading siblings, so an `h2` dropped under an `h2` whose children are `h5` became an `h5`. The
+  sibling rule existed to keep a pasted heading from opening a section over the siblings that
+  followed it in a scope that skipped a level; the drop draws that absorption before the release,
+  and the absorption is the heading's own meaning either way. A skipped level is the scope's
+  irregularity, not a rule for what lands in it.
+- **A content node keeps its kind unless the destination cannot hold it.** The rule encoded every
+  reparented node "like its neighbour", so a list item dropped under a heading became a paragraph.
+  Two destinations cannot hold a kind: a paragraph among list items ends the list, so it becomes
+  one; and a list item right after a paragraph becomes that paragraph's child by the attachment
+  rule (`parse`'s reading, the question discussion #185 keeps open), so it is written as a
+  paragraph there. Everywhere else the node keeps what it was, and outdent is how a reader turns
+  a list item into a paragraph on purpose.
+- **A task is never written as a paragraph.** Its checkbox is part of its list marker, and a
+  paragraph beginning `[x]` is a broken checkbox. Where the attachment rule would force the
+  conversion, the operation is refused with `insertion-not-expressible`, which the seam filter
+  already honours: that column is not offered, rather than offered and broken.
+
+A node CREATED at a destination — the first child a split materialises — still takes the scope's
+own kind, since there is nothing to keep; that half of the old rule stands under its own name.
+
 ### D9a. The operand's selection is set at the threshold, not at the press
 
 D5 collapses the selection to the pressed node's cover when the press lands outside the current

@@ -29,7 +29,7 @@ import { encode, encodeLines } from './encode';
 import { parse, indentWidth } from './parse';
 import type { Edit, OpResult } from './result';
 import { accept, diffLines, reject } from './result';
-import { destinationHeadingLevel, encodingKindAtDestination, listAttachesTo } from './rules';
+import { destinationHeadingLevel, forcedContentKind, listAttachesTo, nativeContentKind } from './rules';
 import {
   childBaseCol,
   headingAsListItem,
@@ -728,12 +728,16 @@ function indentSurgery(
       : landing.children.length;
 
   const newKind = isContent(node)
-    ? encodingKindAtDestination({
-        parentKind: landing.kind,
-        precedingSiblings: landing.children.slice(0, insertIndex),
-        followingSiblings: landing.children.slice(insertIndex),
-      })
+    ? forcedContentKind(
+        {
+          parentKind: landing.kind,
+          precedingSiblings: landing.children.slice(0, insertIndex),
+          followingSiblings: landing.children.slice(insertIndex),
+        },
+        node.kind,
+      )
     : undefined;
+  if (newKind === 'paragraph' && isTaskItem(node)) return reject('insertion-not-expressible');
   const moved = reencodeForDestination(
     node,
     newKind,
@@ -804,12 +808,16 @@ function outdentSurgery(
   const grandSiblings = childrenAt(doc, grandPath);
 
   const newKind = isContent(node)
-    ? encodingKindAtDestination({
-        parentKind: grandParent ? grandParent.kind : 'root',
-        precedingSiblings: grandSiblings.slice(0, parentIndex + 1),
-        followingSiblings: grandSiblings.slice(parentIndex + 1),
-      })
+    ? forcedContentKind(
+        {
+          parentKind: grandParent ? grandParent.kind : 'root',
+          precedingSiblings: grandSiblings.slice(0, parentIndex + 1),
+          followingSiblings: grandSiblings.slice(parentIndex + 1),
+        },
+        node.kind,
+      )
     : undefined;
+  if (newKind === 'paragraph' && isTaskItem(node)) return reject('insertion-not-expressible');
   let moved = reencodeForDestination(
     node,
     newKind,
@@ -831,12 +839,18 @@ function outdentSurgery(
     let children = moved.children;
     for (const [i, sibling] of followingSiblings.entries()) {
       const newSiblingKind = isContent(sibling)
-        ? encodingKindAtDestination({
-            parentKind: moved.kind,
-            precedingSiblings: children,
-            followingSiblings: followingSiblings.slice(i + 1),
-          })
+        ? forcedContentKind(
+            {
+              parentKind: moved.kind,
+              precedingSiblings: children,
+              followingSiblings: followingSiblings.slice(i + 1),
+            },
+            sibling.kind,
+          )
         : undefined;
+      if (newSiblingKind === 'paragraph' && isTaskItem(sibling)) {
+        return reject('insertion-not-expressible');
+      }
       const reencoded = reencodeForDestination(
         sibling,
         newSiblingKind,
@@ -1058,6 +1072,14 @@ const LIST_MARKER_SPLIT_RE = /^([ \t]*)([-+*]|\d{1,9}[.)])([ \t]*)/;
 /** An unchecked task marker, and the shape that identifies one on a line. */
 const TASK_MARKER_RE = /^\[[ xX]\][ \t]+/;
 const EMPTY_TASK_MARKER = '[ ] ';
+
+/** Whether a list item carries a task marker — a node that cannot be written
+ * as a paragraph, since its checkbox is part of its list marker. */
+export function isTaskItem(node: OutlineNode): boolean {
+  if (node.kind !== 'list-item') return false;
+  const first = node.lines[0] ?? '';
+  return TASK_MARKER_RE.test(first.slice(contentColumnCh(first)));
+}
 
 /**
  * `- ` (or `1. `, or `- [ ] `) for a new EMPTY item alongside `node` — the
@@ -1384,7 +1406,7 @@ export function splitNode(
   // encoding to fall back to — the remainder can only ever be a child.
   const afterSubtree = collapsed && node.kind !== 'heading';
   if (!afterSubtree && (node.children.length > 0 || node.kind === 'heading')) {
-    const childKind = encodingKindAtDestination({
+    const childKind = nativeContentKind({
       parentKind: node.kind,
       precedingSiblings: [],
       followingSiblings: node.children,
@@ -2296,33 +2318,41 @@ export function reencodeBlocksForDestination(
     [...precedingSiblings, ...followingSiblings],
     fallbackIndentUnit,
   );
-  const newContentKind = encodingKindAtDestination({
-    parentKind: parent === 'root' ? 'root' : parent.kind,
-    precedingSiblings,
-    followingSiblings,
-  });
+  const parentKind = parent === 'root' ? 'root' : parent.kind;
   const headingLevel = destLevel;
-  return accept(
-    parsedBlocks.map((block) => {
-      if (block.kind === 'heading') {
-        // A heading only ever reaches here at the payload's top level: no
-        // parse nests one under a paragraph or a list item, so the recursion
-        // each arm runs owns every other heading in the payload.
-        return headingLevel === undefined
+  const written: OutlineNode[] = [];
+  for (const block of parsedBlocks) {
+    if (block.kind === 'heading') {
+      written.push(
+        headingLevel === undefined
           ? reencodeIntoListScope(block, indentText)
-          : reencodeHeadingSubtree(block, headingLevel - (block.level ?? 1));
-      }
-      const isContentBlock = block.kind === 'paragraph' || block.kind === 'list-item';
-      if (!isContentBlock || newContentKind === block.kind) {
-        // No kind conversion needed: a verbatim whole-subtree re-indent keeps
-        // every descendant's original indent unit intact (see
-        // reindentSubtreeVerbatim's own comment for why this differs from
-        // reencodeForDestination's numeric-delta approach here).
-        return reindentSubtreeVerbatim(block, indentText);
-      }
-      return reencodeForDestination(block, newContentKind, indentText);
-    }),
-  );
+          : reencodeHeadingSubtree(block, headingLevel - (block.level ?? 1)),
+      );
+      continue;
+    }
+    if (block.kind !== 'paragraph' && block.kind !== 'list-item') {
+      written.push(reindentSubtreeVerbatim(block, indentText));
+      continue;
+    }
+    // Each block lands after the ones written before it, so the attachment
+    // rule reads the block it will actually follow: a payload's second list
+    // item follows the first, converted or not.
+    const forced = forcedContentKind(
+      {
+        parentKind,
+        precedingSiblings: [...precedingSiblings, ...written],
+        followingSiblings,
+      },
+      block.kind,
+    );
+    if (forced === 'paragraph' && isTaskItem(block)) return reject('insertion-not-expressible');
+    written.push(
+      forced === undefined || forced === block.kind
+        ? reindentSubtreeVerbatim(block, indentText)
+        : reencodeForDestination(block, forced, indentText),
+    );
+  }
+  return accept(written);
 }
 
 export function insertSubtrees(
