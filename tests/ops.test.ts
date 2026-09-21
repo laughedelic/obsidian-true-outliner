@@ -605,10 +605,12 @@ describe('an arriving number does not become the run’s start', () => {
     );
   });
 
-  it('a heading payload converting to a bullet reaches the same seam (#159)', () => {
-    // The payload converts on the way in and lands as a `-`, which is the other
-    // half of the report — and the control that says the defect was the
-    // renumbering rather than the conversion.
+  it('a heading payload converting into an ordered run JOINS it (#159)', () => {
+    // The other half of the report, now that a converted node takes the
+    // destination's list style: the heading arrives as an ordered item, so the
+    // run is never divided and `10. ten` moves to `11.` because an item was
+    // inserted above it — which is renumbering working, not the defect above.
+    // Its own child sits at the wider marker's content column.
     const doc = parse('- top\n  8. eight\n  9. nine\n  10. ten\n');
     const result = insertSubtrees(
       doc,
@@ -618,7 +620,7 @@ describe('an arriving number does not become the run’s start', () => {
     );
     if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
     expect(encode(result.value.doc)).toBe(
-      '- top\n  8. eight\n  9. nine\n  - ## H\n    - body\n  10. ten\n',
+      '- top\n  8. eight\n  9. nine\n  10. ## H\n      - body\n  11. ten\n',
     );
   });
 
@@ -732,6 +734,87 @@ describe('an arriving number does not become the run’s start', () => {
     // swallowed run's, which is why a permutation needed its own disproof.
     const { text } = applyOk(moveDown, '5. a\n- x\n1. c\n', '- x');
     expect(text).toBe('5. a\n6. c\n- x\n');
+  });
+});
+
+describe('a converted node takes the destination list style', () => {
+  function pasted(md: string, anchor: string, payload: string, pos: 'before' | 'after' = 'after') {
+    const doc = parse(md);
+    const result = insertSubtrees(doc, byLine(doc, anchor), parse(payload).children, pos);
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    return encode(result.value.doc);
+  }
+
+  it('a heading joining a `*` run is written with `*`', () => {
+    // A `-` written into a `*` run ENDS it: CommonMark starts a new list
+    // wherever the bullet character changes, so one list became three around
+    // the arrival. Measured with `commonmark`, this frame went from 2 lists to
+    // 4 and now stays at 2.
+    expect(pasted('- top\n  * a\n  * b\n  * c\n', '  * a', '## H\n')).toBe(
+      '- top\n  * a\n  * ## H\n  * b\n  * c\n',
+    );
+  });
+
+  it('a `+` run donates too', () => {
+    expect(pasted('- top\n  + a\n  + b\n', '  + a', '## H\n')).toBe(
+      '- top\n  + a\n  + ## H\n  + b\n',
+    );
+  });
+
+  it('an ordered run donates its delimiter as well as its type', () => {
+    expect(pasted('- top\n  1) a\n  2) b\n', '  1) a', '## H\n')).toBe(
+      '- top\n  1) a\n  2) ## H\n  3) b\n',
+    );
+  });
+
+  it('a paragraph payload converts the same way', () => {
+    // `headingAsListItem` was not alone in hardcoding `-`: the
+    // paragraph-to-list-item arm of `reencodeForDestination` made the same
+    // choice, and a paragraph is the commoner payload of the two.
+    expect(pasted('- top\n  8. eight\n  9. nine\n', '  8. eight', 'plain para\n')).toBe(
+      '- top\n  8. eight\n  9. plain para\n  10. nine\n',
+    );
+  });
+
+  it('a following sibling donates where there is no preceding one', () => {
+    // The same order `encodingKindAtDestination` reads its own donor in.
+    expect(pasted('- top\n  * a\n  * b\n', '  * a', '## H\n', 'before')).toBe(
+      '- top\n  * ## H\n  * a\n  * b\n',
+    );
+  });
+
+  it('the payload\u2019s OWN nested rows keep the default marker', () => {
+    // The destination style reaches the payload's top level only: its nested
+    // rows belong to lists of its own, which have no destination run to sit
+    // level with. `2. ## H` joins the run; `- ### H2` is its child.
+    expect(pasted('- top\n  1. a\n  2. b\n', '  1. a', '## H\n### H2\n')).toBe(
+      '- top\n  1. a\n  2. ## H\n     - ### H2\n  3. b\n',
+    );
+  });
+
+  it('an ARRIVING list item still keeps its own marker', () => {
+    // The negative control, and the boundary of this change: an arriving list
+    // item is not a conversion. It carries a marker its author chose, and
+    // rewriting that would be the silent change this rule exists to avoid.
+    expect(pasted('- top\n  * a\n  * b\n', '  * a', '- x\n')).toBe(
+      '- top\n  * a\n  - x\n  * b\n',
+    );
+  });
+
+  it('a task donor donates its marker and not its checkbox', () => {
+    // `listStyle` is the marker; `[ ] ` is content that happens to follow it.
+    // A pasted heading joins the list without becoming a task.
+    expect(pasted('- top\n  - [ ] a\n  - [ ] b\n', '  - [ ] a', '## H\n')).toBe(
+      '- top\n  - [ ] a\n  - ## H\n  - [ ] b\n',
+    );
+  });
+
+  it('no list at the destination leaves the default `-`', () => {
+    // A list SCOPE with no list in it yet: the payload converts, because the
+    // scope's encoding is a list item, and there is no marker to copy.
+    expect(pasted('- top\n\n  para\n', '  para', '## H\n')).toBe(
+      '- top\n\n  para\n\n  - ## H\n',
+    );
   });
 });
 

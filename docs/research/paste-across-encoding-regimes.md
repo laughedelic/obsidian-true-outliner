@@ -425,9 +425,10 @@ Filed as [#159](https://github.com/laughedelic/obsidian-true-outliner/issues/159
 plain-bullet control re-run as the thing that establishes it is not heading-specific. The
 renumbering half is closed by `a-split-run-keeps-its-own-numbers`, which leaves a divided run's
 fragments on the numbers they already carry — `10. ten` comes through untouched
-(`docs/research/ordered-run-split-numbering`). The hardcoded `-` is still hardcoded: a converted
-heading still divides the run it lands in, and whether it should adopt the destination's
-`listStyle` instead is what #159 stays open on.
+(`docs/research/ordered-run-split-numbering`). The hardcoded `-` is gone too, in the layer above it
+(`a-converted-node-takes-the-destination-style`): a converted node takes the destination's list
+style, so it joins the run it lands in rather than dividing it, and the `*` case above stops
+making three rendered lists of one (`docs/research/destination-list-style`).
 
 ## What Obsidian does with a heading inside a list item (tasks 2.2, 2.3)
 

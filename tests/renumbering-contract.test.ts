@@ -200,18 +200,24 @@ describe('nothing above what an operation relocates is rewritten', () => {
  * defect landed (#159: `10. ten` rewritten to `8. ten`). So the fence is the
  * insertion point and the direction is reversed.
  *
- * The payload carries no ordered item, which is what makes the assertion total
- * rather than conditional: nothing arrives that belongs to any run, so no run's
- * membership changes and no marker in the document has any reason to move. A
- * payload that DID carry one would legitimately push the items below it, and
- * the property would have to become a calculation instead of an invariant.
+ * The payloads are the ones that cannot JOIN a run at the destination: an
+ * arriving list item keeps its own marker, and an atom stays an atom. That is
+ * what makes the assertion total rather than conditional — nothing arrives
+ * that belongs to any run, so no run's membership changes and no marker in the
+ * document has any reason to move.
+ *
+ * A heading or a paragraph payload is deliberately NOT here. Those CONVERT into
+ * list items, and a converted node takes the destination's own list style, so
+ * one landing in an ordered run arrives as a member of it and legitimately
+ * pushes the items below — the property would have to become a calculation
+ * instead of an invariant. `ops.test.ts` carries that direction by example.
  *
  * Restricted to already-consecutive sources for the same reason the property
  * above is: a renumbering normalizes, and normalizing a run that reads 8, 9, 9
  * is the requirement working rather than failing.
  */
 describe('a paste that carries no ordered item rewrites no ordered marker', () => {
-  const PAYLOADS = ['- x\n', '- x\n  - y\n', '## H\nbody\n', '> quote\n'];
+  const PAYLOADS = ['- x\n', '- x\n  - y\n', '* y\n', '> quote\n'];
 
   it('leaves every ordered marker in the document byte-identical', () => {
     let accepted = 0;
