@@ -579,22 +579,27 @@ function renumberOrderedAgainst(
     readonly start: number;
     /** The number this node itself carried in `before`. */
     readonly number: number;
-    /** The same run's members standing ABOVE this node. */
-    readonly above: ReadonlySet<number>;
+    /**
+     * That run's member ids in order, SHARED by every member of the run — one
+     * array per run rather than a prefix per member, which would make indexing
+     * a sibling list quadratic in the length of its longest run.
+     */
+    readonly runIds: readonly number[];
+    readonly index: number;
   }
   const memberOf = new Map<number, Membership>();
   orderedRuns(before).forEach(({ run }, runIndex) => {
     const start = lowestNumber(run);
-    const above = new Set<number>();
-    for (const node of run) {
+    const runIds = run.map((node) => node.id);
+    run.forEach((node, index) => {
       memberOf.set(node.id, {
         run: runIndex,
         start,
         number: (node.listStyle as { number: number }).number,
-        above: new Set(above),
+        runIds,
+        index,
       });
-      above.add(node.id);
-    }
+    });
   });
   // Membership of the SIBLING LIST, not of the tree: a node the operation moved
   // to another level left this run as surely as a deleted one did, and the
@@ -609,7 +614,11 @@ function renumberOrderedAgainst(
     // cutting it, and every one of them is still here — which is the whole of
     // what a reorder does to a run, and must keep reading the run's own start.
     const here = new Set(run.map((node) => node.id));
-    const cutFromAbove = [...member.above].some((id) => stillHere.has(id) && !here.has(id));
+    let cutFromAbove = false;
+    for (let i = 0; i < member.index && !cutFromAbove; i++) {
+      const id = member.runIds[i]!;
+      cutFromAbove = stillHere.has(id) && !here.has(id);
+    }
     // A fragment that also ABSORBED another run's members cannot keep its own
     // numbers whatever it is handed: one list carries one sequence, so the
     // absorbed members are renumbered either way and there is nothing left to

@@ -1,9 +1,11 @@
 ## 1. Recover a start only where it was lost
 
 - [x] 1.1 In `renumberOrderedAgainst` (src/ops.ts), widen the `before` index from `nodeId → start`
-      to the membership each node needs: its run's start, the number it carried itself, its run's
-      members in order, and its index among them. The run's id list is shared by reference rather
-      than sliced per member, so the index stays linear in the sibling list (D1).
+      to the membership each node needs: which run of `before` it belonged to, that run's start,
+      the number it carried itself, its run's members in order, and its index among them. The id
+      list is one array per run, shared by every member and never copied or sliced per member —
+      a prefix per member makes indexing a sibling list quadratic in its longest run, and this
+      helper is reached by interactive structural edits (D1).
 - [x] 1.2 Add the split condition. A fragment whose run left an earlier member OUTSIDE the
       fragment but still in the sibling list keeps its own numbers: `member.number` counted back
       over `run.indexOf(known)` (D1, D2).
@@ -43,7 +45,9 @@
 - [x] 2.9 The counting-back floor (D4) and the nine-digit ceiling (D5), each with the subtree
       assertion that says closure held.
 - [x] 2.10 The widening direction the old reading could not produce: a fragment keeping its own
-      start normalizes `9. o` to `10. o`, and its child follows the content column.
+      start normalizes `9. o` to `10. o`, and its child follows the content column. Asserted
+      through `parentLineOf`, not by the child's presence: a subtree left behind at the old
+      column comes back as a SIBLING, which is the defect the case exists to catch.
 
 - [x] 2.11 A PROPERTY, not only examples. `renumbering-contract.test.ts` fences at what an
       operation relocates and does not run `insertSubtrees`, so the invariant this change exists

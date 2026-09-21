@@ -666,9 +666,10 @@ describe('an arriving number does not become the run’s start', () => {
     if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
     const text = encode(result.value.doc);
     expect(text).toBe('- t\n  8. e\n  - x\n  9. n\n  10. o\n      - kid\n');
-    // Closure: the re-parse still reads `- kid` as the item's child.
-    const kid = byLine(parse(text), '      - kid');
-    expect(kid).toBeGreaterThan(0);
+    // Closure: the re-parse still reads `- kid` as the WIDENED item's child.
+    // Its presence alone would not say that — a subtree left behind at the old
+    // column comes back as a sibling, which is the defect this asserts against.
+    expect(parentLineOf(parse(text), '      - kid')).toBe('  10. o');
   });
 
   it('a fragment with no room below counts back to the recovered start, not to zero', () => {

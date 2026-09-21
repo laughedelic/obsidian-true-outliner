@@ -17,15 +17,18 @@ the tree and drifts the indentation. This clause and "its children are untouched
 requirement first read, cannot both hold at a digit boundary; the implementation followed
 the narrower one and lost the tree.
 
-A run's start number is the number the run began with, and it SHALL be recovered from the
+A run's start number is the number the run began with. Where the resulting run's own numbers
+cannot stand — the shapes below, and only those — that start SHALL be recovered from the
 sibling list AS IT WAS BEFORE the operation: the start number of the run that the resulting
 run's first member THAT WAS ALREADY THERE belonged to. The member the start is read from
-SHALL be the first one PRESENT BEFOREHAND, not the first one positionally, and the rule is
-the same for every shape of transformation — a removal, an insertion, a permutation, or any
-composition of them.
+SHALL be the first one PRESENT BEFOREHAND, not the first one positionally, and that one
+reading answers every shape needing a recovery — a removal, an insertion, a permutation, or
+any composition of them. Where no recovery is needed, the clause below on a divided run
+governs instead.
 
-One rule covers all shapes because each shape breaks the alternative reading — that the start
-is whatever number is lowest among the run's members afterwards — in its own way:
+One reading covers every shape that needs a start because each of them breaks the alternative
+reading — that the start is whatever number is lowest among the run's members afterwards — in
+its own way:
 
 - A REMOVAL can take the member that carried the start. Deleting the first two of `1. 2. 3.`
   must leave `1.`, not `3.`.
