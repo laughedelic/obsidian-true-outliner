@@ -53,10 +53,25 @@ there restores nothing and rewrites markers on lines the operation never touched
 what the reader sees with them, since a fragment cut loose is its own list and renders from its
 own first number.
 
+This governs which number a fragment BEGINS at, and nothing else: the consecutive renumbering
+above still runs from there, so a source run that was not already consecutive is normalized as
+it always was. Where the source run WAS consecutive, keeping the fragment's own numbers leaves
+every one of its markers as written.
+
 OUTSIDE itself, not merely present: a permutation WITHIN a run moves its members past one
 another and cuts nothing, so its earlier members are all still there and the run's own start
 still answers. A fragment that BOTH was cut and absorbed another run's members is governed by
-the join clause above, since no start leaves the absorbed members alone.
+the join clause above, since no start leaves the absorbed members alone. And where counting back
+would begin the fragment below `1.`, more members have been prepended to it than its own number
+leaves room for; its numbers cannot stand there either, and the recovered start SHALL answer.
+
+Preserving a fragment's own numbers can renumber a run UPWARD, which recovering a start could
+not. A run whose consecutive renumbering would need a number wider than the nine digits an
+ordered marker is read back at SHALL NOT be renumbered at all, and SHALL keep the markers it
+already carries. A tenth digit is not a list item: the item re-parses as a paragraph, its marker
+can no longer be measured, and its subtree is re-indented to a column it never had — which is
+the closure this requirement demands, broken. Leaving the run keeps it, since those markers
+parsed already.
 
 A run with NO member present beforehand — an inserted sequence landing where no ordered run
 was — has no start to recover, and SHALL keep the lowest number its own members carry.
@@ -183,6 +198,23 @@ renumbers only the members that follow what moved.
 - **WHEN** `insertSubtrees` places a parsed `## H` / `body` at that same anchor, which converts
   to a list item on the way in and lands as a `-`
 - **THEN** `10. ten` comes through byte-identical, as it does for a bullet written directly
+
+#### Scenario: A fragment with no room below it takes the recovered start
+- **WHEN** `insertSubtrees` places a parsed `- x` / `5. p` / `6. q` / `7. r` after the `1. a` of
+  `1. a` / `2. b`, so counting back from `2. b` over three prepended members would begin the
+  fragment below `1.`
+- **THEN** the fragment reads `1. p` / `2. q` / `3. r` / `4. b`, and no marker is written as `0.`
+
+#### Scenario: A run that cannot be renumbered within nine digits is left as it stands
+- **WHEN** an operation divides `999999998. a` / `999999999. b` / `999999999. c`, whose tail
+  fragment keeping its own start would have to write a tenth digit
+- **THEN** every marker in the run is unchanged, every item is still a list item, and the
+  subtree below the last of them is still at its own column
+
+#### Scenario: A fragment keeping a larger number carries its subtree
+- **WHEN** a fragment keeping its own start normalizes `9. o` to `10. o`, an item with children
+- **THEN** the children are re-indented to the item's new content column and remain its children
+  in the re-parsed tree
 
 #### Scenario: A fragment that gains a member counts back from the one already there
 - **WHEN** `insertSubtrees` places a parsed `- x` / `3. y` at that same anchor, so the tail

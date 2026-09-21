@@ -98,9 +98,11 @@ A start is recovered exactly where the fragment's own numbers cannot stand:
    leaves them alone, and the existing join rule decides it.
 
 Otherwise the fragment keeps its own numbers: its start is the number its earliest surviving
-member already carried, counted back over whatever now precedes it in the fragment.
+member already carried, counted back over whatever now precedes it in the fragment. This decides
+where a fragment BEGINS and nothing else — the consecutive renumbering still runs from there, so
+a source run that was not already consecutive is normalized exactly as it always was.
 
-Two refinements were forced by measurement rather than foreseen.
+Four refinements were forced by measurement rather than foreseen.
 
 **"Outside the fragment", not "still present".** A reorder WITHIN a run moves its members past one
 another and cuts nothing. Reading "an earlier member survived" alone made `1. one` / `2. two` /
@@ -111,11 +113,52 @@ and merge the tail into the run below in one gesture. Handing that fragment its 
 every absorbed member by one, which rewrites MORE than `main` did. Measured over the labelled
 generator before the guard: 20 cases preserved fewer source lines than `main`, all of this shape.
 
+**Counting back can run out of room, and `0.` is not the answer.** A fragment can be handed more
+prepended members than its own number leaves space for:
+
+```
+ clipboard    before    kept own      recovered start
+┆- x         ┆1. a┃    ┆1. a         ┆1. a
+┆5. p        ┆2. b     ┆- x          ┆- x
+┆6. q                  ┆0. p         ┆1. p
+┆7. r                  ┆1. q         ┆2. q
+                       ┆2. r         ┆3. r
+                       ┆3. b         ┆4. b
+```
+
+`2. b` is rewritten either way — its own numbers do not fit here, which is the recovery's own
+condition reached from a third direction. Clamping at `0.` is legal CommonMark and round-trips,
+but it writes a number no run in the source was written from and rewrites the same line anyway,
+so the recovered start takes it.
+
+**Keeping a fragment's numbers renumbers UPWARD, and the parser has a ceiling.** This is the
+direction recovering a start could never produce, and it reaches a hole that predates the change.
+`parse.ts` reads an ordered marker as `\d{1,9}`, so a tenth digit is not a list item at all.
+Measured, before the guard:
+
+```
+ clipboard    before                   without the guard
+┆- x         ┆999999998. a┃           ┆999999998. a
+             ┆999999999. b            ┆- x
+             ┆999999999. c            ┆999999999. b
+             ┆            - kid       ┆1000000000. c
+                                      ┆   - kid
+```
+
+`1000000000. c` re-parses as a **paragraph**; `markerWidthOf` falls back to 2 on the marker it can
+no longer read, and the subtree is dragged from column 12 to column 3. `renumberRuns` now leaves
+any run whose renumbering would exceed the limit exactly as it stands — its markers parsed
+already, so leaving them is what keeps closure.
+
+The hole itself is older than this change: on `main`, `999999999. a` / `999999999. b` with a
+`5. z` inserted already writes `1000000001. b` through the unchanged insertion path. What is new
+is the route in, and the guard sits in `renumberRuns` so it closes both.
+
 ## Differential against `main`
 
 The labelled generator (`tests/group-oracle.ts`, `arbLabeledDoc`), seed 42, 3000 documents, every
-node as the operand for each of the four relocating operations. Both `src/ops.ts` versions loaded
-side by side and their encoded output compared.
+node as the operand for each of the four relocating operations and as the paste anchor for five
+payload shapes. Both `src/ops.ts` versions loaded side by side and their encoded output compared.
 
 | operation | accepted on both | output differs |
 | --- | --- | --- |
@@ -123,22 +166,46 @@ side by side and their encoded output compared.
 | `outdent` | 45 800 | 2 597 |
 | `moveUp` | 28 632 | 2 497 |
 | `moveDown` | 28 632 | 2 497 |
+| paste `- x` | 56 355 | 6 517 |
+| paste `- x` / `  - y` | 56 355 | 6 517 |
+| paste `## H` / `body` | 56 355 | 6 517 |
+| paste `3. y` | 56 355 | 0 |
+| paste `- x` / `3. y` | 56 355 | 1 212 |
 
-1 603 of the 3 000 documents differ somewhere. `indent` differs nowhere: its arrival lands among
-ordered siblings or among none, and neither divides a run.
+`insertSubtrees` had to be in this table: it is the operation the report is about, and a
+differential without it measures around it. The three bullet-led payloads agree exactly, which is
+the plain-bullet control again — the conversion changes nothing. A purely ordered payload divides
+no run and differs nowhere, as `indent` does for the same reason: its arrival lands among ordered
+siblings or among none.
 
 The direction of every difference was measured, not sampled. Counting how many of the source's
 own lines come through the operation verbatim:
 
 | | cases |
 | --- | --- |
-| this change preserves strictly more than `main` | 7 591 |
+| this change preserves strictly more than `main` | 28 354 |
 | the two preserve the same number | 0 |
 | this change preserves fewer | 0 |
 
-Every difference is a marker this change declines to rewrite. The 7 591 is (operation, operand)
-pairs rather than documents, and it is the figure that says the change only ever subtracts
-rewriting.
+**That is the corpus, not a property.** On a source whose run is not already consecutive, both
+readings normalize it and neither leaves it alone, so which of them preserves more is incidental.
+A hand-built frame where `main` preserves more:
+
+```
+ clipboard    before          this change      main
+┆- x         ┆- t            ┆- t             ┆- t
+             ┆  8. e┃        ┆  8. e          ┆  8. e
+             ┆  9. n         ┆  - x           ┆  - x
+             ┆  9. o         ┆  9. n          ┆  8. n
+             ┆     - kid     ┆  10. o         ┆  9. o
+                             ┆      - kid     ┆     - kid
+```
+
+Five source lines come through on `main`, four here — because the source run reads 8, 9, 9 and is
+normalized either way. The consecutive control (`8. e` / `9. n` / `10. o`) reverses it 6 to 3.
+`renumbering-contract.test.ts` places the same restriction on its own property, and for the same
+reason: on a run already consecutive from its start, a renumbering that normalizes is the
+requirement working rather than failing.
 
 ## What this does not close
 

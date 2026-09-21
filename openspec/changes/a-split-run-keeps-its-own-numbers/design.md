@@ -65,7 +65,7 @@ left this run as surely as a deleted one did, and what it leaves behind is a rem
 
 A separator moving in can cut a run and merge the tail into the run below in one gesture. One
 list carries one sequence, so whatever start that fragment is handed renumbers the members it
-absorbed — there is no reading that leaves them alone, and "keep your own numbers" has nothing
+absorbed — there is no reading that leaves them alone, and keeping a fragment's own numbers has nothing
 left to protect. Handing it its own numbers moves every absorbed member by one, which rewrites
 MORE than `main` did: measured over the labelled generator before this guard, 20 cases preserved
 fewer source lines than `main`, all of this shape and all reversed by it.
@@ -74,17 +74,50 @@ So the condition is two-sided, and the guard states the principle rather than pa
 measurement: a start is recovered where the fragment's own numbers cannot stand — because the
 members carrying them are gone, OR because members from elsewhere have arrived beside them.
 
+### D4. Counting back below `1.` takes the recovered start
+
+A fragment can be handed more prepended members than its own number leaves room for — a paste of
+`- x` / `5. p` / `6. q` / `7. r` after the `1. a` of `1. a` / `2. b` would begin it at `-1`. Its
+own numbers do not fit either, so this is D1's own condition reached from a third direction and
+the recovered start answers. Clamping to `0.` instead would be legal CommonMark and round-trips
+cleanly, but it writes a number no run in the source was written from, and it rewrites the same
+line the recovered start does — so it buys nothing for the oddity it costs.
+
+### D5. A run that cannot be written within nine digits is not renumbered
+
+Preserving a fragment's own numbers renumbers UPWARD, which recovering a start never did: a
+fragment at the parser's ceiling can now be pushed over it. `parse.ts` reads an ordered marker as
+`\d{1,9}`, so a tenth digit is not a list item — measured, `999999999. c` renumbered to
+`1000000000. c` re-parses as a PARAGRAPH, `markerWidthOf` falls back to 2 on the marker it can no
+longer read, and the subtree is dragged nine columns left. `renumberRuns` therefore leaves any run
+whose consecutive renumbering would exceed the limit exactly as it stands.
+
+The guard sits in `renumberRuns` rather than in the start policy because the overflow is older
+than this change: on `main`, `999999999. a` / `999999999. b` with a `5. z` inserted already writes
+`1000000001. b` through the unchanged insertion path. This change adds a route into it, and the
+guard closes both.
+
+*Alternative rejected:* renumbering the run up to the limit and stopping. A partly renumbered run
+is neither the document's own numbering nor a consecutive one, and the requirement it would be
+half-satisfying is the one that cannot be satisfied here at all.
+
 ## Risks / Trade-offs
 
 **A divided run now reads with a gap in it.** `1. a` / `- x` / `2. b` renders as 1, then 2 — the
 numbering continues past the interruption instead of restarting. That is what the document said
 before the operation, and what CommonMark's `start` attribute exists to express.
 
-**The reach is wide.** 7 591 differing (operation, operand) pairs over 3 000 generated documents,
-concentrated in `outdent` and the two reorders. The differential measures the DIRECTION of every
-one of them, not a sample: all 7 591 preserve strictly more of the source's own lines than `main`,
-none preserves fewer, and the count of neutral cases is zero. The change only ever subtracts
-rewriting.
+**The reach is wide.** 28 354 differing (operation, operand) cases over 3 000 generated documents,
+across `outdent`, the two reorders and `insertSubtrees` under five payload shapes. The
+differential measures the DIRECTION of every one of them, not a sample: all 28 354 preserve
+strictly more of the source's own lines than `main`, and none preserves fewer.
+
+That is the corpus, not a property. On a source whose run is NOT already consecutive, both
+readings normalize it and neither leaves it alone, so which preserves more is incidental —
+measured, `- t` / `8. e` / `9. n` / `9. o` / (`- kid`) with a `- x` pasted after `8. e` preserves
+5 source lines on `main` and 4 here. The same restriction `renumbering-contract.test.ts` already
+places on its own property, and for the same reason: on a run that is already consecutive from
+its start, a renumbering that normalizes is the requirement working rather than failing.
 
 **One recorded outcome is reversed.** `2026-08-24-ordered-run-start-on-arrival`'s split scenario
 asserted `1. a` / `2. b` / `- x` / `1. c`; it now asserts `3. c`, which is what the reading that

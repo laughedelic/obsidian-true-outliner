@@ -649,6 +649,64 @@ describe('an arriving number does not become the run’s start', () => {
     );
   });
 
+  it('an outdent arriving in the middle of a run divides it without renumbering', () => {
+    // The paste is not the only route in, and the differential measures this one
+    // as the change's largest: an arriving bullet divides the run it lands in
+    // exactly as a pasted one does.
+    const { text } = applyOk(outdent, '1. a\n   - kid\n2. b\n3. c\n', '   - kid');
+    expect(text).toBe('1. a\n- kid\n2. b\n3. c\n');
+  });
+
+  it('a fragment keeping a LARGER number still carries its subtree', () => {
+    // The direction the old reading could not produce. The fragment keeps its
+    // own start of 9, which normalizes `9. o` to `10. o` — a marker that gains a
+    // digit, so the content column moves and the subtree has to move with it.
+    const doc = parse('- t\n  8. e\n  9. n\n  9. o\n     - kid\n');
+    const result = insertSubtrees(doc, byLine(doc, '  8. e'), parse('- x\n').children, 'after');
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    const text = encode(result.value.doc);
+    expect(text).toBe('- t\n  8. e\n  - x\n  9. n\n  10. o\n      - kid\n');
+    // Closure: the re-parse still reads `- kid` as the item's child.
+    const kid = byLine(parse(text), '      - kid');
+    expect(kid).toBeGreaterThan(0);
+  });
+
+  it('a fragment with no room below counts back to the recovered start, not to zero', () => {
+    // More members prepended than the fragment's own number leaves room for, so
+    // its numbers cannot stand either and the recovered start answers. `0.` is a
+    // number no run in the source was written from, and nothing here emits one.
+    const doc = parse('1. a\n2. b\n');
+    const result = insertSubtrees(
+      doc,
+      byLine(doc, '1. a'),
+      parse('- x\n5. p\n6. q\n7. r\n').children,
+      'after',
+    );
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    expect(encode(result.value.doc)).toBe('1. a\n- x\n1. p\n2. q\n3. r\n4. b\n');
+  });
+
+  it('a run that cannot be renumbered within nine digits is left exactly as it stands', () => {
+    // Preserving a fragment's own numbers renumbers UPWARD, which the old
+    // reading never did, so a run sitting at the parser's ceiling can now be
+    // pushed over it. A tenth digit is not a list item: the item would re-parse
+    // as a paragraph and its subtree would be re-indented to a column it never
+    // had. The run keeps the markers it already had instead.
+    const doc = parse('999999998. a\n999999999. b\n999999999. c\n            - kid\n');
+    const result = insertSubtrees(
+      doc,
+      byLine(doc, '999999998. a'),
+      parse('- x\n').children,
+      'after',
+    );
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    expect(encode(result.value.doc)).toBe(
+      '999999998. a\n- x\n999999999. b\n999999999. c\n            - kid\n',
+    );
+    // Every node is still a list item, and the subtree is still at its column.
+    for (const node of walkNodes(result.value.doc)) expect(node.kind).toBe('list-item');
+  });
+
   it('a removal still recovers the start it lost', () => {
     // The negative control the split rule has to leave standing: here the
     // members that carried the start are GONE, so the fragment is a remainder
