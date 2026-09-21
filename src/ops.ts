@@ -811,12 +811,12 @@ function indentSurgery(
       ? firstSubheading
       : landing.children.length;
 
+  const landingContext = {
+    precedingSiblings: landing.children.slice(0, insertIndex),
+    followingSiblings: landing.children.slice(insertIndex),
+  };
   const newKind = isContent(node)
-    ? encodingKindAtDestination({
-        parentKind: landing.kind,
-        precedingSiblings: landing.children.slice(0, insertIndex),
-        followingSiblings: landing.children.slice(insertIndex),
-      })
+    ? encodingKindAtDestination({ parentKind: landing.kind, ...landingContext })
     : undefined;
   const moved = reencodeForDestination(
     node,
@@ -832,6 +832,7 @@ function indentSurgery(
     // still in `doc` — a vault whose one indented list item is the node being
     // moved would otherwise lose the evidence of its own unit.
     destinationIndent(doc, landing, landing.children, fallbackIndentUnit),
+    destinationListStyle(landingContext),
   );
 
   surgery = updateSiblings(surgery, [...parentPath, index - 1], (nodes) =>
@@ -887,11 +888,14 @@ function outdentSurgery(
   }
   const grandSiblings = childrenAt(doc, grandPath);
 
+  const grandContext = {
+    precedingSiblings: grandSiblings.slice(0, parentIndex + 1),
+    followingSiblings: grandSiblings.slice(parentIndex + 1),
+  };
   const newKind = isContent(node)
     ? encodingKindAtDestination({
         parentKind: grandParent ? grandParent.kind : 'root',
-        precedingSiblings: grandSiblings.slice(0, parentIndex + 1),
-        followingSiblings: grandSiblings.slice(parentIndex + 1),
+        ...grandContext,
       })
     : undefined;
   let moved = reencodeForDestination(
@@ -902,6 +906,7 @@ function outdentSurgery(
     node.kind === 'list-item' || newKind === 'list-item'
       ? leadingWhitespace(parent.lines[0] ?? '')
       : destinationIndent(doc, grandParent ?? 'root', [], fallbackIndentUnit),
+    destinationListStyle(grandContext),
   );
 
   // Outdent-in-place (Logseq semantics): the node's own former following
@@ -914,17 +919,18 @@ function outdentSurgery(
     const ownChildren = moved.children;
     let children = moved.children;
     for (const [i, sibling] of followingSiblings.entries()) {
+      const siblingContext = {
+        precedingSiblings: children,
+        followingSiblings: followingSiblings.slice(i + 1),
+      };
       const newSiblingKind = isContent(sibling)
-        ? encodingKindAtDestination({
-            parentKind: moved.kind,
-            precedingSiblings: children,
-            followingSiblings: followingSiblings.slice(i + 1),
-          })
+        ? encodingKindAtDestination({ parentKind: moved.kind, ...siblingContext })
         : undefined;
       const reencoded = reencodeForDestination(
         sibling,
         newSiblingKind,
         destinationIndent(doc, moved, children),
+        destinationListStyle(siblingContext),
       );
       children = [...children, reencoded];
     }

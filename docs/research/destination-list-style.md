@@ -87,6 +87,33 @@ stated ground that "an ordered payload does not silently become bullets". The sa
 holds in reverse — the marker is the author's. So what divides a run and what joins it now turns
 on whether the arrival brought a marker of its own.
 
+## Where it applies
+
+A paste is not the only way to reparent a node, and the same `-` was written at every site that
+converts one. Measured before the change, with `⇥` on a top-level paragraph:
+
+```
+ before          actual       expected
+┆* parent       ┆* parent    ┆* parent
+┆  * existing   ┆  * existing┆  * existing
+┆plain┃         ┆  - plain   ┆  * plain
+```
+
+The same held for an outdent's arrival and for the siblings an outdent adopts. None of those
+sites converts anything new — `encodingKindAtDestination` already made each node a list item at
+its destination — so what widened is which marker the existing conversion writes.
+
+| gesture | destination | result |
+| --- | --- | --- |
+| indent | `* parent` / `* existing` | `* plain` |
+| indent | `8. existing` | `9. plain` — takes the next number |
+| indent | no list at the destination | `- plain` |
+| outdent arrival | a `*` scope | `* para` |
+| outdent arrival | an `8.` scope | `9. para` |
+
+Each of those sites already built the sibling slices `encodingKindAtDestination` reads; both
+rules now take one named context, so they cannot drift onto different surroundings.
+
 ## What it changes below it
 
 A converted heading pasted into an ordered run used to divide it, which is the gesture

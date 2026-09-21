@@ -56,6 +56,22 @@ change this rule exists to prevent. So a pasted `- x` still divides a `*` run.
 That is a boundary worth stating rather than a gap: what divides a run and what joins it now
 turns on whether the arrival brought a marker of its own.
 
+### D5. Every conversion site takes it, not the insert path alone
+
+The requirement this change modifies is about a REPARENTED node, and a paste is not the only way
+to reparent one. An indent's arrival, an outdent's arrival and the siblings an outdent adopts all
+convert a paragraph into a list item, and all three wrote `-` — measured, indenting a paragraph
+under a parent whose children read `*` produced `- plain` and ended the run, exactly as the paste
+path did.
+
+None of those sites is adding a conversion: `encodingKindAtDestination` already made each of
+these nodes a list item at its destination. Only the marker was written without looking, so
+widening makes the existing conversion write the right one rather than converting anything new.
+
+Each site already built the sibling slices the kind is read from. Lifting each into a named
+context and handing it to both rules is what keeps them from drifting onto different
+surroundings — the failure mode the two rules were put in one file to avoid.
+
 ## Risks / Trade-offs
 
 **It changes what `a-split-run-keeps-its-own-numbers` reaches.** A converted heading pasted into
@@ -70,6 +86,11 @@ none and now BECOMES one, so it no longer belongs in that property's payload set
 by `* y`, which keeps the property's reach (accepted ~2600, with-marker-below ~1750, unchanged)
 and its premise true. The converted direction is carried by example instead, because asserting it
 as a property would mean computing the expected renumbering — a calculation, not an invariant.
+
+**An indented paragraph now joins an ordered run.** Indenting a paragraph under a parent whose
+children read `8.` makes it `9.` rather than a bullet, which renumbers nothing but does change
+what the row is. It is the same answer the paste path gives, and the alternative is the rule
+holding for one gesture and not its neighbours.
 
 **A converted node now renumbers a run it joins.** Pasting a heading into `8.` / `9.` / `10.`
 moves `10. ten` to `11. ten`, a line the paste did not otherwise touch. This is the one

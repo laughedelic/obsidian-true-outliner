@@ -216,7 +216,7 @@ describe('nothing above what an operation relocates is rewritten', () => {
  * above is: a renumbering normalizes, and normalizing a run that reads 8, 9, 9
  * is the requirement working rather than failing.
  */
-describe('a paste that carries no ordered item rewrites no ordered marker', () => {
+describe('a paste that cannot JOIN a run rewrites no ordered marker', () => {
   const PAYLOADS = ['- x\n', '- x\n  - y\n', '* y\n', '> quote\n'];
 
   it('leaves every ordered marker in the document byte-identical', () => {

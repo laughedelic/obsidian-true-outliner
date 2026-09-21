@@ -12,6 +12,10 @@
       computed from the marker rather than from a hardcoded 2 (D2).
 - [x] 1.5 Thread the style from `reencodeBlocksForDestination` through `reencodeIntoListScope`,
       passing it at the payload's top level and dropping it in the recursion (D3).
+- [x] 1.6 Pass it at the three conversion sites OUTSIDE the insert path too — indent's arrival,
+      outdent's arrival, and outdent's adopted siblings. Each already built the sibling slices
+      for `encodingKindAtDestination`; lift each into a named context and hand it to both rules,
+      so the two can never read different surroundings (D5).
 
 ## 2. What it does, by example
 
@@ -28,6 +32,9 @@
 - [x] 2.8 An arriving list item still keeps its own marker (D4).
 - [x] 2.9 A task donor donates its marker and not its checkbox.
 - [x] 2.10 A destination with no list to copy leaves the default.
+- [x] 2.11 An INDENT converting a paragraph into a `*` run writes `*`, and into an ordered run
+      takes the next number.
+- [x] 2.12 An OUTDENT arrival does the same in both regimes.
 
 ## 3. The layer below
 
@@ -35,7 +42,9 @@
       run rather than dividing it, so the case asserts `10. ## H` / `11. ten` and says why that
       is renumbering working rather than the defect that layer fixed.
 - [x] 3.2 Narrow that layer's paste property to payloads that cannot join a run, and state the
-      reason in its doc comment. Re-measure its floors to confirm the reach is unchanged.
+      reason in its doc comment. Re-measure its floors to confirm the reach is unchanged. Its
+      suite name says the narrowed premise rather than the old one, which headings and
+      paragraphs now satisfy while legitimately rewriting markers.
 
 ## 4. Measurement and validation
 
@@ -43,6 +52,7 @@
       counts.
 - [x] 4.2 Write `docs/research/destination-list-style.md` and its one index row.
 - [x] 4.3 `npm test`, `npm run build`, `npm run build:e2e`, `npm run lint`, `openspec validate`.
-- [ ] 4.4 The e2e sweep, which the pushed checkpoint runs in CI.
+- [x] 4.4 The e2e sweep, which the pushed checkpoint runs in CI: green on `1ce19c9`, desktop and
+      mobile.
 - [ ] 4.5 Manual testing in Obsidian, including what Obsidian's own renderer does with the
       divided `*` frame — the figures above are `commonmark`'s.

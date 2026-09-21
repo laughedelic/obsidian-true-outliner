@@ -26,6 +26,10 @@ same way the kind is: the nearest preceding list-item sibling's style, else the 
 following one's, else a `-` bullet. Only list items donate, as only paragraphs and list items
 donate a kind.
 
+This SHALL hold wherever the conversion happens, not on insertion alone: an indent's arrival,
+an outdent's arrival, and the siblings an outdent adopts are converted by the same rule that
+gives them their kind, and take their marker from the same reading.
+
 Writing a fixed `-` instead ENDS the run it lands in. CommonMark begins a new list wherever the
 bullet character changes, so a `-` arriving in a `*` run makes three lists of one — measured, a
 `* a` / `* b` / `* c` scope taking a converted heading went from 2 rendered lists to 4, and now
@@ -80,6 +84,15 @@ section level hands the run to the attachment rule.
 #### Scenario: The payload's own nested rows take the default
 - **WHEN** a heading with a heading child is inserted into an ordered run
 - **THEN** the payload's root joins the run and its child is written with the default `-`
+
+#### Scenario: An indented paragraph joins the run it lands in
+- **WHEN** a top-level paragraph is indented under a parent whose children are written `*`
+- **THEN** the item it becomes is written `*`
+
+#### Scenario: An outdented paragraph joins the run it lands among
+- **WHEN** a paragraph that is a list item's only child is outdented beside it, in a scope
+  written `8.`
+- **THEN** the item it becomes is written `9.`, taking the next number in that run
 
 #### Scenario: An arriving list item keeps its own marker
 - **WHEN** a list item written `-` is inserted into a scope whose items are written `*`

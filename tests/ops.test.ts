@@ -809,6 +809,30 @@ describe('a converted node takes the destination list style', () => {
     );
   });
 
+  it('an INDENT converting a paragraph joins the run it lands in', () => {
+    // A paste is not the only conversion. `encodingKindAtDestination` already
+    // made this paragraph a list item at its destination; only its marker was
+    // written without looking. Into a `*` run, a `-` ended the run exactly as
+    // it did on the paste path.
+    const { text } = applyOk(indent, '* parent\n  * existing\nplain\n', 'plain');
+    expect(text).toBe('* parent\n  * existing\n  * plain\n');
+  });
+
+  it('an INDENT converting into an ordered run takes the next number', () => {
+    const { text } = applyOk(indent, '- parent\n  8. existing\nplain\n', 'plain');
+    expect(text).toBe('- parent\n  8. existing\n  9. plain\n');
+  });
+
+  it('an OUTDENT converting on arrival joins the run it lands among', () => {
+    const { text } = applyOk(outdent, '* a\n\n  para\n', '  para');
+    expect(text).toBe('* a\n\n* para\n');
+  });
+
+  it('an outdent arrival joins an ordered run the same way', () => {
+    const { text } = applyOk(outdent, '8. a\n\n   para\n', '   para');
+    expect(text).toBe('8. a\n\n9. para\n');
+  });
+
   it('no list at the destination leaves the default `-`', () => {
     // A list SCOPE with no list in it yet: the payload converts, because the
     // scope's encoding is a list item, and there is no marker to copy.

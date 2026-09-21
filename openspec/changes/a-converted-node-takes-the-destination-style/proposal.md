@@ -35,6 +35,10 @@ reading its surroundings.
 - `headingAsListItem` and `reencodeForDestination`'s paragraph arm take that style instead of
   hardcoding `-`. An ordered donor hands over its number and delimiter, so the marker's width —
   and with it the content column the arrival's children are written at — is its neighbours'.
+- Every site that converts takes it, not the insert path alone: an indent's arrival, an
+  outdent's arrival, and the siblings an outdent adopts. Each already computed
+  `encodingKindAtDestination` from the sibling slices the style is read from, so all three pass
+  the same context to both rules.
 - The style reaches the payload's top level only. Rows below belong to lists the payload brought
   with it.
 
