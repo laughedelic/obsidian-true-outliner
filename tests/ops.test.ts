@@ -809,6 +809,30 @@ describe('a converted node takes the destination list style', () => {
     );
   });
 
+  it('a LEADING-ZERO donor still lands its subtree at the right column', () => {
+    // `listStyle.number` is the parsed value with leading zeroes discarded, so a
+    // `09.` donor donates 9 and the arrival is first written `9.` — one column
+    // narrower than the neighbour it copied. That is self-consistent, because
+    // the arrival's children are laid out at ITS content column, and the
+    // renumbering that follows moves both together: `shiftBelowMarker` measures
+    // the marker's width off the two LINES rather than the two numbers, which
+    // is the same reading `09.` to `10.` already needed.
+    const doc = parse('- top\n  09. a\n  10. b\n');
+    const result = insertSubtrees(
+      doc,
+      byLine(doc, '  09. a'),
+      parse('## H\n### kid\n').children,
+      'after',
+    );
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    const text = encode(result.value.doc);
+    expect(text).toBe('- top\n  09. a\n  10. ## H\n      - ### kid\n  11. b\n');
+    // Closure, and the point of the case: the subtree is still the arrival's.
+    expect(parentLineOf(parse(text), '      - ### kid')).toBe('  10. ## H');
+    // The donor keeps its own spelling, since its number did not change.
+    expect(text).toContain('  09. a\n');
+  });
+
   it('an INDENT converting a paragraph joins the run it lands in', () => {
     // A paste is not the only conversion. `encodingKindAtDestination` already
     // made this paragraph a list item at its destination; only its marker was
