@@ -502,7 +502,8 @@ function renumberRuns(
  *
  * A run's start lives in the list, not in the run's own numbers. The start is
  * the start of the run that the resulting run's first member PRESENT IN
- * `before` belonged to, and that one rule answers every shape:
+ * `before` belonged to, and that one rule answers every shape where the start
+ * was LOST:
  *
  * - a REMOVAL can take the member that carried the start, so deleting the
  *   first two of `1. 2. 3.` must leave `1.`, not `3.`;
@@ -524,6 +525,34 @@ function renumberRuns(
  * of them falls back to the minimum and loses the run's start: `- p` / `5. a` /
  * (`10. kid`) / `6. b` produced `6. kid` / `7. b` instead of `5.` / `6.`.
  *
+ * A SPLIT is the one shape where the start was never lost, and it is the one
+ * shape this recovery must not reach. A foreign marker moving in between two
+ * members — a pasted bullet, a reorder pushing a separator into the middle —
+ * divides the run without changing which numbers its members carry. The head
+ * fragment still holds the start; handing the same start to the TAIL rewrites
+ * markers on lines the operation never touched, and rewrites what the reader
+ * sees with them, since a fragment cut loose is its own CommonMark list and
+ * renders from its own first number. So a fragment that left an earlier member
+ * of its run OUTSIDE itself keeps its own numbers: its start is the number
+ * that member already carried, counted back over whatever now precedes it in
+ * the fragment.
+ *
+ * Outside itself, not merely still present: a reorder WITHIN a run moves its
+ * members past one another and cuts nothing, so every earlier member is both
+ * present and in the same fragment, and the run's own start still answers.
+ *
+ * And a fragment that also ABSORBED another run is back under the join rule:
+ * one list carries one sequence, so whatever start it is handed renumbers the
+ * absorbed members, and there is no reading that leaves them alone. A start is
+ * recovered exactly where the fragment's own numbers cannot stand — because
+ * the members carrying them are gone, or because members from elsewhere have
+ * arrived beside them.
+ *
+ * Where the earlier members are gone instead, the fragment is a remainder
+ * rather than a piece, and the recovery above is what it needs — which is why
+ * a removal and a split read as one shape for as long as no case separated
+ * them.
+ *
  * A run with NO member from `before` has no start to recover — an inserted
  * sequence landing where no run was — and keeps the lowest number its own
  * members carry. That fallback is deliberately the older policy, so a
@@ -534,14 +563,58 @@ function renumberOrderedAgainst(
   before: readonly OutlineNode[],
   after: readonly OutlineNode[],
 ): readonly OutlineNode[] {
-  const startByMember = new Map<number, number>();
+  interface Membership {
+    /** The start of the run this node belonged to in `before`. */
+    readonly start: number;
+    /** The number this node itself carried in `before`. */
+    readonly number: number;
+    /** That run's members, in order, so the ones above this node are readable. */
+    readonly runIds: readonly number[];
+    readonly index: number;
+  }
+  const memberOf = new Map<number, Membership>();
   for (const { run } of orderedRuns(before)) {
     const start = lowestNumber(run);
-    for (const node of run) startByMember.set(node.id, start);
+    const runIds = run.map((node) => node.id);
+    run.forEach((node, index) => {
+      memberOf.set(node.id, {
+        start,
+        number: (node.listStyle as { number: number }).number,
+        runIds,
+        index,
+      });
+    });
   }
+  // Membership of the SIBLING LIST, not of the tree: a node the operation moved
+  // to another level left this run as surely as a deleted one did, and the
+  // fragment it leaves behind is a remainder.
+  const stillHere = new Set(after.map((node) => node.id));
   return renumberRuns(after, (run) => {
-    const known = run.find((node) => startByMember.has(node.id));
-    return known ? startByMember.get(known.id)! : lowestNumber(run);
+    const known = run.find((node) => memberOf.has(node.id));
+    if (!known) return lowestNumber(run);
+    const member = memberOf.get(known.id)!;
+    const here = new Set(run.map((node) => node.id));
+    // Only a member left OUTSIDE this fragment says the run was divided. A
+    // permutation WITHIN a run moves its members past one another without
+    // cutting it, and every one of them is still here — which is the whole of
+    // what a reorder does to a run, and must keep reading the run's own start.
+    const cutFromAbove = member.runIds
+      .slice(0, member.index)
+      .some((id) => stillHere.has(id) && !here.has(id));
+    // A fragment that also ABSORBED another run's members cannot keep its own
+    // numbers whatever it is handed: one list carries one sequence, so the
+    // absorbed members are renumbered either way and there is nothing left to
+    // protect. The join rule decides it, as it did before a split was ever
+    // distinguished — the earliest member present beforehand names the start.
+    const joined = run.some((node) => {
+      const other = memberOf.get(node.id);
+      return other !== undefined && other.runIds !== member.runIds;
+    });
+    if (!cutFromAbove || joined) return member.start;
+    // Counting back can only reach below zero by prepending more new members to
+    // a fragment than its own number leaves room for, where no start is
+    // recoverable anyway; zero is the lowest marker a run can be written from.
+    return Math.max(0, member.number - run.indexOf(known));
   });
 }
 
