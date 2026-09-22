@@ -58,4 +58,4 @@
       both, each failing on the previous checkpoint. The sweep and the differential judge each
       side against the blocks its own lines form alone, since a split nets out a merge in a bare
       node count.
-- [ ] 5.5 Sync the delta spec, archive the change, bump the version.
+- [x] 5.5 Sync the delta spec, archive the change, bump the version.
