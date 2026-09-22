@@ -111,11 +111,50 @@ encoding from the same function, with one arm per kind of destination:
 - In a HEADING-BEARING scope (the root, or a heading's children) it SHALL remain a heading, and
   re-level to the destination's own depth. That level SHALL be taken from the destination's
   heading SIBLINGS — nearest preceding, else following — and only from the parent (one past its
-  level, or 1 at root) where the scope has no heading sibling to copy. Reading the parent alone
+  level, or 1 at root) where the scope has no sibling of either kind. Reading the parent alone
   is wrong wherever a scope SKIPS a level: the payload lands shallower than the siblings it is
   placed among and opens a section that swallows them.
+
+  Which regime the payload lands in SHALL be read from the NEAREST sibling that expresses one,
+  scanning preceding siblings backwards and then following siblings forwards. A heading donates
+  its level; a LIST ITEM ends the scan and the payload converts, as it does in a list scope. A
+  heading-bearing scope whose rows at the insertion point are list items is a LIST at that
+  point, whatever its parent is, and a payload landing between two of them belongs to their run.
+  Reading the scope where the kind rule reads the neighbours put a heading into the middle of a
+  list wherever a list sits under a heading — the commonest shape a note has — splitting the run
+  and, where the payload kept the heading regime, swallowing the sibling below it into a section
+  it was never copied with.
+
+  Paragraphs and atoms express neither regime and SHALL be transparent to this scan: they
+  neither donate a level nor end it.
 - In a LIST scope it SHALL become a list item, carrying its own `#` run verbatim into that
   item's text.
+
+A node CONVERTED into a list item — a heading in a list scope, or a paragraph taking a list
+item's encoding — SHALL take the LIST STYLE of its destination as well as its kind, read the
+same way the kind is: the nearest preceding list-item sibling's style, else the nearest
+following one's, else a `-` bullet. Only list items donate, as only paragraphs and list items
+donate a kind.
+
+This SHALL hold wherever the conversion happens, not on insertion alone: an indent's arrival,
+an outdent's arrival, and the siblings an outdent adopts are converted by the same rule that
+gives them their kind, and take their marker from the same reading.
+
+Writing a fixed `-` instead ENDS the run it lands in. CommonMark begins a new list wherever the
+bullet character changes, so a `-` arriving in a `*` run makes three lists of one — measured, a
+`* a` / `* b` / `* c` scope taking a converted heading went from 2 rendered lists to 4, and now
+stays at 2. An ordered run is divided the same way, and the ordinal sequence the reader is
+following stops and resumes around the arrival.
+
+An ordered donor SHALL hand over its NUMBER along with its delimiter. What each member of a run
+finally reads is the renumbering requirement's to decide, and an arrival joining a run pushes
+the members below it; the donated number matters because the marker's WIDTH sets the content
+column the arrival's own children are written at.
+
+That style SHALL reach the payload's TOP level only. Rows below it belong to lists the payload
+brought with it, which have no destination run to sit level with, and take the default. A node
+that ARRIVES as a list item is not a converted node: it keeps the marker its author wrote, as
+it always did.
 
 Where the re-levelling would need a level markdown does not have — judged on the payload's
 DEEPEST heading, not its root — the insertion SHALL be rejected with `at-h6-bound`, the reason
@@ -138,6 +177,53 @@ section level hands the run to the attachment rule.
 - **WHEN** a heading-rooted subtree is inserted below a list item
 - **THEN** the heading encodes as a list item whose text begins with its original `#` run,
   and outdenting that item back to a heading scope restores a heading of the original rank
+
+#### Scenario: A section pasted into a list under a heading joins the list
+- **WHEN** a heading-rooted subtree is inserted after the `1. a` of `1. a` / `2. b`, themselves
+  the children of an `h2`
+- **THEN** it becomes `2.` and `2. b` becomes `3.` — the run is joined, not split
+
+#### Scenario: A heading sibling still donates its level
+- **WHEN** a heading-rooted subtree is inserted among a scope's heading siblings
+- **THEN** it remains a heading at the sibling's level, unchanged by the rule above
+
+#### Scenario: A paragraph sibling is transparent to the regime scan
+- **WHEN** a heading-rooted subtree is inserted between two paragraphs in a heading's children
+- **THEN** it remains a heading, since a paragraph expresses neither regime
+
+#### Scenario: A converted heading joins the bullet run it lands in
+- **WHEN** a heading is inserted into a scope whose items are written with `*`
+- **THEN** the item it becomes is written with `*`, and the scope still renders as ONE list
+
+#### Scenario: A converted heading joins an ordered run
+- **WHEN** a heading is inserted after the `9. nine` of `8. eight` / `9. nine` / `10. ten`
+- **THEN** it becomes `10.`, `10. ten` becomes `11.` because a member was inserted above it,
+  and the heading's own children sit at the content column its marker's width gives it
+
+#### Scenario: An ordered donor's delimiter is taken with its type
+- **WHEN** a heading is inserted into a run written `1)` / `2)`
+- **THEN** the item it becomes is written `2)`, not `2.`
+
+#### Scenario: The payload's own nested rows take the default
+- **WHEN** a heading with a heading child is inserted into an ordered run
+- **THEN** the payload's root joins the run and its child is written with the default `-`
+
+#### Scenario: An indented paragraph joins the run it lands in
+- **WHEN** a top-level paragraph is indented under a parent whose children are written `*`
+- **THEN** the item it becomes is written `*`
+
+#### Scenario: An outdented paragraph joins the run it lands among
+- **WHEN** a paragraph that is a list item's only child is outdented beside it, in a scope
+  written `8.`
+- **THEN** the item it becomes is written `9.`, taking the next number in that run
+
+#### Scenario: An arriving list item keeps its own marker
+- **WHEN** a list item written `-` is inserted into a scope whose items are written `*`
+- **THEN** it is still written `-`, since it carries a marker its author chose
+
+#### Scenario: A destination with no list to copy leaves the default
+- **WHEN** a heading is inserted into a list scope that holds no list item
+- **THEN** the item it becomes is written with `-`
 
 #### Scenario: A heading inserted into a heading scope re-levels
 - **WHEN** a heading-rooted subtree is inserted among a heading's children
@@ -360,15 +446,18 @@ the tree and drifts the indentation. This clause and "its children are untouched
 requirement first read, cannot both hold at a digit boundary; the implementation followed
 the narrower one and lost the tree.
 
-A run's start number is the number the run began with, and it SHALL be recovered from the
+A run's start number is the number the run began with. Where the resulting run's own numbers
+cannot stand — the shapes below, and only those — that start SHALL be recovered from the
 sibling list AS IT WAS BEFORE the operation: the start number of the run that the resulting
 run's first member THAT WAS ALREADY THERE belonged to. The member the start is read from
-SHALL be the first one PRESENT BEFOREHAND, not the first one positionally, and the rule is
-the same for every shape of transformation — a removal, an insertion, a permutation, or any
-composition of them.
+SHALL be the first one PRESENT BEFOREHAND, not the first one positionally, and that one
+reading answers every shape needing a recovery — a removal, an insertion, a permutation, or
+any composition of them. Where no recovery is needed, the clause below on a divided run
+governs instead.
 
-One rule covers all shapes because each shape breaks the alternative reading — that the start
-is whatever number is lowest among the run's members afterwards — in its own way:
+One reading covers every shape that needs a start because each of them breaks the alternative
+reading — that the start is whatever number is lowest among the run's members afterwards — in
+its own way:
 
 - A REMOVAL can take the member that carried the start. Deleting the first two of `1. 2. 3.`
   must leave `1.`, not `3.`.
@@ -381,10 +470,40 @@ is whatever number is lowest among the run's members afterwards — in its own w
 - A PERMUTATION can JOIN two runs, by moving a non-ordered separator out from between them.
   The joined run SHALL keep the EARLIER run's start rather than adopt the lower number of the
   run it swallowed — the same outcome a removal of that separator produces, and for the same
-  reason: the earliest member present beforehand belonged to the earlier run. It can equally
-  SPLIT one, by moving a separator in between two members, and each fragment SHALL then begin
-  at the start of the run it came from — which is what a removal already does to the fragment
-  it leaves behind.
+  reason: the earliest member present beforehand belonged to the earlier run.
+
+A start SHALL be recovered only where the resulting run's own numbers cannot stand. The
+shapes above are the ones where they cannot: a removal takes the members that carried them, and
+a join sets members from another run beside them, which one sequence renumbers whatever start it
+is given. A SPLIT takes neither. A foreign marker moving in between two members — a pasted
+bullet, a separator reordered into the middle — divides a run without changing which numbers its
+members carry: the head fragment still holds the start, and the tail still holds its own. So a
+fragment that left an earlier member of its run OUTSIDE itself, and absorbed no member of any
+other run, SHALL keep its own numbers, beginning at the number its earliest surviving member
+already carried, counted back over whatever now precedes it in the fragment. Recovering a start
+there restores nothing and rewrites markers on lines the operation never touched — and rewrites
+what the reader sees with them, since a fragment cut loose is its own list and renders from its
+own first number.
+
+This governs which number a fragment BEGINS at, and nothing else: the consecutive renumbering
+above still runs from there, so a source run that was not already consecutive is normalized as
+it always was. Where the source run WAS consecutive, keeping the fragment's own numbers leaves
+every one of its markers as written.
+
+OUTSIDE itself, not merely present: a permutation WITHIN a run moves its members past one
+another and cuts nothing, so its earlier members are all still there and the run's own start
+still answers. A fragment that BOTH was cut and absorbed another run's members is governed by
+the join clause above, since no start leaves the absorbed members alone. And where counting back
+would begin the fragment below `1.`, more members have been prepended to it than its own number
+leaves room for; its numbers cannot stand there either, and the recovered start SHALL answer.
+
+Preserving a fragment's own numbers can renumber a run UPWARD, which recovering a start could
+not. A run whose consecutive renumbering would need a number wider than the nine digits an
+ordered marker is read back at SHALL NOT be renumbered at all, and SHALL keep the markers it
+already carries. A tenth digit is not a list item: the item re-parses as a paragraph, its marker
+can no longer be measured, and its subtree is re-indented to a column it never had — which is
+the closure this requirement demands, broken. Leaving the run keeps it, since those markers
+parsed already.
 
 A run with NO member present beforehand — an inserted sequence landing where no ordered run
 was — has no start to recover, and SHALL keep the lowest number its own members carry.
@@ -490,9 +609,50 @@ renumbers only the members that follow what moved.
 - **THEN** the inserted items read `3. x` / `4. y`
 
 #### Scenario: A reorder that splits a run leaves the tail on the run's own start
+- **WHEN** `moveUp` is applied to the `- x` of `1. a` / `2. b` / `- x` / `5. c`, cutting `2. b`
+  off its run and merging it with the run below in one gesture
+- **THEN** the joined run reads `1. b` / `2. c` — the fragment absorbed a member of another run,
+  which one sequence renumbers whatever start it is given, so the start is recovered
+
+#### Scenario: A reorder that splits a run and joins nothing leaves the tail on its own numbers
 - **WHEN** `moveUp` is applied to the `- x` following the run `1. a` / `2. b` / `3. c`
-- **THEN** the document reads `1. a` / `2. b` / `- x` / `1. c` — the fragment the separator cut
-  off begins where its run began, as it does when a removal cuts the run's head away
+- **THEN** the document reads `1. a` / `2. b` / `- x` / `3. c` — the separator took no member
+  away and brought none with it, so neither fragment has a start to recover and `3. c` is not
+  rewritten
+
+#### Scenario: A bullet pasted into an ordered run leaves the tail alone
+- **WHEN** `insertSubtrees` places a parsed `- alpha` / `- beta` after the `9. nine` of
+  `- top` / `8. eight` / `9. nine` / `10. ten`
+- **THEN** `10. ten` comes through byte-identical, the bullet dividing the run without
+  renumbering either fragment
+
+#### Scenario: A heading payload converting to a bullet reaches the same seam
+- **WHEN** `insertSubtrees` places a parsed `## H` / `body` at that same anchor, which converts
+  to a list item on the way in and lands as a `-`
+- **THEN** `10. ten` comes through byte-identical, as it does for a bullet written directly
+
+#### Scenario: A fragment with no room below it takes the recovered start
+- **WHEN** `insertSubtrees` places a parsed `- x` / `5. p` / `6. q` / `7. r` after the `1. a` of
+  `1. a` / `2. b`, so counting back from `2. b` over three prepended members would begin the
+  fragment below `1.`
+- **THEN** the fragment reads `1. p` / `2. q` / `3. r` / `4. b`, and no marker is written as `0.`
+
+#### Scenario: A run that cannot be renumbered within nine digits is left as it stands
+- **WHEN** an operation divides `999999998. a` / `999999999. b` / `999999999. c`, whose tail
+  fragment keeping its own start would have to write a tenth digit
+- **THEN** every marker in the run is unchanged, every item is still a list item, and the
+  subtree below the last of them is still at its own column
+
+#### Scenario: A fragment keeping a larger number carries its subtree
+- **WHEN** a fragment keeping its own start normalizes `9. o` to `10. o`, an item with children
+- **THEN** the children are re-indented to the item's new content column and remain its children
+  in the re-parsed tree
+
+#### Scenario: A fragment that gains a member counts back from the one already there
+- **WHEN** `insertSubtrees` places a parsed `- x` / `3. y` at that same anchor, so the tail
+  fragment holds both an arrival and `10. ten`
+- **THEN** the fragment reads `9. y` / `10. ten` — the arriving number does not become the
+  fragment's start, and the member that was already there keeps its own
 
 #### Scenario: A reorder that joins two runs keeps the earlier start
 - **WHEN** `moveDown` is applied to the `- x` separating `5. a` from `1. c`

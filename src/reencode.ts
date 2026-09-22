@@ -4,9 +4,15 @@
  * else is carried verbatim.
  */
 
-import type { OutlineNode } from './model';
+import type { ListStyle, OutlineNode } from './model';
 import { isAtom } from './model';
 import { indentWidth, parseListMarker, TAB_WIDTH } from './parse';
+import { DEFAULT_LIST_STYLE } from './rules';
+
+/** A list style's marker as it is written, without its trailing space. */
+function markerText(style: ListStyle): string {
+  return style.type === 'bullet' ? style.marker : `${style.number}${style.delimiter}`;
+}
 
 /**
  * The columns between a list item's indentation and its content: the marker
@@ -139,6 +145,7 @@ export function reencodeForDestination(
   node: OutlineNode,
   newKind: 'paragraph' | 'list-item' | undefined,
   indentText: string,
+  style: ListStyle = DEFAULT_LIST_STYLE,
 ): OutlineNode {
   const first = node.lines[0] ?? '';
   const currentIndent = indentWidth(first);
@@ -167,15 +174,18 @@ export function reencodeForDestination(
   }
 
   if (node.kind === 'paragraph' && newKind === 'list-item') {
-    const contPad = indentText + '  ';
+    // The content column is the marker's width plus its one space, so an
+    // ordered marker moves it and the continuation lines and children with it.
+    const marker = markerText(style);
+    const contPad = indentText + ' '.repeat(marker.length + 1);
     const lines = node.lines.map((line, i) =>
-      i === 0 ? `${indentText}- ${line.trimStart()}` : `${contPad}${line.trimStart()}`,
+      i === 0 ? `${indentText}${marker} ${line.trimStart()}` : `${contPad}${line.trimStart()}`,
     );
-    const childDelta = targetIndent + 2 - childBaseCol(node);
+    const childDelta = targetIndent + marker.length + 1 - childBaseCol(node);
     return {
       ...node,
       kind: 'list-item',
-      listStyle: { type: 'bullet', marker: '-' },
+      listStyle: style,
       lines,
       children: node.children.map((child) => shiftSubtree(child, childDelta)),
     };
@@ -251,13 +261,22 @@ function headingContentLine(node: OutlineNode): string {
  * A heading encoded as a list item at `indentText` — its own line only; the
  * caller owns the subtree, whose depth is now carried by indentation rather
  * than by the `#` count.
+ *
+ * `style` is the list the item is joining, which the caller reads off the
+ * destination (`destinationListStyle`). Left out, it is the default `-`: the
+ * payload's own nested rows take that, having no destination run of their own
+ * to sit level with.
  */
-export function headingAsListItem(node: OutlineNode, indentText: string): OutlineNode {
+export function headingAsListItem(
+  node: OutlineNode,
+  indentText: string,
+  style: ListStyle = DEFAULT_LIST_STYLE,
+): OutlineNode {
   const result: OutlineNode = {
     ...node,
     kind: 'list-item',
-    listStyle: { type: 'bullet', marker: '-' },
-    lines: [`${indentText}- ${headingContentLine(node)}`],
+    listStyle: style,
+    lines: [`${indentText}${markerText(style)} ${headingContentLine(node)}`],
   };
   delete (result as { level?: unknown }).level;
   delete (result as { setext?: unknown }).setext;

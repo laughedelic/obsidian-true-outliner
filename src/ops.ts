@@ -29,7 +29,13 @@ import { encode, encodeLines } from './encode';
 import { parse, indentWidth } from './parse';
 import type { Edit, OpResult } from './result';
 import { accept, diffLines, reject } from './result';
-import { destinationHeadingLevel, encodingKindAtDestination, listAttachesTo } from './rules';
+import {
+  DEFAULT_LIST_STYLE,
+  destinationHeadingLevel,
+  destinationListStyle,
+  encodingKindAtDestination,
+  listAttachesTo,
+} from './rules';
 import {
   childBaseCol,
   headingAsListItem,
@@ -805,12 +811,12 @@ function indentSurgery(
       ? firstSubheading
       : landing.children.length;
 
+  const landingContext = {
+    precedingSiblings: landing.children.slice(0, insertIndex),
+    followingSiblings: landing.children.slice(insertIndex),
+  };
   const newKind = isContent(node)
-    ? encodingKindAtDestination({
-        parentKind: landing.kind,
-        precedingSiblings: landing.children.slice(0, insertIndex),
-        followingSiblings: landing.children.slice(insertIndex),
-      })
+    ? encodingKindAtDestination({ parentKind: landing.kind, ...landingContext })
     : undefined;
   const moved = reencodeForDestination(
     node,
@@ -826,6 +832,7 @@ function indentSurgery(
     // still in `doc` — a vault whose one indented list item is the node being
     // moved would otherwise lose the evidence of its own unit.
     destinationIndent(doc, landing, landing.children, fallbackIndentUnit),
+    destinationListStyle(landingContext),
   );
 
   surgery = updateSiblings(surgery, [...parentPath, index - 1], (nodes) =>
@@ -881,11 +888,14 @@ function outdentSurgery(
   }
   const grandSiblings = childrenAt(doc, grandPath);
 
+  const grandContext = {
+    precedingSiblings: grandSiblings.slice(0, parentIndex + 1),
+    followingSiblings: grandSiblings.slice(parentIndex + 1),
+  };
   const newKind = isContent(node)
     ? encodingKindAtDestination({
         parentKind: grandParent ? grandParent.kind : 'root',
-        precedingSiblings: grandSiblings.slice(0, parentIndex + 1),
-        followingSiblings: grandSiblings.slice(parentIndex + 1),
+        ...grandContext,
       })
     : undefined;
   let moved = reencodeForDestination(
@@ -896,6 +906,7 @@ function outdentSurgery(
     node.kind === 'list-item' || newKind === 'list-item'
       ? leadingWhitespace(parent.lines[0] ?? '')
       : destinationIndent(doc, grandParent ?? 'root', [], fallbackIndentUnit),
+    destinationListStyle(grandContext),
   );
 
   // Outdent-in-place (Logseq semantics): the node's own former following
@@ -908,17 +919,18 @@ function outdentSurgery(
     const ownChildren = moved.children;
     let children = moved.children;
     for (const [i, sibling] of followingSiblings.entries()) {
+      const siblingContext = {
+        precedingSiblings: children,
+        followingSiblings: followingSiblings.slice(i + 1),
+      };
       const newSiblingKind = isContent(sibling)
-        ? encodingKindAtDestination({
-            parentKind: moved.kind,
-            precedingSiblings: children,
-            followingSiblings: followingSiblings.slice(i + 1),
-          })
+        ? encodingKindAtDestination({ parentKind: moved.kind, ...siblingContext })
         : undefined;
       const reencoded = reencodeForDestination(
         sibling,
         newSiblingKind,
         destinationIndent(doc, moved, children),
+        destinationListStyle(siblingContext),
       );
       children = [...children, reencoded];
     }
@@ -1176,7 +1188,7 @@ function itemTaskMarker(donor: OutlineNode | undefined): string {
 
 /** The style a new item alongside `donor` takes; a bare bullet with no donor. */
 function itemStyleFrom(donor: OutlineNode | undefined): ListStyle {
-  return donor?.listStyle ?? { type: 'bullet', marker: '-' };
+  return donor?.listStyle ?? DEFAULT_LIST_STYLE;
 }
 
 /**
@@ -2247,11 +2259,22 @@ export function reindentSubtreeVerbatim(node: OutlineNode, indentText: string): 
  * would re-parse as a heading and break out of the list. A list item keeps its
  * own marker, so an ordered payload does not silently become bullets. Atoms
  * move as units.
+ *
+ * `style` is the list the payload's TOP level is joining, and it reaches only
+ * that level: the rows below belong to the payload's own lists, which have no
+ * destination run to sit level with, so the recursion drops it and they take
+ * the default. A node that was already a list item keeps its own marker here
+ * as it always did — this converts what had no marker, and an arriving list
+ * is not a conversion.
  */
-function reencodeIntoListScope(node: OutlineNode, indentText: string): OutlineNode {
+function reencodeIntoListScope(
+  node: OutlineNode,
+  indentText: string,
+  style?: ListStyle,
+): OutlineNode {
   let encoded: OutlineNode;
   if (node.kind === 'heading') {
-    encoded = headingAsListItem(node, indentText);
+    encoded = headingAsListItem(node, indentText, style);
   } else if (isAtom(node)) {
     encoded = reencodeForDestination(node, undefined, indentText);
   } else {
@@ -2259,6 +2282,7 @@ function reencodeIntoListScope(node: OutlineNode, indentText: string): OutlineNo
       node,
       node.kind === 'list-item' ? undefined : 'list-item',
       indentText,
+      style,
     );
   }
   // The child column is the item's own content column, as `childBaseCol` reads
@@ -2353,6 +2377,10 @@ export function reencodeBlocksForDestination(
     precedingSiblings,
     followingSiblings,
   });
+  // The list the destination is already writing, for the blocks that CONVERT
+  // into one. Read whether or not anything converts, since reading it is free
+  // and the two arms below both want it.
+  const listStyle = destinationListStyle({ precedingSiblings, followingSiblings });
   const headingLevel = destLevel;
   return accept(
     parsedBlocks.map((block) => {
@@ -2361,7 +2389,7 @@ export function reencodeBlocksForDestination(
         // parse nests one under a paragraph or a list item, so the recursion
         // each arm runs owns every other heading in the payload.
         return headingLevel === undefined
-          ? reencodeIntoListScope(block, indentText)
+          ? reencodeIntoListScope(block, indentText, listStyle)
           : reencodeHeadingSubtree(block, headingLevel - (block.level ?? 1));
       }
       const isContentBlock = block.kind === 'paragraph' || block.kind === 'list-item';
@@ -2372,7 +2400,7 @@ export function reencodeBlocksForDestination(
         // reencodeForDestination's numeric-delta approach here).
         return reindentSubtreeVerbatim(block, indentText);
       }
-      return reencodeForDestination(block, newContentKind, indentText);
+      return reencodeForDestination(block, newContentKind, indentText, listStyle);
     }),
   );
 }

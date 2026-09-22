@@ -605,10 +605,12 @@ describe('an arriving number does not become the run’s start', () => {
     );
   });
 
-  it('a heading payload converting to a bullet reaches the same seam (#159)', () => {
-    // The payload converts on the way in and lands as a `-`, which is the other
-    // half of the report — and the control that says the defect was the
-    // renumbering rather than the conversion.
+  it('a heading payload converting into an ordered run JOINS it (#159)', () => {
+    // The other half of the report, now that a converted node takes the
+    // destination's list style: the heading arrives as an ordered item, so the
+    // run is never divided and `10. ten` moves to `11.` because an item was
+    // inserted above it — which is renumbering working, not the defect above.
+    // Its own child sits at the wider marker's content column.
     const doc = parse('- top\n  8. eight\n  9. nine\n  10. ten\n');
     const result = insertSubtrees(
       doc,
@@ -618,7 +620,7 @@ describe('an arriving number does not become the run’s start', () => {
     );
     if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
     expect(encode(result.value.doc)).toBe(
-      '- top\n  8. eight\n  9. nine\n  - ## H\n    - body\n  10. ten\n',
+      '- top\n  8. eight\n  9. nine\n  10. ## H\n      - body\n  11. ten\n',
     );
   });
 
@@ -732,6 +734,202 @@ describe('an arriving number does not become the run’s start', () => {
     // swallowed run's, which is why a permutation needed its own disproof.
     const { text } = applyOk(moveDown, '5. a\n- x\n1. c\n', '- x');
     expect(text).toBe('5. a\n6. c\n- x\n');
+  });
+});
+
+describe('a converted node takes the destination list style', () => {
+  function pasted(md: string, anchor: string, payload: string, pos: 'before' | 'after' = 'after') {
+    const doc = parse(md);
+    const result = insertSubtrees(doc, byLine(doc, anchor), parse(payload).children, pos);
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    return encode(result.value.doc);
+  }
+
+  it('a heading joining a `*` run is written with `*`', () => {
+    // A `-` written into a `*` run ENDS it: CommonMark starts a new list
+    // wherever the bullet character changes, so one list became three around
+    // the arrival. Measured with `commonmark`, this frame went from 2 lists to
+    // 4 and now stays at 2.
+    expect(pasted('- top\n  * a\n  * b\n  * c\n', '  * a', '## H\n')).toBe(
+      '- top\n  * a\n  * ## H\n  * b\n  * c\n',
+    );
+  });
+
+  it('a `+` run donates too', () => {
+    expect(pasted('- top\n  + a\n  + b\n', '  + a', '## H\n')).toBe(
+      '- top\n  + a\n  + ## H\n  + b\n',
+    );
+  });
+
+  it('an ordered run donates its delimiter as well as its type', () => {
+    expect(pasted('- top\n  1) a\n  2) b\n', '  1) a', '## H\n')).toBe(
+      '- top\n  1) a\n  2) ## H\n  3) b\n',
+    );
+  });
+
+  it('a paragraph payload converts the same way', () => {
+    // `headingAsListItem` was not alone in hardcoding `-`: the
+    // paragraph-to-list-item arm of `reencodeForDestination` made the same
+    // choice, and a paragraph is the commoner payload of the two.
+    expect(pasted('- top\n  8. eight\n  9. nine\n', '  8. eight', 'plain para\n')).toBe(
+      '- top\n  8. eight\n  9. plain para\n  10. nine\n',
+    );
+  });
+
+  it('a following sibling donates where there is no preceding one', () => {
+    // The same order `encodingKindAtDestination` reads its own donor in.
+    expect(pasted('- top\n  * a\n  * b\n', '  * a', '## H\n', 'before')).toBe(
+      '- top\n  * ## H\n  * a\n  * b\n',
+    );
+  });
+
+  it('the payload\u2019s OWN nested rows keep the default marker', () => {
+    // The destination style reaches the payload's top level only: its nested
+    // rows belong to lists of its own, which have no destination run to sit
+    // level with. `2. ## H` joins the run; `- ### H2` is its child.
+    expect(pasted('- top\n  1. a\n  2. b\n', '  1. a', '## H\n### H2\n')).toBe(
+      '- top\n  1. a\n  2. ## H\n     - ### H2\n  3. b\n',
+    );
+  });
+
+  it('an ARRIVING list item still keeps its own marker', () => {
+    // The negative control, and the boundary of this change: an arriving list
+    // item is not a conversion. It carries a marker its author chose, and
+    // rewriting that would be the silent change this rule exists to avoid.
+    expect(pasted('- top\n  * a\n  * b\n', '  * a', '- x\n')).toBe(
+      '- top\n  * a\n  - x\n  * b\n',
+    );
+  });
+
+  it('a task donor donates its marker and not its checkbox', () => {
+    // `listStyle` is the marker; `[ ] ` is content that happens to follow it.
+    // A pasted heading joins the list without becoming a task.
+    expect(pasted('- top\n  - [ ] a\n  - [ ] b\n', '  - [ ] a', '## H\n')).toBe(
+      '- top\n  - [ ] a\n  - ## H\n  - [ ] b\n',
+    );
+  });
+
+  it('a LEADING-ZERO donor still lands its subtree at the right column', () => {
+    // `listStyle.number` is the parsed value with leading zeroes discarded, so a
+    // `09.` donor donates 9 and the arrival is first written `9.` — one column
+    // narrower than the neighbour it copied. That is self-consistent, because
+    // the arrival's children are laid out at ITS content column, and the
+    // renumbering that follows moves both together: `shiftBelowMarker` measures
+    // the marker's width off the two LINES rather than the two numbers, which
+    // is the same reading `09.` to `10.` already needed.
+    const doc = parse('- top\n  09. a\n  10. b\n');
+    const result = insertSubtrees(
+      doc,
+      byLine(doc, '  09. a'),
+      parse('## H\n### kid\n').children,
+      'after',
+    );
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    const text = encode(result.value.doc);
+    expect(text).toBe('- top\n  09. a\n  10. ## H\n      - ### kid\n  11. b\n');
+    // Closure, and the point of the case: the subtree is still the arrival's.
+    expect(parentLineOf(parse(text), '      - ### kid')).toBe('  10. ## H');
+    // The donor keeps its own spelling, since its number did not change.
+    expect(text).toContain('  09. a\n');
+  });
+
+  it('an INDENT converting a paragraph joins the run it lands in', () => {
+    // A paste is not the only conversion. `encodingKindAtDestination` already
+    // made this paragraph a list item at its destination; only its marker was
+    // written without looking. Into a `*` run, a `-` ended the run exactly as
+    // it did on the paste path.
+    const { text } = applyOk(indent, '* parent\n  * existing\nplain\n', 'plain');
+    expect(text).toBe('* parent\n  * existing\n  * plain\n');
+  });
+
+  it('an INDENT converting into an ordered run takes the next number', () => {
+    const { text } = applyOk(indent, '- parent\n  8. existing\nplain\n', 'plain');
+    expect(text).toBe('- parent\n  8. existing\n  9. plain\n');
+  });
+
+  it('an OUTDENT converting on arrival joins the run it lands among', () => {
+    const { text } = applyOk(outdent, '* a\n\n  para\n', '  para');
+    expect(text).toBe('* a\n\n* para\n');
+  });
+
+  it('an outdent arrival joins an ordered run the same way', () => {
+    const { text } = applyOk(outdent, '8. a\n\n   para\n', '   para');
+    expect(text).toBe('8. a\n\n9. para\n');
+  });
+
+  it('no list at the destination leaves the default `-`', () => {
+    // A list SCOPE with no list in it yet: the payload converts, because the
+    // scope's encoding is a list item, and there is no marker to copy.
+    expect(pasted('- top\n\n  para\n', '  para', '## H\n')).toBe(
+      '- top\n\n  para\n\n  - ## H\n',
+    );
+  });
+});
+
+describe('which regime a payload lands in is read from the nearest sibling', () => {
+  function pasted(md: string, at: string, payload = '## Notes\nbody\n') {
+    const doc = parse(md);
+    const result = insertSubtrees(doc, byLine(doc, at), parse(payload).children, 'after');
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    return encode(result.value.doc);
+  }
+
+  it('a section pasted into an ordered run UNDER A HEADING joins the run', () => {
+    // The manual-pass report. The scope is heading-bearing, so the heading
+    // regime answered first and the payload stayed a heading, splitting the
+    // run — in the commonest shape a real note has, a list under its heading.
+    expect(pasted('## H\n\n1. a\n2. b\n', '1. a')).toBe(
+      '## H\n\n1. a\n2. ## Notes\n   - body\n3. b\n',
+    );
+  });
+
+  it('a section pasted among top-level list items converts too', () => {
+    expect(pasted('- a\n- b\n', '- a')).toBe('- a\n- ## Notes\n  - body\n- b\n');
+  });
+
+  it('a HEADING sibling still donates its level', () => {
+    // Unchanged, and the reason the scan looks for both: where the neighbours
+    // are headings the payload is landing among sections, not among rows.
+    expect(pasted('# One\n\n### Three\n\n### Four\n', '### Three')).toBe(
+      '# One\n\n### Three\n\n### Notes\nbody\n\n### Four\n',
+    );
+  });
+
+  it('a PARAGRAPH sibling stays transparent', () => {
+    // Paragraphs and atoms express neither regime, so they neither donate nor
+    // end the scan. A heading beside a paragraph is the shape "same depth,
+    // different kinds" already covers, and nothing measured asks to change it.
+    expect(pasted('## H\n\npara one\n\npara two\n', 'para one')).toBe(
+      '## H\n\npara one\n\n### Notes\nbody\n\npara two\n',
+    );
+  });
+
+  it('an ADOPTED sibling takes the style of the children it joins', () => {
+    // The outdent path that adopts a node's following siblings as its trailing
+    // children. `para` is a paragraph, so it converts; the children it lands
+    // among are written `*`, so that is what it is written with.
+    //
+    // Fenced deliberately: removing the style argument at this one call site
+    // passed the whole suite before this case existed, because every other
+    // adopted-sibling test either keeps an ARRIVING item's own marker or
+    // converts the other way, to a paragraph.
+    const { text } = applyOk(outdent, '- p\n  - x\n    * child\n\n  para\n', '  - x');
+    expect(text).toBe('- p\n- x\n  * child\n\n  * para\n');
+  });
+
+  it('an adopted sibling joins an ORDERED child run', () => {
+    const { text } = applyOk(outdent, '- p\n  - x\n    1. child\n\n  para\n', '  - x');
+    expect(text).toBe('- p\n- x\n  1. child\n\n  2. para\n');
+  });
+
+  it('an adopted sibling that ARRIVES as a list item keeps its own marker', () => {
+    // The control: adoption is not conversion either.
+    const { text } = applyOk(outdent, '- p\n  - x\n    * child\n  - sib\n', '  - x');
+    expect(text).toBe('- p\n- x\n  * child\n  - sib\n');
+  });
+
+  it('a scope with no sibling of either kind still reads the parent', () => {
+    expect(pasted('para\n', 'para')).toBe('para\n# Notes\nbody\n');
   });
 });
 

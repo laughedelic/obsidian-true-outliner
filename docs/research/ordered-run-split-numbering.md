@@ -207,13 +207,22 @@ normalized either way. The consecutive control (`8. e` / `9. n` / `10. o`) rever
 reason: on a run already consecutive from its start, a renumbering that normalizes is the
 requirement working rather than failing.
 
-## What this does not close
+## What this does not close, and what answered it
 
-[#159]'s first question. `headingAsListItem` (`src/reencode.ts`) still writes
-`{ type: 'bullet', marker: '-' }` unconditionally, so a heading pasted into an ordered run still
-lands as a bullet and still divides the run — it now divides it without renumbering anything. Whether
-a converted node should instead adopt the destination run's `listStyle`, the way
-`encodingKindAtDestination` already makes a reparented node take its encoding from its
-neighbours, is a policy question this change deliberately leaves where it found it.
+[#159]'s first question was left open here: `headingAsListItem` (`src/reencode.ts`) wrote
+`{ type: 'bullet', marker: '-' }` unconditionally, so a heading pasted into an ordered run landed
+as a bullet and divided the run — after this change, without renumbering anything.
+
+Answered 2026-09-21, in `a-converted-node-takes-the-destination-style`: a converted node takes
+the destination's list style, the way `encodingKindAtDestination` already makes a reparented node
+take its encoding from its neighbours. Re-measuring for that decision found the marker was not
+cosmetic — a `-` written into a `*` run takes it from one rendered list to three
+(`docs/research/destination-list-style`).
+
+That narrows what the rule above reaches. A converted heading now JOINS the ordered run it lands
+in, so the items below it shift by one, which is the renumbering requirement working rather than
+the defect this note is about. The gesture this note was written for — a plain bullet pasted
+into a run — is untouched, because an arriving list item keeps the marker its author wrote and is
+therefore still a division rather than a join.
 
 [#159]: https://github.com/laughedelic/obsidian-true-outliner/issues/159
