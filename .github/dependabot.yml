@@ -25,6 +25,10 @@ updates:
         patterns: ["*"]
         update-types: [patch]
       # Everything else gets a separate update PR
+    ignore:
+      # typescript-eslint has no TS 7.0 support yet: https://github.com/typescript-eslint/typescript-eslint/issues/10940
+      - dependency-name: "typescript"
+        versions: [">=7.0.0"]
 
   - package-ecosystem: github-actions
     directory: /
