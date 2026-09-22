@@ -72,6 +72,33 @@ Each site already built the sibling slices the kind is read from. Lifting each i
 context and handing it to both rules is what keeps them from drifting onto different
 surroundings — the failure mode the two rules were put in one file to avoid.
 
+### D6. The nearest sibling decides the REGIME, not just the style
+
+Found by the manual pass, and it is the same fault as D1 one level up. `destinationHeadingLevel`
+scanned for heading siblings only; `encodingKindAtDestination` scans for paragraph/list-item
+siblings only. Neither asked what was actually NEAREST, so in a heading-bearing scope whose rows
+are list items — a list under its own heading, the commonest shape a note has — the heading
+regime answered first and the payload stayed a heading in the middle of a list.
+
+Measured in the real editor: a section pasted at the end of `9. ninth` in `1.` / `9.` / `10.`
+under an `h2` opened an `h3` between two rows of the run. A section pasted among `- one` / `- two`
+/ `- three` under an `h1` kept the heading regime AND swallowed `- three` into itself — a node
+never copied and never pointed at, which is the reparenting defect this whole pair of changes
+exists to stop.
+
+So a list item now ENDS the heading scan rather than being skipped by it, and the payload
+converts. Paragraphs and atoms stay transparent, expressing neither regime.
+
+*Alternative rejected:* keeping the scope reading and documenting the limitation. It leaves the
+rule true only for a list nested under another list item, which is not where most lists live.
+
+**What this costs.** A section pasted at the END of a list under a heading now joins the list
+instead of opening a new section after it. That is the rule applied evenly — the nearest sibling
+is a list item either way — and appending a genuine new section means putting the caret below the
+list rather than on its last row. It also reverses one recorded outcome in `edit-ops.test.ts`,
+where the sibling below the insertion used to be swallowed into the pasted section; that test now
+asserts the sibling stays put, with the reversal stated in it.
+
 ## Risks / Trade-offs
 
 **It changes what `a-split-run-keeps-its-own-numbers` reaches.** A converted heading pasted into

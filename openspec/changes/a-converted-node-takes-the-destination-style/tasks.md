@@ -17,6 +17,11 @@
       for `encodingKindAtDestination`; lift each into a named context and hand it to both rules,
       so the two can never read different surroundings (D5).
 
+- [x] 1.7 In `destinationHeadingLevel` (`src/rules.ts`), let a LIST ITEM end the regime scan
+      rather than be skipped by it: the nearest sibling that expresses a regime decides, a
+      heading donating its level and a list item sending the payload to the list arm. Paragraphs
+      and atoms stay transparent (D6).
+
 ## 2. What it does, by example
 
 - [x] 2.1 A heading joining a `*` run is written `*`, and the scope still renders as one list.
@@ -35,6 +40,12 @@
 - [x] 2.11 An INDENT converting a paragraph into a `*` run writes `*`, and into an ordered run
       takes the next number.
 - [x] 2.12 An OUTDENT arrival does the same in both regimes.
+- [x] 2.13 A section pasted into an ordered run UNDER A HEADING joins the run (D6) — the
+      manual-pass report — and the same among top-level list items.
+- [x] 2.14 The two controls the scan must leave alone: a heading sibling still donates its level,
+      and a paragraph sibling is transparent.
+- [x] 2.15 Update the `edit-ops` case that recorded the swallowed sibling as stated behaviour,
+      with why it reverses.
 
 ## 3. The layer below
 

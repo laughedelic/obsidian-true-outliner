@@ -866,6 +866,49 @@ describe('a converted node takes the destination list style', () => {
   });
 });
 
+describe('which regime a payload lands in is read from the nearest sibling', () => {
+  function pasted(md: string, at: string, payload = '## Notes\nbody\n') {
+    const doc = parse(md);
+    const result = insertSubtrees(doc, byLine(doc, at), parse(payload).children, 'after');
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    return encode(result.value.doc);
+  }
+
+  it('a section pasted into an ordered run UNDER A HEADING joins the run', () => {
+    // The manual-pass report. The scope is heading-bearing, so the heading
+    // regime answered first and the payload stayed a heading, splitting the
+    // run — in the commonest shape a real note has, a list under its heading.
+    expect(pasted('## H\n\n1. a\n2. b\n', '1. a')).toBe(
+      '## H\n\n1. a\n2. ## Notes\n   - body\n3. b\n',
+    );
+  });
+
+  it('a section pasted among top-level list items converts too', () => {
+    expect(pasted('- a\n- b\n', '- a')).toBe('- a\n- ## Notes\n  - body\n- b\n');
+  });
+
+  it('a HEADING sibling still donates its level', () => {
+    // Unchanged, and the reason the scan looks for both: where the neighbours
+    // are headings the payload is landing among sections, not among rows.
+    expect(pasted('# One\n\n### Three\n\n### Four\n', '### Three')).toBe(
+      '# One\n\n### Three\n\n### Notes\nbody\n\n### Four\n',
+    );
+  });
+
+  it('a PARAGRAPH sibling stays transparent', () => {
+    // Paragraphs and atoms express neither regime, so they neither donate nor
+    // end the scan. A heading beside a paragraph is the shape "same depth,
+    // different kinds" already covers, and nothing measured asks to change it.
+    expect(pasted('## H\n\npara one\n\npara two\n', 'para one')).toBe(
+      '## H\n\npara one\n\n### Notes\nbody\n\npara two\n',
+    );
+  });
+
+  it('a scope with no sibling of either kind still reads the parent', () => {
+    expect(pasted('para\n', 'para')).toBe('para\n# Notes\nbody\n');
+  });
+});
+
 describe('list item unwrap', () => {
   function unwrapOk(md: string, target: string) {
     const doc = parse(md);

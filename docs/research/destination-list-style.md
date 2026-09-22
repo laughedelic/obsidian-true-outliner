@@ -114,6 +114,33 @@ its destination — so what widened is which marker the existing conversion writ
 Each of those sites already built the sibling slices `encodingKindAtDestination` reads; both
 rules now take one named context, so they cannot drift onto different surroundings.
 
+## Which regime the payload lands in
+
+The rule above decides the marker once the payload is going to be a list item. A manual pass
+found the prior question was broken in the same way: WHICH REGIME it lands in was read from the
+scope, where the kind is read from the neighbours.
+
+`destinationHeadingLevel` scanned for heading siblings and skipped everything else, so a
+heading-bearing scope whose rows are list items — a list under its own heading — kept the heading
+regime. Measured in the real editor, a section pasted at the end of `9. ninth` in an `1.` / `9.` /
+`10.` run under an `h2` opened an `h3` between two rows of the run; among `- one` / `- two` /
+`- three` under an `h1` it also swallowed `- three` into itself, a node never copied and never
+pointed at.
+
+A list item now ends that scan, so the nearest sibling expressing a regime decides:
+
+| nearest sibling | regime | result |
+| --- | --- | --- |
+| a heading | heading | stays a heading at the sibling's level, unchanged |
+| a list item | list | converts and joins the run |
+| a paragraph or atom | transparent | scan continues past it |
+| none | the parent | unchanged |
+
+The cost: a section pasted at the END of a list under a heading joins the list rather than
+opening a section after it. The nearest sibling is a list item either way, so that is the rule
+applied evenly rather than an exception; appending a genuine section means putting the caret
+below the list.
+
 ## What it changes below it
 
 A converted heading pasted into an ordered run used to divide it, which is the gesture

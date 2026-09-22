@@ -115,13 +115,30 @@ export function destinationHeadingLevel(context: {
 }): number | undefined {
   const { parent, precedingSiblings, followingSiblings } = context;
   if (parent !== 'root' && parent.kind !== 'heading') return undefined;
-  const donor = (nodes: readonly OutlineNode[]): number | undefined => {
-    for (const node of nodes) if (node.kind === 'heading') return node.level;
+  // The nearest sibling that expresses a regime decides which one the payload
+  // lands in. A heading donates its level, as it always did. A LIST ITEM ends
+  // the scan instead of being skipped: a heading-bearing scope whose rows at
+  // the insertion point are list items is a list at that point, whatever the
+  // parent is, and a payload landing between two of them belongs to their run.
+  //
+  // Scanning for headings alone read the SCOPE where the kind rule reads the
+  // NEIGHBOURS, and the two disagreed wherever a list sits under a heading —
+  // the commonest shape there is. Measured, a section pasted into `1.` / `9.` /
+  // `10.` under an `h2` stayed a heading and split the run.
+  //
+  // Paragraphs and atoms stay transparent. A heading beside a paragraph in a
+  // heading scope is the shape "same depth, different kinds" already covers,
+  // and nothing measured says it wants to change.
+  const donor = (nodes: readonly OutlineNode[]): number | 'list' | undefined => {
+    for (const node of nodes) {
+      if (node.kind === 'heading') return node.level;
+      if (node.kind === 'list-item') return 'list';
+    }
     return undefined;
   };
   const preceding = donor([...precedingSiblings].reverse());
-  if (preceding !== undefined) return preceding;
+  if (preceding !== undefined) return preceding === 'list' ? undefined : preceding;
   const following = donor(followingSiblings);
-  if (following !== undefined) return following;
+  if (following !== undefined) return following === 'list' ? undefined : following;
   return parent === 'root' ? 1 : (parent.level ?? 1) + 1;
 }

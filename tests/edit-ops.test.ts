@@ -994,15 +994,23 @@ describe('a converted heading gives its rank back', () => {
 });
 
 describe('a pasted heading takes the content that follows it', () => {
-  it('the anchor\'s following siblings join the pasted section', () => {
-    // Negative control: this is stated behaviour, not an accident — a change
-    // that relocated the insertion or demoted the heading would fail here.
+  it('a section landing among LIST ITEMS converts instead, and swallows nothing', () => {
+    // This scope is heading-bearing, but the rows at the insertion point are
+    // list items, so the payload joins their list rather than opening a section
+    // there. `- three` stays a sibling: a heading owns what follows it, and
+    // this is no longer a heading.
+    //
+    // It used to be, and `- three` used to end up INSIDE the pasted section —
+    // content that was never copied and never pointed at. That was recorded
+    // here as stated behaviour; the manual pass found the same rule splitting
+    // an ordered run under a heading, and both follow from reading the scope
+    // where the kind rule reads the neighbours.
     const result = insertAfter('# Project\n\n- one\n- two\n- three\n', '- two', SECTION);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    // `- three` is inside the pasted section now, a sibling of `- alpha`
-    // under `Some prose.` — content that was never copied or pointed at.
-    expect(shape(encode(result.value.doc))).toContain('      list-item: - three');
+    expect(shape(encode(result.value.doc))).toContain('  list-item: - three');
+    expect(shape(encode(result.value.doc))).not.toContain('      list-item: - three');
+    expect(shape(encode(result.value.doc))).toContain('  list-item: - ## Notes');
   });
 
   it('the level comes from the scope\'s heading siblings, so a level SKIP does not let it escape', () => {
