@@ -75,7 +75,6 @@
 - [x] 4.1 `npm test` — the whole unit suite, including `renumbering-contract`, `closure`,
       `roundtrip` and `depth-contract`.
 - [x] 4.2 `npm run build` and `npm run lint`.
-- [x] 4.3 The e2e sweep, which the pushed checkpoint runs in CI: green on `9e48328`, desktop
-      and mobile.
+- [ ] 4.3 The e2e sweep, which the pushed checkpoint runs in CI.
 - [ ] 4.4 Manual testing in Obsidian against the issue's own reproduction, including whether
       Obsidian's renderer reads the divided nested frame the way the root-level figures do.
