@@ -904,6 +904,30 @@ describe('which regime a payload lands in is read from the nearest sibling', () 
     );
   });
 
+  it('an ADOPTED sibling takes the style of the children it joins', () => {
+    // The outdent path that adopts a node's following siblings as its trailing
+    // children. `para` is a paragraph, so it converts; the children it lands
+    // among are written `*`, so that is what it is written with.
+    //
+    // Fenced deliberately: removing the style argument at this one call site
+    // passed the whole suite before this case existed, because every other
+    // adopted-sibling test either keeps an ARRIVING item's own marker or
+    // converts the other way, to a paragraph.
+    const { text } = applyOk(outdent, '- p\n  - x\n    * child\n\n  para\n', '  - x');
+    expect(text).toBe('- p\n- x\n  * child\n\n  * para\n');
+  });
+
+  it('an adopted sibling joins an ORDERED child run', () => {
+    const { text } = applyOk(outdent, '- p\n  - x\n    1. child\n\n  para\n', '  - x');
+    expect(text).toBe('- p\n- x\n  1. child\n\n  2. para\n');
+  });
+
+  it('an adopted sibling that ARRIVES as a list item keeps its own marker', () => {
+    // The control: adoption is not conversion either.
+    const { text } = applyOk(outdent, '- p\n  - x\n    * child\n  - sib\n', '  - x');
+    expect(text).toBe('- p\n- x\n  * child\n  - sib\n');
+  });
+
   it('a scope with no sibling of either kind still reads the parent', () => {
     expect(pasted('para\n', 'para')).toBe('para\n# Notes\nbody\n');
   });

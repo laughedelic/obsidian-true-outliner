@@ -122,7 +122,7 @@ scope, where the kind is read from the neighbours.
 
 `destinationHeadingLevel` scanned for heading siblings and skipped everything else, so a
 heading-bearing scope whose rows are list items — a list under its own heading — kept the heading
-regime. Measured in the real editor, a section pasted at the end of `9. ninth` in an `1.` / `9.` /
+regime. Measured in the real editor, a section pasted at the end of `9. ninth` in a `1.` / `9.` /
 `10.` run under an `h2` opened an `h3` between two rows of the run; among `- one` / `- two` /
 `- three` under an `h1` it also swallowed `- three` into itself, a node never copied and never
 pointed at.
