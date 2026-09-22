@@ -35,3 +35,7 @@ design/
 
 # Assembled from styles/ by the build (scripts/styles.mjs), like main.js.
 /styles.css
+
+# VitePress build output and cache for the website under website/
+/website/.vitepress/dist/
+/website/.vitepress/cache/
