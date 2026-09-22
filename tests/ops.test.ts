@@ -577,14 +577,153 @@ describe('an arriving number does not become the run’s start', () => {
     expect(encode(result.value.doc)).toBe('- a\n- b\n3. x\n4. y\n- c\n');
   });
 
-  it('a swap that SPLITS a run leaves the tail on the run’s own start', () => {
-    // The inverse of the join, and the same rule: the fragment's earliest
-    // member was in a run that began at 1, so that is where it begins. This is
-    // what "indenting the head of an ordered run away from its level" already
-    // does on the removal side — `1. two` / `2. three`, not `2. two` — and the
-    // separator arriving between two items is the same split by another route.
+  it('a swap that SPLITS a run leaves the tail on its OWN numbers', () => {
+    // The inverse of the join, and NOT the same rule. A removal takes the
+    // members that carried the start, so the fragment it leaves has to recover
+    // one; a split takes nothing — the head fragment still holds the start and
+    // the tail still holds its own numbers. Recovering a start here would write
+    // `1. c` over a line the swap never touched, and change what the reader
+    // sees with it: cut loose, `3. c` is its own list and renders from 3.
     const { text } = applyOk(moveUp, '1. a\n2. b\n3. c\n- x\n', '- x');
-    expect(text).toBe('1. a\n2. b\n- x\n1. c\n');
+    expect(text).toBe('1. a\n2. b\n- x\n3. c\n');
+  });
+
+  it('a bullet pasted into an ordered run leaves the tail alone (#159)', () => {
+    // The reported shape. `10. ten` was not in the selection, not in the
+    // payload and not adjacent to the caret; it was rewritten to `8. ten`
+    // because the bullet between it and `9. nine` ended the run it belonged to.
+    const doc = parse('- top\n  8. eight\n  9. nine\n  10. ten\n');
+    const result = insertSubtrees(
+      doc,
+      byLine(doc, '  9. nine'),
+      parse('- alpha\n  - beta\n').children,
+      'after',
+    );
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    expect(encode(result.value.doc)).toBe(
+      '- top\n  8. eight\n  9. nine\n  - alpha\n    - beta\n  10. ten\n',
+    );
+  });
+
+  it('a heading payload converting to a bullet reaches the same seam (#159)', () => {
+    // The payload converts on the way in and lands as a `-`, which is the other
+    // half of the report — and the control that says the defect was the
+    // renumbering rather than the conversion.
+    const doc = parse('- top\n  8. eight\n  9. nine\n  10. ten\n');
+    const result = insertSubtrees(
+      doc,
+      byLine(doc, '  9. nine'),
+      parse('## H\nbody\n').children,
+      'after',
+    );
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    expect(encode(result.value.doc)).toBe(
+      '- top\n  8. eight\n  9. nine\n  - ## H\n    - body\n  10. ten\n',
+    );
+  });
+
+  it('a run cut into two by a paste keeps BOTH fragments where they were', () => {
+    // The minimal shape, at the root and consecutive from 1: the head fragment
+    // reads its own start, the tail its own numbers, and the only line the
+    // paste writes is the one it inserted.
+    const doc = parse('1. a\n2. b\n3. c\n');
+    const result = insertSubtrees(doc, byLine(doc, '1. a'), parse('- x\n').children, 'after');
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    expect(encode(result.value.doc)).toBe('1. a\n- x\n2. b\n3. c\n');
+  });
+
+  it('an ordered item pasted into the tail fragment joins the tail’s numbering', () => {
+    // A fragment can GAIN members as it is cut off. The one that was already
+    // there stays on its own number and the arrival counts back from it, so the
+    // payload takes `9.` and `10. ten` is still `10. ten`.
+    const doc = parse('- top\n  8. eight\n  9. nine\n  10. ten\n');
+    const result = insertSubtrees(
+      doc,
+      byLine(doc, '  9. nine'),
+      parse('- x\n3. y\n').children,
+      'after',
+    );
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    expect(encode(result.value.doc)).toBe(
+      '- top\n  8. eight\n  9. nine\n  - x\n  9. y\n  10. ten\n',
+    );
+  });
+
+  it('an outdent arriving in the middle of a run divides it without renumbering', () => {
+    // The paste is not the only route in, and the differential measures this one
+    // as the change's largest: an arriving bullet divides the run it lands in
+    // exactly as a pasted one does.
+    const { text } = applyOk(outdent, '1. a\n   - kid\n2. b\n3. c\n', '   - kid');
+    expect(text).toBe('1. a\n- kid\n2. b\n3. c\n');
+  });
+
+  it('a fragment keeping a LARGER number still carries its subtree', () => {
+    // The direction the old reading could not produce. The fragment keeps its
+    // own start of 9, which normalizes `9. o` to `10. o` — a marker that gains a
+    // digit, so the content column moves and the subtree has to move with it.
+    const doc = parse('- t\n  8. e\n  9. n\n  9. o\n     - kid\n');
+    const result = insertSubtrees(doc, byLine(doc, '  8. e'), parse('- x\n').children, 'after');
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    const text = encode(result.value.doc);
+    expect(text).toBe('- t\n  8. e\n  - x\n  9. n\n  10. o\n      - kid\n');
+    // Closure: the re-parse still reads `- kid` as the WIDENED item's child.
+    // Its presence alone would not say that — a subtree left behind at the old
+    // column comes back as a sibling, which is the defect this asserts against.
+    expect(parentLineOf(parse(text), '      - kid')).toBe('  10. o');
+  });
+
+  it('a fragment with no room below counts back to the recovered start, not to zero', () => {
+    // More members prepended than the fragment's own number leaves room for, so
+    // its numbers cannot stand either and the recovered start answers. `0.` is a
+    // number no run in the source was written from, and nothing here emits one.
+    const doc = parse('1. a\n2. b\n');
+    const result = insertSubtrees(
+      doc,
+      byLine(doc, '1. a'),
+      parse('- x\n5. p\n6. q\n7. r\n').children,
+      'after',
+    );
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    expect(encode(result.value.doc)).toBe('1. a\n- x\n1. p\n2. q\n3. r\n4. b\n');
+  });
+
+  it('a run that cannot be renumbered within nine digits is left exactly as it stands', () => {
+    // Preserving a fragment's own numbers renumbers UPWARD, which the old
+    // reading never did, so a run sitting at the parser's ceiling can now be
+    // pushed over it. A tenth digit is not a list item: the item would re-parse
+    // as a paragraph and its subtree would be re-indented to a column it never
+    // had. The run keeps the markers it already had instead.
+    const doc = parse('999999998. a\n999999999. b\n999999999. c\n            - kid\n');
+    const result = insertSubtrees(
+      doc,
+      byLine(doc, '999999998. a'),
+      parse('- x\n').children,
+      'after',
+    );
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    expect(encode(result.value.doc)).toBe(
+      '999999998. a\n- x\n999999999. b\n999999999. c\n            - kid\n',
+    );
+    // Every node is still a list item, and the subtree is still at its column.
+    for (const node of walkNodes(result.value.doc)) expect(node.kind).toBe('list-item');
+  });
+
+  it('a removal still recovers the start it lost', () => {
+    // The negative control the split rule has to leave standing: here the
+    // members that carried the start are GONE, so the fragment is a remainder
+    // and reads the run's own start rather than its own numbers.
+    const { text } = applyOk(indent, '- p\n8. eight\n9. nine\n', '8. eight');
+    expect(text).toBe('- p\n  8. eight\n8. nine\n');
+  });
+
+  it('a fragment that also JOINS another run is back under the join rule', () => {
+    // Both shapes at once: `- x` moving up cuts `2. b` off its run AND merges
+    // it with the run below. One list carries one sequence, so `5. c` is
+    // renumbered whatever start the fragment is handed — there is nothing for
+    // keeping `2. b` on its own number to protect, and the earliest member
+    // present beforehand names the start, as it does for any other join.
+    const { text } = applyOk(moveUp, '1. a\n2. b\n- x\n5. c\n', '- x');
+    expect(text).toBe('1. a\n- x\n1. b\n2. c\n');
   });
 
   it('a swap that joins two runs keeps the earlier run’s start', () => {
