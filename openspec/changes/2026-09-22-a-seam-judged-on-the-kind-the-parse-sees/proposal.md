@@ -32,17 +32,19 @@ closing tag — but at column 4 there is no HTML block, and the list item that f
 own block regardless.
 
 `docs/research/seams-across-a-re-indent.md` carries the frames, the column table for every
-margin-anchored kind, and a differential against `main` over 580 (destination, anchor, position,
+margin-anchored kind, and a differential against `main` over 696 (destination, anchor, position,
 payload) combinations: `main` loses a payload node in 8 of them and this reading in none, no
-verdict changes, and the 7 remaining differences are the separator above, removed.
+verdict changes, and the 27 remaining differences are separators removed — 7 below a demoted
+`html` block, 20 around a rule that is a list item where it lands.
 
 ## What Changes
 
 - `parse.ts` states the margin its own anchors carry (`OPENING_MARGIN`) and answers what a node's
   lines PARSE AS where they now sit (`kindAsWritten`). `hr`, `quote`, `callout`, `html` and a
-  heading are recognised only within three columns of the left margin; past it the same bytes are
-  a paragraph. A setext heading is judged on its underline, which is the line carrying the
-  anchor.
+  heading are recognised only within three columns of the left margin. What the line becomes past
+  it is read off the line: `LIST_ITEM_RE` has no margin, so `- - -` and `* * *` open a LIST ITEM
+  at column 4 where `---` opens nothing and is a paragraph. A setext heading is judged on its
+  underline, which is the line carrying the anchor.
 - `needsBlankBetween` and the first-child continuation check in `normalizeBoundaries` (src/ops.ts)
   ask `kindAsWritten` instead of reading `node.kind`. No rule in either changes; what changes is
   which node each rule is applied to.

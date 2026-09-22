@@ -28,6 +28,10 @@ const PAYLOADS = [
   '## Notes\n\nSome prose.\n\n- alpha\n  - beta\n',
   '> quote\n\nafter\n',
   'Setext\n=====\n\nbody\n',
+  // A rule whose spelling carries a list marker: an `hr` at column 3 and a
+  // LIST ITEM at column 4, where `---` is a paragraph.
+  '- item\n- - -\n',
+  '## H\n* * *\n',
 ];
 
 describe('differential', () => {

@@ -69,22 +69,31 @@ const HTML_OPEN_RE = /^ {0,3}<[a-zA-Z!/]/;
 /**
  * The last column at which an `hr`, a `quote`, a `callout`, an `html` block or
  * an ATX heading still OPENS one: `HR_RE`, `QUOTE_RE`, `CALLOUT_RE`,
- * `HTML_OPEN_RE` and `ATX_RE` all anchor at `^ {0,3}`. A line written past it
- * opens nothing, and is read as a paragraph or as a continuation of the
- * paragraph above.
+ * `HTML_OPEN_RE` and `ATX_RE` all anchor at `^ {0,3}`. Past it the same line
+ * opens whatever it opens with no margin of its own — a list item, where the
+ * bytes carry a marker — or nothing, and is then read as a paragraph or as a
+ * continuation of the paragraph above.
  */
 export const OPENING_MARGIN = 3;
 
 /**
  * The kind a node's lines PARSE AS where they now sit, which is not always the
  * kind the tree holds. A re-indent writes those lines at a new column, and the
- * kinds above survive only within `OPENING_MARGIN` of the left margin — past
- * it the same bytes are a paragraph, and a paragraph claims the line after it.
+ * kinds above survive only within `OPENING_MARGIN` of the left margin.
  *
  * Anything reasoning about what a seam will re-parse as has to ask this rather
  * than read `node.kind`: the two disagree exactly where a re-indent has
  * happened, and a separator chosen for the kind the tree holds is a separator
  * chosen for a node the document will not contain.
+ *
+ * What a demoted line becomes is read off the line rather than assumed to be a
+ * paragraph. `LIST_ITEM_RE` carries no margin, so a rule spelled `- - -` or
+ * `* * *` — the spellings whose first characters are a marker and a space — is
+ * an `hr` at column 3 and a LIST ITEM at column 4, which claims nothing and
+ * needs no separator. `---`, `***` and `___` have no marker to find and are
+ * paragraphs there. The other openers cannot arise: `FENCE_OPEN_RE` and a
+ * table row have no margin either, so a node whose first line matches one of
+ * them is a `code` or a `table` and is never demoted at all.
  *
  * A setext heading is judged on its UNDERLINE, the line that carries its
  * `^ {0,3}`; every other kind on the line that opens it.
@@ -92,8 +101,7 @@ export const OPENING_MARGIN = 3;
 export function kindAsWritten(node: Pick<OutlineNode, 'kind' | 'lines' | 'setext'>): NodeKind {
   const kind = node.kind;
   if (kind === 'heading' && node.setext === true) {
-    const underline = node.lines[node.lines.length - 1] ?? '';
-    return indentWidth(underline) > OPENING_MARGIN ? 'paragraph' : kind;
+    return demote(node.lines[node.lines.length - 1] ?? '', kind);
   }
   if (
     kind !== 'heading' &&
@@ -104,7 +112,12 @@ export function kindAsWritten(node: Pick<OutlineNode, 'kind' | 'lines' | 'setext
   ) {
     return kind;
   }
-  return indentWidth(node.lines[0] ?? '') > OPENING_MARGIN ? 'paragraph' : kind;
+  return demote(node.lines[0] ?? '', kind);
+}
+
+function demote(line: string, kind: NodeKind): NodeKind {
+  if (indentWidth(line) <= OPENING_MARGIN) return kind;
+  return LIST_ITEM_RE.test(line) ? 'list-item' : 'paragraph';
 }
 
 /**

@@ -1133,6 +1133,12 @@ describe('a seam is judged on the kind the re-parse will see', () => {
     expect(at('callout', '    > [!note] c')).toBe('paragraph');
     expect(at('html', '    <div>')).toBe('paragraph');
     expect(at('heading', '    ## H')).toBe('paragraph');
+    // A rule spelled with a marker and a space is a LIST ITEM past the margin,
+    // not a paragraph: `LIST_ITEM_RE` carries no margin of its own.
+    expect(at('hr', '   - - -')).toBe('hr');
+    expect(at('hr', '    - - -')).toBe('list-item');
+    expect(at('hr', '\t* * *')).toBe('list-item');
+    expect(at('hr', '    _ _ _')).toBe('paragraph');
     // No opening margin of their own: a fence and a table row open anywhere.
     expect(at('code', '\t```')).toBe('code');
     expect(at('table', '\t| a |')).toBe('table');
@@ -1178,6 +1184,44 @@ describe('a seam is judged on the kind the re-parse will see', () => {
       const after = [...walkNodes(result.value.doc)].length;
       expect(after - before, atom).toBe(expected);
     }
+  });
+
+  it('a rule that becomes a list item past the margin takes no separator', () => {
+    // `- - -` and `---` are one kind in the tree and two at column 4. The first
+    // opens a list item there, which claims nothing and needs no blank line;
+    // the second opens nothing and takes the paragraph rule. Both keep every
+    // node either way — this pins the encoding as the minimal one.
+    const doc = parse('## H2\n\tbody\n');
+    const result = insertSubtrees(
+      doc,
+      byLine(doc, '\tbody').id,
+      parse('- item\n- - -\n').children,
+      'before',
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('## H2\n\titem\n\t- - -\n\tbody\n');
+    expect(shape(encode(result.value.doc))).toBe(
+      // The rule attaches UNDER the paragraph above it, as a list following a
+      // paragraph does anywhere; every node is present either way.
+      ['h2: ## H2', '  paragraph: item', '    list-item: - - -', '  paragraph: body'].join('\n'),
+    );
+  });
+
+  it('the same seam below the anchor, not above it', () => {
+    // Half the rows `main` loses are `after` insertions; the seam is the one
+    // inside the payload there rather than the one below it.
+    const doc = parse('## H2\n\tbody\n');
+    const result = insertSubtrees(
+      doc,
+      byLine(doc, '\tbody').id,
+      parse('- item\n> quote\n').children,
+      'after',
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('## H2\n\tbody\n\n\titem\n\n\t> quote\n');
+    expect([...walkNodes(result.value.doc)].length - [...walkNodes(doc)].length).toBe(2);
   });
 
   it('a seam that stays inside the margin is left flush, as it was', () => {

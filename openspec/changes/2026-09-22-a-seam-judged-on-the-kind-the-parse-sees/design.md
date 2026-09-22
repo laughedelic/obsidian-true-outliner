@@ -33,8 +33,9 @@ by the time boundaries are normalized. `kindAsWritten` reads it there.
 `OPENING_MARGIN` is `3` because `QUOTE_RE`, `CALLOUT_RE`, `HR_RE`, `HTML_OPEN_RE` and `ATX_RE`
 are written `^ {0,3}`. A copy of that number in `ops.ts` would be a second statement of the
 parser's own rule, free to drift from it. `indentWidth(line) > 3` and a failing `^ {0,3}` are the
-same test: a tab is `TAB_WIDTH` columns from a stop, so no line reaches column 4 or beyond while
-still matching, and none matches while measuring 3 or less.
+same test, in both directions: a match consists of spaces alone and so measures 3 or less, and a
+run measuring 3 or less is spaces alone, because a tab advances to the next `TAB_WIDTH` stop and
+so reaches column 4 from any start the margin allows.
 
 ### D3. A setext heading is judged on its underline
 
@@ -43,18 +44,27 @@ its first. A setext heading whose underline is pushed past the margin is a parag
 lines. Judged on its first line instead — an ordinary text line, which no margin governs — it
 would come back `heading` and the seam above it would be separated for a node that is not there.
 
-### D4. The demotion only ever adds a merge risk, never hides one
+### D4. The demoted kind is read off the line, not assumed
 
-`kindAsWritten` maps five kinds to `paragraph` and leaves the rest alone, and `paragraph` is the
-most claiming kind the rules know: as the node ABOVE a seam it claims a following paragraph, an
-html block, a setext underline and a `-` rule; as the node BELOW one it is claimed by a paragraph
-and by a list item's continuation lines. So a demotion adds a separator wherever the seam now
-merges, and removes one only where the rule that asked for it described a block the document no
-longer contains — measured across the differential as 8 rows gaining a separator and 7 losing
-one, with no row losing a node.
+A demoted line is a paragraph in most spellings and a LIST ITEM in two: `LIST_ITEM_RE` carries no
+margin, so `- - -` and `* * *` — the rule spellings whose first two characters are a marker and a
+space — open a list item at column 4 where `---` opens nothing. Assuming a paragraph there writes
+a blank line for a node the document does not contain, which is the same mistake this change
+exists to fix, one layer down. No other opener can arise: a fence and a table row have no margin
+either, so a node whose first line matches one of them is a `code` or a `table` and is never
+demoted at all.
+
+The change therefore both adds and removes separators, and for one reason in both directions —
+the rule that applies is the rule for the node the document will contain. Measured across the
+differential: 8 rows gain a separator, 27 lose one, none loses a node.
 
 ## Risks / Trade-offs
 
+- **`kindAsWritten` can disagree with `parse` on a spelling nobody thought of.** It restates the
+  anchors rather than running them, so the guard is a unit test walking every kind at both sides
+  of the margin, and every rule spelling against `parse` itself. The `- - -` case was found that
+  way — by a review sweep comparing the two functions over every whitespace shape, after the
+  first reading of this design asserted a demotion is always a paragraph.
 - **A seam below a demoted `html` block loses its blank line.** That blank was there for the
   HTML-block rule, which does not apply to a paragraph, and the seam re-parses to the same nodes
   without it. Both encodings render identically under `commonmark` 0.31.2. The cost is that a
