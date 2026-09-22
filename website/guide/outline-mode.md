@@ -2,6 +2,8 @@
 
 Outline mode is the switch that turns everything else on. With it on, a note is drawn on the outline grid, the keyboard grammar and selection rules apply, zoom is available and the backlinks footer renders. With it off, the note is stock Obsidian.
 
+<Clip name="outline-toggle" caption="One tab, toggled off and on. Only the rendering changes; the note does not." />
+
 ## Per tab, not per note
 
 Outline mode is a property of the **tab**, not of the note or the vault:
