@@ -26,7 +26,7 @@ import { forEachNodeWithLine, nodeAtLine, nodeStartLine } from './locate';
 import { subtreeCoverOf, type Cover } from './escalate';
 import { posBefore, type LinePos } from './line-pos';
 import { encode, encodeLines } from './encode';
-import { parse, indentWidth } from './parse';
+import { parse, indentWidth, kindAsWritten, tailAsWritten } from './parse';
 import type { Edit, OpResult } from './result';
 import { accept, diffLines, reject } from './result';
 import {
@@ -354,21 +354,36 @@ function scopeSeparation(
   return parent === 'root' ? [] : parent.trailingGap;
 }
 
+/**
+ * A seam is judged on the kinds the RE-PARSE will see, not the kinds the tree
+ * holds. `finalize` normalizes boundaries before encoding, so a node an
+ * operation has re-indented past the opening margin is still a `quote` here
+ * and is already a paragraph by the time the text is read back — and two
+ * paragraphs with nothing between them are one paragraph. Asking
+ * `kindAsWritten` closes that gap: the separator is chosen for the node the
+ * document will actually contain.
+ */
 function needsBlankBetween(prev: OutlineNode, next: OutlineNode): boolean {
-  const leaf = subtreeFinalNode(prev);
-  if (leaf.trailingGap.length > 0) return false;
-  if (leaf.kind === 'paragraph') {
+  const final = subtreeFinalNode(prev);
+  if (final.trailingGap.length > 0) return false;
+  // Above the seam, the block the leaf's last line lands in; below it, the
+  // block the next node's first line opens. For a demoted `html` block those
+  // are different blocks of the same node.
+  const leaf = tailAsWritten(final);
+  const leafKind = leaf.kind;
+  const nextKind = kindAsWritten(next);
+  if (leafKind === 'paragraph') {
     return (
-      next.kind === 'paragraph' ||
-      next.kind === 'html' ||
-      (next.kind === 'heading' && next.setext === true) ||
-      (next.kind === 'hr' && (next.lines[0] ?? '').includes('-'))
+      nextKind === 'paragraph' ||
+      nextKind === 'html' ||
+      (nextKind === 'heading' && next.setext === true) ||
+      (nextKind === 'hr' && (next.lines[0] ?? '').includes('-'))
     );
   }
-  if (leaf.kind === 'list-item') {
-    const contentCol = indentWidth(leaf.lines[0] ?? '') + markerWidth(leaf);
+  if (leafKind === 'list-item') {
+    const contentCol = indentWidth(leaf.lines[0] ?? '') + markerWidthOf(leaf.lines[0] ?? '');
     return (
-      (next.kind === 'paragraph' || next.kind === 'html') &&
+      (nextKind === 'paragraph' || nextKind === 'html') &&
       indentWidth(next.lines[0] ?? '') >= contentCol
     );
   }
@@ -376,20 +391,19 @@ function needsBlankBetween(prev: OutlineNode, next: OutlineNode): boolean {
   // follows one is inside it until a separator says otherwise — whatever kind
   // that neighbour is. Surfaced by the payload-survival property: a payload
   // ending in `<div>…</div>` took the node after it into its own lines.
-  if (leaf.kind === 'html') return true;
-  // A quote, a callout and a table are RUNS of like-opening lines, and a run
-  // claims a following block that opens the same way: another `>` line is more
-  // quote, another `|` row is more table. A callout is a quote with its first
-  // line spoken for, so the two are one family here.
-  //
-  // Measured over every ordered pair of kinds at a bare seam: these, the
-  // paragraph cases above and html's are the whole of what merges. Stated as
-  // the families rather than as the five pairs, so a kind joining one of them
-  // is covered by the rule that already describes it.
-  if (leaf.kind === 'quote' || leaf.kind === 'callout') {
-    return next.kind === 'quote' || next.kind === 'callout';
+  if (leafKind === 'html') return true;
+  // A quote and a callout are RUNS of like-opening lines, and a run claims a
+  // following block that opens the same way: another `>` line is more quote.
+  // A callout is a quote with its first line spoken for, so the two are one
+  // family here. Stated as the family rather than as its pairs, so a kind
+  // joining it is covered by the rule that already describes it.
+  if (leafKind === 'quote' || leafKind === 'callout') {
+    return nextKind === 'quote' || nextKind === 'callout';
   }
-  if (leaf.kind === 'table') return next.kind === 'table';
+  // A table's loop claims every following line that carries a pipe, of
+  // whatever kind — a wikilink alias is enough — so the table family is every
+  // node whose first line has one, not only another table.
+  if (leafKind === 'table') return (next.lines[0] ?? '').includes('|');
   return false;
 }
 
@@ -423,7 +437,7 @@ function normalizeBoundaries(doc: OutlineDoc): OutlineDoc {
         firstChild &&
         fixed.kind === 'list-item' &&
         fixed.trailingGap.length === 0 &&
-        swallowedAsContinuation(firstChild.kind)
+        swallowedAsContinuation(kindAsWritten(firstChild))
       ) {
         fixed = { ...fixed, trailingGap: [''] };
       }

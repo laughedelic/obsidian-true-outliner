@@ -11,8 +11,8 @@
  * - a blockquote is a contiguous run of `>` lines.
  */
 
-import type { ListStyle, OutlineDoc, OutlineNode } from './model';
-import { makeNode } from './model';
+import type { ListStyle, NodeKind, OutlineDoc, OutlineNode } from './model';
+import { makeNode, walkNodes } from './model';
 import { listAttachesTo } from './rules';
 
 export const TAB_WIDTH = 4;
@@ -65,6 +65,84 @@ const HR_RE = /^ {0,3}(?:(?:\* *){3,}|(?:- *){3,}|(?:_ *){3,})$/;
 const SETEXT_RE = /^ {0,3}(=+|-+)[ \t]*$/;
 const TABLE_DELIM_RE = /^[ \t]*\|?[ \t:|-]*-[ \t:|-]*\|?[ \t]*$/;
 const HTML_OPEN_RE = /^ {0,3}<[a-zA-Z!/]/;
+
+/**
+ * The last column at which an `hr`, a `quote`, a `callout`, an `html` block or
+ * an ATX heading still OPENS one: `HR_RE`, `QUOTE_RE`, `CALLOUT_RE`,
+ * `HTML_OPEN_RE` and `ATX_RE` all anchor at `^ {0,3}`. Past it the same line
+ * opens whatever it opens with no margin of its own — a list item, where the
+ * bytes carry a marker — or nothing, and is then read as a paragraph or as a
+ * continuation of the paragraph above.
+ */
+export const OPENING_MARGIN = 3;
+
+/**
+ * The kind a node's lines PARSE AS where they now sit, which is not always the
+ * kind the tree holds. A re-indent writes those lines at a new column, and the
+ * kinds above survive only within `OPENING_MARGIN` of the left margin.
+ *
+ * Anything reasoning about what a seam will re-parse as has to ask this rather
+ * than read `node.kind`: the two disagree exactly where a re-indent has
+ * happened, and a separator chosen for the kind the tree holds is a separator
+ * chosen for a node the document will not contain.
+ *
+ * What a demoted line becomes is read off the line rather than assumed to be a
+ * paragraph. `LIST_ITEM_RE` carries no margin, so a rule spelled `- - -` or
+ * `* * *` — the spellings whose first characters are a marker and a space — is
+ * an `hr` at column 3 and a LIST ITEM at column 4, which claims nothing and
+ * needs no separator. `---`, `***` and `___` have no marker to find and are
+ * paragraphs there. The other openers cannot arise: `FENCE_OPEN_RE` and a
+ * table row have no margin either, so a node whose first line matches one of
+ * them is a `code` or a `table` and is never demoted at all.
+ *
+ * A setext heading is judged on its UNDERLINE, the line that carries its
+ * `^ {0,3}`; every other kind on the line that opens it.
+ */
+export function kindAsWritten(node: Pick<OutlineNode, 'kind' | 'lines' | 'setext'>): NodeKind {
+  const kind = node.kind;
+  if (kind === 'heading' && node.setext === true) {
+    return demote(node.lines[node.lines.length - 1] ?? '', kind);
+  }
+  if (
+    kind !== 'heading' &&
+    kind !== 'quote' &&
+    kind !== 'callout' &&
+    kind !== 'hr' &&
+    kind !== 'html'
+  ) {
+    return kind;
+  }
+  return demote(node.lines[0] ?? '', kind);
+}
+
+function demote(line: string, kind: NodeKind): NodeKind {
+  if (indentWidth(line) <= OPENING_MARGIN) return kind;
+  return LIST_ITEM_RE.test(line) ? 'list-item' : 'paragraph';
+}
+
+/**
+ * The block a node's LAST line belongs to where its lines now sit — what the
+ * seam BELOW the node abuts, as `kindAsWritten` is what the seam above it does.
+ *
+ * The two differ only for a demoted node of more than one line. An `html`
+ * block runs to a blank line whatever its lines hold, so past the margin its
+ * later lines open whatever they open at their own column: `<div>` over a
+ * table is a paragraph and then a TABLE there, and the seam below it has to be
+ * the table's. The answer is read from `parse` over the node's own lines rather
+ * than from the opening line, since the parse is what decides where one block
+ * of them ends and the next begins. A node the margin leaves alone, and a
+ * single demoted line, are their own tail.
+ */
+export function tailAsWritten(
+  node: Pick<OutlineNode, 'kind' | 'lines' | 'setext'>,
+): Pick<OutlineNode, 'kind' | 'lines' | 'setext'> {
+  const kind = kindAsWritten(node);
+  if (kind === node.kind) return node;
+  if (node.lines.length <= 1) return { kind, lines: node.lines };
+  let tail: OutlineNode | undefined;
+  for (const block of walkNodes(parse(node.lines.join('\n')))) tail = block;
+  return tail ?? { kind, lines: node.lines };
+}
 
 /**
  * Columns a whitespace run occupies when it starts at `col`, with tabs

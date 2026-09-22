@@ -1,0 +1,83 @@
+import { describe, it } from 'vitest';
+import { writeFileSync } from 'node:fs';
+import { parse } from '../src/parse';
+import { encode } from '../src/encode';
+import { walkNodes } from '../src/model';
+import { insertSubtrees } from '../src/ops';
+
+const DESTINATIONS = [
+  '## H2\n\tbody\n',
+  '## H2\n    body\n',
+  '## H2\nbody\n',
+  '## H2\n\nbody\n\nmore\n',
+  '- one\n  - two\n    - three\n',
+  '- one\n\t- two\n',
+  '# H\n\npara\n\n- a\n  - b\n',
+  '> q\n\nbody\n',
+  '- one\n  - two\n\n  next\n',
+  '# H\n\n## H2\n\n- a\n  - b\n    - c\n\ntail\n',
+  // A table, and a line carrying a pipe, for a payload to land against.
+  '## H2\n\t| b |\n\t| - |\n',
+  '- top\n  - see [[a|b]]\n',
+];
+const PAYLOADS = [
+  '- item\n> quote\n',
+  '## H\n---\n',
+  '## H\n> [!note] t\n> b\n',
+  '## H\n<div>\nx\n</div>\n',
+  '## H\n```\nc\n```\n',
+  '## H\n\n| a |\n| --- |\n',
+  'Para\n\n***\n',
+  '## Notes\n\nSome prose.\n\n- alpha\n  - beta\n',
+  '> quote\n\nafter\n',
+  'Setext\n=====\n\nbody\n',
+  // A rule whose spelling carries a list marker: an `hr` at column 3 and a
+  // LIST ITEM at column 4, where `---` is a paragraph.
+  '- item\n- - -\n',
+  '## H\n* * *\n',
+  // An html block holding a table: one block at column 0, a paragraph and a
+  // table past the margin.
+  'first\n\n<div>\n| a |\n| - |\n',
+  // A payload whose last root is a table.
+  '- alpha\n\n| x |\n| - |\n',
+];
+
+describe('differential', () => {
+  it('records every (destination, anchor, position, payload)', () => {
+    const rows: Record<string, unknown>[] = [];
+    for (const [d, dest] of DESTINATIONS.entries()) {
+      for (const [p, payload] of PAYLOADS.entries()) {
+        const blocks = parse(payload).children;
+        const payloadNodes = [...walkNodes(parse(payload))].length;
+        const doc = parse(dest);
+        const anchors = [...walkNodes(doc)];
+        for (const [a, anchor] of anchors.entries()) {
+          for (const position of ['before', 'after'] as const) {
+            const fresh = parse(dest);
+            const target = [...walkNodes(fresh)][a]!;
+            const before = [...walkNodes(fresh)].length;
+            const result = insertSubtrees(fresh, target.id, blocks, position);
+            // A split can net out a merge in a bare count, so the destination's
+            // own nodes are also checked: each must come back with exactly the
+            // lines it had.
+            const kept = result.ok
+              ? [...walkNodes(parse(dest))].every((n) =>
+                  [...walkNodes(result.value.doc)].some((r) => r.lines.join('\n') === n.lines.join('\n')),
+                )
+              : null;
+            rows.push({
+              key: `${d}/${p}/${a}/${position}`,
+              kept,
+              anchorLine: anchor.lines[0],
+              ok: result.ok,
+              delta: result.ok ? [...walkNodes(result.value.doc)].length - before : null,
+              payloadNodes,
+              text: result.ok ? encode(result.value.doc) : result.rejection.reason,
+            });
+          }
+        }
+      }
+    }
+    writeFileSync(process.env.DIFF_OUT ?? '/tmp/diff.json', JSON.stringify(rows, null, 1));
+  });
+});
