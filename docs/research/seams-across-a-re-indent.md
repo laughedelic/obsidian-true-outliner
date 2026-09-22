@@ -133,31 +133,27 @@ shape and 20 of case 3's. None of the 696 preserves fewer nodes than `main` did.
 
 ## Seams that are still wrong, and were before
 
-Three, all reproducing identically on `main`, all found by sweeping `finalize` directly over
-adjacent node pairs rather than through `insertSubtrees`. None is caused by this reading and none
-is fixed by it; each is recorded here because the sweep is what would otherwise have to be paid
-for twice.
+A second measurement, taken during the review round: every bare seam between two sibling roots
+through `finalize` directly, rather than through `insertSubtrees` — sixteen node samples, each at
+columns 0, 2 and 4, on both sides. The probe is `prototypes/seam-differential/seam-sweep.test.ts.txt`.
 
-**A table claims any following line carrying a pipe.** `needsBlankBetween`'s table branch asks
-whether the next node is a `table`, but `segment`'s table loop is `while (!isBlank(line) &&
-line.includes('|'))` — it eats whatever follows, of whatever kind. Pasting `pipe | para` after a
-table at a bare seam gives three nodes where four went in. The rule wants to be "a table claims
-any following non-blank line carrying a `|`".
+| | pairs | pairs losing a node |
+| --- | --- | --- |
+| `main` | 2 304 | 251 |
+| this change | 2 304 | 81 |
 
-**`kindAsWritten` demotes, and never promotes.** A node the tree holds as a `paragraph` whose text
-happens to OPEN a block once an operation writes it at column 3 or less is judged a paragraph and
-re-parses as a quote: a paragraph reading `    > quoted`, inserted before a top-level quote,
-gives two nodes where three went in. Reachable through `insertSubtrees` into a heading scope,
-where the payload arrives with no kind conversion; `outdent` converts to a list item and escapes
-it.
+The 81 fall into four groups, each re-run through the caret-paste path (`computeVerdict`) to find
+out whether a gesture reaches it. All four reproduce identically on `main`:
 
-**The list-item branch names two kinds where the continuation loop claims five.**
-`needsBlankBetween` separates a list item from a following `paragraph` or `html` at or past its
-content column, but `parse`'s continuation loop excludes only a list marker, a fence, a quote
-line and a table row — so an ATX heading, a setext heading and an `hr` are swallowed there too.
-`swallowedAsContinuation`, two dozen lines below, already says exactly this for a list item's
-FIRST CHILD. Through `insertSubtrees` the sibling seam is unreachable, a sibling being written at
-the item's own indent rather than at its content column, so this one is latent.
+| group | pairs | through a paste | where it lives |
+| --- | --- | --- | --- |
+| a table claims the next line carrying a `\|` | 18 | yes | [#197](https://github.com/laughedelic/obsidian-true-outliner/issues/197) |
+| a paragraph dedented to where its text opens a block | 54 | yes | [#198](https://github.com/laughedelic/obsidian-true-outliner/issues/198) |
+| a list item's sibling seam names two of the five kinds its continuation claims | 5 | no | [#197](https://github.com/laughedelic/obsidian-true-outliner/issues/197), as its latent half |
+| `---` / `---` at the document start | 4 | — | settled in `paste-across-encoding-regimes`: Obsidian reads it the same way |
+
+That the property suite saw none of this — nor #158 itself — is
+[#199](https://github.com/laughedelic/obsidian-true-outliner/issues/199).
 
 ## What this does not close
 

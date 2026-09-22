@@ -1,0 +1,52 @@
+import { describe, it } from 'vitest';
+import { writeFileSync } from 'node:fs';
+import { parse } from '../src/parse';
+import { encode } from '../src/encode';
+import { makeNode, walkNodes, type OutlineNode } from '../src/model';
+import { finalize } from '../src/ops';
+
+// One sample per kind, written at column 0; `at` re-indents it.
+const SAMPLES: { kind: OutlineNode['kind']; lines: string[]; extra?: Record<string, unknown> }[] = [
+  { kind: 'paragraph', lines: ['text'] },
+  { kind: 'paragraph', lines: ['a | b'] },
+  { kind: 'paragraph', lines: ['> looks like a quote'] },
+  { kind: 'paragraph', lines: ['<!-- looks like html -->'] },
+  { kind: 'paragraph', lines: ['---'] },
+  { kind: 'list-item', lines: ['- item'], extra: { listStyle: { type: 'bullet', marker: '-' } } },
+  { kind: 'list-item', lines: ['- see [[a|b]]'], extra: { listStyle: { type: 'bullet', marker: '-' } } },
+  { kind: 'heading', lines: ['## H'], extra: { level: 2 } },
+  { kind: 'heading', lines: ['Title', '====='], extra: { level: 1, setext: true } },
+  { kind: 'hr', lines: ['---'] },
+  { kind: 'hr', lines: ['- - -'] },
+  { kind: 'quote', lines: ['> q'] },
+  { kind: 'callout', lines: ['> [!note] c'] },
+  { kind: 'html', lines: ['<div>x</div>'] },
+  { kind: 'code', lines: ['```', 'c', '```'] },
+  { kind: 'table', lines: ['| a |', '| - |'] },
+];
+const COLS = [0, 2, 4];
+const at = (s: (typeof SAMPLES)[number], col: number): OutlineNode =>
+  makeNode({ kind: s.kind, lines: s.lines.map((l) => ' '.repeat(col) + l), ...(s.extra ?? {}) } as never);
+const label = (s: (typeof SAMPLES)[number], col: number): string => `${s.kind}@${col}:${JSON.stringify(s.lines[0])}`;
+
+describe('sweep', () => {
+  it('every bare seam between two sibling roots', () => {
+    const losses: string[] = [];
+    let total = 0;
+    for (const a of SAMPLES) for (const ca of COLS) for (const b of SAMPLES) for (const cb of COLS) {
+      // Only seams an encoding could produce: a sibling is never written
+      // shallower than a root that precedes it at the same scope — skip nothing,
+      // but record the column pair so each loss can be read for reachability.
+      const left = at(a, ca);
+      const right = at(b, cb);
+      // A heading's section would take the next node as a child; keep the pair flat.
+      const r = finalize(parse(''), { preamble: [], children: [left, right] }, left.id);
+      total++;
+      if (!r.ok) continue;
+      const text = encode(r.value.doc);
+      const n = [...walkNodes(r.value.doc)].length;
+      if (n < 2) losses.push(`${label(a, ca)}  >>  ${label(b, cb)}   =>  ${JSON.stringify(text)}`);
+    }
+    writeFileSync(process.env.SWEEP_OUT ?? '/tmp/sweep.txt', `total ${total}, losses ${losses.length}\n` + losses.join('\n'));
+  });
+});
