@@ -28,10 +28,10 @@
   "license": "MPL-2.0",
   "type": "module",
   "devDependencies": {
-    "@codemirror/commands": "^6.10.4",
+    "@codemirror/commands": "^6.11.1",
     "@codemirror/language": "^6.12.4",
-    "@codemirror/state": "^6.7.1",
-    "@codemirror/view": "^6.38.6",
+    "@codemirror/state": "^6.7.5",
+    "@codemirror/view": "^6.43.12",
     "@types/mocha": "^10.0.10",
     "@types/node": "^26.1.1",
     "@vitest/coverage-v8": "^5.0.0",
