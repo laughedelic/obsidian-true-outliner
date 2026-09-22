@@ -136,6 +136,7 @@ import {
   seamLayer,
   type SeamIndicator,
   type SeamEdge,
+  type ListMark,
 } from './drag-preview';
 import { toggleFoldAtLine } from './fold-commands';
 import {
@@ -145,6 +146,8 @@ import {
   type HeadingMarkerStyle,
   type MarkSubject,
   type Shape,
+  checkboxShapes,
+  ordinalPlaceholderShapes,
 } from './marker-shapes';
 
 // ---- Shared per-document fact computation (hardening 5.4) ------------------
@@ -933,6 +936,12 @@ function svgEl<K extends keyof SVGElementTagNameMap>(
  * would be two answers to one question.
  */
 export function buildMarkerIcon(subject: MarkSubject): SVGSVGElement {
+  return buildShapesIcon(markerShapes(subject));
+}
+
+/** `buildMarkerIcon` for a shape list that is not a node kind's own — a task's
+ * checkbox, an ordered item's placeholder. */
+export function buildShapesIcon(shapes: readonly Shape[]): SVGSVGElement {
   // `aria-hidden`: the marker is purely decorative chrome (the node's kind
   // is already in the accessible text itself — heading level, code fence,
   // etc.), so screen readers should skip it entirely (hardening 5.6).
@@ -947,7 +956,7 @@ export function buildMarkerIcon(subject: MarkSubject): SVGSVGElement {
   // queried from the live document — so no CM6-owned or Obsidian-owned
   // subtree is being mutated.
   // eslint-disable-next-line no-restricted-syntax -- detached DOM: built here, never mounted by this code
-  svg.append(...markerShapes(subject).map(shapeElement));
+  svg.append(...shapes.map(shapeElement));
   return svg;
 }
 
@@ -1087,6 +1096,7 @@ class MarkerWidget extends WidgetType {
 class GhostMarkWidget extends WidgetType {
   constructor(
     private readonly subject: MarkSubject,
+    private readonly list: ListMark | undefined,
     private readonly leftExpr: string,
     private readonly edge: SeamEdge,
   ) {
@@ -1096,6 +1106,8 @@ class GhostMarkWidget extends WidgetType {
   override eq(other: GhostMarkWidget): boolean {
     return (
       markKey(other.subject) === markKey(this.subject) &&
+      other.list?.task === this.list?.task &&
+      other.list?.ordered === this.list?.ordered &&
       other.leftExpr === this.leftExpr &&
       other.edge === this.edge
     );
@@ -1106,6 +1118,8 @@ class GhostMarkWidget extends WidgetType {
       cls: `to-decor-marker-icon ${GHOST_MARK_CLASS} ${GHOST_MARK_EDGE_CLASS[this.edge]}`,
     });
     stateMark(wrapper, this.subject);
+    if (this.list?.task !== undefined) wrapper.dataset.task = this.list.task ? 'done' : 'open';
+    if (this.list?.ordered !== undefined) wrapper.dataset.ordered = this.list.ordered;
     // Its OWN property, not `--to-marker-left`: the pass that keeps plain-line
     // markers on their column rewrites that one on every marker icon it finds,
     // and the ghost is a marker icon with a different placement.
@@ -1113,13 +1127,26 @@ class GhostMarkWidget extends WidgetType {
     // Detached DOM, mounted by CM6's own path — the same guard `MarkerWidget`
     // carries, and for the same reason.
     // eslint-disable-next-line no-restricted-syntax -- detached DOM: CM6 mounts toDOM()'s result via its own supported path
-    wrapper.appendChild(buildMarkerIcon(this.subject));
+    wrapper.appendChild(ghostIcon(this.subject, this.list));
     return wrapper;
   }
 
   override ignoreEvent(): boolean {
     return true;
   }
+}
+
+/**
+ * The ghost's glyph: a list item's state where it has one — a task's checkbox
+ * as it is, since a drop does not toggle it, or an ordered item's placeholder
+ * — and the kind's own mark otherwise. The two list marks are the ones the
+ * backlinks footer draws in a bullet's place for the same reason: they are
+ * state the reader is looking for, not presentation.
+ */
+function ghostIcon(subject: MarkSubject, list: ListMark | undefined): SVGSVGElement {
+  if (list?.task !== undefined) return buildShapesIcon(checkboxShapes(list.task));
+  if (list?.ordered !== undefined) return buildShapesIcon(ordinalPlaceholderShapes(list.ordered));
+  return buildMarkerIcon(subject);
 }
 
 /** The ghost mark's own classes; `90-dragging.css` positions them. */
@@ -1657,6 +1684,7 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
         Decoration.widget({
           widget: new GhostMarkWidget(
             markSubject(ghost, modes.headingMarkerStyle),
+            render.seam.list,
             ghostMarkLeftExpr(render.seam.depth),
             render.seam.edge,
           ),

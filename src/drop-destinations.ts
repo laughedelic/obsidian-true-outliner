@@ -47,7 +47,12 @@ export interface DropDestination extends SeamPlace {
    * for a heading — read off the re-encoded node itself, not off its first
    * line: a table's first line alone is a paragraph, a code fence's is a
    * fence, and the mark the preview draws has to be the node's. */
-  readonly mark: { readonly kind: NodeKind; readonly level?: number };
+  readonly mark: {
+    readonly kind: NodeKind;
+    readonly level?: number;
+    /** A list item's task state or ordered delimiter, as written there. */
+    readonly list?: { readonly task?: boolean; readonly ordered?: '.' | ')' };
+  };
   /** The lines a drop here would take INTO the run: a heading written among
    * siblings opens a section over the ones that follow it, up to the next
    * heading that can stand beside it or the scope's end. Those rows change
@@ -443,10 +448,19 @@ function writtenFirst(
   const parent = placed.parentId === 'root' ? 'root' : nodeById(doc, placed.parentId);
   if (parent === undefined) return undefined;
   const siblings = parent === 'root' ? doc.children : parent.children;
-  const written = (node: OutlineNode) => ({
-    firstLine: node.lines[0]!,
-    mark: node.level === undefined ? { kind: node.kind } : { kind: node.kind, level: node.level },
-  });
+  const written = (node: OutlineNode) => {
+    const firstLine = node.lines[0]!;
+    const list = node.kind === 'list-item' ? listMarkOf(firstLine) : undefined;
+    return {
+      firstLine,
+      mark:
+        node.level !== undefined
+          ? { kind: node.kind, level: node.level }
+          : list
+            ? { kind: node.kind, list }
+            : { kind: node.kind },
+    };
+  };
   if (placed.level === undefined && siblings.some((sibling) => operandRootIds.has(sibling.id))) {
     return written(operandRoots[0]!);
   }
@@ -460,6 +474,19 @@ function writtenFirst(
     placed.level,
   );
   return result.ok ? written(result.value[0]!) : undefined;
+}
+
+/** A list item's task state and ordered delimiter, read off its marker. */
+function listMarkOf(line: string): { task?: boolean; ordered?: '.' | ')' } | undefined {
+  const match = /^[ \t]*(?:[-*+]|\d+([.)]))[ \t]+(?:\[([ xX])\](?:[ \t]|$))?/.exec(line);
+  if (!match) return undefined;
+  const ordered = match[1] as '.' | ')' | undefined;
+  const box = match[2];
+  if (ordered === undefined && box === undefined) return undefined;
+  return {
+    ...(box === undefined ? {} : { task: box !== ' ' }),
+    ...(ordered === undefined ? {} : { ordered }),
+  };
 }
 
 function nodeById(doc: OutlineDoc, id: number): OutlineNode | undefined {

@@ -127,13 +127,15 @@ A HEADING node reaching a new destination — which only an insertion or a move 
 level-shifting operations move a heading by level rather than by reparenting — SHALL take its
 encoding from the same function, with one arm per kind of destination:
 
-- In a HEADING-BEARING scope (the root, or a heading's children) it SHALL remain a heading, at ONE
-  PAST ITS PARENT'S LEVEL, or `h1` at the root — whatever level the destination's heading siblings
-  sit at. A scope that skips a level is that scope's own irregularity, not a rule for what lands in
-  it. A heading written shallower than the siblings that follow it opens a section over them, and
-  they become its children on re-parse: this is the heading's own meaning, the same absorption an
-  inserted heading already performs, and a surface that previews destinations SHALL draw it before
-  the release.
+- In a HEADING-BEARING scope (the root, or a heading's children) it SHALL remain a heading, and
+  re-level to the destination's own depth. That level SHALL be taken from the destination's
+  heading SIBLINGS — nearest preceding, else following — and only from the parent (one past its
+  level, or 1 at root) where the scope has no heading sibling to copy. Reading the parent alone
+  is wrong wherever a scope SKIPS a level: the payload lands shallower than the siblings it is
+  placed among and opens a section that swallows them. Both readings are defensible there; the
+  sibling one is kept because it never takes in content nobody pointed at, and paste and move
+  SHALL agree on it. A move whose destination names a level of its own (`node-dragging`'s
+  shallower columns) writes that level instead.
 - In a LIST scope it SHALL become a list item, carrying its own `#` run verbatim into that
   item's text.
 
@@ -169,11 +171,11 @@ section level hands the run to the attachment rule.
 - **THEN** the operation is rejected with `insertion-not-expressible` and the document is
   unchanged; moved to a heading's first child instead, it stays a task
 
-#### Scenario: A heading takes its level from its parent
+#### Scenario: A heading takes its level from the siblings it lands beside
 - **WHEN** an `h2` section is moved among the children of another `h2` whose only child is an
   `h5` section
-- **THEN** it is written as an `h3` — before the `h5` section, which becomes its child; after it,
-  beside it — and never as an `h5`
+- **THEN** it is written as an `h5` on either side of that section, beside it rather than over
+  it
 
 #### Scenario: A heading inserted into a list scope becomes a list item carrying its rank
 - **WHEN** a heading-rooted subtree is inserted below a list item
@@ -182,8 +184,8 @@ section level hands the run to the attachment rule.
 
 #### Scenario: A heading inserted into a heading scope re-levels
 - **WHEN** a heading-rooted subtree is inserted among a heading's children
-- **THEN** it remains a heading, one level past its new parent's, with every heading in the
-  payload shifted by the same delta
+- **THEN** it remains a heading, at the level the destination's depth requires, with every
+  heading in the payload shifted by the same delta
 
 #### Scenario: A payload deeper than the destination has room for is refused
 - **WHEN** a heading-rooted subtree whose own deepest heading would land past `h6` is inserted

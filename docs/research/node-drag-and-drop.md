@@ -431,17 +431,18 @@ the height of what it hides. Measured on the zoomed fixture, with the pointer at
 The seam before hidden content is now the bottom of the last visible line's own text, which
 `coordsAtPos` states exactly.
 
-## 6h. Three encoding answers the second pass read as wrong
+## 6h. Three encoding answers the second pass questioned
 
 Each is a rule the drop inherited from the insertion layer and the first surface to show before
 the release. Recorded here with what changed and what it cost the suite.
 
 **An `h2` dropped under an `h2` whose only child was an `h5` section became an `h5`.** The level
-rule copied the destination's heading siblings, and only fell back to the parent's level plus one
-where there was none. The rule was written to keep a pasted heading from opening a section over
-following siblings in a scope that skipped a level — the very absorption the preview now draws.
-Changed to the parent's level plus one, unconditionally. One test of 1597 pinned the old
-reading, the negative control written for it; it now asserts the absorption.
+rule copies the destination's heading siblings, and only falls back to the parent's level plus
+one where there is none. Changing it to the parent's reading made the drop write `### First`,
+which dropped before `##### Deep` takes that section in as its child. Both are right answers at
+that seam — a direct child of `## Second`, or a sibling of `Deep` at its rank — and the change was
+reverted: the sibling reading never absorbs content nobody pointed at, and paste and drop keep
+agreeing on it. One test of 1597 pinned the sibling reading, and it stands.
 
 **A task dropped after a paragraph became a paragraph beginning `[x]`.** The kind rule encoded a
 reparented node like its nearest content sibling. A task cannot be a paragraph; where the

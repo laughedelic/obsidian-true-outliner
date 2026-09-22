@@ -884,6 +884,47 @@ describe('node dragging: the press and the drag it can become', function () {
     await browser.pause(200);
   });
 
+  it('draws a task\u2019s checkbox and an ordered item\u2019s placeholder as the ghost', async function () {
+    // Both are list items, and both carry state a bullet would hide: the
+    // ghost draws the task's checkbox as it is, and an `n` with the ordered
+    // item's delimiter in place of a number the renumbering has not given yet.
+    const LISTS = ['# Top', '', '- one', '- two', '- [x] done', '1. first', ''].join('\n');
+    await h.setBuffer(LISTS);
+    await browser.pause(300);
+    await h.setCursorSettled(0, 0);
+    const y = await seamBetween(0, 1);
+    const column = await columnOfMark(BULLET, 0, 'left');
+    const cases: [string, { task: string | null; ordered: string | null }][] = [
+      ['.task-list-item-checkbox', { task: 'done', ordered: null }],
+      ['.list-number', { task: null, ordered: '.' }],
+    ];
+    for (const [selector, expected] of cases) {
+      const mark = await markPoint(selector, 0);
+      await startRecording();
+      // Released, not Escaped: the auto-release after an Escape lands on the
+      // checkbox and toggles it (`dragThenEscape`). The release is on the
+      // task's own bottom seam, which offers nothing, so the drag cancels.
+      const next = await markPoint('.list-number', 0);
+      const dead = (mark.y + next.y) / 2;
+      await dragFrom(mark, [
+        { x: mark.x + 20, y: mark.y - 10 },
+        { x: column, y },
+        { x: column + 1, y },
+        { x: column + 1, y: dead },
+      ]);
+      await browser.pause(250);
+      const held = (await recorded()).filter((sample) => sample.preview !== null && sample.ghost !== null);
+      expect(held.length).toBeGreaterThan(0);
+      const ghost = held[held.length - 1]!.ghost!;
+      expect(ghost.kind).toBe('list-item');
+      expect({ task: ghost.task, ordered: ghost.ordered }).toEqual(expected);
+      expect(ghost.width).toBeGreaterThan(0);
+    }
+    expect(await h.getBuffer()).toBe(LISTS);
+    await h.setBuffer(DOC);
+    await browser.pause(200);
+  });
+
   it('centres the ghost mark on a deep list column', async function () {
     // The seam row here is a list line four levels in, which Obsidian indents
     // with its own padding and a matching negative text-indent — and a pass of

@@ -319,6 +319,10 @@ The preview SHALL state three things:
 - **What the run becomes**: the mark the first root will have AFTER re-encoding for the
   destination SHALL be drawn at that column. A run that changes kind on arrival — a heading
   section landing in a list — SHALL show the kind it will have, never the kind it has in flight.
+  A list item carrying state a bullet would hide SHALL show that state instead of a bullet: a
+  task its checkbox as it is, since a drop does not toggle it, and an ordered item a placeholder
+  with its own delimiter rather than a number, since the number it lands with is the
+  renumbering's answer and not the item's.
 - **What the drop will take with it**: where the destination would ABSORB content that is not part
   of the run — a dropped heading opening a section over the anchor's following siblings — the
   absorbed rows SHALL be drawn one level in, under the ghost mark, with the guide that will connect
@@ -354,6 +358,11 @@ selection, or persist anything.
 - **WHEN** a run is held over the seam above a code block
 - **THEN** the indicator is drawn in the gap above the block, or at the bottom of the row above
   where there is none — where the block's background does not paint
+
+#### Scenario: A task and an ordered item keep their marks in flight
+- **WHEN** a done task, and then an ordered item, is held over a destination
+- **THEN** the ghost is a checked checkbox for the first and an ordered placeholder with the item's
+  delimiter for the second, not a bullet
 
 #### Scenario: The ghost mark is the kind the run will have
 - **WHEN** a heading section is dragged to a destination inside a list

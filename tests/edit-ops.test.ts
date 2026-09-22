@@ -1032,13 +1032,10 @@ describe('a pasted heading takes the content that follows it', () => {
     expect(shape(encode(result.value.doc))).toContain('      list-item: - three');
   });
 
-  it('the level comes from the parent, and a heading shallower than what follows takes it in', () => {
-    // The payload is `# One`'s child, so it is an h2 — whatever level the
-    // siblings sit at. A scope that skips a level (`h1` over `h3`) is its own
-    // irregularity, and `### Four`, being deeper than the h2 written before
-    // it, becomes the pasted section's child: the heading's own meaning, and
-    // what the drag preview draws before a release. Negative control: copying
-    // the siblings' level wrote `### Notes` here and left `### Four` beside it.
+  it('the level comes from the scope\'s heading siblings, so a level SKIP does not let it escape', () => {
+    // Negative control: taking the level from the parent alone (`# One` + 1)
+    // puts the payload at h2 among h3 siblings, and `### Four` — never copied,
+    // never pointed at — becomes its child.
     const result = insertAfter(
       '# One\n\n### Three\n\nprose\n\n### Four\n\nmore\n',
       '### Three',
@@ -1051,10 +1048,10 @@ describe('a pasted heading takes the content that follows it', () => {
         'h1: # One',
         '  h3: ### Three',
         '    paragraph: prose',
-        '  h2: ## Notes',
+        '  h3: ### Notes',
         '    paragraph: body',
-        '    h3: ### Four',
-        '      paragraph: more',
+        '  h3: ### Four',
+        '    paragraph: more',
       ].join('\n'),
     );
   });

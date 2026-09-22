@@ -221,6 +221,19 @@ describe('dropSeams', () => {
     ]);
   });
 
+  it('carries a list item\u2019s task state and ordered delimiter to the mark', () => {
+    // The ghost draws these in a bullet's place: the checkbox as it is, since
+    // a drop does not toggle it, and the ordered item's delimiter, since its
+    // number is the renumbering's answer and not the item's.
+    const doc = parse(['# A', '', '- [x] done', '- [ ] open', '1) first', '- plain', ''].join('\n'));
+    const listOf = (line: string) =>
+      dropSeams(doc, [byLine(doc, line)]).flatMap((s) => s.candidates.map((c) => c.mark.list));
+    expect(new Set(listOf('- [x] done').map((l) => JSON.stringify(l)))).toEqual(new Set([JSON.stringify({ task: true })]));
+    expect(new Set(listOf('- [ ] open').map((l) => JSON.stringify(l)))).toEqual(new Set([JSON.stringify({ task: false })]));
+    expect(new Set(listOf('1) first').map((l) => JSON.stringify(l)))).toEqual(new Set([JSON.stringify({ ordered: ')' })]));
+    expect(listOf('- plain').every((l) => l === undefined)).toBe(true);
+  });
+
   it('says what the run will BECOME at each destination', () => {
     const doc = parse(
       ['# A', '', '## A1', '', '# B', '', '- item', '  - child', ''].join('\n'),

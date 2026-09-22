@@ -811,23 +811,23 @@ const KNOWN_MOVE_REASONS = new Set([
 ]);
 
 describe('moveSubtreesTo, and the kind a run has where it lands', () => {
-  it('writes a heading one past its new parent, whatever level the siblings sit at', () => {
+  it('writes a heading level with the siblings it lands beside', () => {
     // `## First` moved inside `## Second`, whose only child is an `#####`
-    // section: before that section it is an h3 that takes the section in;
-    // after it, an h3 beside it. Never an h5 — the skipped level is the
-    // scope's irregularity, not a rule for what lands in it.
+    // section: it is an h5 on either side of it, beside `Deep` rather than
+    // over it. The parent's reading (h3) would take `Deep` in when dropped
+    // before it — content nobody pointed at.
     const src = ['## First', '', 'one', '', '## Second', '', '##### Deep', '', 'two', ''].join('\n');
     const doc = parse(src);
     const second = byLine(doc, '## Second');
     const before = moveSubtreesTo(doc, [[byLine(doc, '## First')]], { parentId: second, index: 0 });
     if (!before.ok) throw new Error(before.rejection.reason);
     expect(encode(before.value.doc)).toBe(
-      ['## Second', '', '### First', '', 'one', '', '##### Deep', '', 'two', ''].join('\n'),
+      ['## Second', '', '##### First', '', 'one', '', '##### Deep', '', 'two', ''].join('\n'),
     );
     const after = moveSubtreesTo(doc, [[byLine(doc, '## First')]], { parentId: second, index: 1 });
     if (!after.ok) throw new Error(after.rejection.reason);
     expect(encode(after.value.doc)).toBe(
-      ['## Second', '', '##### Deep', '', 'two', '', '### First', '', 'one', ''].join('\n'),
+      ['## Second', '', '##### Deep', '', 'two', '', '##### First', '', 'one', ''].join('\n'),
     );
   });
 

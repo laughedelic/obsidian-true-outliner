@@ -235,6 +235,14 @@ span is half a page of colour on a long section, and the move already says it. I
 of the preview that moves rows before the release, sideways and only those, so a wrapped row can
 change height; what to accent on those rows, if anything, is left to adjust once it is in hand.
 
+The mark is the node's, and for a list item the state a bullet would hide: a task's checkbox by
+its own state, which the drop does not change, drawn with the glyph the backlinks footer already
+uses for it; and for an ordered item a placeholder (`n.` or `n)`, the item's own delimiter) rather
+than a number. The number an item lands with is the renumbering's answer — the run's own start at
+the head of a list, the previous item's plus one after it, and the list below shifting either
+way — and a width that follows the digits would move the glyph off its column. The footer draws
+the exact number because it reads a document that already has one.
+
 The parent's accent is the trail's colour at the GUIDE's weight, not the trail's: the parent's
 marker takes the ancestor class, and its own guide — the column the run will hang from — takes the
 accent on every row between the parent and the seam. The trail's width is its own vocabulary, and
@@ -295,18 +303,18 @@ The shared re-encode step takes it in place of the level the destination's paren
 named level takes the general path even inside one scope: the same-scope shortcut is a reorder,
 and a heading changing level without moving is a rewrite, not a reorder.
 
-### D9b. Three encoding rules the drop exposed
+### D9b. Three encoding answers the drop exposed
 
 The drop is the first surface that shows a re-encoding BEFORE it happens, and the manual pass
-read three of the shared rule's answers as wrong. They are changed in the shared step, not
-around it, so a paste at the same destination writes what the drop previewed.
+questioned three of the shared rule's answers. Two are changed in the shared step, not around it,
+so a paste at the same destination writes what the drop previewed; the third was kept.
 
-- **A heading's level is its parent's plus one.** The rule copied the level of the destination's
-  heading siblings, so an `h2` dropped under an `h2` whose children are `h5` became an `h5`. The
-  sibling rule existed to keep a pasted heading from opening a section over the siblings that
-  followed it in a scope that skipped a level; the drop draws that absorption before the release,
-  and the absorption is the heading's own meaning either way. A skipped level is the scope's
-  irregularity, not a rule for what lands in it.
+- **A heading's level stays the siblings'.** An `h2` dropped under an `h2` whose children are `h5`
+  becomes an `h5`. Changing the rule to the parent's level plus one was tried and reverted: at a
+  seam between a heading and a deeper first child, both readings are right — a direct child of the
+  parent that takes the deeper section in, or a sibling of that section at its rank — and the
+  sibling reading never takes in content nobody pointed at. Paste and drop agree on it. The drop's
+  shallower columns (D6) still reach the parent's level where the reader wants it beside.
 - **A content node keeps its kind unless the destination cannot hold it.** The rule encoded every
   reparented node "like its neighbour", so a list item dropped under a heading became a paragraph.
   Two destinations cannot hold a kind: a paragraph among list items ends the list, so it becomes

@@ -93,18 +93,20 @@ function contentDonor(nodes: readonly OutlineNode[]): 'paragraph' | 'list-item' 
  * where a heading cannot be written at all — below a list item or a paragraph,
  * which `parse.ts` never nests one under.
  *
- * The heading regime's half of the encoding rule: one past the parent's own
- * level, or 1 at the root. The siblings do not enter into it. A heading
- * landing among a parent's children is that parent's child, and its level says
- * so, whatever level the siblings happen to sit at — a scope that skips a level
- * (an `h2` whose children are `h5`) is the scope's own irregularity, and a
- * payload written at `h5` to match it took the skip for a rule.
+ * The heading regime's half of `encodingKindAtDestination`, and it reads its
+ * surroundings the same way: the level comes from the destination's own heading
+ * SIBLINGS first — nearest preceding, else following — because siblings are
+ * what the payload has to sit level with. Only where the scope has no heading
+ * sibling to copy does the parent decide, at one past its own level, or 1 at
+ * root.
  *
- * A payload written shallower than the siblings that follow it opens a section
- * over them: they become its children on re-parse. That is the heading's own
- * meaning, the insertion rule states it, and the drag preview draws it before
- * the release (`node-dragging`); an earlier reading of this rule copied the
- * siblings' level to avoid it.
+ * Reading the parent alone was wrong wherever a scope SKIPS a level: under an
+ * `h1` whose children are `h3`, a payload took `h2` and, being shallower than
+ * the siblings it landed among, opened a section that swallowed them. Both
+ * readings are defensible there — a heading one past its parent, or one level
+ * with what it lands beside — and the sibling one is kept because it never
+ * takes in content nobody pointed at. A drop that wants the other reading
+ * names a level of its own (`MoveDestination.level`).
  *
  * A level past 6 is the heading regime running out. The caller decides what
  * that means; here it is simply the number the rule produces.
@@ -114,7 +116,15 @@ export function destinationHeadingLevel(context: {
   precedingSiblings: readonly OutlineNode[];
   followingSiblings: readonly OutlineNode[];
 }): number | undefined {
-  const { parent } = context;
+  const { parent, precedingSiblings, followingSiblings } = context;
   if (parent !== 'root' && parent.kind !== 'heading') return undefined;
+  const donor = (nodes: readonly OutlineNode[]): number | undefined => {
+    for (const node of nodes) if (node.kind === 'heading') return node.level;
+    return undefined;
+  };
+  const preceding = donor([...precedingSiblings].reverse());
+  if (preceding !== undefined) return preceding;
+  const following = donor(followingSiblings);
+  if (following !== undefined) return following;
   return parent === 'root' ? 1 : (parent.level ?? 1) + 1;
 }

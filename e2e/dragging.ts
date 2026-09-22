@@ -75,6 +75,10 @@ export interface MoveSample {
      * can be told from one that is not there. */
     readonly width: number;
     readonly height: number;
+    /** A task's state (`done`/`open`) or an ordered item's delimiter, where
+     * the ghost draws one of those instead of a bullet. */
+    readonly task: string | null;
+    readonly ordered: string | null;
   } | null;
   /** Each decorated row's depth as the depth rules see it at that move — the
    * value an absorbed row is drawn one deeper by — keyed by line. */
@@ -301,6 +305,8 @@ export function startRecording(): Promise<void> {
             x: ghostEl.getBoundingClientRect().left + ghostEl.getBoundingClientRect().width / 2,
             width: ghostEl.getBoundingClientRect().width,
             height: ghostEl.getBoundingClientRect().height,
+            task: ghostEl.dataset.task ?? null,
+            ordered: ghostEl.dataset.ordered ?? null,
           }
         : null;
       const lifted: { line: number; top: number }[] = [];

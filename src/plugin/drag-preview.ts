@@ -24,6 +24,14 @@ import { MARKER_GUTTER_CSS } from './chrome-tokens';
 import { nodeMark, type NodeMark } from './marker-shapes';
 import type { DragPreview } from './drag-state';
 
+/** A list item's own state, where the ghost draws it in a bullet's place. */
+export interface ListMark {
+  /** A task, and whether it is done. */
+  readonly task?: boolean;
+  /** An ordered item, and its delimiter. */
+  readonly ordered?: '.' | ')';
+}
+
 /** Where on its line a seam is drawn. */
 export type SeamEdge = 'top' | 'bottom' | 'middle';
 
@@ -38,6 +46,8 @@ export interface SeamIndicator {
   readonly depth: number;
   /** The mark the run's first root will have where it lands — the ghost. */
   readonly mark: NodeMark;
+  /** A list item's checkbox or number, drawn instead of its bullet. */
+  readonly list: ListMark | undefined;
 }
 
 /**
@@ -59,6 +69,7 @@ export function seamIndicator(
   if (preview === null) return null;
   const depth = preview.destination.depth;
   const mark = nodeMark(preview.destination.mark);
+  const list = preview.destination.mark.list;
   let last = -1;
   for (const line of factLines) {
     if (line < preview.seamLine && line > last) last = line;
@@ -76,12 +87,12 @@ export function seamIndicator(
     const above = last >= 0 ? kindAt(last) : undefined;
     if (last >= 0 && ((above && above.kind === 'heading') || (here && here.atom))) {
       return preview.seamLine - last >= 2
-        ? { lineNumber: preview.seamLine - 1, edge: 'middle', depth, mark }
-        : { lineNumber: last, edge: 'bottom', depth, mark };
+        ? { lineNumber: preview.seamLine - 1, edge: 'middle', depth, mark, list }
+        : { lineNumber: last, edge: 'bottom', depth, mark, list };
     }
-    return { lineNumber: preview.seamLine, edge: 'top', depth, mark };
+    return { lineNumber: preview.seamLine, edge: 'top', depth, mark, list };
   }
-  return last < 0 ? null : { lineNumber: last, edge: 'bottom', depth, mark };
+  return last < 0 ? null : { lineNumber: last, edge: 'bottom', depth, mark, list };
 }
 
 /**
