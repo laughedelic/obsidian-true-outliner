@@ -241,11 +241,19 @@ change height; what to accent on those rows, if anything, is left to adjust once
 
 The mark is the node's, and for a list item the state a bullet would hide: a task's checkbox by
 its own state, which the drop does not change, drawn with the glyph the backlinks footer already
-uses for it; and for an ordered item a placeholder (`n.` or `n)`, the item's own delimiter) rather
+uses for it; and for an ordered item a placeholder (`x.` or `x)`, the item's own delimiter) rather
 than a number. The number an item lands with is the renumbering's answer — the run's own start at
 the head of a list, the previous item's plus one after it, and the list below shifting either
 way — and a width that follows the digits would move the glyph off its column. The footer draws
 the exact number because it reads a document that already has one.
+
+The rule ends in the number of nodes in flight — every root and every descendant — in the fold
+count's voice (`…3`), with nothing drawn for a lone node. The total rather than what the ghost
+hides: a fold counts what it hides behind one line, but a run can be several roots, and `…1` for
+two dragged nodes reads as one of them. The count sits on the page's background with a leading gap
+as wide as the one between the ghost and the rule's start, so the rule is spaced evenly at both
+ends. `docs/research/prototypes/drop-preview-marks.html` lays out the placeholder's candidates and
+the count's treatments beside each other.
 
 The parent's accent is the trail's colour at the GUIDE's weight, not the trail's: the parent's
 marker takes the ancestor class, and its own guide — the column the run will hang from — takes the

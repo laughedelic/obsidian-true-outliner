@@ -335,6 +335,14 @@ The preview SHALL state three things:
   landing place states half the result. No tint marks them; on a long section a tint is half a
   page of colour, and the move already says it.
 
+The indicator SHALL end in the number of nodes in flight — every root and every descendant — where
+that is more than one, so a run's size is stated where its landing is, and nothing extra is drawn
+for a lone node.
+
+#### Scenario: The rule ends in the run's size
+- **WHEN** an item with one child is held over a seam, and then a lone item
+- **THEN** the rule ends in a count of two for the first, and in nothing for the second
+
 The destination's PARENT SHALL additionally be distinguished, so the parent is named rather than
 counted out of columns. The parent distinguished SHALL be the node the run is a child of after the
 drop — for a heading written shallower than the seam's range, the ancestor one level out from its

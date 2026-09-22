@@ -130,6 +130,7 @@ import { dragLiftField, dragPreviewField } from './drag-state';
 import {
   absorbedGuide,
   absorbedGuideHead,
+  guideAboveRule,
   guideBesideGhost,
   absorbedRows,
   ghostMarkLeftExpr,
@@ -1150,8 +1151,7 @@ function ghostIcon(subject: MarkSubject, list: ListMark | undefined): SVGSVGElem
   return buildMarkerIcon(subject);
 }
 
-/** How many nodes a run in flight carries besides the ghost's own, at the
- * right end of the indicator. */
+/** How many nodes are in flight, at the right end of the indicator. */
 class DragCountWidget extends WidgetType {
   constructor(
     private readonly count: number,
@@ -1165,10 +1165,17 @@ class DragCountWidget extends WidgetType {
   }
 
   toDOM(): HTMLElement {
-    return createSpan({
+    const el = createSpan({
       cls: `${DRAG_COUNT_CLASS} ${GHOST_MARK_EDGE_CLASS[this.edge]}`,
       text: String(this.count),
     });
+    // The gap the rule leaves before the count is the one it leaves after the
+    // ghost: from the ghost's edge to the rule's start is the marker gutter
+    // less half the mark.
+    el.setCssProps({
+      '--to-drag-count-gap': `calc(${MARKER_GUTTER_CSS} - var(--to-marker-icon-size, 0.85rem) / 2)`,
+    });
+    return el;
   }
 
   override ignoreEvent(): boolean {
@@ -1610,15 +1617,20 @@ function renderInputs(state: EditorState, modes: DecorationSource): RenderInputs
     // The row the ghost sits on, where it is not also an absorbed row. A guide
     // on the mark's own column or deeper belongs to a node the drop closes
     // above the seam, so it does not reach this row at all when the row is the
-    // gap between the two nodes; where the row is the node above's own, it
-    // runs down to the mark and stops short of it. And where the drop takes
-    // the rows below, the run's own guide starts below the mark on this row
-    // rather than on the next one.
+    // gap between the two nodes. Where the row is the node above's own — the
+    // rule at its bottom edge, the note's last row — those guides are the
+    // row's and run its height: the one on the mark's column stops short of
+    // the mark, and the deeper ones short of the rule. And where the drop
+    // takes the rows below, the run's own guide starts below the mark on this
+    // row rather than on the next one.
     let visibleDepths = depths;
     if (onSeam && !taken) {
       const column = onSeam.depth;
-      if (onSeam.edge === 'bottom' && depths.includes(column)) {
-        layers.push(guideBesideGhost(column, onSeam.edge, 'above'));
+      if (onSeam.edge === 'bottom') {
+        for (const d of depths) {
+          if (d === column) layers.push(guideBesideGhost(column, onSeam.edge, 'above'));
+          else if (d > column) layers.push(guideAboveRule(d));
+        }
       }
       if (absorbed !== null && onSeam.edge !== 'top') {
         layers.push(guideBesideGhost(column, onSeam.edge, 'below'));
@@ -1751,15 +1763,16 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
           side: -1,
         }),
       );
-      // How much comes with it, at the rule's far end: the count a fold would
-      // show for the same run, since a run in flight hides its descendants
-      // behind one mark the same way a fold hides them behind one line.
-      if (render.seam.carried > 0) {
+      // How many nodes are in flight, at the rule's far end, in the fold
+      // count's voice. The TOTAL, where a fold counts what it hides: a run can
+      // be several roots, and `…1` for two dragged nodes reads as one of them.
+      // Nothing for a lone node, as a fold with nothing under it shows none.
+      if (render.seam.runSize > 1) {
         builder.add(
           line.from,
           line.from,
           Decoration.widget({
-            widget: new DragCountWidget(render.seam.carried, render.seam.edge),
+            widget: new DragCountWidget(render.seam.runSize, render.seam.edge),
             side: -1,
           }),
         );
@@ -2449,7 +2462,7 @@ const SURPLUS_TRAILING_EVENTS = ['mousedown', 'mouseup', 'click'] as const;
  * `preventDefault` on `pointerdown` does not suppress them for a mouse and they
  * would place a caret from coordinates that now mean something else.
  *
- * The run is re-read from the document at the press, not carried on the mark:
+ * The run is re-read from the document at the press, not runSize on the mark:
  * the DOM the press landed on may be a render behind.
  */
 class SurplusMarkerSpacePlugin implements PluginValue {
@@ -2543,13 +2556,13 @@ class SurplusMarkerSpacePlugin implements PluginValue {
  * the caret at the boundary stands against the line's own first character and
  * measures what every other caret on the line measures.
  *
- * Not the zero-width mark two earlier versions carried: a box of no width still
+ * Not the zero-width mark two earlier versions runSize: a box of no width still
  * PAINTS, and its glyphs landed on top of the line's first word (clipping them
  * instead hid the caret outright). `display: none` renders nothing and reserves
  * nothing.
  *
  * What it covers is the node's OWN indentation and nothing past it — the
- * distinction `indentCh` has carried from the start and the rendering lost
+ * distinction `indentCh` has runSize from the start and the rendering lost
  * twice. Those characters restate a depth the rules already state, so hiding
  * them removes no content. What a line carries beyond them is ordinary text,
  * visible and editable one character at a time, and it pushes the line's own

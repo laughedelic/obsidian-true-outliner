@@ -114,9 +114,10 @@
 
 <h2>2. The count at the rule's end</h2>
 <p class="note">
-  How many nodes the run carries besides the one the ghost stands for — here <b>third</b>'s two
-  children — counted as a fold counts what it hides. Nothing is drawn for a lone node. A is what
-  the beta draws.
+  How many nodes are in flight — here <b>third</b> and its two children, three — as a total rather
+  than what the ghost hides, since a run can be several roots and <code>…1</code> for two dragged
+  nodes reads as one of them. Nothing is drawn for a lone node. B is what the beta draws: the rule
+  stops as far short of the count as it starts from the ghost.
 </p>
 <div class="grid" id="counts"></div>
 
@@ -143,13 +144,13 @@ const DOT = ['circle', { cx: '12.6', cy: '12.2', r: '1.1', fill: 'currentColor' 
 const path = (d) => ['path', { d }];
 
 const ORDINALS = [
-  { id: 'n.', name: 'n.', note: 'What the beta draws: a lowercase n, as in "item n". Reads as a letter before it reads as a numeral.',
+  { id: 'n.', name: 'n.', note: 'The first beta: a lowercase n, as in "item n". Reads as a letter before it reads as a numeral.',
     parts: [path('M2.5 13V6.5M2.5 8.5Q2.5 6 5.75 6Q9 6 9 8.5V13'), DOT] },
   { id: 'N.', name: 'N.', note: 'Capital, full cap height: fills the box like a digit does, and is the conventional name for "some number".',
     parts: [path('M2.5 13V3.5L9 13V3.5'), DOT] },
   { id: 'a.', name: 'a.', note: 'Reads as an alphabetic list marker — a different list style, which the item does not have.',
     parts: [['circle', { cx: '5.6', cy: '9.8', r: '3.2', fill: 'none' }], path('M8.8 6.4V13'), DOT] },
-  { id: 'x.', name: 'x.', note: 'Reads as "unknown", and is the one letter unlikely to be taken for a list style. Close to a task’s check mark in weight.',
+  { id: 'x.', name: 'x.', note: 'What the beta draws. Reads as "unknown", and is the one letter unlikely to be taken for a list style. Close to a task’s check mark in weight.',
     parts: [path('M3 6.5L9 13M9 6.5L3 13'), DOT] },
   { id: '1.', name: '1.', note: 'A real digit, so it is read as a number at once — and as THIS number, which the item may not land with.',
     parts: [path('M3.5 5.5L6.5 3.5V13M4 13H9'), DOT] },
@@ -239,7 +240,7 @@ for (const o of ORDINALS) {
     real.append(vs, glyph(HEADING_HASH));
   }
   zoom.appendChild(real);
-  ordinals.appendChild(card(o.name, o.id === 'n.' ? 'beta' : '', o.note, [zoom, surface(o.parts)]));
+  ordinals.appendChild(card(o.name, o.id === 'x.' ? 'beta' : '', o.note, [zoom, surface(o.parts)]));
 }
 
 const withText = (text, css = {}) => (s, y) => {
@@ -248,27 +249,37 @@ const withText = (text, css = {}) => (s, y) => {
   Object.assign(c.style, css);
   s.appendChild(c);
 };
+// The gap the rule leaves after the ghost: the marker gutter less half the mark.
+const GHOST_GAP = GUTTER - ICON / 2;
 const COUNTS = [
   { id: 'A', name: 'Fold-count text', note: 'The fold count’s own voice: ellipsis and number in the faint colour, on the page background so the rule stops at it.',
-    draw: withText('… 2', { background: 'var(--bg)', paddingLeft: '.35em' }) },
-  { id: 'B', name: 'Text, rule stopped short', note: 'The same text, and the rule ends a gap before it rather than under it. Reads as a label on the rule.',
-    draw: (s, y) => {
-      withText('… 2')(s, y);
-      const rule = s.querySelector('.rule'); rule.style.right = '2.2em';
-    } },
+    draw: withText('… 3', { background: 'var(--bg)', paddingLeft: '.35em' }) },
+  { id: 'B', name: 'Text, rule stopped short', note: 'The same text, and the rule stops as far short of it as it starts from the ghost, so the two ends of the rule are spaced alike.',
+    draw: withText('… 3', { background: 'var(--bg)', paddingLeft: GHOST_GAP + 'px' }) },
   { id: 'C', name: 'Outlined chip', note: 'An accent-outlined pill in the rule’s own colour: ties the count to the drop rather than to the note.',
-    draw: withText('2', { background: 'var(--bg)', color: 'var(--accent)', border: '1.5px solid var(--accent)',
+    draw: withText('3', { background: 'var(--bg)', color: 'var(--accent)', border: '1.5px solid var(--accent)',
       borderRadius: '999px', padding: '0 .45em', fontWeight: '600' }) },
   { id: 'D', name: 'Filled chip', note: 'The rule’s colour filled, the number knocked out. The loudest option: the eye goes to the count before the column.',
-    draw: withText('2', { background: 'var(--accent)', color: 'var(--bg)', borderRadius: '999px', padding: '0 .5em',
+    draw: withText('3', { background: 'var(--accent)', color: 'var(--bg)', borderRadius: '999px', padding: '0 .5em',
       fontWeight: '600' }) },
-  { id: 'E', name: '+2', note: 'Says "and two more" rather than "two hidden". Accurate for a run whose children are visible in the lifted rows.',
+  { id: 'E', name: '+2', note: 'Says "and two more" rather than a total: accurate for one root, ambiguous for several.',
     draw: withText('+2', { background: 'var(--bg)', paddingLeft: '.35em' }) },
+  { id: 'F', name: 'Small chip, "N more"', note: 'Words rather than notation, in a chip smaller than C and D: a quiet pill in the faint colour, the rule stopped at the same gap as B.',
+    draw: (s, y) => {
+      const wrap = document.createElement('span'); wrap.className = 'count';
+      wrap.style.top = y + 'px';
+      Object.assign(wrap.style, { background: 'var(--bg)', paddingLeft: GHOST_GAP + 'px', lineHeight: '1' });
+      const chip = document.createElement('span'); chip.textContent = '2 more';
+      Object.assign(chip.style, { display: 'inline-block', fontSize: '.72rem', lineHeight: '1.35', padding: '0 .4em',
+        borderRadius: '999px', border: '1px solid var(--line)', background: 'var(--panel)', color: 'var(--muted)' });
+      wrap.appendChild(chip);
+      s.appendChild(wrap);
+    } },
 ];
 const counts = document.getElementById('counts');
-const ghostNow = ORDINALS[0].parts;
+const ghostNow = ORDINALS.find((o) => o.id === 'x.').parts;
 for (const c of COUNTS) {
-  counts.appendChild(card(`${c.id}. ${c.name}`, c.id === 'A' ? 'beta' : '', c.note, [surface(ghostNow, c.draw)]));
+  counts.appendChild(card(`${c.id}. ${c.name}`, c.id === 'B' ? 'beta' : '', c.note, [surface(ghostNow, c.draw)]));
 }
 
 const btn = document.getElementById('theme');

@@ -149,12 +149,13 @@ export function checkboxShapes(done: boolean): readonly Shape[] {
 }
 
 /**
- * An ordered item's mark where its number is not known: an `n` and the item's
- * own delimiter. The drag's ghost draws this rather than a number, because the
- * number an item lands with is the renumbering's answer, not the item's.
+ * An ordered item's mark where its number is not known: an `x`, the unknown,
+ * and the item's own delimiter. The drag's ghost draws this rather than a
+ * number, because the number an item lands with is the renumbering's answer,
+ * not the item's. A letter at x-height, so it is not read as a digit.
  */
 export function ordinalPlaceholderShapes(delimiter: '.' | ')'): readonly Shape[] {
-  const n: Shape = { tag: 'path', attrs: { ...STROKE, d: 'M2.5 13V6.5M2.5 8.5Q2.5 6 5.75 6Q9 6 9 8.5V13' } };
+  const n: Shape = { tag: 'path', attrs: { ...STROKE, d: 'M3 6.5L9 13M9 6.5L3 13' } };
   return delimiter === '.'
     ? [n, { tag: 'circle', attrs: { cx: '12.6', cy: '12.2', r: '1.1', fill: 'currentColor' } }]
     : [n, { tag: 'path', attrs: { ...STROKE, d: 'M11.8 5Q14.4 9 11.8 13' } }];

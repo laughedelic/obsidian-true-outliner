@@ -48,8 +48,8 @@ export interface SeamIndicator {
   readonly mark: NodeMark;
   /** A list item's checkbox or number, drawn instead of its bullet. */
   readonly list: ListMark | undefined;
-  /** What the run carries besides the node the ghost stands for. */
-  readonly carried: number;
+  /** How many nodes are in flight. */
+  readonly runSize: number;
 }
 
 /**
@@ -91,16 +91,16 @@ export function seamIndicator(
     // on the lower row's top instead, the bar sat against two paragraphs'
     // lower one while it sat evenly between two tight list items.
     if (last >= 0 && preview.seamLine - last >= 2) {
-      return { lineNumber: preview.seamLine - 1, edge: 'middle', depth, mark, list, carried: preview.carried };
+      return { lineNumber: preview.seamLine - 1, edge: 'middle', depth, mark, list, runSize: preview.runSize };
     }
     const here = kindAt(preview.seamLine);
     const above = last >= 0 ? kindAt(last) : undefined;
     if (last >= 0 && ((above && above.kind === 'heading') || (here && here.atom))) {
-      return { lineNumber: last, edge: 'bottom', depth, mark, list, carried: preview.carried };
+      return { lineNumber: last, edge: 'bottom', depth, mark, list, runSize: preview.runSize };
     }
-    return { lineNumber: preview.seamLine, edge: 'top', depth, mark, list, carried: preview.carried };
+    return { lineNumber: preview.seamLine, edge: 'top', depth, mark, list, runSize: preview.runSize };
   }
-  return last < 0 ? null : { lineNumber: last, edge: 'bottom', depth, mark, list, carried: preview.carried };
+  return last < 0 ? null : { lineNumber: last, edge: 'bottom', depth, mark, list, runSize: preview.runSize };
 }
 
 /**
@@ -124,6 +124,20 @@ export function guideBesideGhost(depth: number, edge: SeamEdge, part: 'above' | 
 
 /** How far a guide stops short of the ghost mark's own box. */
 const GHOST_CLEARANCE = '2px';
+
+/**
+ * A guide deeper than the ghost's column on the row the rule is drawn at the
+ * bottom of — the last row of a note, with nothing below it. The guide is the
+ * row's own, since the row is inside that node, so it runs the row's height and
+ * stops short of the rule rather than crossing it.
+ */
+export function guideAboveRule(depth: number): string {
+  return (
+    `repeating-linear-gradient(to right, var(--to-guide-color) 0 ${GUIDE_WIDTH}, transparent ${GUIDE_WIDTH} ${UNIT_EXPR}) ` +
+    `${stripeStartExpr(depth, GUIDE_WIDTH)} top / ${UNIT_EXPR} ` +
+    `calc(100% - ${DROP_WIDTH} - ${GHOST_CLEARANCE}) no-repeat`
+  );
+}
 
 /**
  * The guide that will connect the absorbed rows to the ghost mark, on the

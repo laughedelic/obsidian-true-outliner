@@ -1265,8 +1265,8 @@ describe('node dragging: the press and the drag it can become', function () {
   });
 
   it('counts what the run carries at the rule\u2019s end, and draws nothing for a lone leaf', async function () {
-    // `- one` carries `  - nested`: a count of one, as a fold of it would
-    // show. `- three` carries nothing, and no count is drawn.
+    // `- one` and its child are two nodes in flight; `- three` is one, and a
+    // lone node draws no count.
     await h.setCursorSettled(0, 0);
     const box = await editorBox();
     const y = await seamBetween(2, 3);
@@ -1280,8 +1280,52 @@ describe('node dragging: the press and the drag it can become', function () {
       expect(held.length).toBeGreaterThan(0);
       counts.push(held[held.length - 1]!.count);
     }
-    expect(counts).toEqual(['1', null]);
+    expect(counts).toEqual(['2', null]);
     expect(await dragTraces()).toEqual({ lifted: 0, ghosts: 0, indicators: 0, preview: false });
+  });
+
+  it('keeps the last row\u2019s deeper guides when the rule is at its bottom', async function () {
+    // Three heading levels and a paragraph, and a heading held at the note's
+    // end on each column. The rule is at the bottom of the paragraph's own
+    // row, whose guides are the row's: the one on the ghost's column stops
+    // short of the mark and the deeper ones short of the rule, and none of
+    // them is dropped from the row. Before: a guide deeper than the ghost
+    // vanished from the paragraph's row entirely while aiming.
+    const LADDER = ['## Moved', '', '# H1', '', '## H2', '', '### H3', '', 'para', ''].join('\n');
+    await h.setBuffer(LADDER);
+    await browser.pause(300);
+    await h.setCursorSettled(2, 0);
+    // Marker icons: Moved(0), H1(1), H2(2), H3(3), para(4).
+    const xs = await Promise.all([1, 2, 3, 4].map((i) => columnOfMark('.to-decor-marker-icon', i, 'centre')));
+    const para = await markPoint('.to-decor-marker-icon', 4);
+    const mark = await markPoint('.to-decor-marker-icon', 0);
+    // Below the paragraph's own row: the note's last seam.
+    const y = para.y + 20;
+    await startRecording();
+    await dragThenEscape(mark, [
+      { x: mark.x + 20, y: mark.y + 10 },
+      { x: mark.x + 20, y: mark.y + 30 },
+      ...[0, 1, 2, 3].flatMap((d) => [{ x: xs[d]!, y }, { x: xs[d]! + 1, y }]),
+    ]);
+    await browser.pause(250);
+    const samples = (await recorded()).filter((sample) => sample.preview !== null && sample.indicator !== null);
+    const at = (depth: number) => samples.filter((sample) => sample.preview!.depth === depth).at(-1);
+    const seen = [0, 1, 2, 3].filter((d) => at(d) !== undefined);
+    expect(seen.length).toBeGreaterThanOrEqual(3);
+    for (const d of seen) {
+      const sample = at(d)!;
+      expect(sample.indicator!.line).toBe(8);
+      // Columns 0-2 are all drawn on the paragraph's row. The new parent's
+      // column (one left of the ghost's) is its accent, which is not a plain
+      // guide; the columns left of that are full, and the ghost's column and
+      // deeper are stopped short of the mark or the rule.
+      const accented = d > 0 ? 1 : 0;
+      expect(sample.indicator!.guides.full + sample.indicator!.guides.segments).toBe(3 - accented);
+      expect(sample.indicator!.guides.full).toBe(Math.max(0, d - 1));
+    }
+    expect(await h.getBuffer()).toBe(LADDER);
+    await h.setBuffer(DOC);
+    await browser.pause(200);
   });
 
   it('draws the rule in the middle of the gap between two paragraphs', async function () {
