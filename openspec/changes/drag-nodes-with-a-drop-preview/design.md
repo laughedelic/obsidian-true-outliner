@@ -402,6 +402,20 @@ by the dwell: its drag begins on movement. The e2e drives both with pointer even
 the page, on desktop and mobile alike, which is the handler's half; the hit-testing half is the
 device pass.
 
+Revised after the first phone pass, which could not pick anything up: the keyboard came up and the
+editor lost focus again. Cancelling the pointer event leaves the touch's own events to the
+platform, and its pan takes the pointer back the moment a held finger moves — measured in Chromium,
+the `pointercancel` arrives on the first move after the rest (docs/research/node-drag-and-drop
+section 6k), and the drag cancels with it. A touch that lands on a mark is now refused to the
+platform from its `touchstart`: no tap, no long press, no pan. The cost is that a swipe starting on
+a mark no longer scrolls; a touch that moves before the dwell is let go and does nothing. Refusing
+only the moves after the dwell keeps that scroll, and was measured to hold the pointer in Chromium,
+but leaves the long press to the platform, which fires while the finger rests and which headless
+Chromium does not simulate — so the stronger claim is the one a device pass can confirm. A
+checkbox's touch is refused only from the dwell, so its tap still toggles. A resting finger wanders
+more than the mouse's 4px threshold, so the rest has its own 10px slop, and the dwell ends in a
+short vibration where the platform offers one.
+
 ### D13. Autoscroll is the scroller's, driven by the pointer's distance past its edge
 
 While the pointer is held within a band of the scroller's top or bottom edge, the scroller scrolls,

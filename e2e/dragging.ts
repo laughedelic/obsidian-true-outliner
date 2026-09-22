@@ -487,6 +487,48 @@ export function syntheticPointer(
   );
 }
 
+/**
+ * A touch's own event at a point, dispatched in the page the way
+ * `syntheticPointer` dispatches the pointer events it follows, and whether the
+ * editor refused its default — the platform's tap, long press or pan.
+ * `contextmenu` is the long press's own event.
+ */
+export function syntheticTouch(
+  type: 'touchstart' | 'touchmove' | 'touchend' | 'contextmenu',
+  at: Point,
+): Promise<boolean> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, type, x, y) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cm = (view.editor as any).cm;
+      const dom = cm.dom as HTMLElement;
+      const target = (dom.ownerDocument.elementFromPoint(x, y) as HTMLElement | null) ?? dom;
+      let event: Event;
+      if (type === 'contextmenu') {
+        event = new MouseEvent(type, { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y });
+      } else {
+        const touch = new Touch({ identifier: 7, target, clientX: x, clientY: y });
+        const down = type === 'touchend' ? [] : [touch];
+        event = new TouchEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          touches: down,
+          targetTouches: down,
+          changedTouches: [touch],
+        });
+      }
+      target.dispatchEvent(event);
+      return event.defaultPrevented;
+    },
+    type,
+    Math.round(at.x),
+    Math.round(at.y),
+  );
+}
+
 /** Every uncaught exception the page raised since `startRecording`. */
 export function recordedErrors(): Promise<string[]> {
   return browser.executeObsidian(() => {

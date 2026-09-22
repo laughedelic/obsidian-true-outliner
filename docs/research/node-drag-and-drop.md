@@ -491,6 +491,29 @@ Between two paragraphs the rule sat on the lower paragraph's top edge while it s
 two tight list items. The rule took a gap line's middle only under a heading or above an atom; any
 gap line between the two rows now takes it.
 
+## 6k. A held touch is taken back by the platform's pan
+
+The first phone pass could not pick a node up: the keyboard came up, then the editor lost focus.
+The handler cancelled the touch's `pointerdown` and nothing else, and a touch's own events carry
+the platform's readings of it. Measured in headless Chromium 1194 with touch emulation, driving
+`Input.dispatchTouchEvent` at a mark (a `contenteditable=false` span inside a `contenteditable`,
+its `pointerdown` cancelled as ours is) in a 300px scroller:
+
+| Handling | Tap | Rest 1.2s | Rest 0.7s, then move | Swipe from the mark |
+|---|---|---|---|---|
+| `pointerdown` cancelled (as shipped) | `click` | `click` | `pointercancel` on the first move | scrolls, `pointercancel` within 70ms |
+| `touchstart` cancelled too | nothing | nothing | the moves arrive, `pointerup` | nothing scrolls, `pointerup` |
+| `touchmove` and `touchend` cancelled after a 350ms rest | `click` | nothing | the moves arrive, `pointerup` | scrolls, `pointercancel` within 70ms |
+
+The shipped handling loses a held drag to the pan on its first move. Refusing the moves after the
+rest keeps the drag and the swipe's scroll alike. Refusing the `touchstart` keeps the drag and costs
+the swipe. The editor was never focused in any row, since a cancelled `pointerdown` suppresses the
+compatibility `mousedown`; the keyboard on the phone came from something this setup does not
+produce. Headless Chromium fired no `contextmenu` on a 1.2s rest, so it simulates no long press,
+and the long press — a caret in an editable region, a menu, the keyboard — is the likeliest source.
+WebKit is not measured. A synthesised `TouchEvent` in desktop Chromium reports `defaultPrevented`,
+so the e2e checks which of a touch's events the handler refuses, in the page, on both runs.
+
 ## 7. Where a drop can land: the seam and its depths
 
 Not a measurement — the model the sections above leave to be chosen, recorded here so the design
@@ -604,19 +627,20 @@ by predicting which operands absorb.
 - **Zoom on a task's mark.** Section 4 frees the checkbox's press for a drag, not its click. The
   affordance-budget entry's task question is untouched.
 - **The mobile gesture's hit-testing.** The dwell is built (design D12): a touch that rests on a
-  mark for 350ms is a drag, and one that moves first is let go as the scroll it is. The e2e drives
-  both with pointer events synthesised in the page, on desktop and mobile alike, which proves the
-  handler's reading of a touch and nothing about whether a finger reaches a mark — section 2's
-  harness note still holds, and that half is the device pass.
+  mark for 350ms, wandering less than 10px, is a drag, and one that moves first is let go and does
+  nothing; the touch is refused to the platform from its start (section 6k). The e2e drives both
+  with events synthesised in the page, on desktop and mobile alike, which proves the handler's
+  reading of a touch and nothing about whether a finger reaches a mark or what the platform's long
+  press does — section 2's harness note still holds, and that half is the device pass.
 - ~~**The cost of a preview per pointer move.**~~ Measured in section 6f: 0.4ms over the page's own
   cost of a move once the seams and the unit are read per press rather than per move, and a
   dispatch only when the destination changes.
 - **Where the atom-parent guard belongs.** 7a measures the hole; whether it closes by moving the
   guard into the shared re-encode step, the way the paste layer moved the others, or by the
   candidate rule excluding a childless parent on its own, is not settled here.
-- **How much of an absorbed region a preview should mark.** Section 7a establishes that a heading
-  drop re-parents the rows below it and that the reader should see so. Whether that is the whole
-  absorbed span, its first row, or a count is a design question the mockup does not yet draw.
+- ~~**How much of an absorbed region a preview should mark.**~~ Settled in design D8 and section
+  6i: the rows are drawn where the drop puts them, with no tint. Section 7a establishes that a
+  heading drop re-parents the rows below it and that the reader should see so.
 - **A mark's painted ink versus its box.** Section 1 reports boxes. What a bullet's dot actually
   covers inside its span was measured once, for the gutter, in
   [marker-text-gap.md](marker-text-gap.md); this pass did not re-measure it and nothing here

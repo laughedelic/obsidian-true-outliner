@@ -125,6 +125,11 @@ const GUIDE_HOVERING_CLASS = 'to-decor-guide-hovering';
 /** The events a handled press has to swallow, in the order they arrive. */
 const TRAILING_EVENTS = ['mousedown', 'mouseup', 'click'] as const;
 
+/** The events a touch carries besides its pointer events, each one the
+ * platform's own reading of it: the tap that focuses the editor, the long
+ * press that places a caret or opens a menu, and the pan. */
+const TOUCH_EVENTS = ['touchstart', 'touchmove', 'touchend', 'touchcancel', 'contextmenu'] as const;
+
 /**
  * How far a press moves before it stops being a click.
  *
@@ -141,6 +146,13 @@ const DRAG_THRESHOLD_PX = 4;
  * moves before it is up is a scroll, and the press is let go.
  */
 const TOUCH_DWELL_MS = 350;
+
+/**
+ * How far a touch may wander while it rests before it no longer counts as
+ * resting. A resting finger is not a still one, and the mouse's threshold
+ * would end most holds before the dwell is up.
+ */
+const TOUCH_SLOP_PX = 10;
 
 /**
  * Autoscroll (design D13): the band inside the scroller's top and bottom edges
@@ -217,6 +229,15 @@ class ZoomClickPlugin implements PluginValue {
   private readonly onPointerUp: (event: Event) => void;
   private readonly onPointerLost: (event: Event) => void;
   private readonly onKeyDown: (event: Event) => void;
+  private readonly onTouch: (event: Event) => void;
+  /**
+   * How much of the current touch this gesture has taken from the platform:
+   * all of it, for a touch that lands on a mark, or its moves and its lift
+   * once a checkbox's press has become a drag, since the checkbox's tap stays
+   * its own. A touch event follows the pointer event it pairs with, so this
+   * outlives the press by the `touchend` that closes it.
+   */
+  private touchClaim: 'whole' | 'moves' | null = null;
   /** Where the pointer last was, so the hover can be re-applied after the
    * view rebuilds under it — the fold a press makes replaces the very lines
    * the band was on, and left the guide dark until the pointer moved. */
@@ -246,6 +267,7 @@ class ZoomClickPlugin implements PluginValue {
     this.onPointerUp = (event) => this.release(event as PointerEvent);
     this.onPointerLost = () => this.cancelPress();
     this.onKeyDown = (event) => this.keyCancel(event as KeyboardEvent);
+    this.onTouch = (event) => this.claimTouch(event);
     this.view.dom.addEventListener('pointerdown', this.onPointerDown, true);
     // Not passive any more: a drag in flight is the one case that has to be
     // able to refuse the platform's own interpretation of the same movement.
@@ -256,6 +278,10 @@ class ZoomClickPlugin implements PluginValue {
     this.view.dom.addEventListener('lostpointercapture', this.onPointerLost, true);
     for (const type of TRAILING_EVENTS) {
       this.view.dom.addEventListener(type, this.onTrailing, true);
+    }
+    // Not passive: a claimed touch is one whose defaults are refused.
+    for (const type of TOUCH_EVENTS) {
+      this.view.dom.addEventListener(type, this.onTouch, { capture: true, passive: false });
     }
   }
 
@@ -320,6 +346,32 @@ class ZoomClickPlugin implements PluginValue {
     for (const type of TRAILING_EVENTS) {
       this.view.dom.removeEventListener(type, this.onTrailing, true);
     }
+    for (const type of TOUCH_EVENTS) {
+      this.view.dom.removeEventListener(type, this.onTouch, true);
+    }
+  }
+
+  /**
+   * A touch this gesture holds, kept from the platform. Cancelling the
+   * pointer event does not do that: the touch's own events carry the
+   * platform's readings of it, and the pan among them takes the pointer back
+   * the moment a held finger moves, which cancels the drag
+   * (docs/research/node-drag-and-drop).
+   *
+   * A `touchstart` refused is the whole touch refused — no tap, no long
+   * press, no pan — which is what a touch on a mark is. A checkbox's is not
+   * refused, so its tap still toggles and a swipe from it still scrolls.
+   */
+  private claimTouch(event: Event): void {
+    const claim = this.touchClaim;
+    if (claim === null) return;
+    if (claim === 'whole' || event.type !== 'touchstart') {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    if ((event.type === 'touchend' || event.type === 'touchcancel') && (event as TouchEvent).touches.length === 0) {
+      this.touchClaim = null;
+    }
   }
 
   /**
@@ -371,9 +423,11 @@ class ZoomClickPlugin implements PluginValue {
     if (!press.dragging) {
       const dx = event.clientX - press.startX;
       const dy = event.clientY - press.startY;
-      if (Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
-      // A touch that moves before its dwell is up is a scroll, and the press
-      // is let go so the platform's own reading of the movement stands.
+      const moved = Math.hypot(dx, dy);
+      if (moved < (press.touch ? TOUCH_SLOP_PX : DRAG_THRESHOLD_PX)) return;
+      // A touch that moves before its dwell is up was not a hold, and the
+      // press is let go: from a checkbox the platform scrolls, and from a mark,
+      // whose touch the platform never had, nothing happens at all.
       if (press.touch) {
         this.cancelPress();
         return;
@@ -555,6 +609,7 @@ class ZoomClickPlugin implements PluginValue {
     // selection to a cover blurs the content DOM, so a key listener on the
     // editor's own element would not hear the Escape that cancels.
     this.view.dom.ownerDocument.addEventListener('keydown', this.onKeyDown, true);
+    if (press.touch && this.touchClaim === null) this.touchClaim = 'moves';
     this.pickUp(press);
     // The pick-up may have cancelled the press; only a drag that holds an
     // operand has rows to lift.
@@ -1028,6 +1083,7 @@ class ZoomClickPlugin implements PluginValue {
     // see `swallow`'s own comment for why that leaves this set. A press whose
     // release never arrived goes the same way.
     this.consuming = false;
+    this.touchClaim = null;
     this.cancelPress();
     if (event.button !== 0) return;
     // A modified click is someone else's gesture — Obsidian's own follow-link
@@ -1088,6 +1144,7 @@ class ZoomClickPlugin implements PluginValue {
     event.preventDefault();
     event.stopPropagation();
     this.consuming = true;
+    if (event.pointerType === 'touch') this.touchClaim = 'whole';
     // Claimed on arrival, before its meaning is known: nothing else acts on it
     // while it is undecided. A press that moves past the threshold is a drag;
     // one that does not is the zoom it has always been.
@@ -1121,7 +1178,20 @@ class ZoomClickPlugin implements PluginValue {
       if (this.press !== press || press.dragging) return;
       press.dragging = true;
       this.beginDrag(press);
+      if (this.press === press) this.tick();
     }, TOUCH_DWELL_MS);
+  }
+
+  /** A short vibration when the hold takes, where the platform offers one:
+   * the finger covers the mark, so the lift beside it is the only other sign. */
+  private tick(): void {
+    const navigator = this.view.dom.ownerDocument.defaultView?.navigator;
+    if (!navigator || !('vibrate' in navigator)) return;
+    try {
+      navigator.vibrate(15);
+    } catch {
+      // A platform that refuses has no tick to give.
+    }
   }
 
   private clearDwell(press: MarkPress): void {

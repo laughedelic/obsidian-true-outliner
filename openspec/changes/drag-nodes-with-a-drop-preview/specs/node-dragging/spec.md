@@ -37,7 +37,13 @@ kind whose mark cannot carry the zoom.
 
 The gesture SHALL be expressed over POINTER input, so that mouse, pen and touch reach it by one
 path. On touch, a press SHALL become a drag only after a stated dwell, since without one a drag
-and a scroll are the same gesture.
+and a scroll are the same gesture, and a finger that wanders less than a stated slop while it rests
+SHALL still be resting.
+
+A touch that lands on a mark SHALL be the gesture's alone, from its start to its lift: the platform
+SHALL NOT act on it — no caret, no keyboard, no long-press menu, no scroll — so that a held finger
+drags without the editor changing mode under it. A task's checkbox keeps its tap, so its touch SHALL
+become the gesture's only once the dwell has made it a drag.
 
 #### Scenario: A press that moves picks up the node
 - **WHEN** the user presses a list item's bullet and moves the pointer past the threshold
@@ -49,10 +55,22 @@ and a scroll are the same gesture.
 - **THEN** that item's subtree is in flight, and lifting the touch over a destination drops it
   there
 
-#### Scenario: A touch that moves before the dwell is a scroll
-- **WHEN** a touch presses a bullet and moves past the threshold before the dwell is up
-- **THEN** nothing is picked up, the movement is left to the platform's own scroll, and the release
-  neither drops nor zooms
+#### Scenario: A touch that moves before the dwell picks nothing up
+- **WHEN** a touch presses a bullet and moves past the slop before the dwell is up
+- **THEN** nothing is picked up, nothing scrolls, and the release neither drops nor zooms
+
+#### Scenario: A resting finger's wander is still a rest
+- **WHEN** a touch presses a bullet and wanders less than the slop before the dwell is up
+- **THEN** it becomes a drag when the dwell is up
+
+#### Scenario: A held touch is not the platform's
+- **WHEN** a touch rests on a bullet past the dwell, then moves over a destination and lifts
+- **THEN** the run drops there, and at no point was a caret placed, the keyboard opened, a menu
+  opened, or the note scrolled by the platform
+
+#### Scenario: A checkbox keeps its tap on touch
+- **WHEN** a touch taps a task's checkbox, and then another rests on it past the dwell and moves
+- **THEN** the tap toggles the task, and the held touch drags it without toggling it
 
 #### Scenario: A press that does not move still zooms
 - **WHEN** the user presses a heading's marker and releases without moving

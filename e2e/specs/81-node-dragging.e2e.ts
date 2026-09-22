@@ -31,6 +31,7 @@ import {
   recordedScroll,
   scrollerBox,
   syntheticPointer,
+  syntheticTouch,
   editorBox,
   markPoint,
   pointOf,
@@ -1619,8 +1620,9 @@ describe('node dragging: the press and the drag it can become', function () {
 describe('node dragging: a touch press', () => {
   // Driven by events synthesised in the page, on desktop and mobile alike: the
   // harness has no coordinate-addressable touch, so what these prove is the
-  // handler's reading of a touch — the dwell, and the scroll a moving touch
-  // is — and not the platform's hit-testing, which stays with the device pass.
+  // handler's reading of a touch — the dwell, the slop, and which of the
+  // touch's own events it refuses the platform — and not the platform's
+  // hit-testing or its gestures, which stay with the device pass.
   before(async function () {
     await openDraggable();
   });
@@ -1635,6 +1637,8 @@ describe('node dragging: a touch press', () => {
     const y = await seamBetween(2, 3);
     const box = await editorBox();
     await syntheticPointer('pointerdown', mark, 'touch');
+    // A resting finger wanders a little, and that is still a rest.
+    await syntheticPointer('pointermove', { x: mark.x + 5, y: mark.y + 5 }, 'touch');
     // Before the dwell is up nothing has happened: no lift, no cover.
     await browser.pause(120);
     expect((await dragTraces()).lifted).toBe(0);
@@ -1650,7 +1654,58 @@ describe('node dragging: a touch press', () => {
     expect(await dragTraces()).toEqual({ lifted: 0, ghosts: 0, indicators: 0, preview: false });
   });
 
-  it('lets a touch that moves before the dwell go, as the scroll it is', async function () {
+  it('keeps a touch on a mark from the platform, from its start to its lift', async function () {
+    // Every one of the touch's own events is refused, so the platform neither
+    // taps (the editor's focus, and the keyboard with it), long-presses (a
+    // caret, a menu) nor pans (which takes the pointer back from the drag).
+    await h.setCursorSettled(0, 0);
+    const mark = await markPoint(BULLET, 0);
+    const y = await seamBetween(2, 3);
+    const box = await editorBox();
+    await syntheticPointer('pointerdown', mark, 'touch');
+    expect(await syntheticTouch('touchstart', mark)).toBe(true);
+    await browser.pause(500);
+    expect(await syntheticTouch('contextmenu', mark)).toBe(true);
+    await syntheticPointer('pointermove', { x: box.left + 4, y }, 'touch');
+    expect(await syntheticTouch('touchmove', { x: box.left + 4, y })).toBe(true);
+    await syntheticPointer('pointermove', { x: box.left + 5, y }, 'touch');
+    await browser.pause(150);
+    await syntheticPointer('pointerup', { x: box.left + 5, y }, 'touch');
+    expect(await syntheticTouch('touchend', { x: box.left + 5, y })).toBe(true);
+    await browser.pause(300);
+    expect(await h.getBuffer()).toBe(AFTER_DROP);
+    // And once lifted, the next touch elsewhere is the platform's again.
+    expect(await syntheticTouch('touchstart', { x: box.left + 200, y })).toBe(false);
+  });
+
+  it('leaves a checkbox\u2019s tap to the platform, and takes its touch once it is held', async function () {
+    await h.createNote(NOTE, TASKS);
+    await h.openNote(NOTE);
+    await h.setOutlineMode(true);
+    await h.setBuffer(TASKS);
+    await browser.pause(200);
+    const box = await markPoint('.task-list-item-checkbox', 0);
+    // A tap: nothing refused, so the platform's own click toggles it.
+    await syntheticPointer('pointerdown', box, 'touch');
+    expect(await syntheticTouch('touchstart', box)).toBe(false);
+    await syntheticPointer('pointerup', box, 'touch');
+    expect(await syntheticTouch('touchend', box)).toBe(false);
+    // A hold: the start was the platform's, and everything after the dwell is
+    // the drag's, the lift included, so no click toggles the box it left.
+    await syntheticPointer('pointerdown', box, 'touch');
+    expect(await syntheticTouch('touchstart', box)).toBe(false);
+    await browser.pause(500);
+    expect((await dragTraces()).lifted).toBeGreaterThan(0);
+    const away = { x: box.x + 2, y: box.y + 40 };
+    await syntheticPointer('pointermove', away, 'touch');
+    expect(await syntheticTouch('touchmove', away)).toBe(true);
+    await syntheticPointer('pointerup', away, 'touch');
+    expect(await syntheticTouch('touchend', away)).toBe(true);
+    await browser.pause(300);
+    expect(await h.getBuffer()).not.toContain('[x]');
+  });
+
+  it('lets a touch that moves before the dwell go, and does nothing with it', async function () {
     await h.setCursorSettled(0, 0);
     const mark = await markPoint(BULLET, 0);
     await syntheticPointer('pointerdown', mark, 'touch');

@@ -201,6 +201,11 @@
       (docs/research/node-drag-and-drop section 8); negative control: removing 4.1's
       dispatch-on-change guard puts one transaction per pointer sample through the same note,
       which is the shape the budget is meant to catch
+- [x] 5.4 Keep a touch on a mark from the platform, from its start to its lift, and a checkbox's
+      from the dwell on (design D12, docs/research/node-drag-and-drop section 6k) — verify the
+      touch's own events are refused in the page on both runs, a checkbox's tap is not, and a
+      rest that wanders inside the slop is still a rest; negative control: the handler as it was
+      refuses none of them, and the mouse threshold ends the wandering rest before the dwell
 
 ## 6. End-to-end coverage
 
@@ -248,7 +253,7 @@
 
 ## 7. Manual pass and record
 
-- [ ] 7.1 Real-vault pass on desktop: drag across long distances with autoscroll, into and out of
+- [x] 7.1 Real-vault pass on desktop: drag across long distances with autoscroll, into and out of
       folded subtrees, across encoding regimes, and with several roots — record what the preview
       said against what landed
 - [ ] 7.2 Real-device pass on a phone via the beta build: the long press, the drag, the preview at
