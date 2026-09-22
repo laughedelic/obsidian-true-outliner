@@ -462,11 +462,10 @@ pointer leaves the band, when the scroller reaches its limit, and on every end o
 
 ## Open Questions
 
-- How much of an absorbed region the preview marks: the whole span, its first row, or a count.
-  Deferrable because the requirement is that it be stated, not how — the mockup can settle the
-  treatment during implementation, the way it settled the indicator's.
-- Whether a multi-root run should show how many roots are in flight, beyond the lifted rows
-  themselves. Deferrable: it adds to the preview without changing what a drop does.
+- How much of an absorbed region the preview marks — settled in D8: the rows are drawn where the
+  drop puts them, with no tint.
+- Whether a multi-root run should show how many roots are in flight — settled in D8: the rule ends
+  in the count of every node in flight, where that is more than one.
 - Whether a dwell over a folded node should open it mid-drag. Named as a non-goal in the proposal,
   and reachable later without revisiting anything here, since the drop-into-a-fold rule already
   opens it.

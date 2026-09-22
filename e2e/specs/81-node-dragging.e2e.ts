@@ -419,13 +419,14 @@ describe('node dragging: the press and the drag it can become', function () {
     // A write while the button is down: the nodes the drag is holding have
     // moved under it, so the drag cancels rather than dropping them where the
     // reader did not aim. The write stays; the selection goes back to where
-    // it was before the pick-up collapsed it; and nothing of the drag is left.
-    await h.setCursorSettled(0, 0);
+    // it was before the pick-up collapsed it, moved by the write above it; and
+    // nothing of the drag is left.
+    await h.setCursorSettled(5, '- three'.length);
     const mark = await markPoint(BULLET, 0);
     const box = await editorBox();
     const y = await seamBetween(2, 3);
     await startRecording();
-    await interruptWhenPreviewing('change');
+    await interruptWhenPreviewing({ write: 5 });
     await dragWithHold(
       mark,
       [{ x: mark.x + 20, y: mark.y + 10 }, { x: box.left + 4, y }, { x: box.left + 5, y }],
@@ -435,8 +436,11 @@ describe('node dragging: the press and the drag it can become', function () {
     await browser.pause(300);
     // The drag was real before the write: a destination had been named.
     expect((await recorded()).some((sample) => sample.preview !== null)).toBe(true);
-    expect(await h.getBuffer()).toBe(DOC + '- late\n');
-    expect(await h.getSelection()).toEqual({ anchor: { line: 0, ch: 0 }, head: { line: 0, ch: 0 } });
+    expect(await h.getBuffer()).toBe(['# Top', '', '- one', '  - nested', '- two', '- late', '- three', ''].join('\n'));
+    expect(await h.getSelection()).toEqual({
+      anchor: { line: 6, ch: '- three'.length },
+      head: { line: 6, ch: '- three'.length },
+    });
     expect(await dragTraces()).toEqual({ lifted: 0, ghosts: 0, indicators: 0, preview: false });
   });
 

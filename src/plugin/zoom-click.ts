@@ -272,6 +272,15 @@ class ZoomClickPlugin implements PluginValue {
       // inside an update is one CodeMirror refuses.
       const press = this.press;
       this.press = null;
+      // The selection to put back was read before this write, so it moves
+      // with it.
+      const before = press.selectionBefore;
+      if (before) {
+        press.selectionBefore = {
+          anchor: update.changes.mapPos(before.anchor),
+          head: update.changes.mapPos(before.head),
+        };
+      }
       queueMicrotask(() => this.endPress(press));
     }
     // A change clears the hover state (its line numbers moved) while the

@@ -122,8 +122,8 @@ export function resolveOperand(doc: OutlineDoc, range: LineRange): Operand | und
 export interface DragOperand {
   readonly groups: readonly (readonly number[])[];
   /**
-   * The cover the selection becomes, where the press landed outside it —
-   * `undefined` leaves the selection exactly as it was.
+   * The cover the selection becomes, where the press landed anywhere but on
+   * a covered root — `undefined` leaves the selection exactly as it was.
    *
    * A cover IS the block-selection interaction mode, so entering one is not a
    * neutral act: the editor blurs, the covered lines stop rendering raw, and
@@ -139,15 +139,11 @@ export interface DragOperand {
  * resolves by, asked about the node the pointer is holding rather than about
  * the caret.
  *
- * The pressed node inside the current cover means the whole cover travels —
+ * A press on one of the current cover's roots means the whole cover travels —
  * dragging several nodes is the same gesture and not a second one. Pressed
- * anywhere else, the operand is that node's own subtree, and the selection
- * becomes its cover so that what is in flight is always what is drawn as
- * selected.
- *
- * INSIDE, not "is one of the roots": a press on a covered root's own
- * descendant is still a press inside the cover, and picking that descendant
- * out of it would drag a part of what the reader can see selected.
+ * anywhere else, a covered root's descendant included, the operand is that
+ * node's own subtree, and the selection becomes its cover so that what is in
+ * flight is always what is drawn as selected.
  */
 export function dragOperand(
   doc: OutlineDoc,

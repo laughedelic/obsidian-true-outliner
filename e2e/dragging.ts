@@ -636,14 +636,18 @@ export async function dragWithHold(
 
 /**
  * Arms something to happen under a drag in flight, once the drag has named a
- * destination and the recorder has seen it: a write at the end of the document, or a `pointercancel` for
- * the pointer the recorder last saw — the event the platform sends when it
- * takes the pointer back, and the same path `lostpointercapture` cancels
- * through. Armed on the preview rather than on a delay, because the WebDriver
- * chain's own pace decides when the drag reaches a seam, and a timer either
- * fires before the press or after the release.
+ * destination and the recorder has seen it: a `- late` line written at the
+ * start of the 0-based `line`, or a `pointercancel` for the pointer the
+ * recorder last saw — the event the platform sends when it takes the pointer
+ * back, and the same path `lostpointercapture` cancels through. Armed on the
+ * preview rather than on a delay, because the WebDriver chain's own pace
+ * decides when the drag reaches a seam, and a timer either fires before the
+ * press or after the release.
  */
-export function interruptWhenPreviewing(how: 'change' | 'pointercancel', giveUpMs = 5000): Promise<void> {
+export function interruptWhenPreviewing(
+  how: { readonly write: number } | 'pointercancel',
+  giveUpMs = 5000,
+): Promise<void> {
   return browser.executeObsidian(
     ({ app, obsidian }, how, giveUpMs) => {
       const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
@@ -669,8 +673,10 @@ export function interruptWhenPreviewing(how: 'change' | 'pointercancel', giveUpM
           if (Date.now() - started < giveUpMs) setTimeout(tick, 30);
           return;
         }
-        if (how === 'change') {
-          cm.dispatch({ changes: { from: cm.state.doc.length, insert: '- late\n' } });
+        if (how !== 'pointercancel') {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+          const from = cm.state.doc.line(how.write + 1).from;
+          cm.dispatch({ changes: { from, insert: '- late\n' } });
           return;
         }
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access

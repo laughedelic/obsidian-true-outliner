@@ -2462,7 +2462,7 @@ const SURPLUS_TRAILING_EVENTS = ['mousedown', 'mouseup', 'click'] as const;
  * `preventDefault` on `pointerdown` does not suppress them for a mouse and they
  * would place a caret from coordinates that now mean something else.
  *
- * The run is re-read from the document at the press, not runSize on the mark:
+ * The run is re-read from the document at the press, not carried on the mark:
  * the DOM the press landed on may be a render behind.
  */
 class SurplusMarkerSpacePlugin implements PluginValue {
@@ -2556,13 +2556,13 @@ class SurplusMarkerSpacePlugin implements PluginValue {
  * the caret at the boundary stands against the line's own first character and
  * measures what every other caret on the line measures.
  *
- * Not the zero-width mark two earlier versions runSize: a box of no width still
+ * Not the zero-width mark two earlier versions carried: a box of no width still
  * PAINTS, and its glyphs landed on top of the line's first word (clipping them
  * instead hid the caret outright). `display: none` renders nothing and reserves
  * nothing.
  *
  * What it covers is the node's OWN indentation and nothing past it — the
- * distinction `indentCh` has runSize from the start and the rendering lost
+ * distinction `indentCh` has carried from the start and the rendering lost
  * twice. Those characters restate a depth the rules already state, so hiding
  * them removes no content. What a line carries beyond them is ordinary text,
  * visible and editable one character at a time, and it pushes the line's own

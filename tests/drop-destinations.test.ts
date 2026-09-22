@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import fc from 'fast-check';
 import { parse } from '../src/parse';
+import { encode } from '../src/encode';
+import { moveSubtreesTo } from '../src/ops';
+import { arbTree } from './generators';
 import { walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
 import { resolveZoom } from '../src/zoom';
 import {
@@ -446,6 +450,58 @@ describe('dropSeams', () => {
         expect(inScope.has(candidate.parentId as number)).toBe(true);
       }
     }
+  });
+
+  /** The first line the release writes for the run, at one of its candidates. */
+  function released(doc: OutlineDoc, roots: readonly OutlineNode[], c: DropSeam['candidates'][number]): string {
+    const result = moveSubtreesTo(
+      doc,
+      roots.map((root) => [root.id]),
+      c.level === undefined
+        ? { parentId: c.parentId, index: c.index }
+        : { parentId: c.parentId, index: c.index, level: c.level },
+    );
+    if (!result.ok) return `refused: ${result.rejection.reason}`;
+    return encode(result.value.doc).split('\n')[result.value.span.start.line]!;
+  }
+
+  it('draws what the release writes for a run whose roots have different parents', () => {
+    // `### a1` and `## b` are one cover. Dropped among Top's children, only
+    // `## b` was already there, so the release removes both and writes the run
+    // for the destination: `a1` beside the h2s is an h2.
+    const doc = parse(['# Top', '## a', '### a1', '## b', '## c', ''].join('\n'));
+    const roots = [byLine(doc, '### a1'), byLine(doc, '## b')];
+    const top = byLine(doc, '# Top').id;
+    const last = dropSeams(doc, roots).find((s) => s.aboveId === byLine(doc, '## c').id)!;
+    const beside = last.candidates.find((c) => c.parentId === top && c.level === undefined)!;
+    expect(beside.firstLine).toBe('## a1');
+    expect(released(doc, roots, beside)).toBe('## a1');
+  });
+
+  it('draws what the release writes, at every destination it offers', () => {
+    // Runs of one to three roots, each starting where the one before it ends,
+    // which is every shape a cover takes.
+    const size = (node: OutlineNode): number =>
+      1 + node.children.reduce((total, child) => total + size(child), 0);
+    fc.assert(
+      fc.property(arbTree(), fc.nat(), fc.integer({ min: 1, max: 3 }), (tree, at, count) => {
+        const doc = parse(encode(tree));
+        const nodes = [...walkNodes(doc)];
+        if (nodes.length === 0) return;
+        const roots = [nodes[at % nodes.length]!];
+        while (roots.length < count) {
+          const next = nodes[nodes.indexOf(roots[roots.length - 1]!) + size(roots[roots.length - 1]!)];
+          if (!next) break;
+          roots.push(next);
+        }
+        for (const seam of dropSeams(doc, roots)) {
+          for (const candidate of seam.candidates) {
+            expect(released(doc, roots, candidate)).toBe(candidate.firstLine);
+          }
+        }
+      }),
+      { numRuns: 150 },
+    );
   });
 });
 

@@ -30,8 +30,8 @@ has to be undone.
   effect is unchanged; only the moment it happens moves.
 - **A block selection drags as a unit.** What the gesture picks up is the operand rule
   `selection-structural-ops` already states — the selection's covered subtrees when the pressed
-  node is inside the cover, that one node's subtree otherwise — so dragging several nodes is the
-  same gesture and not a second one.
+  node is one of the cover's roots, that one node's subtree otherwise, a press on a covered root's
+  descendant included — so dragging several nodes is the same gesture and not a second one.
 - **A drop is one structural operation**, with the operand's subtrees removed and re-inserted at
   the destination, re-encoded for it: one transaction, one undo step, the caret and the fold state
   carried, exactly as `editor-structural-commands` requires of every other structural operation.

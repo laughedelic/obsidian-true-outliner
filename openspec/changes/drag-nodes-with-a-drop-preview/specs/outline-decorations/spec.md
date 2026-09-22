@@ -38,36 +38,41 @@ SHALL NOT change the weight of what it accents, which is the rule guide accents 
 - **WHEN** a destination parent is accented
 - **THEN** its guide and marker render at the same weight as before, differing only in colour
 
-### Requirement: An absorbed region is marked as part of the preview
+### Requirement: An absorbed region is drawn where the drop puts it
 
 Where a drop would absorb content that is not part of the run (`node-dragging`), this layer SHALL
-mark the absorbed rows, distinguishably from both the lifted run and the destination's own accent —
-three states in one view, each answering a different question, so they SHALL NOT share a treatment.
+draw the absorbed rows at the depth the drop gives them, with the guide that will connect them to
+the ghost mark: the result shown as the result. The shift SHALL cover exactly the rows the
+absorption reaches and SHALL end where it ends.
 
-The marking SHALL cover exactly the rows the absorption reaches and SHALL end where it ends. It
-SHALL NOT move or re-indent those rows: nothing has happened to them yet, and a preview that
-re-lays them out has to put them back on a cancel.
+The shift SHALL be sideways only, and those rows SHALL be the only ones the preview moves: their
+text, order and lines stay as they are, and a cancel takes the shift away with the rest of the
+preview. No tint SHALL mark them. The three preview states each answer a different question, so
+they SHALL NOT share a treatment: the lifted run is faded, the destination parent is accented, and
+the absorbed rows are told apart by where they are drawn.
 
-#### Scenario: The absorbed rows are marked to where absorption ends
+#### Scenario: The absorbed rows are drawn in to where absorption ends
 - **WHEN** a heading drop would take three following siblings into its section, and a fourth row
   ends the absorption
-- **THEN** exactly those three rows are marked and the fourth is not
+- **THEN** exactly those three rows are drawn at the depth the drop gives them, and the fourth
+  keeps its place
 
 #### Scenario: Three preview states stay distinguishable
 - **WHEN** a drag shows a lifted run, an accented destination parent and an absorbed region at once
 - **THEN** the three render distinguishably from one another
 
-#### Scenario: Marked rows do not move
-- **WHEN** rows are marked as absorbed
-- **THEN** their rendered positions and indentation are unchanged from before the drag
+#### Scenario: Absorbed rows move only sideways
+- **WHEN** rows are drawn as absorbed
+- **THEN** each stays on its own line with its text unchanged, and a cancelled drag draws it back
+  at its own depth
 
 ### Requirement: A run in flight renders as lifted, in place
 
 While a drag is in flight, the rows of every subtree in the operand SHALL render as lifted —
 distinguishable at a glance from the rows around them, and from the destination's own chrome — and
 SHALL STAY WHERE THEY ARE. This layer SHALL NOT move, hide, or re-lay out any row on account of a
-drag: nothing has changed in the document, and a preview that re-lays out the page has to put it
-all back when the drag is cancelled.
+drag, beyond the sideways shift of an absorbed region: nothing has changed in the document, and a
+preview that re-lays out the page has to put it all back when the drag is cancelled.
 
 The lifted treatment SHALL compose with the block-selection chrome an operand carries rather than
 replacing it, since the operand is a selection cover and is already decorated as one.
@@ -77,8 +82,8 @@ ends.
 
 #### Scenario: Lifted rows stay in place
 - **WHEN** a run is in flight and the pointer moves across several destinations
-- **THEN** the run's rows remain on their original lines, rendered as lifted, and no other row
-  moves
+- **THEN** the run's rows remain on their original lines, rendered as lifted, and no row moves
+  but an absorbed region's
 
 #### Scenario: Lifted composes with selection chrome
 - **WHEN** the operand is a multi-root cover

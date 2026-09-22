@@ -274,7 +274,8 @@ export function seams(
  * `seams` above finds the places; this asks what the run becomes at each and
  * keeps the ones the shared re-encode step accepts — the refusal that depends
  * on the destination's own depth, which no kind check can see. A seam left
- * with no accepted place is not a seam this returns.
+ * with no accepted place is still returned, with no candidates, and so is the
+ * run's own lower boundary (`DropSeam.candidates`).
  */
 export function dropSeams(
   doc: OutlineDoc,
@@ -458,9 +459,9 @@ function placeAt(
  * The run's first line as this destination would write it, or `undefined`
  * where the destination refuses the run.
  *
- * A run that does not leave its own scope is not re-encoded — the operation
- * takes that case as a reorder — so it is asked for nothing and keeps the line
- * it has.
+ * A run whose every root stays in its own scope is not re-encoded — the
+ * operation takes that case as a reorder — so it is asked for nothing and keeps
+ * the line it has.
  */
 function writtenFirst(
   doc: OutlineDoc,
@@ -485,14 +486,22 @@ function writtenFirst(
             : { kind: node.kind },
     };
   };
-  if (placed.level === undefined && siblings.some((sibling) => operandRootIds.has(sibling.id))) {
+  const carried = siblings.filter((sibling) => operandRootIds.has(sibling.id)).length;
+  if (placed.level === undefined && carried === operandRoots.length) {
     return written(operandRoots[0]!);
   }
+  // Otherwise the operation removes the run before it inserts it, so the
+  // destination's context is its siblings without the run's roots, and the
+  // index shifts by the roots it had above it.
+  const kept = siblings.filter((sibling) => !operandRootIds.has(sibling.id));
+  const at =
+    placed.index -
+    siblings.slice(0, placed.index).filter((sibling) => operandRootIds.has(sibling.id)).length;
   const result = reencodeBlocksForDestination(
     doc,
     parent,
-    siblings.slice(0, placed.index),
-    siblings.slice(placed.index),
+    kept.slice(0, at),
+    kept.slice(at),
     operandRoots,
     options.fallbackIndentUnit,
     placed.level,
