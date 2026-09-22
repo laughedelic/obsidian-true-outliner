@@ -549,7 +549,14 @@ export async function clickClear(selector: string): Promise<void> {
   for (let attempt = 0; ; attempt++) {
     try {
       if (IS_MOBILE_RUN) await collapseLeftDrawer();
-      await (await browser.$(selector)).scrollIntoView({ block: 'center' });
+      // The plain DOM call, not webdriverio's own scrollIntoView: 9.31+ gates its
+      // Actions-API wheel scroll behind an `isPainted` heuristic that, against
+      // this suite's Chromium, reports the element already painted with zero
+      // delta on the first check and returns without scrolling — silently, with
+      // no warning and no JS fallback.
+      await browser.executeObsidian((_ctx, sel: string) => {
+        document.querySelector<HTMLElement>(sel)?.scrollIntoView({ block: 'center' });
+      }, selector);
       await browser.pause(150);
       await (await browser.$(selector)).click();
       return;

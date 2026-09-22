@@ -1005,7 +1005,14 @@ describe('backlinks footer: behaviour', function () {
     );
     expect(stamped).toBe(true);
 
-    await (await $('[data-e2e-target="yes"]')).scrollIntoView({ block: 'center' });
+    // webdriverio's own scrollIntoView (9.31+) drives a WebDriver Actions wheel
+    // scroll gated by an `isPainted` heuristic that, against the Chromium this
+    // suite runs, reports the element already painted with zero delta on the
+    // first check — so it returns without ever scrolling, silently, with no
+    // warning and no JS fallback. The plain DOM call has no such gate.
+    await browser.executeObsidian(() => {
+      document.querySelector('[data-e2e-target="yes"]')?.scrollIntoView({ block: 'center' });
+    });
     await browser.pause(150);
 
     const point = await browser.executeObsidian(() => {
