@@ -12,7 +12,7 @@
  */
 
 import type { ListStyle, NodeKind, OutlineDoc, OutlineNode } from './model';
-import { makeNode } from './model';
+import { makeNode, walkNodes } from './model';
 import { listAttachesTo } from './rules';
 
 export const TAB_WIDTH = 4;
@@ -118,6 +118,30 @@ export function kindAsWritten(node: Pick<OutlineNode, 'kind' | 'lines' | 'setext
 function demote(line: string, kind: NodeKind): NodeKind {
   if (indentWidth(line) <= OPENING_MARGIN) return kind;
   return LIST_ITEM_RE.test(line) ? 'list-item' : 'paragraph';
+}
+
+/**
+ * The block a node's LAST line belongs to where its lines now sit — what the
+ * seam BELOW the node abuts, as `kindAsWritten` is what the seam above it does.
+ *
+ * The two differ only for a demoted node of more than one line. An `html`
+ * block runs to a blank line whatever its lines hold, so past the margin its
+ * later lines open whatever they open at their own column: `<div>` over a
+ * table is a paragraph and then a TABLE there, and the seam below it has to be
+ * the table's. The answer is read from `parse` over the node's own lines rather
+ * than from the opening line, since the parse is what decides where one block
+ * of them ends and the next begins. A node the margin leaves alone, and a
+ * single demoted line, are their own tail.
+ */
+export function tailAsWritten(
+  node: Pick<OutlineNode, 'kind' | 'lines' | 'setext'>,
+): Pick<OutlineNode, 'kind' | 'lines' | 'setext'> {
+  const kind = kindAsWritten(node);
+  if (kind === node.kind) return node;
+  if (node.lines.length <= 1) return { kind, lines: node.lines };
+  let tail: OutlineNode | undefined;
+  for (const block of walkNodes(parse(node.lines.join('\n')))) tail = block;
+  return tail ?? { kind, lines: node.lines };
 }
 
 /**

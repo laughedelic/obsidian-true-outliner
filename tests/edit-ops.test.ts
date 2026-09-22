@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import { kindAsWritten, parse } from '../src/parse';
+import { kindAsWritten, parse, tailAsWritten } from '../src/parse';
 import { encode } from '../src/encode';
 import { makeNode, treesEqual, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
 import { deleteSubtrees, insertSubtrees, mergeNodes, outdent, type OpOutput } from '../src/ops';
@@ -1227,6 +1227,54 @@ describe('a seam is judged on the kind the re-parse will see', () => {
     if (!result.ok) return;
     expect(encode(result.value.doc)).toBe('## H2\n\tbody\n\n\titem\n\n\t> quote\n');
     expect([...walkNodes(result.value.doc)].length - [...walkNodes(doc)].length).toBe(2);
+  });
+
+  it('tailAsWritten is the block a node\'s last line lands in', () => {
+    const tail = (kind: OutlineNode['kind'], lines: string[]): string =>
+      tailAsWritten(makeNode({ kind, lines })).kind;
+    // An html block runs to a blank line whatever it holds; past the margin
+    // its later lines open blocks of their own, and the last one is the tail.
+    expect(tail('html', ['\t<div>', '\t| a |', '\t| - |'])).toBe('table');
+    expect(tail('html', ['\t<div>', '\t- x'])).toBe('list-item');
+    expect(tail('html', ['\t<div>', '\tx', '\t</div>'])).toBe('paragraph');
+    // Inside the margin, and a single demoted line, a node is its own tail.
+    expect(tail('html', ['<div>', '| a |', '| - |'])).toBe('html');
+    expect(tail('quote', ['\t> q'])).toBe('paragraph');
+    // Lines that form no block at all are judged by the line that opens them.
+    expect(tail('quote', ['     ', '     '])).toBe('paragraph');
+  });
+
+  it('a demoted html block is separated below by the block its last line is in', () => {
+    // `<div>` over a table is ONE html block at column 0 and a paragraph and a
+    // TABLE at column 4, so the seam below it is a table's — the one the
+    // existing table has to be kept out of.
+    const doc = parse('## H2\n\t| b |\n\t| - |\n');
+    const result = insertSubtrees(
+      doc,
+      byLine(doc, '\t| b |').id,
+      parse('<div>\n| a |\n| - |\n').children,
+      'before',
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('## H2\n\t<div>\n\t| a |\n\t| - |\n\n\t| b |\n\t| - |\n');
+    expect(byLine(result.value.doc, '\t| b |').lines).toEqual(['\t| b |', '\t| - |']);
+  });
+
+  it('a table is separated from a following line that carries a pipe', () => {
+    // The table's own loop claims any line with a `|`, of whatever kind; a
+    // wikilink alias is enough to make a list item a row.
+    const doc = parse('- top\n  - see [[a|b]]\n');
+    const result = insertSubtrees(
+      doc,
+      byLine(doc, '  - see [[a|b]]').id,
+      parse('- alpha\n\n| x |\n| - |\n').children,
+      'before',
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('- top\n  - alpha\n\n  | x |\n  | - |\n\n  - see [[a|b]]\n');
+    expect(byLine(result.value.doc, '  - see [[a|b]]').kind).toBe('list-item');
   });
 
   it('a seam that stays inside the margin is left flush, as it was', () => {

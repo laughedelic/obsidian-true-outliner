@@ -32,10 +32,9 @@ closing tag — but at column 4 there is no HTML block, and the list item that f
 own block regardless.
 
 `docs/research/seams-across-a-re-indent.md` carries the frames, the column table for every
-margin-anchored kind, and a differential against `main` over 696 (destination, anchor, position,
-payload) combinations: `main` loses a payload node in 8 of them and this reading in none, no
-verdict changes, and the 27 remaining differences are separators removed — 7 below a demoted
-`html` block, 20 around a rule that is a list item where it lands.
+margin-anchored kind, and a differential against `main` over 924 (destination, anchor, position,
+payload) combinations: `main` loses a payload node in 12 of them and changes an existing node in
+8, this change in none, with no verdict changed.
 
 ## What Changes
 
@@ -46,8 +45,13 @@ verdict changes, and the 27 remaining differences are separators removed — 7 b
   at column 4 where `---` opens nothing and is a paragraph. A setext heading is judged on its
   underline, which is the line carrying the anchor.
 - `needsBlankBetween` and the first-child continuation check in `normalizeBoundaries` (src/ops.ts)
-  ask `kindAsWritten` instead of reading `node.kind`. No rule in either changes; what changes is
-  which node each rule is applied to.
+  ask `kindAsWritten` instead of reading `node.kind`, and the seam below a node asks
+  `tailAsWritten` — the block its LAST line lands in, read from `parse` over the node's own lines
+  — since a demoted `html` block's lines can open a table of their own past the margin.
+- The table branch separates a table from any node whose first line carries a `|`, which is what
+  the table's own loop claims. Reading a demoted `html` block's tail as a table made the old
+  table-only rule reachable in places `main` covered by accident; the same line closes the
+  pre-existing half of #197.
 
 ## Non-Goals
 
@@ -59,14 +63,15 @@ verdict changes, and the 27 remaining differences are separators removed — 7 b
   thematic break to `commonmark` 0.31.2 and a paragraph to us. Closing it means giving `segment`
   a container stack — a parser change reaching every kind, every operation and the corpus, not a
   rider on a seam fix.
-- **No new rule about what merges.** The five families `needsBlankBetween` names — paragraph,
-  list-item, html, the quote/callout run, the table run — are unchanged, and so is
-  `swallowedAsContinuation`'s list.
+- **No other rule about what merges.** Of the families `needsBlankBetween` names, only the
+  table's changes, and only to match its loop. `swallowedAsContinuation`'s list is unchanged, and
+  so is the list-item branch, whose sibling seam still names fewer kinds than its continuation
+  claims — the latent half of #197, which no paste reaches.
 
 [#158]: https://github.com/laughedelic/obsidian-true-outliner/issues/158
 
 ## Impact
 
 - Affected specs: `structural-operations` (a new requirement on boundary separation).
-- Affected code: `src/parse.ts` (`OPENING_MARGIN`, `kindAsWritten`), `src/ops.ts`
-  (`needsBlankBetween`, `normalizeBoundaries`), `tests/edit-ops.test.ts`.
+- Affected code: `src/parse.ts` (`OPENING_MARGIN`, `kindAsWritten`, `tailAsWritten`),
+  `src/ops.ts` (`needsBlankBetween`, `normalizeBoundaries`), `tests/edit-ops.test.ts`.

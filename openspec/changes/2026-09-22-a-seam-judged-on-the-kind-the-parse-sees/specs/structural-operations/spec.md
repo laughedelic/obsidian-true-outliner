@@ -27,6 +27,15 @@ a LIST ITEM at column 4, where `---` is a paragraph; a list item claims nothing 
 separator. Treating every demoted line as a paragraph writes a blank line for a node that is not
 there.
 
+The seam BELOW a node SHALL be judged on the block its LAST line lands in where written, and the
+seam above it on the block its first line opens. The two differ for a demoted node of more than
+one line: an `html` block runs to a blank line whatever its lines hold, so past the margin its
+later lines open blocks of their own, and the seam below it is the last of those.
+
+A table SHALL be separated from any following node whose first line contains a `|`. The table's
+own loop claims every such line, of whatever kind, so a separator chosen only against another
+table leaves a list item or a paragraph carrying a wikilink alias to be read as a row.
+
 #### Scenario: A quote re-indented into a heading scope keeps the node below it
 - **WHEN** a payload whose last root is a quote is inserted before a tab-indented paragraph in a
   heading's children, so the quote is written at column 4
@@ -43,6 +52,18 @@ there.
 - **WHEN** a payload ending in `- - -` is re-encoded past the margin above an existing node
 - **THEN** no blank line is written on either side of the rule, every node survives, and the
   rule's line re-parses as a list item
+
+#### Scenario: A demoted html block is separated below by its last block
+- **WHEN** a payload holding an `html` block of `<div>` over a table is re-encoded past the
+  margin before an existing table
+- **THEN** a blank line stands between the payload's table rows and the existing table, and the
+  existing table re-parses with exactly its own rows
+
+#### Scenario: A table is separated from a line that carries a pipe
+- **WHEN** a payload ending in a table lands before a list item reading `- see [[a|b]]` with no
+  separation between them
+- **THEN** a blank line stands between the table and the list item, and the list item
+  re-parses as a list item
 
 #### Scenario: A seam inside the margin is unchanged
 - **WHEN** the same payload lands in a scope whose content sits at column 0

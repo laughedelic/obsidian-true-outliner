@@ -21,6 +21,11 @@ const SAMPLES: { kind: OutlineNode['kind']; lines: string[]; extra?: Record<stri
   { kind: 'quote', lines: ['> q'] },
   { kind: 'callout', lines: ['> [!note] c'] },
   { kind: 'html', lines: ['<div>x</div>'] },
+  // An HTML block runs to a blank line whatever its lines hold, so past the
+  // margin its later lines open blocks of their own.
+  { kind: 'html', lines: ['<div>', '| a |', '| - |'] },
+  { kind: 'html', lines: ['<div>', '- x'] },
+  { kind: 'html', lines: ['<div>', '```', 'c', '```'] },
   { kind: 'code', lines: ['```', 'c', '```'] },
   { kind: 'table', lines: ['| a |', '| - |'] },
 ];
@@ -44,8 +49,15 @@ describe('sweep', () => {
       total++;
       if (!r.ok) continue;
       const text = encode(r.value.doc);
-      const n = [...walkNodes(r.value.doc)].length;
-      if (n < 2) losses.push(`${label(a, ca)}  >>  ${label(b, cb)}   =>  ${JSON.stringify(text)}`);
+      // Each side is judged against the blocks ITS OWN lines form alone: a
+      // demoted multi-line html block splits into several, and a merge at the
+      // seam that takes one of them back nets out in a bare node count.
+      const alone = (n: OutlineNode): string[] => [...walkNodes(parse(n.lines.join('\n')))].map((x) => x.lines.join('\n'));
+      const expected = [...alone(left), ...alone(right)];
+      const actual = [...walkNodes(r.value.doc)].map((x) => x.lines.join('\n'));
+      if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+        losses.push(`${label(a, ca)}  >>  ${label(b, cb)}   =>  ${JSON.stringify(text)}`);
+      }
     }
     writeFileSync(process.env.SWEEP_OUT ?? '/tmp/sweep.txt', `total ${total}, losses ${losses.length}\n` + losses.join('\n'));
   });

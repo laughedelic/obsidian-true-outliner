@@ -37,7 +37,7 @@
 
 ## 4. Measurement
 
-- [x] 4.1 Differential against `main` over 696 (destination, anchor, position, payload)
+- [x] 4.1 Differential against `main` over 924 (destination, anchor, position, payload)
       combinations: rows losing a payload node, verdict changes, and encodings differing. The
       payload set covers both rule spellings, since they part company past the margin.
 - [x] 4.2 Check the removed separator against `commonmark` 0.31.2, both encodings.
@@ -53,4 +53,9 @@
 - [x] 5.3 E2E sweep in CI on the pushed checkpoint.
 - [x] 5.4 Review round: `kindAsWritten` against `parse` over every rule spelling and whitespace
       shape, and the change's own prose against the code.
+- [x] 5.6 Second review round (Copilot): the seam below a demoted multi-line node is its last
+      block's — `tailAsWritten` (D5) — and the table branch follows its loop (D6). Tests for
+      both, each failing on the previous checkpoint. The sweep and the differential judge each
+      side against the blocks its own lines form alone, since a split nets out a merge in a bare
+      node count.
 - [ ] 5.5 Sync the delta spec, archive the change, bump the version.

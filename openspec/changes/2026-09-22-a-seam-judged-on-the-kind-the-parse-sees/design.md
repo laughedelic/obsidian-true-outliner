@@ -56,7 +56,28 @@ demoted at all.
 
 The change therefore both adds and removes separators, and for one reason in both directions —
 the rule that applies is the rule for the node the document will contain. Measured across the
-differential: 8 rows gain a separator, 27 lose one, none loses a node.
+differential: 12 rows gain a separator, 37 lose one, none loses a node or changes one already there.
+
+### D5. The seam below a node is its LAST block's, asked of the parser
+
+The seam above a node is decided by the line that opens it, which is what `kindAsWritten` reads.
+The seam below is decided by the block its LAST line lands in, and for a demoted node of more
+than one line those differ: an `html` block runs to a blank line whatever its lines hold, so past
+the margin its later lines open what they open at their own column, and `<div>` over a table is a
+paragraph and then a table. `tailAsWritten` answers the lower seam by running `parse` over the
+node's own lines — only for a demoted node of more than one line, since every other node is its
+own tail — rather than restating how a paragraph ends, because the parse is what decides that.
+A node whose lines form no block at all is judged by its opening line.
+
+### D6. The table branch follows the table's loop
+
+`segment`'s table loop claims every following non-blank line that contains a `|`, whatever it
+would otherwise open; the branch separated a table only from another table. With D5 a demoted
+`html` block's tail can be a table, which made that gap reachable in places `main` covered by
+accident with `html`'s separate-from-everything rule. The branch now separates a table from any
+node whose first line carries a pipe, which is the loop's own condition — and which also closes
+the pre-existing half of #197, where a pasted table takes a list item holding a wikilink alias as
+a row.
 
 ## Risks / Trade-offs
 
