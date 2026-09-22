@@ -1,19 +1,16 @@
 version: 2
 
-# Everything here is a dev dependency, so the usual production/development split
-# is empty. The groups follow what breaks together instead: a failing update
-# points at one part of the toolchain rather than at a mixed batch.
 updates:
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 6
     labels: [dependencies, area/ci]
+    commit-message:
+      prefix: "deps(npm): "
+    # The groups follow what breaks together
     groups:
-      # Obsidian's own typings track app releases; an API change wants reading
-      # rather than merging, so this one stays on its own.
       obsidian:
         patterns: ["obsidian", "eslint-plugin-obsidianmd"]
       codemirror:
@@ -23,12 +20,11 @@ updates:
       unit-tests:
         patterns: ["vitest", "@vitest/*", "vite", "fast-check"]
       lint-build:
-        patterns: ["eslint", "typescript", "typescript-eslint", "esbuild", "builtin-modules"]
-      # Last, because a dependency joins the first group whose patterns match it.
-      # Without this one, anything the groups above miss — `@types/node` today —
-      # arrives as a pull request of its own.
-      other:
+        patterns: ["eslint", "typescript", "typescript-eslint", "esbuild", "builtin-modules", "@types/node"]
+      other-patches:
         patterns: ["*"]
+        update-types: [patch]
+      # Everything else gets a separate update PR
 
   - package-ecosystem: github-actions
     directory: /
@@ -36,6 +32,8 @@ updates:
       interval: weekly
       day: monday
     labels: [dependencies, area/ci]
+    commit-message:
+      prefix: "deps(ci): "
     groups:
       actions:
         patterns: ["*"]
