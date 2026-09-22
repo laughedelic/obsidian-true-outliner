@@ -65,5 +65,9 @@
 - [x] 4.3 `npm test`, `npm run build`, `npm run build:e2e`, `npm run lint`, `openspec validate`.
 - [x] 4.4 The e2e sweep, which the pushed checkpoint runs in CI: green on `1ce19c9`, desktop and
       mobile.
-- [ ] 4.5 Manual testing in Obsidian, including what Obsidian's own renderer does with the
-      divided `*` frame — the figures above are `commonmark`'s.
+- [x] 4.5 Manual testing in Obsidian, in a live vault. It is what found D6: the rule reached a
+      list nested under a list item and not one under its own heading, which is where most lists
+      live. Re-run after that fix, the five carets of the report read as this change says, bar
+      the two #192 declines.
+      NOT covered: what Obsidian's own renderer does with the divided `*` frame. The counts above
+      are `commonmark`'s, and the note says so rather than implying the two agree.

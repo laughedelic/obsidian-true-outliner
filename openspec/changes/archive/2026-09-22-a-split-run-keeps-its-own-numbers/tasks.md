@@ -77,5 +77,10 @@
 - [x] 4.2 `npm run build` and `npm run lint`.
 - [x] 4.3 The e2e sweep, which the pushed checkpoint runs in CI: green on `9e48328`, desktop
       and mobile.
-- [ ] 4.4 Manual testing in Obsidian against the issue's own reproduction, including whether
-      Obsidian's renderer reads the divided nested frame the way the root-level figures do.
+- [x] 4.4 Manual testing in Obsidian, against a live vault rather than the issue's transcript:
+      a heading section pasted at the end of every row of an ordered run under a heading. It
+      found two defects, neither of them this change's — the regime fault fixed in the layer
+      above, and a structural paste declined outright when Obsidian's own renumbering makes the
+      transaction multi-range (#192). This change's own frames came through as measured.
+      NOT covered: whether Obsidian's renderer reads a divided run the way `commonmark` does.
+      That comparison stays unmeasured and is recorded as such in the note.

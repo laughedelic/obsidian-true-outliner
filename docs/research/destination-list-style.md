@@ -38,6 +38,12 @@ Into a `-` run the counts never move, because the marker already matched — whi
 [#159](https://github.com/laughedelic/obsidian-true-outliner/issues/159)'s own frames, drawn
 with `-` and ordered runs, carried this only as a one-line aside.
 
+These are `commonmark`'s counts, and Obsidian's renderer is not `commonmark`. A manual pass in
+the real app exercised the ordered-run half of this and found two defects — one fixed here, one
+filed as [#192](https://github.com/laughedelic/obsidian-true-outliner/issues/192) — but it did
+not compare the two renderers on where a list BREAKS. That comparison stays unmeasured, and the
+`*`-run argument above is the part it would bear on.
+
 ## The rule it was missing
 
 Two rules already read the destination's surroundings for a reparented node, both in
