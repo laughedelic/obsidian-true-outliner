@@ -1,25 +1,37 @@
 # Outline mode
 
-Outline mode is the switch that turns everything else on. With it on, a note is drawn on the outline grid, the keyboard grammar and selection rules apply, zoom is available and the backlinks footer renders. With it off, the note is stock Obsidian.
+Outline mode is the switch that turns everything else on.
+
+- **On**: the note is drawn on the outline grid, the keyboard grammar and selection rules apply, zoom is available and the backlinks footer renders.
+- **Off**: the note is stock Obsidian.
 
 <Clip name="outline-toggle" caption="One tab, toggled off and on. Only the rendering changes; the note does not." />
 
+<TryOutline>The switch at the bottom right of this page is the same idea in miniature: one page, drawn as long-form prose or as the outline it is, with nothing about the page changing.</TryOutline>
+
 ## Per tab, not per note
 
-Outline mode is a property of the **tab**, not of the note or the vault:
+Outline mode is a property of the **tab**, not of the note or the vault.
 
 - Two panes showing the same note can be in different modes.
-- Switching a tab to another note resets it to the default. There is no per-note memory: a note reopened tomorrow starts from the default like any other.
-- The mode survives a round trip through reading view. Toggling reading view on and off keeps the tab's outline mode.
+- Switching a tab to another note resets it to the default.
+	- There is no per-note memory: a note reopened tomorrow starts from the default like any other.
+- The mode survives a round trip through reading view: toggling reading view on and off keeps the tab's outline mode.
 - Closing the tab forgets it.
 
 The mode is never written to the note, its front matter or its metadata.
 
 ## The default
 
-**Open new tabs in outline mode** (on by default) decides how a freshly opened note starts. Changing the setting affects notes opened from then on, in a new tab or in an existing tab that switches notes. It never retoggles a tab that is already open, which is how Obsidian's own default view mode setting behaves too.
+**Open new tabs in outline mode** (on by default) decides how a freshly opened note starts.
 
-Leave it on to treat every note as an outline. Turn it off to keep stock Obsidian by default and opt individual tabs in.
+- **On** treats every note as an outline.
+- **Off** keeps stock Obsidian by default, and individual tabs are opted in.
+
+Changing the setting only reaches forward.
+
+- It affects notes opened from then on, in a new tab or in an existing tab that switches notes.
+- It never retoggles a tab that is already open, which is how Obsidian's own default view mode setting behaves too.
 
 ## Four ways to toggle
 
@@ -36,11 +48,21 @@ Toggling shows no notice: the ribbon icon and the status bar chip already say wh
 
 ### From reading view
 
-Toggling outline mode **on** while a tab is in reading view also switches the tab into its editing mode (Live Preview or source, whichever the tab was last in), so the outline is visible immediately. Toggling **off** from reading view changes nothing visible, since reading view never draws outline chrome.
+Reading view never draws outline chrome, so a toggle made from it shows differently in each direction.
+
+- Toggling **on** also switches the tab into its editing mode (Live Preview or source, whichever the tab was last in), so the outline is visible immediately.
+- Toggling **off** changes nothing visible.
 
 ## What the status bar shows
 
-**Show outline mode in the status bar** chooses between **An icon** (default), **Words** ("Outline on" or "Outline off") and **Nothing**. Obsidian lets the ribbon icon be hidden from the ribbon's own right-click menu but has no equivalent for a plugin's status bar item, so this setting is where the chip is turned off. There is no status bar on mobile, so the setting has no effect there.
+**Show outline mode in the status bar** chooses what the chip shows.
+
+- **An icon**, the default.
+- **Words**: "Outline on" or "Outline off".
+- **Nothing**.
+	- Obsidian lets the ribbon icon be hidden from the ribbon's own right-click menu but has no equivalent for a plugin's status bar item, so this setting is where the chip is turned off.
+
+There is no status bar on mobile, so the setting has no effect there.
 
 ## Where outline mode applies
 

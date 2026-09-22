@@ -5,20 +5,27 @@ import Shot from './Shot.vue';
 import OutlineDemo from '../components/OutlineDemo.vue';
 import Landing from '../components/Landing.vue';
 import DemoGallery from '../components/DemoGallery.vue';
+import Layout from './Layout.vue';
+import TryOutline from './outline/TryOutline.vue';
 import './media.css';
+import './outline/outline.css';
 import './custom.css';
 
 // The default theme plus the site's own components: `Clip` and `Shot` for the
 // media captured from real Obsidian by `website/capture/` (raw `<video>` and
 // `<img>` markup in markdown is served from the site root, not from `base`,
-// and these resolve it), `OutlineDemo` for the live editor, and the front page.
+// and these resolve it), `OutlineDemo` for the live editor, `TryOutline` for a
+// page's invitation to switch the docs to their outline view, and the front page.
 export default {
   extends: DefaultTheme,
+  // The default layout with the outline view in front of every docs page.
+  Layout,
   enhanceApp({ app }) {
     app.component('Clip', Clip);
     app.component('Shot', Shot);
     app.component('OutlineDemo', OutlineDemo);
     app.component('Landing', Landing);
     app.component('DemoGallery', DemoGallery);
+    app.component('TryOutline', TryOutline);
   },
 } satisfies Theme;

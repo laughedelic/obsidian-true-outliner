@@ -21,7 +21,8 @@ True Outliner is not yet listed in Obsidian's community plugin directory. Until 
    ```
 
 4. Confirm. BRAT downloads the latest release and enables the plugin.
-5. BRAT checks for new releases on startup and updates automatically. Turn that off per plugin in BRAT's settings if a pinned version is preferred.
+
+BRAT checks for new releases on startup and updates automatically. Turn that off per plugin in BRAT's settings if a pinned version is preferred.
 
 ## By hand
 
@@ -34,13 +35,21 @@ Each release is built by GitHub Actions from the tagged commit, with a [build pr
 
 ## After enabling
 
-New tabs open in outline mode by default. Open any note in Live Preview and the outline grid, guides and markers appear at once. Nothing is written to the vault: the plugin keeps its own settings in `.obsidian/plugins/true-outliner/data.json` and never adds anything to a note.
+New tabs open in outline mode by default.
 
-To start with outline mode off and switch it on per note instead, turn off **Open new tabs in outline mode** in the plugin's settings. See [Outline mode](./outline-mode).
+- Open any note in Live Preview and the outline grid, guides and markers appear at once.
+- Nothing is written to the vault.
+	- The plugin keeps its own settings in `.obsidian/plugins/true-outliner/data.json`.
+	- It never adds anything to a note.
+- To start with outline mode off and switch it on per note instead, turn off **Open new tabs in outline mode** in the plugin's settings. See [Outline mode](./outline-mode).
 
 ## Coexistence with other outliner plugins
 
-If **Outliner** (`obsidian-outliner`) or **Zoom** (`obsidian-zoom`) is enabled in the same vault, True Outliner shows a one-time notice on startup. Both plugins bind the same keys (Tab, Shift+Tab, Enter, Mod+Shift+Arrow) and both try to own list editing, so having them enabled together produces conflicting behaviour. Disable one or the other per vault. The notice is shown once and not repeated.
+If **Outliner** (`obsidian-outliner`) or **Zoom** (`obsidian-zoom`) is enabled in the same vault, True Outliner shows a one-time notice on startup.
+
+- Both plugins bind the same keys (Tab, Shift+Tab, Enter, Mod+Shift+Arrow) and both try to own list editing, so having them enabled together produces conflicting behaviour.
+- Disable one or the other per vault.
+- The notice is shown once and not repeated.
 
 ## Updating
 

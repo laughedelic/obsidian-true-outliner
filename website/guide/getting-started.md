@@ -26,7 +26,11 @@ The 2026 project. Sarah leads design, I lead logistics.
 	- steel matches the range
 ```
 
-Outline mode is on for new tabs by default, so the note is already drawn as an outline: the headings, the paragraph under the title, the ordered list and the bullet list all sit on one indentation grid, with a marker beside each block and guide lines running down from each heading to what it contains.
+Outline mode is on for new tabs by default, so the note is already drawn as an outline.
+
+- The headings, the paragraph under the title, the ordered list and the bullet list all sit on one indentation grid.
+- A marker sits beside each block.
+- Guide lines run down from each heading to what it contains.
 
 <Shot name="hero-outline" alt="The Kitchen Renovation note drawn as an outline" caption="Headings, the paragraph, the ordered list and the bullets on one grid, with the caret's lineage accented." />
 
@@ -34,9 +38,17 @@ If the note looks like stock Obsidian instead, outline mode is off for that tab.
 
 ## 2. Move things with Tab and Shift+Tab
 
-Put the caret anywhere in `brass ages well` and press **Shift+Tab**. The item outdents to sit beside `handles`, and `steel matches the range`, which used to follow it, comes along as its child, because that is the only way markdown can encode the result. Press **Tab** to put it back.
+Tab and Shift+Tab move a node one level, and the whole subtree travels with it.
 
-Now put the caret in `## Materials` and press **Tab**. The heading becomes `### Materials`, the section it holds moves with it, and it is now a child of `## Plan`. Headings indent and outdent by changing level; everything else moves between parents. Either way the whole subtree travels together. The [structural editing](./structural-editing) page has every rule.
+- Put the caret anywhere in `brass ages well` and press **Shift+Tab**.
+	- The item outdents to sit beside `handles`.
+	- `steel matches the range`, which used to follow it, comes along as its child, because that is the only way markdown can encode the result.
+	- Press **Tab** to put it back.
+- Now put the caret in `## Materials` and press **Tab**.
+	- The heading becomes `### Materials`.
+	- The section it holds moves with it, and it is now a child of `## Plan`.
+- Headings indent and outdent by changing level; everything else moves between parents.
+- The [structural editing](./structural-editing) page has every rule.
 
 <Clip name="indent-outdent" caption="Shift+Tab moves steel out beside handles; Tab puts it back; a second Tab nests it under brass." />
 
@@ -46,15 +58,30 @@ Press **Mod+Shift+ArrowUp** with the caret in `## Materials` to swap the whole s
 
 ## 3. Split with Enter
 
-Put the caret at the end of `cabinets` and press **Enter**. A new empty item `5.` appears, numbered for its place in the list. Type `counters last`, then press Enter again on an item with no text in it: an empty item outdents rather than piling up blank bullets, and at the top level it turns back into a paragraph.
+Enter splits the node at the caret, and an ordered list renumbers itself around the split.
 
-Put the caret between `floor patch,` and ` then tile` and press Enter. The item splits in two and the list renumbers itself. Undo (Mod+Z) reverses each of these as a single step.
+1. Put the caret at the end of `cabinets` and press **Enter**. A new empty item `5.` appears, numbered for its place in the list.
+2. Type `counters last`, then press Enter again on an item with no text in it.
+	- An empty item outdents rather than piling up blank bullets.
+	- At the top level it turns back into a paragraph.
+3. Put the caret between `floor patch,` and ` then tile` and press Enter. The item splits in two and the list renumbers itself.
+
+Undo (Mod+Z) reverses each of these as a single step.
 
 <Clip name="enter-split" caption="Enter in the middle of an item splits it and renumbers the list; Enter at the end opens the next item." />
 
 ## 4. Select whole nodes
 
-Put the caret in `handles: undecided` and press **Mod+A** repeatedly. The selection climbs a ladder: the item's text, then the item with its two children, then the whole **Materials** list, then the section, then the whole note. Press **Shift+ArrowDown** from any caret position instead to extend the selection one node at a time. A selection that covers whole nodes is drawn as a block, and Tab, Shift+Tab and the move commands act on everything it covers.
+A selection grows by whole nodes, from the keyboard or with the mouse.
+
+- Put the caret in `handles: undecided` and press **Mod+A** repeatedly. The selection climbs a ladder:
+	1. The item's text.
+	2. The item with its two children.
+	3. The whole **Materials** list.
+	4. The section.
+	5. The whole note.
+- Press **Shift+ArrowDown** from any caret position instead to extend the selection one node at a time.
+- A selection that covers whole nodes is drawn as a block, and Tab, Shift+Tab and the move commands act on everything it covers.
 
 <Clip name="select-nodes" caption="Shift+ArrowDown covers one node at a time; Mod+A climbs from the item's text to its subtree to the whole list." />
 
@@ -64,13 +91,22 @@ Try to drag a selection from the middle of `brass` to the middle of `steel`. It 
 
 ## 5. Zoom in
 
-Click the **marker** beside `## Plan` (the small icon in the gutter, or a list item's bullet). The editor now shows only that section, with a breadcrumb trail above it: the note's name, then the ancestors. Editing works exactly as before, but confined to what is visible. Click the note's name in the trail to zoom back out.
+Click the **marker** beside `## Plan` (the small icon in the gutter, or a list item's bullet).
+
+- The editor now shows only that section, with a breadcrumb trail above it: the note's name, then the ancestors.
+- Editing works exactly as before, but confined to what is visible.
+- Click the note's name in the trail to zoom back out.
 
 <Clip name="zoom-in-out" caption="A click on the Materials marker zooms to the section; a click on a bullet zooms deeper; the commands zoom back out." />
 
 ## 6. Look below the note
 
-At the bottom of the note, below the last line, the **Structured backlinks** section lists every note that links here. Each reference is shown in the tree of the note it came from, ancestors and all, and clicking one opens that note at that exact node. See [Structured backlinks](./backlinks).
+At the bottom of the note, below the last line, the **Structured backlinks** section lists every note that links here.
+
+- Each reference is shown in the tree of the note it came from, ancestors and all.
+- Clicking one opens that note at that exact node.
+
+See [Structured backlinks](./backlinks).
 
 <Shot name="backlinks-footer" alt="The structured backlinks footer under a note" caption="Every reference in the tree it came from: ancestors above, children below, markers and numbering intact." />
 
@@ -82,6 +118,8 @@ Run **Toggle outline mode** again, or click the ribbon icon. The note returns to
 
 ## Where next
 
-- [How a note becomes an outline](./how-notes-become-outlines) explains the mapping, including the two rules that surprise people most: a list after a paragraph belongs to that paragraph, and one blank line decides whether indented text is a continuation or a child.
+- [How a note becomes an outline](./how-notes-become-outlines) explains the mapping, including the two rules that surprise people most.
+	- A list after a paragraph belongs to that paragraph.
+	- One blank line decides whether indented text is a continuation or a child.
 - [Appearance](./appearance) shows how to tune the grid, guides and markers, and how to override any of it from a CSS snippet.
 - [Settings](../reference/settings) and [Commands and keys](../reference/commands-and-keys) list everything there is.

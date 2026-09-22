@@ -8,26 +8,53 @@ True Outliner is under active development. It is usable today and every feature 
 
 ## The idea
 
-Dedicated outliners such as Workflowy, Roam, Logseq and Tana share one invariant: the document is a **tree of nodes**, and every operation, whether typing, selecting, deleting, moving or pasting, respects node boundaries. The structure cannot be malformed by a careless keystroke.
+Dedicated outliners such as Workflowy, Roam, Logseq and Tana share one invariant: the document is a **tree of nodes**, and every operation respects node boundaries.
 
-Obsidian's markdown lists have no such invariant. Plugins that add outliner keybindings work on flat text, so the structure is only as safe as the caret's position: a Backspace at the wrong column merges two items, a paste lands half a subtree at the wrong depth, a drag leaves children orphaned.
+- Typing, selecting, deleting, moving and pasting all stay inside the tree.
+- The structure cannot be malformed by a careless keystroke.
 
-True Outliner brings the enforced-tree invariant to Obsidian without leaving markdown behind:
+Obsidian's markdown lists have no such invariant. Plugins that add outliner keybindings work on flat text, so the structure is only as safe as the caret's position.
 
-- **Any note is an outline.** Every note already has a block structure: headings, paragraphs, list items, code blocks, tables. That structure maps losslessly onto a node tree, so nothing has to be converted and no note is "an outliner note". The tree view is a way of looking at the notes that already exist.
-- **Editing works on the tree.** Indent, outdent, move, split, merge, delete and paste all go through the tree: a node carries its children, a selection covers whole nodes, and an edit that would leave children without a parent or text outside the tree is rewritten into the well-formed equivalent or refused with a short cue.
-- **The file stays clean.** No front matter, IDs or hidden metadata are needed to make the outliner work. Parsing a note and encoding it back is byte-identical, and every structural edit resolves to the smallest diff that expresses it. Notes keep working with every other tool, plugin and sync method.
+- A Backspace at the wrong column merges two items.
+- A paste lands half a subtree at the wrong depth.
+- A drag leaves children orphaned.
+
+True Outliner brings the enforced-tree invariant to Obsidian without leaving markdown behind.
+
+- **Any note is an outline.** Every note already has a block structure: headings, paragraphs, list items, code blocks, tables.
+	- That structure maps losslessly onto a node tree, so nothing has to be converted and no note is "an outliner note".
+	- The tree view is a way of looking at the notes that already exist.
+- **Editing works on the tree.** Indent, outdent, move, split, merge, delete and paste all go through the tree.
+	- A node carries its children.
+	- A selection covers whole nodes.
+	- An edit that would leave children without a parent, or text outside the tree, is rewritten into the well-formed equivalent or refused with a short cue.
+- **The file stays clean.** No front matter, IDs or hidden metadata are needed to make the outliner work.
+	- Parsing a note and encoding it back is byte-identical.
+	- Every structural edit resolves to the smallest diff that expresses it.
+	- Notes keep working with every other tool, plugin and sync method.
 - **Public APIs only.** The plugin is built on Obsidian's documented editor and plugin APIs, with no patching of private internals.
 
 ## What it looks like
 
-In outline mode a note is drawn on a single indentation grid. Every node kind steps right by the same amount per level, guide lines connect each node to its ancestors, and a small marker in the gutter names each node's kind. The caret only ever sits on content, never on a blank line or a list marker. Tab and Shift+Tab move whole subtrees; Enter splits a node into two; Shift+Arrow grows a selection one node at a time; any node with children folds, and a fold follows the node when it moves; a click on a marker zooms into that node. Below the note, every reference to it from elsewhere in the vault is listed in the tree of the note it came from.
+In outline mode a note is drawn on a single indentation grid, and the keys work on the tree.
 
-<Shot name="hero-outline" alt="The Kitchen Renovation note in outline mode" caption="The same note, in outline mode: one grid, guides from each heading to its section, a marker per block." />
+- **The grid.** Every node kind steps right by the same amount per level.
+	- Guide lines connect each node to its ancestors.
+	- A small marker in the gutter names each node's kind.
+- **The caret** only ever sits on content, never on a blank line or a list marker.
+- **The keys** act on whole nodes.
+	- Tab and Shift+Tab move whole subtrees.
+	- Enter splits a node into two.
+	- Shift+Arrow grows a selection one node at a time.
+- **Folding.** Any node with children folds, and a fold follows the node when it moves.
+- **Zoom.** A click on a marker zooms into that node.
+- **Backlinks.** Below the note, every reference to it from elsewhere in the vault is listed in the tree of the note it came from.
 
-Switch outline mode off and the note is stock Obsidian again, byte for byte.
+The quickest way to see it is this site: the docs are written as outlines, and every page can be drawn as one.
 
-<Shot name="hero-stock" alt="The Kitchen Renovation note with outline mode off, rendered by stock Obsidian" caption="Outline mode off. Nothing was written to the file." />
+<TryOutline />
+
+Switch outline mode off and the note is stock Obsidian again, byte for byte, as the long-form view here is the same page untouched.
 
 ## Where it works
 
@@ -37,4 +64,10 @@ Switch outline mode off and the note is stock Obsidian again, byte for byte.
 
 ## Reading this guide
 
-The [Getting started](./getting-started) page covers the first five minutes. [How a note becomes an outline](./how-notes-become-outlines) explains the mapping the rest of the plugin is built on, and is worth reading once because it answers most "why did it do that?" questions. The remaining guide pages each take one feature. The reference section lists every setting, command, key and CSS variable.
+The guide goes from a first session to one page per feature, with the reference section behind it.
+
+- [Getting started](./getting-started) covers the first five minutes.
+- [How a note becomes an outline](./how-notes-become-outlines) explains the mapping the rest of the plugin is built on.
+	- It is worth reading once, because it answers most "why did it do that?" questions.
+- The remaining guide pages each take one feature.
+- The reference section lists every setting, command, key and CSS variable.

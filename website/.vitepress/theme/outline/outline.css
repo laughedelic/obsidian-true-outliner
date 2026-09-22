@@ -1,0 +1,811 @@
+/*
+ * The docs pages drawn as outlines. Everything here is gated on `.to-o-on`,
+ * the one class the view toggles, so long-form is the theme's own rendering
+ * untouched.
+ */
+
+:root {
+  --to-o-unit: 2rem;
+  --to-o-gutter: 1.5rem;
+  --to-o-icon: 0.8rem;
+  --to-o-mark: var(--vp-c-text-3);
+  --to-o-guide: var(--vp-c-divider);
+  --to-o-accent: var(--vp-c-brand-1);
+}
+
+/* The plugin's callout mark knocks its "!" out in Obsidian's page colour. */
+.to-o-layer,
+.to-o-backlinks {
+  --background-primary: var(--vp-c-bg);
+}
+.to-o-bl-group {
+  --background-primary: var(--vp-c-bg-soft);
+}
+
+.VPDoc .content-container {
+  position: relative;
+}
+
+/* ---- Status bar and trail ----------------------------------------------- */
+
+.to-o-status {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  color: var(--vp-c-text-2);
+  background: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-divider);
+  border-right: 0;
+  border-bottom: 0;
+  border-radius: 8px 0 0 0;
+}
+.to-o-status :is(button, a) {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 22px;
+  padding: 3px 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.to-o-status :is(button, a):hover:not(:disabled) {
+  color: var(--vp-c-text-1);
+  background: var(--vp-c-default-soft);
+}
+.to-o-status button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.to-o-status button[aria-pressed='true'] {
+  color: var(--vp-c-brand-1);
+  background: var(--vp-c-brand-soft);
+}
+.to-o-status :is(button, a) > svg {
+  width: 16px;
+  height: 16px;
+}
+.to-o-status :is(button, a)::after {
+  content: attr(aria-label);
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+  color: var(--vp-c-bg);
+  background: var(--vp-c-text-1);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s;
+}
+.to-o-status :is(button, a):is(:hover, :focus-visible)::after {
+  opacity: 1;
+  transition-delay: 0.25s;
+}
+.to-o-status-sep {
+  width: 1px;
+  height: 14px;
+  margin: 0 4px;
+  background: var(--vp-c-divider);
+}
+.to-o-status :is(button, a):focus-visible,
+.to-o-backlinks :is(button, [role='link']):focus-visible,
+.to-o-trail button:focus-visible,
+.to-o-layer button:focus-visible {
+  outline: 2px solid var(--vp-c-brand-1);
+  outline-offset: 1px;
+}
+
+.to-o-trail {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  min-width: 0;
+  margin-bottom: 1rem;
+  font-size: 13px;
+  color: var(--vp-c-text-3);
+}
+.to-o-crumb {
+  font: inherit;
+  color: var(--vp-c-text-2);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  line-height: 1.5;
+  padding: 0.1rem 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.to-o-crumb-text {
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.to-o-crumb:hover {
+  color: var(--vp-c-text-1);
+  text-decoration: underline;
+}
+.to-o-zoomout {
+  width: 0.8rem;
+  height: 0.8rem;
+  display: inline-block;
+  flex: none;
+}
+
+/* ---- The page's own blocks ------------------------------------------ */
+
+.vp-doc .to-o-on .to-o-node,
+.vp-doc .to-o-on .to-o-list {
+  margin-left: calc((var(--to-o-d, 0) - var(--to-o-base, 0)) * var(--to-o-unit) + var(--to-o-gutter)) !important;
+  margin-right: 0 !important;
+}
+.vp-doc .to-o-on .to-o-hidden {
+  display: none !important;
+}
+
+.vp-doc .to-o-on :is(h1, h2, h3, h4, h5, h6).to-o-node {
+  margin-top: 1.1rem;
+  margin-bottom: 0.3rem;
+  padding-top: 0;
+  border-top: 0;
+}
+.vp-doc .to-o-on h1.to-o-node {
+  margin-top: 0;
+  margin-bottom: 0.6rem;
+}
+.vp-doc .to-o-on .header-anchor {
+  display: none;
+}
+.vp-doc .to-o-on p.to-o-node {
+  margin-top: 0.45rem;
+  margin-bottom: 0.45rem;
+  line-height: 1.65;
+}
+.vp-doc .to-o-on :is(div, table, blockquote, figure, pre).to-o-node {
+  margin-top: 0.7rem;
+  margin-bottom: 0.7rem;
+}
+.vp-doc .to-o-on table.to-o-node {
+  display: block;
+  max-width: calc(100% - (var(--to-o-d, 0) - var(--to-o-base, 0)) * var(--to-o-unit) - var(--to-o-gutter));
+}
+
+.vp-doc .to-o-on .to-o-list,
+.vp-doc .to-o-on .to-o-list :is(ul, ol) {
+  list-style: none;
+  padding-left: 0;
+  margin-top: 0.2rem;
+  margin-bottom: 0.2rem;
+}
+.vp-doc .to-o-on .to-o-list li > :is(ul, ol) {
+  margin-left: var(--to-o-unit);
+}
+.vp-doc .to-o-on .to-o-list li,
+.vp-doc .to-o-on .to-o-list li + li {
+  margin-top: 0.2rem;
+  line-height: 1.65;
+}
+.vp-doc .to-o-on .to-o-list li > p {
+  margin: 0;
+}
+
+/* A folded node says how much it hides, after its own text: the plugin's
+ * ellipsis and count. */
+.to-o-count::before {
+  content: '…';
+  margin-right: 0.3em;
+}
+.vp-doc .to-o-on .to-o-folded::after {
+  content: '… ' attr(data-to-hidden);
+}
+.vp-doc .to-o-on .to-o-folded::after,
+.to-o-count {
+  display: inline-block;
+  margin-left: 0.4em;
+  font-family: var(--vp-font-family-base);
+  font-size: 0.85em;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--vp-c-text-3);
+  user-select: none;
+}
+
+/* Zooming into an item leaves its ancestor items in the flow, because they
+ * contain it; their own text and indentation step aside. */
+.vp-doc .to-o-on li.to-o-zoom-anc {
+  font-size: 0;
+  line-height: 0;
+  margin: 0;
+}
+.vp-doc .to-o-on li.to-o-zoom-anc > :is(ul, ol) {
+  font-size: 1rem;
+  line-height: 1.65;
+}
+.vp-doc .to-o-on li.to-o-zoom-anc > :not(ul, ol) {
+  display: none;
+}
+.vp-doc .to-o-on .to-o-zoom-list,
+.vp-doc .to-o-on .to-o-list li > .to-o-zoom-list {
+  margin-left: 0 !important;
+}
+.vp-doc .to-o-on .to-o-list.to-o-zoom-list {
+  margin-left: var(--to-o-gutter) !important;
+}
+
+/* ---- The layer over them ------------------------------------------- */
+
+.to-o-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.to-o-layer button {
+  position: absolute;
+  pointer-events: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--to-o-mark);
+}
+
+.to-o-mark {
+  width: 1.15rem;
+  height: 1.15rem;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+}
+.to-o-mark > span {
+  width: var(--to-o-icon);
+  height: var(--to-o-icon);
+  display: block;
+}
+.to-o-mark.is-item > span {
+  width: 0.7rem;
+  height: 0.7rem;
+}
+.to-o-mark.is-ordinal {
+  width: auto;
+  min-width: 1.15rem;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  transform: translate(calc(-100% + 0.5rem), -50%);
+  white-space: nowrap;
+}
+.to-o-mark:hover {
+  color: var(--to-o-accent);
+  background: var(--vp-c-brand-soft);
+}
+.to-o-mark.is-folded {
+  color: var(--vp-c-text-1);
+}
+.to-o-mark.is-path {
+  color: color-mix(in srgb, var(--to-o-accent) 55%, var(--to-o-mark));
+}
+.to-o-mark.is-current {
+  color: var(--to-o-accent);
+}
+
+.to-o-chevron {
+  width: 0.9rem;
+  height: 0.9rem;
+  transform: translate(calc(-50% - var(--to-o-unit) / 2), -50%);
+  opacity: 0;
+  transition: opacity 0.12s, transform 0.12s;
+}
+.to-o-chevron.is-active,
+.to-o-chevron.is-folded,
+.to-o-chevron:hover,
+.to-o-chevron:focus-visible {
+  opacity: 1;
+}
+.to-o-chevron.is-folded {
+  transform: translate(calc(-50% - var(--to-o-unit) / 2), -50%) rotate(-90deg);
+  color: var(--vp-c-text-2);
+}
+.to-o-chevron:hover {
+  color: var(--to-o-accent);
+}
+
+.to-o-guide {
+  width: 11px;
+  transform: translateX(-50%);
+  border-radius: 0;
+}
+.to-o-guide::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--to-o-guide);
+}
+.to-o-guide.is-path::before {
+  background: var(--to-o-accent);
+  opacity: 0.55;
+}
+.to-o-guide:hover::before {
+  background: var(--to-o-accent);
+  opacity: 1;
+  width: 2px;
+  left: 4.5px;
+}
+
+/* The line a followed backlink led to, pointed out for a moment. */
+.to-o-flash {
+  position: absolute;
+  border-radius: 6px;
+  background: var(--vp-c-brand-soft);
+  box-shadow: 0 0 0 1px var(--vp-c-brand-2);
+  pointer-events: none;
+  animation: to-o-flash 1.5s ease-out forwards;
+}
+@keyframes to-o-flash {
+  0% {
+    opacity: 0;
+  }
+  12%,
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes to-o-flash-still {
+  0%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.to-o-tip {
+  position: fixed;
+  z-index: 40;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+  color: var(--vp-c-bg);
+  background: var(--vp-c-text-1);
+  pointer-events: none;
+}
+.to-o-tip.is-above {
+  transform: translate(-50%, -100%);
+}
+.to-o-tip.is-right {
+  transform: translateY(-50%);
+}
+
+/* ---- Structured backlinks ------------------------------------------- */
+
+.to-o-backlinks {
+  margin-top: 4rem;
+  font-size: 15px;
+}
+.to-o-backlinks button {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.to-o-bl-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  width: 100%;
+  margin-bottom: 0.6rem;
+  color: var(--vp-c-text-2);
+}
+.to-o-bl-icon,
+.to-o-bl-chevron {
+  width: 0.9rem;
+  height: 0.9rem;
+  flex: none;
+  color: var(--vp-c-text-3);
+}
+.to-o-bl-header .to-o-bl-icon {
+  box-sizing: content-box;
+  padding: 0 calc((var(--to-o-gutter) - 0.9rem) / 2);
+}
+.to-o-bl-header .to-o-bl-chevron {
+  position: absolute;
+  left: calc(var(--to-o-gutter) / 2 - var(--to-o-unit) / 2);
+  top: 50%;
+  translate: -50% -50%;
+  opacity: 0;
+}
+.to-o-bl-header:is(:hover, :focus-visible) .to-o-bl-chevron,
+.to-o-backlinks.is-folded .to-o-bl-header .to-o-bl-chevron {
+  opacity: 1;
+}
+.to-o-bl-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+.to-o-bl-totals {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--vp-c-text-3);
+}
+.to-o-backlinks.is-folded .to-o-bl-header,
+.to-o-backlinks.is-folded .to-o-bl-icon {
+  color: var(--to-o-accent);
+}
+.to-o-backlinks.is-folded .to-o-bl-header .to-o-bl-chevron {
+  color: var(--to-o-accent);
+}
+.to-o-bl-group.is-hit {
+  animation: to-o-hit 1.4s ease-out;
+}
+@keyframes to-o-hit {
+  0%,
+  40% {
+    border-color: var(--vp-c-brand-1);
+    box-shadow: 0 0 0 3px var(--vp-c-brand-soft);
+  }
+}
+.to-o-bl-group {
+  margin-bottom: 0.6rem;
+  padding: 0.5rem 0.75rem 0.6rem;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  background: var(--vp-c-bg-soft);
+}
+.to-o-bl-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  width: 100%;
+}
+.to-o-bl-chevron {
+  align-self: center;
+  transition: transform 0.12s;
+}
+.to-o-bl-chevron.is-folded {
+  transform: rotate(-90deg);
+}
+.to-o-bl-note {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--vp-c-text-1);
+}
+.to-o-bl-folder,
+.to-o-bl-count {
+  font-size: 12.5px;
+  color: var(--vp-c-text-3);
+}
+.to-o-bl-count {
+  margin-left: auto;
+}
+.to-o-bl-rows {
+  margin-top: 0.25rem;
+}
+.to-o-bl-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  padding: 0.12rem 0.25rem 0.12rem calc(var(--to-o-d, 0) * var(--to-o-unit));
+  border-radius: 4px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+.to-o-bl-row:hover {
+  background: var(--vp-c-default-soft);
+}
+.to-o-bl-row.is-dim,
+.to-o-bl-row.is-dim .to-o-bl-mark {
+  color: var(--vp-c-text-3);
+}
+.to-o-bl-guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--to-o-g) * var(--to-o-unit) + var(--to-o-gutter) / 2);
+  width: 1px;
+  background: var(--to-o-guide);
+}
+.to-o-bl-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--to-o-gutter);
+  height: 1.6em;
+  color: var(--to-o-mark);
+}
+.to-o-bl-mark > span {
+  width: var(--to-o-icon);
+  height: var(--to-o-icon);
+  display: block;
+}
+.to-o-bl-mark.is-item > span {
+  width: 0.7rem;
+  height: 0.7rem;
+}
+.to-o-bl-mark.is-ordinal {
+  width: auto;
+  min-width: var(--to-o-gutter);
+  padding-right: 0.3rem;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.to-o-bl-text {
+  min-width: 0;
+}
+.to-o-bl-text a {
+  color: var(--vp-c-brand-1);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.to-o-bl-text code {
+  font-size: 0.875em;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: var(--vp-c-default-soft);
+}
+
+/* ---- Backlinks in the aside ---------------------------------------- */
+
+.to-o-aside-bl {
+  margin-top: 1.25rem;
+  padding-left: 1rem;
+  border-left: 1px solid var(--vp-c-divider);
+  font-size: 13px;
+}
+.to-o-aside-bl a.to-o-aside-title {
+  font-style: normal;
+  color: var(--vp-c-text-1);
+}
+.to-o-aside-bl a.to-o-aside-title:hover {
+  color: var(--vp-c-brand-1);
+}
+.to-o-aside-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin: 0;
+  line-height: 32px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.to-o-aside-bl ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.to-o-aside-bl a {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  line-height: 28px;
+  font-style: italic;
+  color: var(--vp-c-text-2);
+  transition: color 0.2s;
+}
+.to-o-aside-bl a:hover {
+  color: var(--vp-c-text-1);
+}
+.to-o-aside-note {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.to-o-aside-count {
+  margin-left: auto;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--vp-c-text-3);
+}
+
+/* While zoomed, the table of contents says where the view is. */
+.VPDocAsideOutline.to-o-zoomed .outline-link {
+  opacity: 0.4;
+}
+.VPDocAsideOutline.to-o-zoomed .outline-link:hover {
+  opacity: 0.8;
+}
+.VPDocAsideOutline.to-o-zoomed .outline-link:is(.to-o-in-zoom, .to-o-zoom-here) {
+  opacity: 1;
+}
+.VPDocAsideOutline.to-o-zoomed .outline-link.to-o-zoom-here {
+  color: var(--vp-c-brand-1);
+  font-weight: 600;
+}
+.VPDocAsideOutline.to-o-zoomed .outline-marker {
+  display: none;
+}
+
+/* A zoom into a table takes the aside's width. */
+html.to-o-wide .VPDoc .aside {
+  display: none;
+}
+html.to-o-wide .vp-doc :is(th, td) {
+  padding: 8px 10px;
+}
+html.to-o-wide .VPDoc .content,
+html.to-o-wide .VPDoc.has-aside .content-container {
+  max-width: none;
+}
+
+/* ---- Invitations ----------------------------------------------------- */
+
+.to-o-invite-btn {
+  margin-right: 0.75rem;
+  padding: 0.3rem 0.9rem;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--vp-button-brand-text);
+  background: var(--vp-button-brand-bg);
+  transition: background-color 0.2s;
+}
+.to-o-invite-btn:hover {
+  background: var(--vp-button-brand-hover-bg);
+}
+.to-o-invite-where,
+.vp-doc .custom-block.to-o-invite .to-o-invite-note {
+  font-size: 13px;
+  color: var(--vp-c-text-2);
+}
+
+.to-o-nudge,
+.to-o-try {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 5px 6px 5px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--vp-c-white);
+  background: var(--vp-c-brand-3);
+  box-shadow: var(--vp-shadow-2);
+}
+.to-o-nudge::after,
+.to-o-try::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  border: 6px solid transparent;
+  border-top-color: var(--vp-c-brand-3);
+}
+.to-o-nudge button,
+.to-o-layer .to-o-try button {
+  position: static;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 4px;
+  font-size: 15px;
+  line-height: 1;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.8;
+}
+.to-o-nudge button:hover,
+.to-o-layer .to-o-try button:hover {
+  opacity: 1;
+  background: rgb(255 255 255 / 0.18);
+}
+.to-o-nudge {
+  position: fixed;
+  right: 8px;
+  bottom: 46px;
+  z-index: 21;
+  max-width: calc(100vw - 16px);
+}
+/* Over the outline icon, third from the right of the bar. */
+.to-o-nudge::after {
+  right: 66px;
+}
+.to-o-try {
+  position: absolute;
+  pointer-events: auto;
+  white-space: nowrap;
+  transform: translate(-16px, calc(-100% - 16px));
+}
+.to-o-try.is-fold {
+  transform: translate(calc(-16px - var(--to-o-unit) / 2), calc(-100% - 16px));
+}
+.to-o-try::after {
+  left: 10px;
+}
+.vp-doc .to-o-on .to-o-hinted.to-o-node {
+  margin-top: 3.4rem;
+}
+.to-o-status button.is-nudged,
+.to-o-chevron.is-hinted,
+.to-o-mark.is-hinted {
+  color: var(--vp-c-brand-1);
+  border-radius: 4px;
+  animation: to-o-pulse 1.6s ease-out infinite;
+}
+.to-o-chevron.is-hinted {
+  opacity: 1;
+}
+@keyframes to-o-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--vp-c-brand-1) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 9px transparent;
+  }
+}
+
+/* ---- The sidebar as a tree ------------------------------------------ */
+
+.VPSidebar .VPSidebarItem.level-1 > .items,
+.VPSidebar .VPSidebarItem.level-2 > .items {
+  padding-left: 14px;
+  border-left: 0;
+}
+.VPSidebar .VPSidebarItem.level-1.collapsible > .item .text,
+.VPSidebar .VPSidebarItem.level-1:has(> .items) > .item .text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vp-c-text-1);
+}
+
+@media (max-width: 640px) {
+  :root {
+    --to-o-unit: 1.4rem;
+    --to-o-gutter: 1.3rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .to-o-flash {
+    animation-name: to-o-flash-still;
+  }
+  .to-o-status button.is-nudged,
+  .to-o-chevron.is-hinted,
+  .to-o-mark.is-hinted {
+    animation: none;
+  }
+  .to-o-chevron,
+  .to-o-bl-chevron,
+  .to-o-status :is(button, a)::after {
+    transition: none;
+  }
+}
+@media print {
+  .to-o-status,
+  .to-o-nudge,
+  .to-o-invite,
+  .to-o-trail,
+  .to-o-tip,
+  .to-o-backlinks,
+  .to-o-layer {
+    display: none;
+  }
+}
