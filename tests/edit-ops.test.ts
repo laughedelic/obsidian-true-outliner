@@ -1149,6 +1149,11 @@ describe('a seam is judged on the kind the re-parse will see', () => {
       kindAsWritten(makeNode({ kind: 'heading', setext: true, lines: ['Title', underline] }));
     expect(setextAt('===')).toBe('heading');
     expect(setextAt('    ===')).toBe('paragraph');
+    // A node with no lines has no column to demote it from, and keeps its kind:
+    // `normalizeBoundaries` runs on trees an operation built, not only on parsed
+    // ones.
+    expect(kindAsWritten(makeNode({ kind: 'quote', lines: [] }))).toBe('quote');
+    expect(kindAsWritten(makeNode({ kind: 'heading', setext: true, lines: [] }))).toBe('heading');
   });
 
   it('a quote re-indented into a heading scope keeps the node that follows it', () => {
