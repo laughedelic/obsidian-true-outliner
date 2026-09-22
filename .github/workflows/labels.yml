@@ -1,0 +1,43 @@
+name: Label set
+
+# Reconciles the repository's labels with `.github/labels.yml`. The API creates a
+# label implicitly when one is added to an issue, but only as a grey swatch with
+# no description, which loses both the colour families the axes are read by and
+# the sentence saying what each value means.
+#
+# A delete takes the label off every issue carrying it, so a rename belongs in
+# that file's `aliases` and a change worth checking first goes through the
+# dry-run dispatch.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/labels.yml
+      - scripts/sync-labels.mjs
+      - .github/workflows/labels.yml
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Report the plan without applying it"
+        type: boolean
+        default: false
+
+permissions:
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+
+      - run: npm ci
+
+      - run: node scripts/sync-labels.mjs ${{ inputs.dry-run && '--dry-run' || '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

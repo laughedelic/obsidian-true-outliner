@@ -34,8 +34,9 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import { walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
+import { parse } from '../src/parse';
 import { forEachNodeWithLine } from '../src/locate';
-import { indent, moveDown, moveUp, outdent, type OpOutput } from '../src/ops';
+import { indent, insertSubtrees, moveDown, moveUp, outdent, type OpOutput } from '../src/ops';
 import type { OpResult } from '../src/result';
 import { arbLabeledDoc, labelOf } from './group-oracle';
 
@@ -187,4 +188,82 @@ describe('nothing above what an operation relocates is rewritten', () => {
       expect(withMarkerAbove).toBeGreaterThan(contract.minWithMarkerAbove);
     });
   }
+});
+
+/**
+ * The other half of the same contract, for the operation a fence line cannot
+ * express.
+ *
+ * The property above asks what stays put ABOVE the operand. A paste has no
+ * operand to fence at — it inserts where it is pointed, and the markers at
+ * risk are the ones BELOW the insertion, which is exactly where the reported
+ * defect landed (#159: `10. ten` rewritten to `8. ten`). So the fence is the
+ * insertion point and the direction is reversed.
+ *
+ * The payloads are the ones that cannot JOIN a run at the destination: an
+ * arriving list item keeps its own marker, and an atom stays an atom. That is
+ * what makes the assertion total rather than conditional — nothing arrives
+ * that belongs to any run, so no run's membership changes and no marker in the
+ * document has any reason to move.
+ *
+ * A heading or a paragraph payload is deliberately NOT here. Those CONVERT into
+ * list items, and a converted node takes the destination's own list style, so
+ * one landing in an ordered run arrives as a member of it and legitimately
+ * pushes the items below — the property would have to become a calculation
+ * instead of an invariant. `ops.test.ts` carries that direction by example.
+ *
+ * Restricted to already-consecutive sources for the same reason the property
+ * above is: a renumbering normalizes, and normalizing a run that reads 8, 9, 9
+ * is the requirement working rather than failing.
+ */
+describe('a paste that cannot JOIN a run rewrites no ordered marker', () => {
+  const PAYLOADS = ['- x\n', '- x\n  - y\n', '* y\n', '> quote\n'];
+
+  it('leaves every ordered marker in the document byte-identical', () => {
+    let accepted = 0;
+    let withMarkerBelow = 0;
+    fc.assert(
+      fc.property(arbLabeledDoc(), fc.nat(), fc.nat(), (doc, n, p) => {
+        if (!alreadyConsecutive(doc.children)) return true;
+        const anchors = [...walkNodes(doc)].filter((node) => labelOf(node) !== undefined);
+        if (anchors.length === 0) return true;
+        const anchor = anchors[n % anchors.length]!;
+
+        const before = byLabel(doc);
+        const anchorLine = before.get(labelOf(anchor)!)!.line;
+        const payload = parse(PAYLOADS[p % PAYLOADS.length]!).children;
+        const result = insertSubtrees(doc, anchor.id, payload, 'after');
+        if (!result.ok) return true;
+        accepted++;
+        if (
+          [...walkNodes(doc)].some((node) => {
+            const label = labelOf(node);
+            return (
+              orderedNumber(node) !== undefined &&
+              label !== undefined &&
+              before.get(label)!.line > anchorLine
+            );
+          })
+        ) {
+          withMarkerBelow++;
+        }
+
+        // Every labelled node, above and below alike: the payload belongs to no
+        // run, so nothing in the destination has a reason to change. A node that
+        // VANISHED fails too, for the reason the property above states.
+        const after = byLabel(result.value.doc);
+        for (const [label, was] of before) {
+          const now = after.get(label);
+          if (now === undefined || now.text !== was.text) return false;
+        }
+        return true;
+      }),
+      { numRuns: RUNS },
+    );
+    // Floors on what the property got to assert, as above: a suite that
+    // degrades to "everything was rejected" and the subtler version where no
+    // accepted case carried an ordered marker below the anchor at all.
+    expect(accepted).toBeGreaterThan(1500);
+    expect(withMarkerBelow).toBeGreaterThan(700);
+  });
 });

@@ -75,17 +75,100 @@ async function activeMarks(): Promise<Mark[]> {
 
 const headingsOf = (marks: readonly Mark[]) => marks.filter((m) => m.kind === 'heading');
 
-/** Where each heading's text starts, pane by pane — what must not move. */
-function headingTextLefts(): Promise<number[][]> {
+/**
+ * Where each line's text actually starts, pane by pane, relative to that pane's
+ * own left edge: the first ink that is not chrome, measured as a range over the
+ * text node — the walker `57-marker-gap.e2e.ts` reads a row's text column with.
+ *
+ * Not `padding-inline-start`, which is the line's COLUMN and not its text
+ * origin (`lineBoxes` in helpers.ts records the difference, measured): a
+ * marker's own width, margin or offset could move the text while the column
+ * stood still, and this case exists to catch exactly that.
+ *
+ * The caret is parked off every heading before a reading is taken
+ * (`parkedTextStarts`), because Live Preview reveals a heading's `#` syntax on
+ * the caret's own line, and a revealed `## ` moves that line's words with no
+ * chrome moving at all. CI read that as a change.
+ */
+function textStarts(): Promise<number[][]> {
   return browser.execute(() =>
     Array.from(document.querySelectorAll<HTMLElement>('.workspace-leaf .cm-content'))
       .filter((pane) => pane.getBoundingClientRect().width > 0)
-      .map((pane) =>
-        Array.from(pane.querySelectorAll<HTMLElement>('.cm-line .cm-header'))
-          .filter((el) => el.closest('.to-backlinks, .to-zoom-trail') === null)
-          .map((el) => +el.getBoundingClientRect().left.toFixed(2)),
-      ),
+      .map((pane) => {
+        const base = pane.getBoundingClientRect().left;
+        const starts: number[] = [];
+        for (const line of Array.from(pane.querySelectorAll<HTMLElement>('.cm-line'))) {
+          const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+          const range = document.createRange();
+          let x: number | null = null;
+          let node: Node | null = walker.nextNode();
+          while (node) {
+            const chrome = node.parentElement?.closest(
+              '.to-decor-marker-icon, .cm-formatting, .cm-hmd-list-indent, .task-list-label',
+            );
+            const raw = node.textContent ?? '';
+            if (!chrome && raw.trim() !== '') {
+              range.setStart(node, raw.length - raw.trimStart().length);
+              range.setEnd(node, raw.length);
+              for (const r of Array.from(range.getClientRects())) {
+                if (r.width === 0) continue;
+                const left = +(r.left - base).toFixed(2);
+                if (x === null || left < x) x = left;
+              }
+            }
+            node = walker.nextNode();
+          }
+          if (x !== null) starts.push(x);
+        }
+        return starts;
+      }),
   );
+}
+
+/** The line a text-origin reading parks the caret on: a paragraph, so no
+ * heading is showing its `#` syntax while the reading is taken. */
+const PARK_LINE = 14;
+
+async function parkedTextStarts(): Promise<number[][]> {
+  await h.setCursorSettled(PARK_LINE, 0);
+  return textStarts();
+}
+
+/**
+ * Read until the value holds still across two samples — and, where `was` is
+ * given, until it has also left the value it started from.
+ *
+ * A settings write repaints every open editor and every footer, and those
+ * repaints land on render passes this side cannot see. A fixed pause reads
+ * whatever they have got to — enough on a developer machine, and not on a CI
+ * runner with fifteen spec files in flight, where the trail was still drawing
+ * the style before the change.
+ *
+ * Both halves are needed. Holding still alone can hold still at the OLD value,
+ * two samples taken before the repaint; leaving the old value alone can return
+ * a half-drawn state, one pane repainted and the other not.
+ */
+async function readSettled<T>(read: () => Promise<T>, was?: T): Promise<T> {
+  const target = was === undefined ? undefined : JSON.stringify(was);
+  let last = await read();
+  let previous = JSON.stringify(last);
+  await browser.waitUntil(
+    async () => {
+      last = await read();
+      const now = JSON.stringify(last);
+      const held = now === previous;
+      const moved = target === undefined || now !== target;
+      previous = now;
+      return held && moved;
+    },
+    {
+      timeout: h.waitBudget(8000),
+      interval: 150,
+      timeoutMsg:
+        `never settled${target === undefined ? '' : ` away from ${target}`}, last read: ${previous}`,
+    },
+  );
+  return last;
 }
 
 /** The zoom trail's inline heading glyphs, in every visible pane. */
@@ -132,7 +215,7 @@ describe('heading level markers', function () {
       ['hash', 'subscript'],
     ] as const) {
       await setStyle(style[0], style[1]);
-      const marks = await activeMarks();
+      const marks = await readSettled(activeMarks);
       const headings = headingsOf(marks);
       expect({ style, levels: headings.map((m) => m.level) }).toEqual({
         style,
@@ -150,7 +233,7 @@ describe('heading level markers', function () {
     await openLevels();
     for (const glyph of ['H', 'hash'] as const) {
       await setStyle(glyph, 'none');
-      const headings = headingsOf(await activeMarks());
+      const headings = headingsOf(await readSettled(activeMarks));
       expect(headings.map((m) => m.level)).toEqual(['1', '2', '3', '4', '5', '6']);
       expect({ glyph, distinct: new Set(headings.map((m) => m.svg)).size }).toEqual({ glyph, distinct: 1 });
     }
@@ -183,7 +266,7 @@ describe('heading level markers', function () {
     await browser.pause(300);
     expect((await h.getBuffer()).split('\n')[0]).toBe('### Title');
 
-    const after = headingsOf(await activeMarks());
+    const after = headingsOf(await readSettled(activeMarks));
     expect(after[0]!.level).toBe('3');
     expect(after[0]!.svg).toBe(levelThree);
   });
@@ -230,8 +313,8 @@ describe('heading level markers', function () {
         ['hash', 'none'],
       ] as const) {
         await setStyle(style[0], style[1]);
-        const editor = headingsOf(await activeMarks());
-        const preview = await previewMark();
+        const editor = headingsOf(await readSettled(activeMarks));
+        const preview = await readSettled(previewMark);
         const level = preview?.level ?? '';
         expect({ style, svg: preview?.svg }).toEqual({
           style,
@@ -282,15 +365,15 @@ describe('heading level markers', function () {
     });
     await browser.pause(300);
 
-    const marksBefore = await editorMarks();
-    const trailBefore = await trailGlyphs();
-    const textBefore = await headingTextLefts();
+    const marksBefore = await readSettled(editorMarks);
+    const trailBefore = await readSettled(trailGlyphs);
+    const textBefore = await parkedTextStarts();
     expect(marksBefore.length).toBe(2); // two panes, or this proves nothing
     expect(trailBefore.length).toBeGreaterThan(0);
 
     await setStyle('hash', 'subscript');
 
-    const marksAfter = await editorMarks();
+    const marksAfter = await readSettled(editorMarks, marksBefore);
     for (const [pane, marks] of marksAfter.entries()) {
       const before = headingsOf(marksBefore[pane]!);
       const after = headingsOf(marks);
@@ -305,8 +388,8 @@ describe('heading level markers', function () {
     }
     // The trail's `# One` is drawn as the first pane now draws its own level 1.
     const levelOne = headingsOf(marksAfter[0]!).find((m) => m.level === '1')!.svg;
-    expect(await trailGlyphs()).toEqual(trailBefore.map(() => levelOne));
-    expect(await headingTextLefts()).toEqual(textBefore);
+    expect(await readSettled(trailGlyphs, trailBefore)).toEqual(trailBefore.map(() => levelOne));
+    expect(await parkedTextStarts()).toEqual(textBefore);
 
     await browser.executeObsidian(({ app }) => {
       const leaves = app.workspace.getLeavesOfType('markdown');
@@ -337,7 +420,7 @@ describe('heading level markers', function () {
         return svg?.innerHTML ?? null;
       });
     const editorLevel = async (level: string): Promise<string> =>
-      headingsOf(await activeMarks()).find((m) => m.level === level)!.svg;
+      headingsOf(await readSettled(activeMarks)).find((m) => m.level === level)!.svg;
 
     await h.openNote(target);
     await h.setOutlineMode(true);
@@ -361,11 +444,10 @@ describe('heading level markers', function () {
     await h.setCursorSettled(2, 6);
     await h.runCommand('zoom-in');
     await browser.pause(300);
-    expect(await trailGlyphs()).toEqual([oldOne]);
+    expect(await readSettled(trailGlyphs)).toEqual([oldOne]);
 
     await setStyle('hash', 'beside');
-    const trailAfter = await trailGlyphs();
-    expect(trailAfter).not.toEqual([oldOne]);
+    const trailAfter = await readSettled(trailGlyphs, [oldOne]);
     await h.runCommand('zoom-clear');
     await browser.pause(300);
     expect(trailAfter).toEqual([await editorLevel('1')]);

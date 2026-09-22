@@ -346,13 +346,16 @@ describe('dropSeams', () => {
     expect(underMaterials.candidates.map((c) => [c.depth, c.firstLine, c.level ?? null])).toEqual([
       [0, '# Plan', 1],
       [1, '## Plan', 2],
-      [2, '### Plan', null],
+      [2, '- ## Plan', null],
     ]);
     // Written at level two, it takes every child of Materials — the quote too.
     const asPeer = underMaterials.candidates[1]!;
     expect(asPeer.absorbs).toEqual({ from: 10, to: 16 });
+    // One level in, it lands among Materials' list items, so it joins their
+    // list as an item carrying its `##` run (the heading rule's list arm),
+    // and a list item takes nothing in.
     const asChild = underMaterials.candidates[2]!;
-    expect(asChild.absorbs).toEqual({ from: 10, to: 16 });
+    expect(asChild.absorbs).toBeUndefined();
   });
 
   it('merges the seams either side of the run, and keeps the place it already has', () => {

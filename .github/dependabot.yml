@@ -1,0 +1,39 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels: [dependencies, area/ci]
+    commit-message:
+      prefix: "deps(npm): "
+    # The groups follow what breaks together
+    groups:
+      obsidian:
+        patterns: ["obsidian", "eslint-plugin-obsidianmd"]
+      codemirror:
+        patterns: ["@codemirror/*"]
+      e2e:
+        patterns: ["@wdio/*", "webdriverio", "wdio-obsidian-*", "mocha", "@types/mocha"]
+      unit-tests:
+        patterns: ["vitest", "@vitest/*", "vite", "fast-check"]
+      lint-build:
+        patterns: ["eslint", "typescript", "typescript-eslint", "esbuild", "builtin-modules", "@types/node"]
+      other-patches:
+        patterns: ["*"]
+        update-types: [patch]
+      # Everything else gets a separate update PR
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels: [dependencies, area/ci]
+    commit-message:
+      prefix: "deps(ci): "
+    groups:
+      actions:
+        patterns: ["*"]

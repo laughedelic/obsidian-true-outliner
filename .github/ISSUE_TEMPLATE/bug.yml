@@ -1,0 +1,89 @@
+name: Bug report
+description: Anything the plugin does that it should not — appearance, pointer, settings, performance
+labels: [kind/bug, needs/repro]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For a keystroke that changes the document the wrong way, the editing
+        behaviour form asks the three questions that place it fastest. This one
+        is for everything else.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What sort of problem is it
+      description: Our best guess is enough; it only decides who looks first.
+      options:
+        - How something is drawn (guides, markers, indentation, a theme)
+        - A click, a drag or a hover
+        - A setting, a command, or the plugin's own surfaces
+        - Folding, zoom, or the backlinks footer
+        - Speed, a freeze, or a crash
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens, and what we expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reach it
+      description: |
+        The steps from an empty note. Where a document is part of it, paste its
+        markdown source rather than a description of it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: media
+    attributes:
+      label: Screenshot or recording
+      description: For anything visual this usually says more than the paragraph above. Drag the file in.
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      description: Settings, Community plugins, True Outliner.
+      placeholder: "0.12.1"
+    validations:
+      required: true
+
+  - type: input
+    id: obsidian-version
+    attributes:
+      label: Obsidian version
+      description: Settings, About, Current version.
+      placeholder: "1.12.7"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options: [macOS, Windows, Linux, iOS, Android]
+    validations:
+      required: true
+
+  - type: input
+    id: theme
+    attributes:
+      label: Theme
+      description: Several defects so far were specific to one theme, so this matters even where it seems unrelated.
+      value: Default
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: The plugin settings in play, other plugins involved, whether it survives a restart.

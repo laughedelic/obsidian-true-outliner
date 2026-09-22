@@ -27,6 +27,15 @@ cache makes an unchanged build sub-second, so this doesn't need a separate `--bu
 "did you remember to rebuild" step; `docker compose run` alone, without `--build`, would silently
 keep using a stale image instead of picking up a `Dockerfile`/`package.json` change.
 
+What that rebuild costs in disk is a property of the layer order and the build context, and both
+are load-bearing — see [`docs/research/e2e-docker-disk-growth.md`](../../docs/research/e2e-docker-disk-growth.md)
+for the measurements. `COPY . .` is the last layer, and `.dockerignore` excludes everything a run
+regenerates and everything that nests a checkout or machine-local state under the repo root
+(agent worktrees above all), so a repeat run stores nothing and a run after an edit stores one copy of the source
+tree. Adding an expensive `RUN` *below* that copy — a recursive `chown`/`chmod`, an install, a
+build — puts its whole output back on the per-invocation bill. Dangling images do still
+accumulate one per rebuild; `docker image prune -f` clears them.
+
 ## What's actually verified, not assumed
 
 Built from `node:26-bookworm` (matching CI's Node version) plus the Debian packages an Electron
@@ -68,7 +77,10 @@ it breaks the next host-side build, and can make git refuse the checkout as owne
 so an arbitrary host UID (which has no matching user in the image) can still write to them.
 
 **Dependencies are installed at image build time**, not on every run: `npm ci` happens inside the
-`Dockerfile`, baking Linux binaries (esbuild, etc.) into the image. At runtime,
+`Dockerfile`, baking Linux binaries (esbuild, etc.) into the image. It shares its `RUN` with the
+`chmod` that makes `node_modules` and the `.obsidian-cache` mount points writable by an arbitrary
+host UID, for the reason above: on its own, below the repo copy, that recursive mode change stored
+a second whole copy of `node_modules` on every invocation. At runtime,
 `docker-compose.yml` mounts an *anonymous* volume over `/workspace/node_modules`, shadowing the
 bind-mounted repo's `node_modules` — otherwise a macOS/Windows host's `node_modules`
 (wrong-platform native binaries) would sit in front of the image's. Anonymous, not named: it's

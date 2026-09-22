@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import { parse } from '../src/parse';
+import { kindAsWritten, parse, tailAsWritten } from '../src/parse';
 import { encode } from '../src/encode';
-import { treesEqual, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
+import { makeNode, treesEqual, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
 import { deleteSubtrees, insertSubtrees, mergeNodes, outdent, type OpOutput } from '../src/ops';
 import { applyEdits, type OpResult } from '../src/result';
 import { arbTree } from './generators';
@@ -1021,15 +1021,23 @@ describe('a converted heading gives its rank back', () => {
 });
 
 describe('a pasted heading takes the content that follows it', () => {
-  it('the anchor\'s following siblings join the pasted section', () => {
-    // Negative control: this is stated behaviour, not an accident — a change
-    // that relocated the insertion or demoted the heading would fail here.
+  it('a section landing among LIST ITEMS converts instead, and swallows nothing', () => {
+    // This scope is heading-bearing, but the rows at the insertion point are
+    // list items, so the payload joins their list rather than opening a section
+    // there. `- three` stays a sibling: a heading owns what follows it, and
+    // this is no longer a heading.
+    //
+    // It used to be, and `- three` used to end up INSIDE the pasted section —
+    // content that was never copied and never pointed at. That was recorded
+    // here as stated behaviour; the manual pass found the same rule splitting
+    // an ordered run under a heading, and both follow from reading the scope
+    // where the kind rule reads the neighbours.
     const result = insertAfter('# Project\n\n- one\n- two\n- three\n', '- two', SECTION);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    // `- three` is inside the pasted section now, a sibling of `- alpha`
-    // under `Some prose.` — content that was never copied or pointed at.
-    expect(shape(encode(result.value.doc))).toContain('      list-item: - three');
+    expect(shape(encode(result.value.doc))).toContain('  list-item: - three');
+    expect(shape(encode(result.value.doc))).not.toContain('      list-item: - three');
+    expect(shape(encode(result.value.doc))).toContain('  list-item: - ## Notes');
   });
 
   it('the level comes from the scope\'s heading siblings, so a level SKIP does not let it escape', () => {
@@ -1130,5 +1138,190 @@ describe('closure over the new arms', () => {
       const beforeCount = [...walkNodes(doc)].length;
       expect(after - beforeCount).toBe(payloadNodes);
     }
+  });
+});
+
+/**
+ * #158, the half that costs a node. `finalize` normalizes boundaries on the
+ * tree and then encodes it, so a node the re-encode has pushed past the
+ * opening margin is judged as the kind it WAS and read back as the kind its
+ * new column makes it — a `quote` needs no separator before a paragraph, and
+ * the paragraph it becomes at column 4 does.
+ */
+describe('a seam is judged on the kind the re-parse will see', () => {
+  it('kindAsWritten demotes only the margin-anchored kinds, and only past column 3', () => {
+    const at = (kind: OutlineNode['kind'], line: string): string =>
+      kindAsWritten(makeNode({ kind, lines: [line] }));
+    expect(at('hr', '   ---')).toBe('hr');
+    expect(at('hr', '    ---')).toBe('paragraph');
+    expect(at('hr', '\t***')).toBe('paragraph');
+    expect(at('quote', '   > q')).toBe('quote');
+    expect(at('quote', '\t> q')).toBe('paragraph');
+    expect(at('callout', '    > [!note] c')).toBe('paragraph');
+    expect(at('html', '    <div>')).toBe('paragraph');
+    expect(at('heading', '    ## H')).toBe('paragraph');
+    // A rule spelled with a marker and a space is a LIST ITEM past the margin,
+    // not a paragraph: `LIST_ITEM_RE` carries no margin of its own.
+    expect(at('hr', '   - - -')).toBe('hr');
+    expect(at('hr', '    - - -')).toBe('list-item');
+    expect(at('hr', '\t* * *')).toBe('list-item');
+    expect(at('hr', '    _ _ _')).toBe('paragraph');
+    // No opening margin of their own: a fence and a table row open anywhere.
+    expect(at('code', '\t```')).toBe('code');
+    expect(at('table', '\t| a |')).toBe('table');
+    expect(at('paragraph', '\ttext')).toBe('paragraph');
+    expect(at('list-item', '\t- item')).toBe('list-item');
+    // A setext heading carries its margin on the UNDERLINE, not on its text.
+    const setextAt = (underline: string): string =>
+      kindAsWritten(makeNode({ kind: 'heading', setext: true, lines: ['Title', underline] }));
+    expect(setextAt('===')).toBe('heading');
+    expect(setextAt('    ===')).toBe('paragraph');
+    // A node with no lines has no column to demote it from, and keeps its kind:
+    // `normalizeBoundaries` runs on trees an operation built, not only on parsed
+    // ones.
+    expect(kindAsWritten(makeNode({ kind: 'quote', lines: [] }))).toBe('quote');
+    expect(kindAsWritten(makeNode({ kind: 'heading', setext: true, lines: [] }))).toBe('heading');
+  });
+
+  it('a quote re-indented into a heading scope keeps the node that follows it', () => {
+    // The issue's case 2, with the payload landing before the section's own
+    // paragraph so the seam below it is bare.
+    const doc = parse('## H2\n\tbody\n');
+    const result = insertSubtrees(
+      doc,
+      byLine(doc, '\tbody').id,
+      parse('- item\n> quote\n').children,
+      'before',
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Before the fix: `## H2` / `\titem` / `\t> quote` / `\tbody`, which reads
+    // back as ONE paragraph carrying three lines — two payload nodes and the
+    // section's own paragraph gone. The list item keeps its kind under the
+    // heading, which can hold one.
+    expect(encode(result.value.doc)).toBe('## H2\n\t- item\n\t> quote\n\n\tbody\n');
+    expect(shape(encode(result.value.doc))).toBe(
+      ['h2: ## H2', '  list-item: - item', '  paragraph: > quote', '  paragraph: body'].join('\n'),
+    );
+  });
+
+  it('every margin-anchored atom re-indented past the margin keeps its neighbour', () => {
+    for (const atom of ['---', '***', '> quote', '> [!note] titled', '<div>']) {
+      const doc = parse('## H2\n\tbody\n');
+      const payload = parse(`- item\n${atom}\n`);
+      const expected = [...walkNodes(payload)].length;
+      const before = [...walkNodes(doc)].length;
+      const result = insertSubtrees(doc, byLine(doc, '\tbody').id, payload.children, 'before');
+      expect(result.ok, atom).toBe(true);
+      if (!result.ok) continue;
+      const after = [...walkNodes(result.value.doc)].length;
+      expect(after - before, atom).toBe(expected);
+    }
+  });
+
+  it('a rule that becomes a list item past the margin takes no separator', () => {
+    // `- - -` and `---` are one kind in the tree and two at column 4. The first
+    // opens a list item there, which claims nothing and needs no blank line;
+    // the second opens nothing and takes the paragraph rule. Both keep every
+    // node either way — this pins the encoding as the minimal one.
+    const doc = parse('## H2\n\tbody\n');
+    const result = insertSubtrees(
+      doc,
+      byLine(doc, '\tbody').id,
+      parse('- item\n- - -\n').children,
+      'before',
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('## H2\n\t- item\n\t- - -\n\tbody\n');
+    expect(shape(encode(result.value.doc))).toBe(
+      // The list item keeps its kind under the heading, and the rule is the
+      // next item of its list; every node is present either way.
+      ['h2: ## H2', '  list-item: - item', '  list-item: - - -', '  paragraph: body'].join('\n'),
+    );
+  });
+
+  it('the same seam below the anchor, not above it', () => {
+    // Half the rows `main` loses are `after` insertions; the seam is the one
+    // inside the payload there rather than the one below it.
+    const doc = parse('## H2\n\tbody\n');
+    const result = insertSubtrees(
+      doc,
+      byLine(doc, '\tbody').id,
+      parse('- item\n> quote\n').children,
+      'after',
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('## H2\n\tbody\n\n\titem\n\n\t> quote\n');
+    expect([...walkNodes(result.value.doc)].length - [...walkNodes(doc)].length).toBe(2);
+  });
+
+  it('tailAsWritten is the block a node\'s last line lands in', () => {
+    const tail = (kind: OutlineNode['kind'], lines: string[]): string =>
+      tailAsWritten(makeNode({ kind, lines })).kind;
+    // An html block runs to a blank line whatever it holds; past the margin
+    // its later lines open blocks of their own, and the last one is the tail.
+    expect(tail('html', ['\t<div>', '\t| a |', '\t| - |'])).toBe('table');
+    expect(tail('html', ['\t<div>', '\t- x'])).toBe('list-item');
+    expect(tail('html', ['\t<div>', '\tx', '\t</div>'])).toBe('paragraph');
+    // Inside the margin, and a single demoted line, a node is its own tail.
+    expect(tail('html', ['<div>', '| a |', '| - |'])).toBe('html');
+    expect(tail('quote', ['\t> q'])).toBe('paragraph');
+    // Lines that form no block at all are judged by the line that opens them.
+    expect(tail('quote', ['     ', '     '])).toBe('paragraph');
+  });
+
+  it('a demoted html block is separated below by the block its last line is in', () => {
+    // `<div>` over a table is ONE html block at column 0 and a paragraph and a
+    // TABLE at column 4, so the seam below it is a table's — the one the
+    // existing table has to be kept out of.
+    const doc = parse('## H2\n\t| b |\n\t| - |\n');
+    const result = insertSubtrees(
+      doc,
+      byLine(doc, '\t| b |').id,
+      parse('<div>\n| a |\n| - |\n').children,
+      'before',
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('## H2\n\t<div>\n\t| a |\n\t| - |\n\n\t| b |\n\t| - |\n');
+    expect(byLine(result.value.doc, '\t| b |').lines).toEqual(['\t| b |', '\t| - |']);
+  });
+
+  it('a table is separated from a following line that carries a pipe', () => {
+    // The table's own loop claims any line with a `|`, of whatever kind; a
+    // wikilink alias is enough to make a list item a row.
+    const doc = parse('- top\n  - see [[a|b]]\n');
+    const result = insertSubtrees(
+      doc,
+      byLine(doc, '  - see [[a|b]]').id,
+      parse('- alpha\n\n| x |\n| - |\n').children,
+      'before',
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('- top\n  - alpha\n\n  | x |\n  | - |\n\n  - see [[a|b]]\n');
+    expect(byLine(result.value.doc, '  - see [[a|b]]').kind).toBe('list-item');
+  });
+
+  it('a seam that stays inside the margin is left flush, as it was', () => {
+    // Control: the demotion is what adds a separator, not the kind pair. The
+    // same payload into the same scope, whose children sit at column 0 — the
+    // quote stays a quote, does not claim the paragraph below it, and the
+    // encoding stays minimal.
+    const doc = parse('## H2\npara\n');
+    const result = insertSubtrees(
+      doc,
+      byLine(doc, 'para').id,
+      parse('- item\n> quote\n').children,
+      'before',
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('## H2\n- item\n> quote\npara\n');
+    expect(shape(encode(result.value.doc))).toBe(
+      ['h2: ## H2', '  list-item: - item', '  quote: > quote', '  paragraph: para'].join('\n'),
+    );
   });
 });

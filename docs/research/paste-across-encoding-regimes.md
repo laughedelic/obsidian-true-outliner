@@ -409,6 +409,12 @@ tree BEFORE encoding, so the seam is judged on the node's current kind while the
 kind its new column gives it — a `quote` needs no separator before a paragraph, but the paragraph
 it becomes at column 4 does.
 
+The node-loss half is closed by `a-seam-judged-on-the-kind-the-parse-sees`, which separates a seam
+on the kind the re-parse will read: every payload node arrives, and the atom arrives as a
+paragraph. The kind loss itself is still open, and the measurement it was missing — CommonMark
+reads indentation RELATIVE to a block's container, so an `hr` at a list item's child column is an
+`hr` to `commonmark` and a paragraph to us — is in `docs/research/seams-across-a-re-indent`.
+
 ### P6. A converted heading is always a `-`, which splits an ordered run
 
 `headingAsListItem` hardcodes `{ type: 'bullet', marker: '-' }`, as the paragraph→list-item
@@ -422,7 +428,13 @@ A plain bullet payload does the same today, so the mechanism is old and the renu
 it is arguably the sharper bug of the two.
 
 Filed as [#159](https://github.com/laughedelic/obsidian-true-outliner/issues/159), with the
-plain-bullet control re-run as the thing that establishes it is not heading-specific.
+plain-bullet control re-run as the thing that establishes it is not heading-specific. The
+renumbering half is closed by `a-split-run-keeps-its-own-numbers`, which leaves a divided run's
+fragments on the numbers they already carry — `10. ten` comes through untouched
+(`docs/research/ordered-run-split-numbering`). The hardcoded `-` is gone too, in the layer above it
+(`a-converted-node-takes-the-destination-style`): a converted node takes the destination's list
+style, so it joins the run it lands in rather than dividing it, and the `*` case above stops
+making three rendered lists of one (`docs/research/destination-list-style`).
 
 ## What Obsidian does with a heading inside a list item (tasks 2.2, 2.3)
 

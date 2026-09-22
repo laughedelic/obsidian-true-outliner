@@ -11,7 +11,9 @@ name: Beta
 
 on:
   push:
-    branches-ignore: [main]
+    branches-ignore: 
+      - main
+      - dependabot/*
   delete:
   schedule:
     # Sweeps betas whose branch is gone. Weekly: this only reclaims clutter.

@@ -26,10 +26,17 @@ import { forEachNodeWithLine, nodeAtLine, nodeStartLine } from './locate';
 import { subtreeCoverOf, type Cover } from './escalate';
 import { posBefore, type LinePos } from './line-pos';
 import { encode, encodeLines } from './encode';
-import { parse, indentWidth } from './parse';
+import { parse, indentWidth, kindAsWritten, tailAsWritten } from './parse';
 import type { Edit, OpResult } from './result';
 import { accept, diffLines, reject } from './result';
-import { destinationHeadingLevel, forcedContentKind, listAttachesTo, nativeContentKind } from './rules';
+import {
+  DEFAULT_LIST_STYLE,
+  destinationHeadingLevel,
+  destinationListStyle,
+  forcedContentKind,
+  listAttachesTo,
+  nativeContentKind,
+} from './rules';
 import {
   childBaseCol,
   headingAsListItem,
@@ -364,21 +371,36 @@ function scopeSeparation(
   return parent.trailingGap;
 }
 
+/**
+ * A seam is judged on the kinds the RE-PARSE will see, not the kinds the tree
+ * holds. `finalize` normalizes boundaries before encoding, so a node an
+ * operation has re-indented past the opening margin is still a `quote` here
+ * and is already a paragraph by the time the text is read back — and two
+ * paragraphs with nothing between them are one paragraph. Asking
+ * `kindAsWritten` closes that gap: the separator is chosen for the node the
+ * document will actually contain.
+ */
 function needsBlankBetween(prev: OutlineNode, next: OutlineNode): boolean {
-  const leaf = subtreeFinalNode(prev);
-  if (leaf.trailingGap.length > 0) return false;
-  if (leaf.kind === 'paragraph') {
+  const final = subtreeFinalNode(prev);
+  if (final.trailingGap.length > 0) return false;
+  // Above the seam, the block the leaf's last line lands in; below it, the
+  // block the next node's first line opens. For a demoted `html` block those
+  // are different blocks of the same node.
+  const leaf = tailAsWritten(final);
+  const leafKind = leaf.kind;
+  const nextKind = kindAsWritten(next);
+  if (leafKind === 'paragraph') {
     return (
-      next.kind === 'paragraph' ||
-      next.kind === 'html' ||
-      (next.kind === 'heading' && next.setext === true) ||
-      (next.kind === 'hr' && (next.lines[0] ?? '').includes('-'))
+      nextKind === 'paragraph' ||
+      nextKind === 'html' ||
+      (nextKind === 'heading' && next.setext === true) ||
+      (nextKind === 'hr' && (next.lines[0] ?? '').includes('-'))
     );
   }
-  if (leaf.kind === 'list-item') {
-    const contentCol = indentWidth(leaf.lines[0] ?? '') + markerWidth(leaf);
+  if (leafKind === 'list-item') {
+    const contentCol = indentWidth(leaf.lines[0] ?? '') + markerWidthOf(leaf.lines[0] ?? '');
     return (
-      (next.kind === 'paragraph' || next.kind === 'html') &&
+      (nextKind === 'paragraph' || nextKind === 'html') &&
       indentWidth(next.lines[0] ?? '') >= contentCol
     );
   }
@@ -386,20 +408,19 @@ function needsBlankBetween(prev: OutlineNode, next: OutlineNode): boolean {
   // follows one is inside it until a separator says otherwise — whatever kind
   // that neighbour is. Surfaced by the payload-survival property: a payload
   // ending in `<div>…</div>` took the node after it into its own lines.
-  if (leaf.kind === 'html') return true;
-  // A quote, a callout and a table are RUNS of like-opening lines, and a run
-  // claims a following block that opens the same way: another `>` line is more
-  // quote, another `|` row is more table. A callout is a quote with its first
-  // line spoken for, so the two are one family here.
-  //
-  // Measured over every ordered pair of kinds at a bare seam: these, the
-  // paragraph cases above and html's are the whole of what merges. Stated as
-  // the families rather than as the five pairs, so a kind joining one of them
-  // is covered by the rule that already describes it.
-  if (leaf.kind === 'quote' || leaf.kind === 'callout') {
-    return next.kind === 'quote' || next.kind === 'callout';
+  if (leafKind === 'html') return true;
+  // A quote and a callout are RUNS of like-opening lines, and a run claims a
+  // following block that opens the same way: another `>` line is more quote.
+  // A callout is a quote with its first line spoken for, so the two are one
+  // family here. Stated as the family rather than as its pairs, so a kind
+  // joining it is covered by the rule that already describes it.
+  if (leafKind === 'quote' || leafKind === 'callout') {
+    return nextKind === 'quote' || nextKind === 'callout';
   }
-  if (leaf.kind === 'table') return next.kind === 'table';
+  // A table's loop claims every following line that carries a pipe, of
+  // whatever kind — a wikilink alias is enough — so the table family is every
+  // node whose first line has one, not only another table.
+  if (leafKind === 'table') return (next.lines[0] ?? '').includes('|');
   return false;
 }
 
@@ -433,7 +454,7 @@ function normalizeBoundaries(doc: OutlineDoc): OutlineDoc {
         firstChild &&
         fixed.kind === 'list-item' &&
         fixed.trailingGap.length === 0 &&
-        swallowedAsContinuation(firstChild.kind)
+        swallowedAsContinuation(kindAsWritten(firstChild))
       ) {
         fixed = { ...fixed, trailingGap: [''] };
       }
@@ -476,6 +497,13 @@ function orderedRuns(
 const lowestNumber = (run: readonly OutlineNode[]): number =>
   Math.min(...run.map((n) => (n.listStyle as { number: number }).number));
 
+/**
+ * The widest ordered marker the parser reads back (`\d{1,9}` in `parse.ts`).
+ * A tenth digit is not a list item at all, so a run that would need one has no
+ * renumbering available to it.
+ */
+const MAX_ORDERED_NUMBER = 999_999_999;
+
 /** Renumber each run consecutively from whatever `startOf` says it begins at. */
 function renumberRuns(
   nodes: readonly OutlineNode[],
@@ -484,6 +512,12 @@ function renumberRuns(
   const out = [...nodes];
   for (const { at, run } of orderedRuns(nodes)) {
     const startNumber = startOf(run);
+    // A run that cannot be written within the parser's own limit is left
+    // exactly as it stands. Its markers already parsed, so leaving them keeps
+    // closure; writing a tenth digit does not — the item re-parses as a
+    // PARAGRAPH, `markerWidthOf` falls back to 2 on the marker it can no longer
+    // read, and the subtree is re-indented to a column the item never had.
+    if (startNumber + run.length - 1 > MAX_ORDERED_NUMBER) continue;
     run.forEach((node, k) => {
       const number = startNumber + k;
       const style = node.listStyle as { type: 'ordered'; number: number; delimiter: '.' | ')' };
@@ -518,7 +552,8 @@ function renumberRuns(
  *
  * A run's start lives in the list, not in the run's own numbers. The start is
  * the start of the run that the resulting run's first member PRESENT IN
- * `before` belonged to, and that one rule answers every shape:
+ * `before` belonged to, and that one rule answers every shape where the start
+ * was LOST:
  *
  * - a REMOVAL can take the member that carried the start, so deleting the
  *   first two of `1. 2. 3.` must leave `1.`, not `3.`;
@@ -540,6 +575,30 @@ function renumberRuns(
  * of them falls back to the minimum and loses the run's start: `- p` / `5. a` /
  * (`10. kid`) / `6. b` produced `6. kid` / `7. b` instead of `5.` / `6.`.
  *
+ * A SPLIT is the one shape where the start was NOT lost, and the recovery must
+ * not reach it. A foreign marker moving in between two members — a pasted
+ * bullet, a reorder pushing a separator into the middle — divides a run without
+ * changing which numbers its members carry, so the tail fragment keeps its own:
+ * its start is the number its earliest surviving member already carried,
+ * counted back over whatever now precedes it in the fragment. `renumberRuns`
+ * still normalizes from there, so a source run that was not consecutive is
+ * normalized as it always was; what changes is only which number it starts
+ * from.
+ *
+ * Three conditions bound that, and each is the code below:
+ *
+ * - OUTSIDE the fragment, not merely still present. A reorder WITHIN a run
+ *   moves its members past one another and cuts nothing, so its earlier members
+ *   are all still there and the run's own start still answers.
+ * - A fragment that also ABSORBED another run's members is back under the join
+ *   rule: one sequence renumbers them whatever start it is handed.
+ * - Counting back below 1 means the fragment's own numbers do not fit either,
+ *   and the recovered start answers.
+ *
+ * So a start is recovered exactly where the fragment's own numbers cannot
+ * stand: the members carrying them are gone, members from elsewhere have
+ * arrived beside them, or there is no room left below them.
+ *
  * A run with NO member from `before` has no start to recover — an inserted
  * sequence landing where no run was — and keeps the lowest number its own
  * members carry. That fallback is deliberately the older policy, so a
@@ -550,14 +609,70 @@ function renumberOrderedAgainst(
   before: readonly OutlineNode[],
   after: readonly OutlineNode[],
 ): readonly OutlineNode[] {
-  const startByMember = new Map<number, number>();
-  for (const { run } of orderedRuns(before)) {
-    const start = lowestNumber(run);
-    for (const node of run) startByMember.set(node.id, start);
+  interface Membership {
+    /** Which run of `before` this node belonged to. */
+    readonly run: number;
+    /** That run's start. */
+    readonly start: number;
+    /** The number this node itself carried in `before`. */
+    readonly number: number;
+    /**
+     * That run's member ids in order, SHARED by every member of the run — one
+     * array per run rather than a prefix per member, which would make indexing
+     * a sibling list quadratic in the length of its longest run.
+     */
+    readonly runIds: readonly number[];
+    readonly index: number;
   }
+  const memberOf = new Map<number, Membership>();
+  orderedRuns(before).forEach(({ run }, runIndex) => {
+    const start = lowestNumber(run);
+    const runIds = run.map((node) => node.id);
+    run.forEach((node, index) => {
+      memberOf.set(node.id, {
+        run: runIndex,
+        start,
+        number: (node.listStyle as { number: number }).number,
+        runIds,
+        index,
+      });
+    });
+  });
+  // Membership of the SIBLING LIST, not of the tree: a node the operation moved
+  // to another level left this run as surely as a deleted one did, and the
+  // fragment it leaves behind is a remainder.
+  const stillHere = new Set(after.map((node) => node.id));
   return renumberRuns(after, (run) => {
-    const known = run.find((node) => startByMember.has(node.id));
-    return known ? startByMember.get(known.id)! : lowestNumber(run);
+    const knownIndex = run.findIndex((node) => memberOf.has(node.id));
+    if (knownIndex === -1) return lowestNumber(run);
+    const member = memberOf.get(run[knownIndex]!.id)!;
+    // Only a member left OUTSIDE this fragment says the run was divided. A
+    // permutation WITHIN a run moves its members past one another without
+    // cutting it, and every one of them is still here — which is the whole of
+    // what a reorder does to a run, and must keep reading the run's own start.
+    const here = new Set(run.map((node) => node.id));
+    let cutFromAbove = false;
+    for (let i = 0; i < member.index && !cutFromAbove; i++) {
+      const id = member.runIds[i]!;
+      cutFromAbove = stillHere.has(id) && !here.has(id);
+    }
+    // A fragment that also ABSORBED another run's members cannot keep its own
+    // numbers whatever it is handed: one list carries one sequence, so the
+    // absorbed members are renumbered either way and there is nothing left to
+    // protect. The join rule decides it, as it did before a split was ever
+    // distinguished — the earliest member present beforehand names the start.
+    const joined = run.some((node) => {
+      const other = memberOf.get(node.id);
+      return other !== undefined && other.run !== member.run;
+    });
+    if (!cutFromAbove || joined) return member.start;
+    // Counting back reaches below 1 only where more members have been prepended
+    // to the fragment than its own number leaves room for. Its numbers cannot
+    // stand there either, so the recovered start answers — which is also what
+    // keeps the markers out of `0.`, a number no run in the source was written
+    // from.
+    const ownStart = member.number - knownIndex;
+    return ownStart >= 1 ? ownStart : member.start;
   });
 }
 
@@ -727,15 +842,12 @@ function indentSurgery(
       ? firstSubheading
       : landing.children.length;
 
+  const landingContext = {
+    precedingSiblings: landing.children.slice(0, insertIndex),
+    followingSiblings: landing.children.slice(insertIndex),
+  };
   const newKind = isContent(node)
-    ? forcedContentKind(
-        {
-          parentKind: landing.kind,
-          precedingSiblings: landing.children.slice(0, insertIndex),
-          followingSiblings: landing.children.slice(insertIndex),
-        },
-        node.kind,
-      )
+    ? forcedContentKind({ parentKind: landing.kind, ...landingContext }, node.kind)
     : undefined;
   if (newKind === 'paragraph' && isTaskItem(node)) return reject('insertion-not-expressible');
   const moved = reencodeForDestination(
@@ -752,6 +864,7 @@ function indentSurgery(
     // still in `doc` — a vault whose one indented list item is the node being
     // moved would otherwise lose the evidence of its own unit.
     destinationIndent(doc, landing, landing.children, fallbackIndentUnit),
+    destinationListStyle(landingContext),
   );
 
   surgery = updateSiblings(surgery, [...parentPath, index - 1], (nodes) =>
@@ -807,13 +920,13 @@ function outdentSurgery(
   }
   const grandSiblings = childrenAt(doc, grandPath);
 
+  const grandContext = {
+    precedingSiblings: grandSiblings.slice(0, parentIndex + 1),
+    followingSiblings: grandSiblings.slice(parentIndex + 1),
+  };
   const newKind = isContent(node)
     ? forcedContentKind(
-        {
-          parentKind: grandParent ? grandParent.kind : 'root',
-          precedingSiblings: grandSiblings.slice(0, parentIndex + 1),
-          followingSiblings: grandSiblings.slice(parentIndex + 1),
-        },
+        { parentKind: grandParent ? grandParent.kind : 'root', ...grandContext },
         node.kind,
       )
     : undefined;
@@ -826,6 +939,7 @@ function outdentSurgery(
     node.kind === 'list-item' || newKind === 'list-item'
       ? leadingWhitespace(parent.lines[0] ?? '')
       : destinationIndent(doc, grandParent ?? 'root', [], fallbackIndentUnit),
+    destinationListStyle(grandContext),
   );
 
   // Outdent-in-place (Logseq semantics): the node's own former following
@@ -838,15 +952,12 @@ function outdentSurgery(
     const ownChildren = moved.children;
     let children = moved.children;
     for (const [i, sibling] of followingSiblings.entries()) {
+      const siblingContext = {
+        precedingSiblings: children,
+        followingSiblings: followingSiblings.slice(i + 1),
+      };
       const newSiblingKind = isContent(sibling)
-        ? forcedContentKind(
-            {
-              parentKind: moved.kind,
-              precedingSiblings: children,
-              followingSiblings: followingSiblings.slice(i + 1),
-            },
-            sibling.kind,
-          )
+        ? forcedContentKind({ parentKind: moved.kind, ...siblingContext }, sibling.kind)
         : undefined;
       if (newSiblingKind === 'paragraph' && isTaskItem(sibling)) {
         return reject('insertion-not-expressible');
@@ -855,6 +966,7 @@ function outdentSurgery(
         sibling,
         newSiblingKind,
         destinationIndent(doc, moved, children),
+        destinationListStyle(siblingContext),
       );
       children = [...children, reencoded];
     }
@@ -1120,7 +1232,7 @@ function itemTaskMarker(donor: OutlineNode | undefined): string {
 
 /** The style a new item alongside `donor` takes; a bare bullet with no donor. */
 function itemStyleFrom(donor: OutlineNode | undefined): ListStyle {
-  return donor?.listStyle ?? { type: 'bullet', marker: '-' };
+  return donor?.listStyle ?? DEFAULT_LIST_STYLE;
 }
 
 /**
@@ -2199,11 +2311,22 @@ export function reindentSubtreeVerbatim(node: OutlineNode, indentText: string): 
  * would re-parse as a heading and break out of the list. A list item keeps its
  * own marker, so an ordered payload does not silently become bullets. Atoms
  * move as units.
+ *
+ * `style` is the list the payload's TOP level is joining, and it reaches only
+ * that level: the rows below belong to the payload's own lists, which have no
+ * destination run to sit level with, so the recursion drops it and they take
+ * the default. A node that was already a list item keeps its own marker here
+ * as it always did — this converts what had no marker, and an arriving list
+ * is not a conversion.
  */
-function reencodeIntoListScope(node: OutlineNode, indentText: string): OutlineNode {
+function reencodeIntoListScope(
+  node: OutlineNode,
+  indentText: string,
+  style?: ListStyle,
+): OutlineNode {
   let encoded: OutlineNode;
   if (node.kind === 'heading') {
-    encoded = headingAsListItem(node, indentText);
+    encoded = headingAsListItem(node, indentText, style);
   } else if (isAtom(node)) {
     encoded = reencodeForDestination(node, undefined, indentText);
   } else {
@@ -2211,6 +2334,7 @@ function reencodeIntoListScope(node: OutlineNode, indentText: string): OutlineNo
       node,
       node.kind === 'list-item' ? undefined : 'list-item',
       indentText,
+      style,
     );
   }
   // The child column is the item's own content column, as `childBaseCol` reads
@@ -2308,7 +2432,7 @@ export function reencodeBlocksForDestination(
       if (deepest > MAX_HEADING_LEVEL) return reject('at-h6-bound');
     }
   }
-  // Both sides, for the reason `encodingKindAtDestination` below already uses
+  // Both sides, for the reason `nativeContentKind` below already uses
   // both: a payload landing BEFORE a tab-indented sibling has no preceding one
   // to copy from, and the inferred unit can leave that sibling deeper than the
   // block now above it — which re-parses it as that block's child.
@@ -2319,13 +2443,20 @@ export function reencodeBlocksForDestination(
     fallbackIndentUnit,
   );
   const parentKind = parent === 'root' ? 'root' : parent.kind;
+  // The list the destination is already writing, for the blocks that CONVERT
+  // into one. Read whether or not anything converts, since reading it is free
+  // and the two arms below both want it.
+  const listStyle = destinationListStyle({ precedingSiblings, followingSiblings });
   const headingLevel = destLevel;
   const written: OutlineNode[] = [];
   for (const block of parsedBlocks) {
     if (block.kind === 'heading') {
+      // A heading only ever reaches here at the payload's top level: no
+      // parse nests one under a paragraph or a list item, so the recursion
+      // each arm runs owns every other heading in the payload.
       written.push(
         headingLevel === undefined
-          ? reencodeIntoListScope(block, indentText)
+          ? reencodeIntoListScope(block, indentText, listStyle)
           : reencodeHeadingSubtree(block, headingLevel - (block.level ?? 1)),
       );
       continue;
@@ -2348,8 +2479,12 @@ export function reencodeBlocksForDestination(
     if (forced === 'paragraph' && isTaskItem(block)) return reject('insertion-not-expressible');
     written.push(
       forced === undefined || forced === block.kind
-        ? reindentSubtreeVerbatim(block, indentText)
-        : reencodeForDestination(block, forced, indentText),
+        ? // No kind conversion needed: a verbatim whole-subtree re-indent keeps
+          // every descendant's original indent unit intact (see
+          // reindentSubtreeVerbatim's own comment for why this differs from
+          // reencodeForDestination's numeric-delta approach here).
+          reindentSubtreeVerbatim(block, indentText)
+        : reencodeForDestination(block, forced, indentText, listStyle),
     );
   }
   return accept(written);

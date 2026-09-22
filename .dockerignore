@@ -1,4 +1,46 @@
+# What the image needs is the source tree. Nothing below is part of it: each
+# path is either supplied at runtime by docker-compose.yml's mounts, or
+# generated — by a build, by an e2e run, or by a tool nothing in the image
+# calls.
+#
+# For the ones an e2e run rewrites, keeping them out matters beyond context
+# size. A run regenerates the build output and the files it installs into the
+# vault, so any of those reaching the context would invalidate `COPY . .` and
+# store a fresh copy of the source tree on the next invocation, however
+# little of it actually changed. With them excluded, a re-run that touched no
+# source rebuilds nothing at all.
 .git
 node_modules
 dist
 .obsidian-cache
+
+# Agent worktrees nest under the primary checkout, each a whole checkout with
+# its own node_modules and .obsidian-cache, and a session working in any one of
+# them changes the primary checkout's context. The patterns above match at the
+# context root only, so the nested copies need excluding in their own right.
+.claude/worktrees
+**/node_modules
+**/.obsidian-cache
+
+# Per-machine tool state that git ignores globally rather than through this
+# repo's .gitignore: session logs and further nested checkouts, both of which
+# change between runs.
+.entire
+.delta
+
+# Build output, assembled by esbuild.config.mjs and scripts/styles.mjs.
+/main.js
+/styles.css
+
+# Installed into the vault by vault:install, and Obsidian's own UI state.
+/test-vault/.obsidian/plugins/true-outliner/main.js
+/test-vault/.obsidian/plugins/true-outliner/styles.css
+/test-vault/.obsidian/plugins/true-outliner/manifest.json
+/test-vault/.obsidian/workspace.json
+/test-vault/.obsidian/workspace-mobile.json
+
+# Generated fixtures and reports: scripts/gen-backlink-hub.mjs, npm run
+# test:coverage, and the design canvases.
+/test-vault/Backlinks/Hub
+/coverage
+/design

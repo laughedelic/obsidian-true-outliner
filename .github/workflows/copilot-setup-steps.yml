@@ -28,7 +28,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Node version tracks ci.yml. The e2e suites are out of scope here: they
       # download an Obsidian build and need a display, which this job has neither

@@ -5,7 +5,9 @@ on and take a lock in the shared git directory, so they run from the primary che
 from a session working on a layer.
 
 Stacks are GitHub's native stacked PRs, driven by the `gh stack` extension
-(`gh extension install github/gh-stack`). A stacked PR targets the branch below it instead of
+(`gh extension install github/gh-stack`). None of this runs from a cloud session: its GitHub
+proxy refuses the GraphQL every `gh stack` command starts with
+([`research/cloud-session-github-access.md`](research/cloud-session-github-access.md)). A stacked PR targets the branch below it instead of
 `main`, and GitHub retargets it when its parent merges — the base is set once and never
 maintained by hand.
 

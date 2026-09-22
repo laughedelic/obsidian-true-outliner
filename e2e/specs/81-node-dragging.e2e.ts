@@ -506,10 +506,22 @@ describe('node dragging: the press and the drag it can become', function () {
     // the selection back, and the view follows it up again.
     const alive = scroll.filter((sample) => sample.seamLine !== null);
     const finalTop = Math.max(...alive.map((sample) => sample.scrollTop));
-    const firstHold = deep.scrollTop - shallow.scrollTop;
-    const secondHold = finalTop - deep.scrollTop;
-    expect(firstHold).toBeGreaterThan(0);
-    expect(secondHold).toBeGreaterThan(firstHold * 1.5);
+    expect(deep.scrollTop).toBeGreaterThan(shallow.scrollTop);
+    expect(finalTop).toBeGreaterThan(deep.scrollTop);
+    // The RATE, read as the scroller's step per unit of time within each hold
+    // rather than as the distance a hold covered: a runner that paints fewer
+    // frames covers less ground at the same rate, and the distance then says
+    // more about the runner than about the pointer's depth in the band.
+    const rateWithin = (from: number, to: number) => {
+      const window = alive.filter((sample) => sample.scrollTop >= from && sample.scrollTop <= to);
+      const first = window[0]!;
+      const last = window[window.length - 1]!;
+      return (last.scrollTop - first.scrollTop) / Math.max(1, last.t - first.t);
+    };
+    const shallowRate = rateWithin(shallow.scrollTop, deep.scrollTop);
+    const deepRate = rateWithin(deep.scrollTop, finalTop);
+    expect(shallowRate).toBeGreaterThan(0);
+    expect(deepRate).toBeGreaterThan(shallowRate * 1.5);
     // Reached: a seam well below what the view showed at the pick-up — read
     // from the timed samples, since the preview moves under a resting pointer
     // and no move arrives to sample it on.
