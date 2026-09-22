@@ -35,6 +35,10 @@ export interface SeamPlace {
    * re-parse closes the parent's section and takes what follows. Only a
    * heading can be placed so. */
   readonly level?: number;
+  /** The node the run is a child of AFTER the drop, where that differs from
+   * `parentId`: a levelled place is written at its parent's text position and
+   * lands, on re-parse, under that parent's ancestor at one level out. */
+  readonly landsUnder?: number | 'root';
 }
 
 /** A place a run can land, with what the run becomes there. */
@@ -59,7 +63,16 @@ export interface DropDestination extends SeamPlace {
    * parent without moving, so nothing at the seam says they are involved
    * (design D8). `[from, to)` in the tree's own line space; absent where
    * nothing is absorbed. */
-  readonly absorbs?: { readonly from: number; readonly to: number };
+  readonly absorbs?: {
+    readonly from: number;
+    readonly to: number;
+    /** Each absorbed node whose parent was outside the span, with its whole
+     * subtree's lines and how many levels it moves: it becomes the run's
+     * child, one past the destination's depth, whatever depth it had — in
+     * under a deeper heading, level under one written beside its old parent,
+     * out under one written shallower still. */
+    readonly shifts: readonly { readonly from: number; readonly to: number; readonly by: number }[];
+  };
 }
 
 /** The boundary between two nodes, and every place it offers. */
@@ -229,7 +242,17 @@ export function seams(
       const anchor = places[0]!;
       for (let depth = anchor.depth - 1; depth >= 0; depth--) {
         if (depth === 0 && options.scoped === true) continue;
-        places.unshift({ parentId: anchor.parentId, index: anchor.index, depth, level: depth + 1 });
+        // The ancestor one level out from this depth is what the run lands
+        // under: headings nest only under headings, and the node above's own
+        // chain is the one the re-parse reads.
+        const under = depth === 0 ? undefined : above?.chain[depth - 1];
+        places.unshift({
+          parentId: anchor.parentId,
+          index: anchor.index,
+          depth,
+          level: depth + 1,
+          landsUnder: under ? under.node.id : 'root',
+        });
       }
     }
     if (places.length === 0) continue;
@@ -291,7 +314,7 @@ export function dropSeams(
       const placed = own ? { ...place, index: home.index } : place;
       const written = writtenFirst(doc, placed, operandRoots, operandRootIds, options);
       if (written === undefined) continue;
-      const absorbs = absorbedSpan(doc, seam, written.firstLine, operandIds, all);
+      const absorbs = absorbedSpan(doc, seam, written.firstLine, operandIds, all, placed.depth);
       candidates.push(absorbs ? { ...placed, ...written, absorbs } : { ...placed, ...written });
     }
     out.push({ line: seam.line, aboveId: seam.aboveId, belowId: seam.belowId, candidates });
@@ -354,15 +377,15 @@ function absorbedSpan(
   written: string,
   operandIds: ReadonlySet<number>,
   all: readonly Visible[],
-): { readonly from: number; readonly to: number } | undefined {
+  depth: number,
+): DropDestination['absorbs'] {
   const head = parse(written).children[0];
   if (head === undefined || head.kind !== 'heading' || head.level === undefined) return undefined;
   const level = head.level;
   const belowAt = seam.belowId === undefined ? -1 : all.findIndex((v) => v.node.id === seam.belowId);
   if (belowAt < 0) return undefined;
   void doc;
-  let from: number | undefined;
-  let to: number | undefined;
+  const shifts: { from: number; to: number; by: number }[] = [];
   let deepest = Infinity;
   for (let i = belowAt; i < all.length; i++) {
     const v = all[i]!;
@@ -370,11 +393,12 @@ function absorbedSpan(
     if (v.depth > deepest) continue; // inside a node already counted whole
     deepest = Infinity;
     if (v.node.kind === 'heading' && (v.node.level ?? 0) <= level) break;
-    from ??= v.startLine;
-    to = v.startLine + subtreeSpan(v.node);
+    // Counted here, its parent is outside the span, so the run takes it.
+    shifts.push({ from: v.startLine, to: v.startLine + subtreeSpan(v.node), by: depth + 1 - v.depth });
     deepest = v.depth;
   }
-  return from === undefined || to === undefined ? undefined : { from, to };
+  if (shifts.length === 0) return undefined;
+  return { from: shifts[0]!.from, to: shifts[shifts.length - 1]!.to, shifts };
 }
 
 /**

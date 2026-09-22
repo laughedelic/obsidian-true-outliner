@@ -229,8 +229,12 @@ parted slot, which re-lays out the document below the seam on every pointer move
 all back when the drag is cancelled.
 
 How much of the absorbed region to mark was carried as an open question until the mockup drew it
-five ways (panel 4). Settled: the absorbed rows are drawn one level in, under the ghost, with the
-guide that will connect them, and no tint — the result shown as the result. A tint over the whole
+five ways (panel 4). Settled: the absorbed rows are drawn where the drop puts them, under the
+ghost, with the guide that will connect them, and no tint — the result shown as the result. That is
+one level in only for a heading written deeper than the rows' old parent; the manual pass found a
+heading written beside that parent drawing them in too, and one written shallower still drawing
+them in where they would move out. Each absorbed node whose parent is outside the span becomes the
+run's child one past its column, so its shift is that depth less its own, carried by its subtree. A tint over the whole
 span is half a page of colour on a long section, and the move already says it. It is the one part
 of the preview that moves rows before the release, sideways and only those, so a wrapped row can
 change height; what to accent on those rows, if anything, is left to adjust once it is in hand.

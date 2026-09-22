@@ -456,6 +456,24 @@ attachment rule's sake. Whether a list after a paragraph should be its child at 
 [discussion #185](https://github.com/laughedelic/obsidian-true-outliner/discussions/185); the
 conversion is what the current reading of that rule requires, and would go with it.
 
+## 6i. Absorbed rows moved one level in at every level
+
+With `# A` › `## B` › `foo`, and `## C` held between `B` and `foo`, the seam offers C at `h1`, `h2`
+and `h3`, and `foo` becomes C's child at each. The preview drew `foo` one level in all three times;
+the result puts it at depth 1, 2 and 3. The shift was a constant written before a drop could land
+shallower than the rows it takes. Each absorbed node whose parent is outside the span now moves by
+the destination's depth plus one less its own depth, and its subtree with it — measured by the
+depth the depth rules read on `foo`'s row at each column: 1, 2, 3.
+
+The same pass found the parent accent on the wrong node for the two shallower columns. A levelled
+place is written at its neighbour's text position — `parentId` is `B`, index 0, for all three — and
+the accent read that parent: for `h2` it lit `A`'s guide between `B` and the seam, drawn from `B`'s
+line, and for `h1` it lit the same. The place now names the node the run lands under — `A` for
+`h2`, none for `h1` — and the accent reads that.
+
+The ordered placeholder's dot was the bullet's size: the rule that sizes the ghost's bullet to the
+native bullet matched every circle in a list-item ghost, the placeholder's dot included.
+
 ## 7. Where a drop can land: the seam and its depths
 
 Not a measurement — the model the sections above leave to be chosen, recorded here so the design

@@ -221,6 +221,22 @@ describe('dropSeams', () => {
     ]);
   });
 
+  it('says how far each absorbed row moves, and under which node the run lands', () => {
+    // `## C` dropped between `## B` and its paragraph `foo`, at each of the
+    // three levels the seam offers. `foo` becomes C's child every time, one
+    // past C's column: in by one under an h3, level under an h2 written beside
+    // B, out by one under an h1. And the run lands under B, A, and the root.
+    const doc = parse(['# A', '', '## B', '', 'foo', '', '## C', ''].join('\n'));
+    const seam = dropSeams(doc, [byLine(doc, '## C')]).find((s) => s.aboveId === byLine(doc, '## B').id)!;
+    expect(
+      seam.candidates.map((c) => [c.firstLine, c.absorbs?.shifts.map((x) => x.by), c.landsUnder ?? c.parentId]),
+    ).toEqual([
+      ['# C', [-1], 'root'],
+      ['## C', [0], byLine(doc, '# A').id],
+      ['### C', [1], byLine(doc, '## B').id],
+    ]);
+  });
+
   it('carries a list item\u2019s task state and ordered delimiter to the mark', () => {
     // The ghost draws these in a bullet's place: the checkbox as it is, since
     // a drop does not toggle it, and the ordered item's delimiter, since its
@@ -311,7 +327,7 @@ describe('dropSeams', () => {
     const asChild = afterIntro.candidates.find((c) => c.depth === 1)!;
     expect(asChild.firstLine).toBe('## Move me');
     // From `details`'s first line through `- a list`'s gap, not into `## Next`.
-    expect(asChild.absorbs).toEqual({ from: 4, to: 10 });
+    expect(asChild.absorbs).toMatchObject({ from: 4, to: 10 });
     // Dropped inside the list it becomes an item and takes nothing.
     const intoList = dropSeams(doc, [move]).find((s) => s.aboveId === byLine(doc, '- a list').id)!;
     const asItem = intoList.candidates.find((c) => c.firstLine.trimStart().startsWith('-'))!;
@@ -350,7 +366,7 @@ describe('dropSeams', () => {
     ]);
     // Written at level two, it takes every child of Materials — the quote too.
     const asPeer = underMaterials.candidates[1]!;
-    expect(asPeer.absorbs).toEqual({ from: 10, to: 16 });
+    expect(asPeer.absorbs).toMatchObject({ from: 10, to: 16 });
     // One level in, it lands among Materials' list items, so it joins their
     // list as an item carrying its `##` run (the heading rule's list arm),
     // and a list item takes nothing in.
@@ -377,7 +393,7 @@ describe('dropSeams', () => {
       [1, '## Plan', 1],
       [2, '- ## Plan', 0],
     ]);
-    expect(home.candidates[0]!.absorbs).toEqual({ from: 8, to: 12 });
+    expect(home.candidates[0]!.absorbs).toMatchObject({ from: 8, to: 12 });
     expect(home.candidates[1]!.absorbs).toBeUndefined();
     // A paragraph gets no shallower level anywhere.
     const intro = byLine(doc, 'intro');

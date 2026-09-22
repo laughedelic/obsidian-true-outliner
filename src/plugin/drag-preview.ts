@@ -141,15 +141,25 @@ export function ghostMarkLeftExpr(depth: number): string {
 export function absorbedRows(
   preview: DragPreview | null,
   lineOffset: number,
-): { readonly from: number; readonly to: number; readonly depth: number } | null {
+): AbsorbedRows | null {
   if (preview === null) return null;
   const absorbs = preview.destination.absorbs;
   if (!absorbs) return null;
   return {
     from: absorbs.from + lineOffset,
     to: absorbs.to + lineOffset,
-    depth: preview.destination.depth + 1,
+    column: preview.destination.depth,
+    shifts: absorbs.shifts.map((s) => ({ from: s.from + lineOffset, to: s.to + lineOffset, by: s.by })),
   };
+}
+
+/** The absorbed rows in the source's line space: the span, the run's own
+ * column their new guide is drawn on, and how far each absorbed subtree moves. */
+export interface AbsorbedRows {
+  readonly from: number;
+  readonly to: number;
+  readonly column: number;
+  readonly shifts: readonly { readonly from: number; readonly to: number; readonly by: number }[];
 }
 
 /** The indicator's colour and thickness; `90-dragging.css` declares both. */

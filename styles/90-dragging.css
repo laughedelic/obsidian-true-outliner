@@ -104,6 +104,9 @@
  * beside it. On the grid it stands in for `--list-bullet-size`, and a dot
  * smaller than the bullets around it reads as a different kind of mark.
  */
-.markdown-source-view.mod-cm6 .cm-content .to-drag-ghost[data-kind='list-item'] circle {
+.markdown-source-view.mod-cm6
+  .cm-content
+  .to-drag-ghost[data-kind='list-item']:not([data-task]):not([data-ordered])
+  circle {
   r: 3.6;
 }

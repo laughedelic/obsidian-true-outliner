@@ -325,15 +325,24 @@ The preview SHALL state three things:
   renumbering's answer and not the item's.
 - **What the drop will take with it**: where the destination would ABSORB content that is not part
   of the run — a dropped heading opening a section over the anchor's following siblings — the
-  absorbed rows SHALL be drawn one level in, under the ghost mark, with the guide that will connect
-  them — starting below the mark and ending at the last absorbed row with content — and nothing
-  else: the result shown as the result. Those rows change parent without moving,
+  absorbed rows SHALL be drawn at the depth the drop gives them, under the ghost mark, with the
+  guide that will connect them — starting below the mark and ending at the last absorbed row with
+  content — and nothing else: the result shown as the result. Each absorbed node whose parent is
+  outside the absorbed span becomes the run's child, one past the destination's depth, and its
+  subtree moves with it: IN under a heading written deeper than its old parent, LEVEL under one
+  written beside its old parent, OUT under one written shallower still. Those rows change parent without moving,
   so nothing at the seam would otherwise say they were involved, and a preview that states only the
   landing place states half the result. No tint marks them; on a long section a tint is half a
   page of colour, and the move already says it.
 
 The destination's PARENT SHALL additionally be distinguished, so the parent is named rather than
-counted out of columns.
+counted out of columns. The parent distinguished SHALL be the node the run is a child of after the
+drop — for a heading written shallower than the seam's range, the ancestor one level out from its
+column, or none at the top level — not the node whose text position it is written at.
+
+#### Scenario: A heading written beside its neighbour accents their shared parent
+- **WHEN** an `h2` is held between another `h2` and that heading's first child, on the `h2` column
+- **THEN** the `h1` above both is accented, not the `h2` whose position the run is written at
 
 The rows in flight SHALL be drawn as lifted for the duration of the drag, and the document SHALL
 NOT move until the release: nothing the drag shows is a document change. The absorbed rows' shift
@@ -376,9 +385,15 @@ selection, or persist anything.
 #### Scenario: An absorbing drop says what it will absorb
 - **WHEN** a heading-rooted run is held over a destination whose following siblings the dropped
   heading's section would take in
-- **THEN** those rows are drawn one level in under the ghost mark, as well as the landing place,
+- **THEN** those rows are drawn at the depth the drop gives them, as well as the landing place,
   and the shift ends where the absorption ends — the next heading that can stand beside the
   dropped one keeps its place
+
+#### Scenario: Absorbed rows move by the level the run is written at
+- **WHEN** an `h2` is held between another `h2` and that heading's paragraph, on each of the three
+  columns the seam offers
+- **THEN** the paragraph is drawn out one level under an `h1`, where it is under an `h2`, and in one
+  level under an `h3`
 
 #### Scenario: A drop that absorbs nothing marks nothing extra
 - **WHEN** a run that opens no section is held over any destination

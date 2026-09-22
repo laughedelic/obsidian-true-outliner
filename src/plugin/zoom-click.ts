@@ -470,7 +470,7 @@ class ZoomClickPlugin implements PluginValue {
     // Back into the SOURCE's line space, which is the one every consumer of
     // this state reads.
     const offset = seams.lineOffset;
-    const parent = resolved.destination.parentId;
+    const parent = resolved.destination.landsUnder ?? resolved.destination.parentId;
     const parentLine = parent === 'root' ? undefined : startLineOf(seams.tree, parent);
     return {
       seamLine: resolved.seam.line + offset,

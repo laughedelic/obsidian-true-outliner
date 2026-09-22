@@ -1205,6 +1205,54 @@ describe('node dragging: the press and the drag it can become', function () {
     expect(await dragTraces()).toEqual({ lifted: 0, ghosts: 0, indicators: 0, preview: false });
   });
 
+  it('draws absorbed rows where each level puts them, and accents the parent the run lands under', async function () {
+    // `## C` held between `## B` and its paragraph `foo`, swept across the
+    // seam's three columns. `foo` becomes C's child at each, so it is drawn
+    // one past C's column: out to depth 1 under an h1, left at depth 2 under
+    // an h2 beside B, in to depth 3 under an h3. The parent accented is the
+    // one C lands under — none at the root, `# A` as B's sibling, `## B` as
+    // its child — not the node whose text position C is written at.
+    const LEVELS = ['# A', '', '## B', '', 'foo', '', '## C', ''].join('\n');
+    await h.setBuffer(LEVELS);
+    await browser.pause(300);
+    await h.setCursorSettled(0, 0);
+    // Marker icons in order: A(0), B(1), foo(2), C(3).
+    const b = await markPoint('.to-decor-marker-icon', 1);
+    const foo = await markPoint('.to-decor-marker-icon', 2);
+    const columns = [
+      await columnOfMark('.to-decor-marker-icon', 0, 'centre'),
+      await columnOfMark('.to-decor-marker-icon', 1, 'centre'),
+      await columnOfMark('.to-decor-marker-icon', 2, 'centre'),
+    ];
+    const y = (b.y + foo.y) / 2;
+    const mark = await markPoint('.to-decor-marker-icon', 3);
+    await startRecording();
+    await dragThenEscape(mark, [
+      { x: mark.x + 20, y: mark.y - 10 },
+      { x: columns[0]!, y },
+      { x: columns[0]! + 1, y },
+      { x: columns[1]!, y },
+      { x: columns[1]! + 1, y },
+      { x: columns[2]!, y },
+      { x: columns[2]! + 1, y },
+    ]);
+    await browser.pause(250);
+    const samples = (await recorded()).filter((sample) => sample.preview !== null && sample.ghost !== null);
+    const at = (depth: number) => samples.filter((sample) => sample.preview!.depth === depth).at(-1)!;
+    for (const depth of [0, 1, 2]) expect(at(depth)).toBeDefined();
+    expect([0, 1, 2].map((depth) => at(depth).rowDepths[4])).toEqual([1, 2, 3]);
+    expect([0, 1, 2].map((depth) => at(depth).ghost!.level)).toEqual(['1', '2', '3']);
+    // The parent accent: nothing for the root, A beside B, B for its child.
+    expect([0, 1, 2].map((depth) => [0, 2].filter((line) => at(depth).accentedRows.includes(line)))).toEqual([
+      [],
+      [0],
+      [2],
+    ]);
+    expect(await h.getBuffer()).toBe(LEVELS);
+    await h.setBuffer(DOC);
+    await browser.pause(200);
+  });
+
   it('drops an absorbing run, and the absorbed siblings are inside its section', async function () {
     // The preview's shift, made real: `## Move me` released after `intro`
     // stands at `##` and takes `details`, `more details` and `- a list` into

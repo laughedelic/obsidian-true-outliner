@@ -1479,12 +1479,15 @@ function renderInputs(state: EditorState, modes: DecorationSource): RenderInputs
     const fact = facts.factsByLine.get(line);
     return fact ? { kind: fact.kind, atom: fact.isAtom } : undefined;
   });
-  // The rows an absorbing drop would take, drawn one level in under the ghost
-  // for the drag's duration: their facts one deeper, so every depth rule
-  // moves them as one; the guides their own nodes draw moved with them; and
-  // the destination's own guide added so the column that will connect them
-  // is drawn — begun below the ghost on the first row, and ending, as every
-  // guide does, on the last row with content rather than on a gap after it.
+  // The rows an absorbing drop would take, drawn where they will be for the
+  // drag's duration: one past the run's column, which is one level in under a
+  // deeper heading, level under one written beside their old parent, and out
+  // under one written shallower still. Their facts move by that much, so every
+  // depth rule moves them as one; the guides their own nodes draw move with
+  // them; the guides outside the run's column stay; and the run's own guide is
+  // added so the column that will connect them is drawn — begun below the ghost
+  // on the first row, and ending, as every guide does, on the last row with
+  // content rather than on a gap after it.
   const absorbed = absorbedRows(preview, preview?.lineOffset ?? 0);
   let absorbedLast = -1;
   if (absorbed !== null) {
@@ -1534,22 +1537,31 @@ function renderInputs(state: EditorState, modes: DecorationSource): RenderInputs
     const lineNumber = guide.lineNumber;
     const taken =
       absorbed !== null && lineNumber >= absorbed.from && lineNumber <= absorbedLast;
+    // The subtree this row moves with; a gap line between two takes the one
+    // it trails, whose span it is part of.
+    const shift = taken ? absorbed.shifts.find((s) => lineNumber >= s.from && lineNumber < s.to) : undefined;
+    const by = shift?.by ?? 0;
     const own = facts.factsByLine.get(lineNumber);
     const fact =
       own && taken
         ? {
             ...own,
-            depth: own.depth + 1,
-            supplementalDepth: own.supplementalDepth + 1,
+            depth: own.depth + by,
+            supplementalDepth: own.supplementalDepth + by,
           }
         : own;
     const drawn = drawnGuideDepths(guide, visibility);
-    // On an absorbed row every guide at the destination's depth or deeper
-    // belongs to a node that moved with the row, so it moves too; the
-    // destination's own column is what the ghost's guide takes.
-    const ghostColumn = absorbed === null ? -1 : absorbed.depth - 1;
+    // On an absorbed row a guide at its subtree root's old depth or deeper
+    // belongs to a node that moves with the row, so it moves by as much; one
+    // shallower than the run's column belongs to an ancestor the run keeps;
+    // and the run's own column is what the ghost's guide takes.
+    const ghostColumn = absorbed === null ? -1 : absorbed.column;
+    const rootDepth = ghostColumn + 1 - by;
     const depths = taken
-      ? drawn.map((d) => (d >= ghostColumn ? d + 1 : d)).filter((d) => d !== ghostColumn)
+      ? [
+          ...drawn.filter((d) => d < ghostColumn),
+          ...drawn.filter((d) => d >= rootDepth).map((d) => d + by),
+        ].filter((d) => d !== ghostColumn)
       : drawn;
     // The indicator FIRST, so it draws over the guides rather than under
     // them: it is the one thing on the row the reader is looking for. A row
