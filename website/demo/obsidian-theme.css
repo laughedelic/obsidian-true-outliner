@@ -1,0 +1,420 @@
+/*
+ * The Obsidian variables and editor rules the plugin's stylesheet builds on,
+ * so a demo editor on the website draws the way a note draws in Obsidian's
+ * default theme. Variable names are Obsidian's public theming API; the rules
+ * cover only what a Live Preview line needs: fonts, heading sizes, the list
+ * bullet, the task checkbox, the quote bar, inline marks.
+ */
+
+:root,
+html.theme-light {
+  --accent-h: 254;
+  --accent-s: 80%;
+  --accent-l: 68%;
+  --mono-0: white;
+  --mono-100: black;
+  --mono-rgb-100: 0, 0, 0;
+  --color-base-00: #ffffff;
+  --color-base-05: #fcfcfc;
+  --color-base-10: #fafafa;
+  --color-base-20: #f6f6f6;
+  --color-base-25: #efefef;
+  --color-base-30: #e4e4e4;
+  --color-base-35: #dadada;
+  --color-base-40: #bdbdbd;
+  --color-base-50: #ababab;
+  --color-base-60: #707070;
+  --color-base-70: #5c5c5c;
+  --color-base-100: #222222;
+  --color-accent: hsl(var(--accent-h), var(--accent-s), var(--accent-l));
+  --color-accent-1: hsl(calc(var(--accent-h) - 1), calc(var(--accent-s) * 1.01), calc(var(--accent-l) * 1.075));
+  --color-accent-2: hsl(calc(var(--accent-h) - 3), calc(var(--accent-s) * 1.02), calc(var(--accent-l) * 1.15));
+  --text-accent: var(--color-accent);
+  --text-accent-hover: var(--color-accent-2);
+  --interactive-accent: var(--color-accent-1);
+  --interactive-accent-hover: var(--color-accent-2);
+  --text-selection: color-mix(in oklch, var(--interactive-accent) 20%, transparent);
+  --background-modifier-form-field: var(--color-base-00);
+  --shadow-s: 0px 1px 2px rgba(0, 0, 0, 0.028), 0px 3.4px 6.7px rgba(0, 0, 0, 0.042), 0px 15px 30px rgba(0, 0, 0, 0.07);
+}
+
+html.dark,
+html.theme-dark {
+  --mono-0: black;
+  --mono-100: white;
+  --mono-rgb-100: 255, 255, 255;
+  --color-base-00: #1c1c1c;
+  --color-base-05: #212121;
+  --color-base-10: #232323;
+  --color-base-20: #282828;
+  --color-base-25: #2e2e2e;
+  --color-base-30: #333333;
+  --color-base-35: #3f3f3f;
+  --color-base-40: #555555;
+  --color-base-50: #666666;
+  --color-base-60: #999999;
+  --color-base-70: #b3b3b3;
+  --color-base-100: #dadada;
+  --color-accent-1: hsl(calc(var(--accent-h) - 3), calc(var(--accent-s) * 1.02), calc(var(--accent-l) * 1.15));
+  --color-accent-2: hsl(calc(var(--accent-h) - 5), calc(var(--accent-s) * 1.05), calc(var(--accent-l) * 1.29));
+  --text-accent: var(--color-accent-1);
+  --interactive-accent: var(--color-accent);
+  --interactive-accent-hover: var(--color-accent-1);
+  --text-selection: color-mix(in oklch, var(--interactive-accent) 33%, transparent);
+  --background-modifier-form-field: var(--color-base-25);
+  --shadow-s: 0px 1px 2px rgba(0, 0, 0, 0.121), 0px 3.4px 6.7px rgba(0, 0, 0, 0.179), 0px 15px 30px rgba(0, 0, 0, 0.3);
+}
+
+:root {
+  --text-normal: var(--color-base-100);
+  --text-muted: var(--color-base-70);
+  --text-faint: var(--color-base-50);
+  --text-on-accent: white;
+  --background-primary: var(--color-base-00);
+  --background-primary-alt: var(--color-base-10);
+  --background-secondary: var(--color-base-20);
+  --background-modifier-border: var(--color-base-30);
+  --background-modifier-border-hover: var(--color-base-35);
+  --background-modifier-border-focus: var(--color-base-40);
+  --background-modifier-hover: color-mix(in oklch, var(--mono-100) 6.7%, transparent);
+  --interactive-accent-hsl: var(--accent-h), var(--accent-s), var(--accent-l);
+  --font-default: ui-sans-serif, -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, "Inter", sans-serif;
+  --font-monospace-default: ui-monospace, SFMono-Regular, "Cascadia Mono", "Roboto Mono", Menlo, Monaco, Consolas, monospace;
+  --font-interface: var(--font-default);
+  --font-text: var(--font-default);
+  --font-monospace: var(--font-monospace-default);
+  --font-text-size: 16px;
+  --font-ui-smaller: 12px;
+  --font-ui-small: 13px;
+  --font-ui-medium: 15px;
+  --font-smallest: 0.8em;
+  --font-smaller: 0.875em;
+  --font-small: 0.933em;
+  --font-normal: 400;
+  --font-semibold: 600;
+  --font-bold: 700;
+  --line-height-normal: 1.5;
+  --p-spacing: 1rem;
+  --h1-size: 1.618em;
+  --h2-size: 1.462em;
+  --h3-size: 1.318em;
+  --h4-size: 1.188em;
+  --h5-size: 1.076em;
+  --h6-size: 1em;
+  --h1-weight: 700;
+  --h2-weight: 680;
+  --h3-weight: 660;
+  --h4-weight: 600;
+  --h5-weight: 600;
+  --h6-weight: 600;
+  --h1-line-height: 1.2;
+  --h2-line-height: 1.2;
+  --h3-line-height: 1.3;
+  --h4-line-height: 1.4;
+  --heading-formatting: var(--text-faint);
+  --code-size: var(--font-smaller);
+  --code-background: var(--background-primary-alt);
+  --code-normal: var(--text-normal);
+  --code-border-color: var(--background-modifier-border);
+  --code-radius: var(--radius-s);
+  --radius-s: 4px;
+  --radius-m: 8px;
+  --border-width: 1px;
+  --input-height: 30px;
+  --layer-popover: 30;
+  --tag-size: var(--font-smaller);
+  --tag-color: var(--text-accent);
+  --tag-background: color-mix(in oklch, var(--interactive-accent) 10%, transparent);
+  --tag-radius: 2em;
+  --tag-padding-x: 0.65em;
+  --tag-padding-y: 0.25em;
+  --checkbox-size: var(--font-text-size);
+  --checkbox-radius: var(--radius-s);
+  --checkbox-color: var(--interactive-accent);
+  --checkbox-marker-color: var(--background-primary);
+  --checkbox-border-color: var(--text-faint);
+  --checkbox-border-color-hover: var(--text-muted);
+  --checklist-done-color: var(--text-muted);
+  --blockquote-border-thickness: 2px;
+  --blockquote-border-color: var(--interactive-accent);
+  --blockquote-style: normal;
+  --blockquote-background-color: transparent;
+  --list-indent: 2em;
+  --list-bullet-size: 0.3em;
+  --list-bullet-radius: 50%;
+  --list-bullet-border: none;
+  --list-marker-color: var(--text-faint);
+  --list-marker-color-hover: var(--text-muted);
+  --list-padding-inline-start: 0.25em;
+  --link-color: var(--text-accent);
+  --link-color-hover: var(--text-accent-hover);
+  --link-decoration: underline;
+  --caret-color: var(--text-normal);
+  --indentation-guide-width: var(--border-width);
+  --indentation-guide-color: color-mix(in oklch, var(--mono-100) 12%, transparent);
+  --collapse-icon-color: var(--text-faint);
+  --collapse-icon-color-collapsed: var(--text-accent);
+  --cursor: default;
+}
+
+/* ---- Editor ---------------------------------------------------------- */
+
+.to-demo.markdown-source-view {
+  font-family: var(--font-text);
+  font-size: var(--font-text-size);
+  line-height: var(--line-height-normal);
+  color: var(--text-normal);
+  background: var(--background-primary);
+  text-align: start;
+}
+.to-demo .cm-editor {
+  height: 100%;
+  outline: none;
+}
+.to-demo .cm-scroller {
+  font-family: var(--font-text);
+  line-height: var(--line-height-normal);
+  overflow: auto;
+  padding: 1.25rem 1.5rem 1.25rem 1.75rem;
+}
+.to-demo .cm-content {
+  padding: 0;
+  caret-color: var(--caret-color);
+  width: 0;
+  flex-basis: unset !important;
+  max-width: 100%;
+}
+.to-demo .cm-content > * {
+  margin: 0 !important;
+  display: block;
+}
+.to-demo .cm-line {
+  position: relative;
+  padding: 0;
+}
+/* The plugin hangs a list item's wrapped rows with a negative text-indent on
+ * the line; inline-block children would inherit it and shift their own first
+ * line again. Obsidian's app.css carries this same reset. */
+.to-demo .cm-line > * {
+  text-indent: 0;
+}
+.to-demo .cm-cursor,
+.to-demo .cm-dropCursor {
+  border-left-color: var(--caret-color);
+}
+.to-demo .cm-selectionBackground,
+.to-demo .cm-editor > .cm-scroller > .cm-selectionLayer > .cm-selectionBackground,
+.to-demo .cm-focused .cm-selectionBackground {
+  background-color: var(--text-selection);
+}
+.to-demo .cm-hidden-formatting {
+  display: none;
+}
+/* CodeMirror places a zero-width <img> either side of an inline widget; a
+ * page stylesheet that gives images margins (VitePress does) would grow every
+ * line that carries hidden formatting. Same rule Obsidian's app.css carries. */
+.to-demo img.cm-widgetBuffer {
+  display: inline !important;
+  width: 0 !important;
+  height: 1em;
+  border: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  vertical-align: text-top;
+}
+.to-demo .task-list-label {
+  line-height: 1;
+}
+.to-demo .cm-formatting {
+  color: var(--text-faint);
+}
+
+/* Headings */
+.to-demo .cm-line.HyperMD-header {
+  padding-top: var(--p-spacing);
+}
+.to-demo .cm-line.HyperMD-header:first-child {
+  padding-top: 0;
+}
+.to-demo .HyperMD-header-1 { font-size: var(--h1-size); font-weight: var(--h1-weight); line-height: var(--h1-line-height); }
+.to-demo .HyperMD-header-2 { font-size: var(--h2-size); font-weight: var(--h2-weight); line-height: var(--h2-line-height); }
+.to-demo .HyperMD-header-3 { font-size: var(--h3-size); font-weight: var(--h3-weight); line-height: var(--h3-line-height); }
+.to-demo .HyperMD-header-4 { font-size: var(--h4-size); font-weight: var(--h4-weight); line-height: var(--h4-line-height); }
+.to-demo .HyperMD-header-5 { font-size: var(--h5-size); font-weight: var(--h5-weight); }
+.to-demo .HyperMD-header-6 { font-size: var(--h6-size); font-weight: var(--h6-weight); }
+.to-demo .cm-formatting-header {
+  color: var(--heading-formatting);
+  font-weight: var(--font-normal);
+}
+
+/* Lists */
+.to-demo .cm-line.HyperMD-list-line {
+  tab-size: var(--list-indent);
+}
+.to-demo .cm-indent {
+  display: inline-block;
+  min-width: var(--list-indent);
+}
+.to-demo .cm-formatting-list {
+  color: var(--list-marker-color);
+}
+.to-demo .cm-formatting-list-ol {
+  font-variant-numeric: tabular-nums;
+  padding-inline-start: var(--list-padding-inline-start);
+}
+.to-demo .list-bullet {
+  color: transparent;
+  position: relative;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  vertical-align: middle;
+}
+.to-demo .list-bullet::after {
+  content: '\200B';
+  position: absolute;
+  width: var(--list-bullet-size);
+  height: var(--list-bullet-size);
+  border-radius: var(--list-bullet-radius);
+  border: var(--list-bullet-border);
+  background-color: var(--list-marker-color);
+  line-height: 1;
+}
+
+/* Tasks */
+.to-demo .task-list-label {
+  display: inline-block;
+  vertical-align: text-bottom;
+}
+.to-demo input.task-list-item-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: var(--checkbox-size);
+  height: var(--checkbox-size);
+  margin: 0 0.25em 0 0;
+  border: 1px solid var(--checkbox-border-color);
+  border-radius: var(--checkbox-radius);
+  background: var(--background-modifier-form-field);
+  vertical-align: middle;
+  position: relative;
+  cursor: pointer;
+  top: -1px;
+}
+.to-demo input.task-list-item-checkbox:checked {
+  background-color: var(--checkbox-color);
+  border-color: var(--checkbox-color);
+}
+.to-demo input.task-list-item-checkbox:checked::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / 75% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / 75% no-repeat;
+  background-color: var(--checkbox-marker-color);
+}
+.to-demo .HyperMD-task-line:has(input:checked) .cm-list-1,
+.to-demo .HyperMD-task-line:has(input:checked) .cm-list-2,
+.to-demo .HyperMD-task-line:has(input:checked) .cm-list-3 {
+  color: var(--checklist-done-color);
+  text-decoration: line-through;
+}
+
+/* Quotes */
+.to-demo .HyperMD-quote {
+  font-style: var(--blockquote-style);
+  background-color: var(--blockquote-background-color);
+  padding-inline-start: calc(var(--blockquote-border-thickness) + 0.9em);
+}
+.to-demo .HyperMD-quote::before {
+  content: '\200B';
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--blockquote-border-thickness);
+  background-color: var(--blockquote-border-color);
+}
+.to-demo .cm-formatting-quote {
+  color: var(--text-faint);
+}
+.to-demo .cm-transparent {
+  color: transparent;
+}
+
+/* Code */
+.to-demo .HyperMD-codeblock {
+  font-family: var(--font-monospace);
+  font-size: var(--code-size);
+  background-color: var(--code-background);
+}
+.to-demo .cm-inline-code {
+  font-family: var(--font-monospace);
+  font-size: var(--code-size);
+  color: var(--code-normal);
+  background-color: var(--code-background);
+  border-radius: var(--code-radius);
+  padding: 0.15em 0.3em;
+}
+.to-demo .HyperMD-codeblock .cm-inline-code {
+  background: inherit;
+  padding: 0;
+  border: 0;
+  font-size: inherit;
+}
+.to-demo .cm-line.hr {
+  color: var(--text-faint);
+}
+
+/* Inline */
+.to-demo .cm-strong { font-weight: var(--font-bold); }
+.to-demo .cm-em { font-style: italic; }
+.to-demo .cm-strikethrough { text-decoration: line-through; }
+.to-demo .cm-highlight { background-color: rgba(255, 208, 0, 0.4); }
+.to-demo .cm-hmd-internal-link {
+  color: var(--link-color);
+  text-decoration: var(--link-decoration);
+  text-decoration-color: color-mix(in oklch, var(--link-color) 40%, transparent);
+  cursor: pointer;
+}
+.to-demo .cm-hashtag {
+  color: var(--tag-color);
+  background-color: var(--tag-background);
+  font-size: var(--tag-size);
+}
+.to-demo .cm-hashtag-begin {
+  padding-inline-start: var(--tag-padding-x);
+  border-start-start-radius: var(--tag-radius);
+  border-end-start-radius: var(--tag-radius);
+}
+.to-demo .cm-hashtag-end {
+  padding-inline-end: var(--tag-padding-x);
+  border-start-end-radius: var(--tag-radius);
+  border-end-end-radius: var(--tag-radius);
+}
+
+/* Notices, positioned like Obsidian's */
+.notice-container {
+  position: fixed;
+  right: 20px;
+  top: 20px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.notice {
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  box-shadow: var(--shadow-s);
+  border-radius: var(--radius-m);
+  padding: 10px 16px;
+  font-family: var(--font-interface);
+  font-size: var(--font-ui-small);
+  max-width: 340px;
+  transition: opacity 0.2s;
+}
+.notice.mod-hidden {
+  opacity: 0;
+}
