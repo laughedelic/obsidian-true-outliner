@@ -39,6 +39,10 @@ export interface DragPreview {
   /** What maps the destination's own line spans — its absorbed rows — into
    * the source: the zoom root's line, or 0. The seam is already mapped. */
   readonly lineOffset: number;
+  /** How many nodes the run carries besides the one the ghost stands for —
+   * every descendant, and every further root — as a fold counts what it
+   * hides. Zero for a lone leaf. */
+  readonly carried: number;
 }
 
 export const setDragPreview = StateEffect.define<DragPreview | null>();

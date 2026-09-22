@@ -474,6 +474,23 @@ line, and for `h1` it lit the same. The place now names the node the run lands u
 The ordered placeholder's dot was the bullet's size: the rule that sizes the ghost's bullet to the
 native bullet matched every circle in a list-item ghost, the placeholder's dot included.
 
+## 6j. The ghost's own space, and the seam between paragraphs
+
+The third pass found guides crossing the ghost and the rule. With `# A` › `## B` › `foo`, and `## C`
+held between `B` and `foo`, the seam sits in the middle of the gap line, where `A`'s guide (column
+0) and `B`'s (column 1) both run. Under an `h1` both crossed the mark or the rule; under an `h2`,
+`B`'s crossed the mark, and the guide `C` will own began only on `foo`'s row, half a mark below its
+top, leaving a hole on the gap line. A guide on the ghost's column or deeper belongs to a node the
+drop closes above the seam, so on a gap-line seam it is not drawn at all; on a seam drawn at the
+bottom of the row above, it runs down to the mark and stops 2px short of it. The run's own guide
+starts on the ghost's row, 2px below the mark. Read on the seam row's plain guide layers, full
+height against stopped segments, at `h1`, `h2`, `h3`: 0/1, 1/1, 2/1, where the previous drawing
+read 2/0 at each.
+
+Between two paragraphs the rule sat on the lower paragraph's top edge while it sat evenly between
+two tight list items. The rule took a gap line's middle only under a heading or above an atom; any
+gap line between the two rows now takes it.
+
 ## 7. Where a drop can land: the seam and its depths
 
 Not a measurement — the model the sections above leave to be chosen, recorded here so the design

@@ -72,6 +72,35 @@
   opacity: 0.85;
 }
 
+/*
+ * How many nodes the run carries besides the one the ghost stands for, at the
+ * rule's far end, in the fold count's own voice — the same ellipsis, colour and
+ * size — since it counts what a run in flight hides behind one mark as a fold
+ * counts what it hides behind one line. Straddles the row edge the rule is on,
+ * with the page's own background behind it, so the rule stops at it rather than
+ * running through the digits. The edge classes are the ghost's.
+ */
+.markdown-source-view.mod-cm6 .cm-content .to-drag-count {
+  position: absolute;
+  right: 0;
+  top: 0;
+  transform: translateY(-50%);
+  padding-left: 0.35em;
+  background: var(--background-primary);
+  color: var(--text-faint);
+  font-family: var(--font-interface);
+  font-size: 0.85em;
+  line-height: 1.4;
+  pointer-events: none;
+  user-select: none;
+}
+
+.markdown-source-view.mod-cm6 .cm-content .to-drag-count::before {
+  content: '…';
+  margin-right: 0.3em;
+  font-size: 1.15em;
+}
+
 .markdown-source-view.mod-cm6 .cm-content .to-drag-ghost-below {
   top: auto;
   bottom: 0;

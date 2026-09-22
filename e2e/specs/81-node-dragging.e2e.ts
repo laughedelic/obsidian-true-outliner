@@ -1248,7 +1248,62 @@ describe('node dragging: the press and the drag it can become', function () {
       [0],
       [2],
     ]);
+    // The gap line the ghost sits on: a guide on the ghost's column or deeper
+    // belongs to a node the drop closes above it, so it is gone from the row
+    // — `A`'s and `B`'s under an h1, `B`'s under an h2 — and the run's own
+    // guide starts on this row, below the mark, as a segment rather than as a
+    // stripe through it.
+    expect([0, 1, 2].map((depth) => at(depth).indicator!.line)).toEqual([3, 3, 3]);
+    expect([0, 1, 2].map((depth) => at(depth).indicator!.guides)).toEqual([
+      { full: 0, segments: 1 },
+      { full: 1, segments: 1 },
+      { full: 2, segments: 1 },
+    ]);
     expect(await h.getBuffer()).toBe(LEVELS);
+    await h.setBuffer(DOC);
+    await browser.pause(200);
+  });
+
+  it('counts what the run carries at the rule\u2019s end, and draws nothing for a lone leaf', async function () {
+    // `- one` carries `  - nested`: a count of one, as a fold of it would
+    // show. `- three` carries nothing, and no count is drawn.
+    await h.setCursorSettled(0, 0);
+    const box = await editorBox();
+    const y = await seamBetween(2, 3);
+    const counts: (string | null)[] = [];
+    for (const bullet of [0, 3]) {
+      const mark = await markPoint(BULLET, bullet);
+      await startRecording();
+      await dragThenEscape(mark, [{ x: mark.x + 20, y: mark.y + 10 }, { x: box.left + 4, y }, { x: box.left + 5, y }]);
+      await browser.pause(250);
+      const held = (await recorded()).filter((sample) => sample.preview !== null);
+      expect(held.length).toBeGreaterThan(0);
+      counts.push(held[held.length - 1]!.count);
+    }
+    expect(counts).toEqual(['1', null]);
+    expect(await dragTraces()).toEqual({ lifted: 0, ghosts: 0, indicators: 0, preview: false });
+  });
+
+  it('draws the rule in the middle of the gap between two paragraphs', async function () {
+    // Two paragraphs are separated by a gap line, and its middle is the point
+    // between them — where the rule sits between two tight list items too.
+    const PARAS = ['# Top', '', 'para one', '', 'para two', '', 'para three', ''].join('\n');
+    await h.setBuffer(PARAS);
+    await browser.pause(300);
+    await h.setCursorSettled(0, 0);
+    // Marker icons: Top(0), para one(1), para two(2), para three(3).
+    const one = await markPoint('.to-decor-marker-icon', 1);
+    const two = await markPoint('.to-decor-marker-icon', 2);
+    const column = await columnOfMark('.to-decor-marker-icon', 1, 'centre');
+    const mark = await markPoint('.to-decor-marker-icon', 3);
+    const y = (one.y + two.y) / 2;
+    await startRecording();
+    await dragThenEscape(mark, [{ x: mark.x + 20, y: mark.y - 10 }, { x: column, y }, { x: column + 1, y }]);
+    await browser.pause(250);
+    const held = (await recorded()).filter((sample) => sample.indicator !== null);
+    expect(held.length).toBeGreaterThan(0);
+    expect(held[held.length - 1]!.indicator!.line).toBe(3);
+    expect(await h.getBuffer()).toBe(PARAS);
     await h.setBuffer(DOC);
     await browser.pause(200);
   });

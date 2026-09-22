@@ -21,6 +21,7 @@ const preview = (over: Partial<DragPreview['destination']> = {}, seamLine = 4): 
   destination: { parentId: 'root', index: 1, depth: 0, firstLine: '- one', mark: { kind: 'list-item' }, ...over },
   parentLine: null,
   lineOffset: 0,
+  carried: 0,
 });
 
 describe('the drag preview field', () => {

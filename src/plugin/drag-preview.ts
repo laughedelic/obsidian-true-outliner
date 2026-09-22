@@ -48,6 +48,8 @@ export interface SeamIndicator {
   readonly mark: NodeMark;
   /** A list item's checkbox or number, drawn instead of its bullet. */
   readonly list: ListMark | undefined;
+  /** What the run carries besides the node the ghost stands for. */
+  readonly carried: number;
 }
 
 /**
@@ -83,28 +85,54 @@ export function seamIndicator(
     // is the seam's own room, so the bar takes its middle; pressed against
     // the heading's own text it read as underlining it. Without a gap, the
     // row above's bottom edge is what is left.
+    //
+    // And wherever the two rows are separated by a gap line at all: the gap is
+    // the space between them, so its middle is the point between them. Drawn
+    // on the lower row's top instead, the bar sat against two paragraphs'
+    // lower one while it sat evenly between two tight list items.
+    if (last >= 0 && preview.seamLine - last >= 2) {
+      return { lineNumber: preview.seamLine - 1, edge: 'middle', depth, mark, list, carried: preview.carried };
+    }
     const here = kindAt(preview.seamLine);
     const above = last >= 0 ? kindAt(last) : undefined;
     if (last >= 0 && ((above && above.kind === 'heading') || (here && here.atom))) {
-      return preview.seamLine - last >= 2
-        ? { lineNumber: preview.seamLine - 1, edge: 'middle', depth, mark, list }
-        : { lineNumber: last, edge: 'bottom', depth, mark, list };
+      return { lineNumber: last, edge: 'bottom', depth, mark, list, carried: preview.carried };
     }
-    return { lineNumber: preview.seamLine, edge: 'top', depth, mark, list };
+    return { lineNumber: preview.seamLine, edge: 'top', depth, mark, list, carried: preview.carried };
   }
-  return last < 0 ? null : { lineNumber: last, edge: 'bottom', depth, mark, list };
+  return last < 0 ? null : { lineNumber: last, edge: 'bottom', depth, mark, list, carried: preview.carried };
 }
 
 /**
- * The guide that will connect the absorbed rows to the ghost mark, on the
- * FIRST of them: begun below the mark rather than at the row's top, where a
- * full-height stripe ran up through the glyph sitting on that edge.
+ * A guide at `depth` on the row that carries the ghost, stopped short of the
+ * mark: the part ABOVE it, where a guide the drop ends runs down to the mark,
+ * or the part BELOW it, where the guide the run will own starts. Either way it
+ * keeps a clearance from the glyph, so the mark claims its own space rather
+ * than being crossed by whatever column it sits on.
  */
-export function absorbedGuideHead(depth: number): string {
+export function guideBesideGhost(depth: number, edge: SeamEdge, part: 'above' | 'below'): string {
+  const mark = `(var(--to-marker-icon-size, 0.85rem) / 2 + ${GHOST_CLEARANCE})`;
+  // How far the mark's centre is from the row edge the segment starts at.
+  const toCentre =
+    edge === 'middle' ? '50%' : (edge === 'top') === (part === 'above') ? '0%' : '100%';
   return (
     `repeating-linear-gradient(to right, var(--to-guide-color) 0 ${GUIDE_WIDTH}, transparent ${GUIDE_WIDTH} ${UNIT_EXPR}) ` +
-    `${stripeStartExpr(depth, GUIDE_WIDTH)} bottom / ${UNIT_EXPR} calc(100% - var(--to-marker-icon-size, 0.85rem) / 2) no-repeat`
+    `${stripeStartExpr(depth, GUIDE_WIDTH)} ${part === 'above' ? 'top' : 'bottom'} / ${UNIT_EXPR} ` +
+    `max(0px, calc(${toCentre} - ${mark})) no-repeat`
   );
+}
+
+/** How far a guide stops short of the ghost mark's own box. */
+const GHOST_CLEARANCE = '2px';
+
+/**
+ * The guide that will connect the absorbed rows to the ghost mark, on the
+ * FIRST of them when the mark sits on that row's own top edge: begun below
+ * the mark rather than at the row's top, where a full-height stripe ran up
+ * through the glyph.
+ */
+export function absorbedGuideHead(depth: number): string {
+  return guideBesideGhost(depth, 'top', 'below');
 }
 
 /** The guide that connects the absorbed rows, on every row after the first. */

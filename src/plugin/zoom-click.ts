@@ -166,6 +166,8 @@ interface PressSeams {
   readonly lineOffset: number;
   /** One depth step in CSS pixels, measured with the seams. */
   readonly unit: number | null;
+  /** The nodes the run carries besides its first root. */
+  readonly carried: number;
 }
 
 /** A press on a mark, from its arrival until the button comes up. */
@@ -477,6 +479,7 @@ class ZoomClickPlugin implements PluginValue {
       destination: resolved.destination,
       parentLine: parentLine === undefined ? null : parentLine + offset,
       lineOffset: offset,
+      carried: seams.carried,
     };
   }
 
@@ -508,7 +511,19 @@ class ZoomClickPlugin implements PluginValue {
       // there leaves the view it was dragged in.
       scoped: scope !== null,
     });
-    press.seams = { list, tree, lineOffset: scope ? scope.startLine : 0, unit: measureUnit(this.view) };
+    let carried = -1;
+    const count = (node: OutlineNode): void => {
+      carried++;
+      node.children.forEach(count);
+    };
+    roots.forEach(count);
+    press.seams = {
+      list,
+      tree,
+      lineOffset: scope ? scope.startLine : 0,
+      unit: measureUnit(this.view),
+      carried: Math.max(0, carried),
+    };
     return press.seams;
   }
 

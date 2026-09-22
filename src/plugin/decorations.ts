@@ -130,6 +130,7 @@ import { dragLiftField, dragPreviewField } from './drag-state';
 import {
   absorbedGuide,
   absorbedGuideHead,
+  guideBesideGhost,
   absorbedRows,
   ghostMarkLeftExpr,
   seamIndicator,
@@ -1149,6 +1150,35 @@ function ghostIcon(subject: MarkSubject, list: ListMark | undefined): SVGSVGElem
   return buildMarkerIcon(subject);
 }
 
+/** How many nodes a run in flight carries besides the ghost's own, at the
+ * right end of the indicator. */
+class DragCountWidget extends WidgetType {
+  constructor(
+    private readonly count: number,
+    private readonly edge: SeamEdge,
+  ) {
+    super();
+  }
+
+  override eq(other: DragCountWidget): boolean {
+    return other.count === this.count && other.edge === this.edge;
+  }
+
+  toDOM(): HTMLElement {
+    return createSpan({
+      cls: `${DRAG_COUNT_CLASS} ${GHOST_MARK_EDGE_CLASS[this.edge]}`,
+      text: String(this.count),
+    });
+  }
+
+  override ignoreEvent(): boolean {
+    return true;
+  }
+}
+
+/** The run's count; `90-dragging.css` places and styles it. */
+export const DRAG_COUNT_CLASS = 'to-drag-count';
+
 /** The ghost mark's own classes; `90-dragging.css` positions them. */
 export const GHOST_MARK_CLASS = 'to-drag-ghost';
 export const GHOST_MARK_EDGE_CLASS: Record<SeamEdge, string> = {
@@ -1572,15 +1602,33 @@ function renderInputs(state: EditorState, modes: DecorationSource): RenderInputs
     if (onSeam) layers.push(seamLayer(onSeam));
     if (taken && absorbed !== null) {
       layers.push(
-        lineNumber === absorbed.from
+        lineNumber === absorbed.from && onSeam
           ? absorbedGuideHead(ghostColumn)
           : absorbedGuide(ghostColumn),
       );
     }
-    if (hasOverlay(depths)) {
+    // The row the ghost sits on, where it is not also an absorbed row. A guide
+    // on the mark's own column or deeper belongs to a node the drop closes
+    // above the seam, so it does not reach this row at all when the row is the
+    // gap between the two nodes; where the row is the node above's own, it
+    // runs down to the mark and stops short of it. And where the drop takes
+    // the rows below, the run's own guide starts below the mark on this row
+    // rather than on the next one.
+    let visibleDepths = depths;
+    if (onSeam && !taken) {
+      const column = onSeam.depth;
+      if (onSeam.edge === 'bottom' && depths.includes(column)) {
+        layers.push(guideBesideGhost(column, onSeam.edge, 'above'));
+      }
+      if (absorbed !== null && onSeam.edge !== 'top') {
+        layers.push(guideBesideGhost(column, onSeam.edge, 'below'));
+      }
+      visibleDepths = depths.filter((d) => d < column);
+    }
+    if (hasOverlay(visibleDepths)) {
       layers.push(
         guideBackground(
-          depths,
+          visibleDepths,
           trail.byLine.get(lineNumber),
           litGuideOn(hover, lineNumber),
           dropAccentOn(lineNumber),
@@ -1703,6 +1751,19 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
           side: -1,
         }),
       );
+      // How much comes with it, at the rule's far end: the count a fold would
+      // show for the same run, since a run in flight hides its descendants
+      // behind one mark the same way a fold hides them behind one line.
+      if (render.seam.carried > 0) {
+        builder.add(
+          line.from,
+          line.from,
+          Decoration.widget({
+            widget: new DragCountWidget(render.seam.carried, render.seam.edge),
+            side: -1,
+          }),
+        );
+      }
     }
     // At the END of the node's own text, where a reader's eye already is when
     // they reach the end of what is visible — and where Obsidian puts its own

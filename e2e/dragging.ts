@@ -60,7 +60,15 @@ export interface MoveSample {
    * wide and full height, and the indicator is full width and one stripe tall.
    * `null` while nothing is drawn.
    */
-  readonly indicator: { readonly line: number; readonly x: number } | null;
+  readonly indicator: {
+    readonly line: number;
+    readonly x: number;
+    /** The row's plain guide layers by resolved size: a guide is one unit
+     * wide and `100%` tall, a segment stopped at the ghost is shorter. */
+    readonly guides: { readonly full: number; readonly segments: number };
+  } | null;
+  /** The count at the rule's right end, as its text, or null where none. */
+  readonly count: string | null;
   /**
    * The ghost mark the preview draws: the kind the run will BE where it
    * lands, and its level where that is a heading. Read off the mark's own
@@ -280,17 +288,43 @@ export function startRecording(): Promise<void> {
       // plain lengths, so splitting the layer list on commas is exact here —
       // it would not be on `background-image`, whose functions carry their
       // own.
-      let indicator: { line: number; x: number } | null = null;
+      // A layer list split at the commas between layers, never at those inside
+      // a `max()` or `calc()` of one layer's own size.
+      const layerList = (value: string): string[] => {
+        const out: string[] = [];
+        let depth = 0;
+        let start = 0;
+        for (let i = 0; i < value.length; i++) {
+          const ch = value[i];
+          if (ch === '(') depth++;
+          else if (ch === ')') depth--;
+          else if (ch === ',' && depth === 0) {
+            out.push(value.slice(start, i).trim());
+            start = i + 1;
+          }
+        }
+        out.push(value.slice(start).trim());
+        return out;
+      };
+      let indicator: { line: number; x: number; guides: { full: number; segments: number } } | null = null;
       for (const el of Array.from(dom.querySelectorAll('.cm-line.to-decor-guides'))) {
         const style = getComputedStyle(el, '::after');
-        const sizes = style.backgroundSize.split(',').map((part) => part.trim());
+        const sizes = layerList(style.backgroundSize);
         const which = sizes.findIndex((size) => size.startsWith('100%'));
         if (which < 0) continue;
-        const positions = style.backgroundPosition.split(',').map((part) => part.trim());
+        const positions = layerList(style.backgroundPosition);
+        // Plain guides only: a guide is a repeating gradient, where the trail's
+        // and the drop parent's accents are single stripes.
+        const images = layerList(style.backgroundImage);
+        const others = sizes.filter((_, i) => i !== which && (images[i] ?? '').startsWith('repeating-'));
         try {
           indicator = {
             line: cm.state.doc.lineAt(cm.posAtDOM(el)).number - 1,
             x: parseFloat(positions[which] ?? ''),
+            guides: {
+              full: others.filter((size) => size.endsWith(' 100%')).length,
+              segments: others.filter((size) => !size.endsWith(' 100%')).length,
+            },
           };
         } catch {
           // A row the view has already moved past.
@@ -359,7 +393,9 @@ export function startRecording(): Promise<void> {
           // A row the view has already moved past.
         }
       }
+      const countEl = dom.querySelector('.to-drag-count');
       w.__toDragSamples.push({
+        count: countEl ? countEl.textContent : null,
         x: event.clientX,
         y: event.clientY,
         pointerId: event.pointerId,
@@ -521,7 +557,8 @@ export function dragTraces(): Promise<{
     const held = (app as any).plugins?.plugins?.['true-outliner'];
     return {
       lifted: dom.querySelectorAll('.to-drag-lifted').length,
-      ghosts: dom.querySelectorAll('.to-drag-ghost').length,
+      // The count at the rule's end is a trace of the same kind as the ghost.
+      ghosts: dom.querySelectorAll('.to-drag-ghost, .to-drag-count').length,
       indicators,
       // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       preview: (held?.activeDragPreview?.() ?? null) !== null,
