@@ -11,7 +11,7 @@
  * - a blockquote is a contiguous run of `>` lines.
  */
 
-import type { ListStyle, OutlineDoc, OutlineNode } from './model';
+import type { ListStyle, NodeKind, OutlineDoc, OutlineNode } from './model';
 import { makeNode } from './model';
 import { listAttachesTo } from './rules';
 
@@ -65,6 +65,47 @@ const HR_RE = /^ {0,3}(?:(?:\* *){3,}|(?:- *){3,}|(?:_ *){3,})$/;
 const SETEXT_RE = /^ {0,3}(=+|-+)[ \t]*$/;
 const TABLE_DELIM_RE = /^[ \t]*\|?[ \t:|-]*-[ \t:|-]*\|?[ \t]*$/;
 const HTML_OPEN_RE = /^ {0,3}<[a-zA-Z!/]/;
+
+/**
+ * The last column at which an `hr`, a `quote`, a `callout`, an `html` block or
+ * an ATX heading still OPENS one: `HR_RE`, `QUOTE_RE`, `CALLOUT_RE`,
+ * `HTML_OPEN_RE` and `ATX_RE` all anchor at `^ {0,3}`. A line written past it
+ * opens nothing, and is read as a paragraph or as a continuation of the
+ * paragraph above.
+ */
+export const OPENING_MARGIN = 3;
+
+/**
+ * The kind a node's lines PARSE AS where they now sit, which is not always the
+ * kind the tree holds. A re-indent writes those lines at a new column, and the
+ * kinds above survive only within `OPENING_MARGIN` of the left margin — past
+ * it the same bytes are a paragraph, and a paragraph claims the line after it.
+ *
+ * Anything reasoning about what a seam will re-parse as has to ask this rather
+ * than read `node.kind`: the two disagree exactly where a re-indent has
+ * happened, and a separator chosen for the kind the tree holds is a separator
+ * chosen for a node the document will not contain.
+ *
+ * A setext heading is judged on its UNDERLINE, the line that carries its
+ * `^ {0,3}`; every other kind on the line that opens it.
+ */
+export function kindAsWritten(node: Pick<OutlineNode, 'kind' | 'lines' | 'setext'>): NodeKind {
+  const kind = node.kind;
+  if (kind === 'heading' && node.setext === true) {
+    const underline = node.lines[node.lines.length - 1] ?? '';
+    return indentWidth(underline) > OPENING_MARGIN ? 'paragraph' : kind;
+  }
+  if (
+    kind !== 'heading' &&
+    kind !== 'quote' &&
+    kind !== 'callout' &&
+    kind !== 'hr' &&
+    kind !== 'html'
+  ) {
+    return kind;
+  }
+  return indentWidth(node.lines[0] ?? '') > OPENING_MARGIN ? 'paragraph' : kind;
+}
 
 /**
  * Columns a whitespace run occupies when it starts at `col`, with tabs

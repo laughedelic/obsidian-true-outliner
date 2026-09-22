@@ -409,6 +409,12 @@ tree BEFORE encoding, so the seam is judged on the node's current kind while the
 kind its new column gives it — a `quote` needs no separator before a paragraph, but the paragraph
 it becomes at column 4 does.
 
+The node-loss half is closed by `a-seam-judged-on-the-kind-the-parse-sees`, which separates a seam
+on the kind the re-parse will read: every payload node arrives, and the atom arrives as a
+paragraph. The kind loss itself is still open, and the measurement it was missing — CommonMark
+reads indentation RELATIVE to a block's container, so an `hr` at a list item's child column is an
+`hr` to `commonmark` and a paragraph to us — is in `docs/research/seams-across-a-re-indent`.
+
 ### P6. A converted heading is always a `-`, which splits an ordered run
 
 `headingAsListItem` hardcodes `{ type: 'bullet', marker: '-' }`, as the paragraph→list-item
