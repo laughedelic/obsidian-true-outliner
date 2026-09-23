@@ -91,9 +91,8 @@ which makes a lone `^id` line part of the node it names. This change reads what 
 with it, where an id belongs follows from which node holds its line, and D2's attribution rule
 shrinks to the whole-list case.
 
-At the file level the code also overlaps two open drafts: `feat/search-palette`
-([#95](https://github.com/laughedelic/obsidian-true-outliner/pull/95)) edits
-`backlinks-footer.ts`, `backlink-index.ts` and `footer-model.ts`, and
-`feat/drag-nodes-with-a-drop-preview`
-([#124](https://github.com/laughedelic/obsidian-true-outliner/pull/124)) edits
-`backlinks-footer.ts`. This change reads nothing either of them adds.
+At the file level the code also overlaps the open draft `feat/search-palette`
+([#95](https://github.com/laughedelic/obsidian-true-outliner/pull/95)), which edits
+`backlinks-footer.ts`, `backlink-index.ts` and `footer-model.ts`; this change reads nothing it adds.
+`feat/drag-nodes-with-a-drop-preview` ([#124](https://github.com/laughedelic/obsidian-true-outliner/pull/124)),
+the other overlap, has landed on `main`.
