@@ -1474,6 +1474,55 @@ describe('node dragging: the press and the drag it can become', function () {
     expect(await zoomed()).toBe(true);
   });
 
+  it('reads a fold inside a zoom at the folded node', async function () {
+    // Zoomed into `- one`, with `  - n1` folded over `    - deep`. The seam
+    // after the fold offers beside `  - n1` and inside it, never a level
+    // under the hidden `    - deep`, and `  - n3` dropped inside lands last
+    // in `  - n1`. The fold is recorded at its line in the note, and the
+    // scope's own document starts at the zoom root, so the fold is resolved
+    // in the note before the scope is taken from it.
+    const ZOOM = ['# Top', '', '- one', '  - n1', '    - deep', '  - n2', '  - n3', '- two', ''].join('\n');
+    await h.setBuffer(ZOOM);
+    await browser.pause(250);
+    await h.setCursorSettled(0, 0);
+    const one = await markPoint(BULLET, 0);
+    await h.clickAtPoint(one.x, one.y);
+    await browser.pause(300);
+    expect(await zoomed()).toBe(true);
+    await h.setCursorSettled(3, '  - n1'.length);
+    await h.runCommand('fold-node');
+    await browser.pause(300);
+    await h.setCursorSettled(5, '  - n2'.length);
+    // Zoomed and folded, the bullets rendered are `- one`, `  - n1`,
+    // `  - n2`, `  - n3`.
+    // Depths are the scope's, counted from the zoom root.
+    const columns = [
+      await columnOfMark(BULLET, 0, 'left'), // `- one`, depth 0
+      await columnOfMark(BULLET, 1, 'left'), // `  - n1`, depth 1
+    ];
+    const unit = columns[1]! - columns[0]!;
+    const y = await seamBetween(1, 2);
+    const mark = await markPoint(BULLET, 3);
+    await startRecording();
+    await dragFrom(mark, [
+      { x: mark.x + 20, y: mark.y - 10 },
+      { x: columns[1]! - unit, y },
+      { x: columns[1]!, y },
+      { x: columns[1]! + unit, y },
+      { x: columns[1]! + 2 * unit, y },
+      { x: columns[1]! + 2 * unit + 1, y },
+    ]);
+    await browser.pause(300);
+    const depths = new Set(
+      (await recorded()).filter((sample) => sample.preview !== null).map((sample) => sample.preview!.depth),
+    );
+    expect([...depths].sort()).toEqual([1, 2]);
+    expect(await h.getBuffer()).toBe(
+      ['# Top', '', '- one', '  - n1', '    - deep', '    - n3', '  - n2', '- two', ''].join('\n'),
+    );
+    expect(await zoomed()).toBe(true);
+  });
+
   it('agrees with the command that names the same move', async function () {
     // The gesture is a THIRD entry point, and `selection-structural-ops`
     // requires every one of them to reach the same document and the same

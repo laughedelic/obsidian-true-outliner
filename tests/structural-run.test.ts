@@ -11,12 +11,12 @@
  * divergence the capability exists to close.
  */
 
+import { EditorState } from '@codemirror/state';
 import { describe, expect, it } from 'vitest';
 import { parse } from '../src/parse';
 import { walkNodes, type OutlineDoc } from '../src/model';
 import { moveGroupsDown, moveSubtreesTo } from '../src/ops';
-import { applyEdits } from '../src/result';
-import { mapCursorForward } from '../src/plugin/dispatch';
+import { changesToSpec, mapCursorForward } from '../src/plugin/dispatch';
 import { offsetInLines, planStructural } from '../src/plugin/structural-run';
 
 /*  0 | - one
@@ -84,8 +84,11 @@ describe('one funnel, three entry points', () => {
     if (!drop.ok) throw new Error('should be accepted');
     const lines = DOC.split('\n');
 
-    // Same buffer: the changeset is the whole of the document change.
-    expect(applyEdits(lines, []).join('\n')).toBe(DOC);
+    // Same buffer: the changeset is the whole of the document change,
+    // applied the way the adapter dispatches it.
+    const start = EditorState.create({ doc: DOC });
+    const applied = start.update({ changes: changesToSpec(start.doc, drop.changes) }).state.doc;
+    expect(applied.toString()).toBe(MOVED);
     expect(drop.newLines.join('\n')).toBe(MOVED);
 
     // The cover as it stood before the move — `- two` through its own child —

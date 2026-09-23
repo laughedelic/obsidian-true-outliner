@@ -570,7 +570,9 @@ class ZoomClickPlugin implements PluginValue {
     if (roots.length !== wanted.size) return null;
 
     const list = dropSeams(tree, roots, {
-      folded: foldedIds(this.view, tree),
+      // Read against the press's tree, whose lines are the note's: a fold is
+      // recorded at its line there, and the scope's document shares its ids.
+      folded: foldedIds(this.view, press.tree),
       // The gesture holds the view, so it reads the editor's live unit where
       // the command path has to fall back to a default.
       fallbackIndentUnit: this.view.state.facet(indentUnit),
