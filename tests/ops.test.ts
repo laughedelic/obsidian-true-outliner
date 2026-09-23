@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { dropSeams } from '../src/drop-destinations';
 import fc from 'fast-check';
-import { parse } from '../src/parse';
+import { indentWidth, parse } from '../src/parse';
 import { encode } from '../src/encode';
 import { walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
 import {
@@ -410,6 +410,47 @@ describe('tab-indented vaults (Obsidian default)', () => {
     expect(text).toBe('- a\n\t- b\n\t- c has\n\t  two lines\n');
     const c = doc.children[0]!.children[1]!;
     expect(c.lines.length).toBe(2); // still one multiline node
+  });
+});
+
+describe('an indent writes its unit on every line the node owns (#154)', () => {
+  function indentWith(md: string, line: string, unit: string): string {
+    const doc = parse(md);
+    const result = indent(doc, byLine(doc, line), unit);
+    if (!result.ok) throw new Error(`unexpected rejection: ${result.rejection.reason}`);
+    const text = encode(result.value.doc);
+    expect(applyEdits(md.split('\n'), result.value.edits).join('\n')).toBe(text);
+    return text;
+  }
+
+  it.each([
+    ['a tab', '\t', '- top\n\t- foo\n\t  bar\n'],
+    ['four spaces', '    ', '- top\n    - foo\n      bar\n'],
+    ['two spaces', '  ', '- top\n  - foo\n    bar\n'],
+  ])('%s: the continuation line opens with the unit its first line took', (_, unit, expected) => {
+    expect(indentWith('- top\n- foo\n  bar\n', '- foo', unit)).toBe(expected);
+  });
+
+  it('the node’s children take the same unit, at the same depth relative to it', () => {
+    const text = indentWith('- top\n\t- sib\n- foo\n  bar\n  - kid\n    more\n', '- foo', '  ');
+    expect(text).toBe('- top\n\t- sib\n\t- foo\n\t  bar\n\t  - kid\n\t    more\n');
+    const foo = parse(text).children[0]!.children[1]!;
+    expect(foo.lines).toEqual(['\t- foo', '\t  bar']);
+    expect(foo.children.map((n) => n.lines)).toEqual([['\t  - kid', '\t    more']]);
+  });
+
+  it('a line whose own indentation carries a tab past the prefix still lands on its column', () => {
+    // `  ` + `\tbar` re-expands the tab from column 2 to 4, two columns short
+    // of the 6 the delta asks for: the swap is not taken there.
+    const text = indentWith('- top\n- foo\n\tbar\n', '- foo', '  ');
+    expect(text).toBe('- top\n  - foo\n\t  bar\n');
+    expect(indentWidth('\t  bar')).toBe(indentWidth('\tbar') + 2);
+  });
+
+  it('an outdent back out restores the original lines', () => {
+    const indented = indentWith('- top\n- foo\n  bar\n', '- foo', '\t');
+    const { text } = applyOk(outdent, indented, '\t- foo');
+    expect(text).toBe('- top\n- foo\n  bar\n');
   });
 });
 
