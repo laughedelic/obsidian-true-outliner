@@ -59,6 +59,18 @@ Obsidian's start line for all seventeen shapes.
 A table row ending in an id, an id after a nested quote, an id inside a footnote or an HTML block
 were not probed.
 
+**What a block link does, as against what the cache says.** The cache's ranges were checked
+against behaviour by a second probe,
+[`prototypes/zoom-anchors-probe/anchor-use-probe.e2e.ts.txt`](prototypes/zoom-anchors-probe/anchor-use-probe.e2e.ts.txt):
+fourteen shapes, each under its own heading, embedded from another note and followed with
+`openLinkText`, in reading view and in the editing view with outline mode off and on. Every embed
+rendered the block the cache names — the table for `^t1`, `^t2` and an id ending a table row, the
+whole list for `^l1` — and every navigation that landed put the view on that block's first line.
+Two navigations (`^t2`, `^q2`, outline mode off) opened the note at its top on one run and landed
+correctly on the other; they are not counted either way. A report from use says an id after a
+table cannot be referenced; the conditions it was seen under are not yet known, and until they are
+reproduced the table rows above rest on this probe alone.
+
 ## What a heading subpath matches
 
 `resolveSubpath(cache, '#…')` against a note with eight headings, two of them duplicates:
