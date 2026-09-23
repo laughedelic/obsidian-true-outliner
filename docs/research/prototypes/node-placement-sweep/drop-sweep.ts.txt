@@ -1,0 +1,198 @@
+// Sweep: every single-root drop over generated labelled notes.
+// Checks (1) bystander stability against the preview's declared landing and absorption,
+// (2) drop = paste at the same destination, (3) moving the run back restores the note.
+import fc from 'fast-check';
+import { dropSeams } from '../src/drop-destinations';
+import { moveSubtreesTo, insertSubtrees, deleteSubtreeGroups } from '../src/ops';
+import { ownSpan, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
+import { arbDocText, parse, encode, labelOf, parentMap, nodeByLabel, subtreeLabels, kindTag } from './labelled-notes';
+
+const RUNS = Number(process.env.RUNS ?? 300);
+const SEED = Number(process.env.SEED ?? 42);
+const texts = fc.sample(arbDocText, { numRuns: RUNS, seed: SEED });
+
+const tally = new Map<string, number>();
+const examples = new Map<string, string[]>();
+const bump = (key: string, example?: string): void => {
+  tally.set(key, (tally.get(key) ?? 0) + 1);
+  if (example) {
+    const list = examples.get(key) ?? [];
+    if (list.length < 3) list.push(example);
+    examples.set(key, list);
+  }
+};
+
+function startLines(doc: OutlineDoc): Map<number, OutlineNode> {
+  const out = new Map<number, OutlineNode>();
+  let line = doc.preamble.length;
+  const walk = (nodes: readonly OutlineNode[]): void => {
+    for (const node of nodes) {
+      out.set(line, node);
+      line += ownSpan(node);
+      walk(node.children);
+    }
+  };
+  walk(doc.children);
+  return out;
+}
+
+const tagOf = (doc: OutlineDoc, label: string): string => {
+  const e = parentMap(doc).get(label);
+  return e ? kindTag(e) : 'ROOT';
+};
+
+let destinations = 0;
+for (const text of texts) {
+  const doc = parse(text);
+  const before = parentMap(doc);
+  const byStart = startLines(doc);
+  const nodes = [...walkNodes(doc)].filter((n) => labelOf(n));
+  const insideList = new Set<number>();
+  const mark = (n: OutlineNode, under: boolean): void => {
+    const here = under || n.kind === 'list-item';
+    if (here) insideList.add(n.id);
+    n.children.forEach((ch) => mark(ch, here));
+  };
+  doc.children.forEach((n) => mark(n, false));
+  for (const run of nodes) {
+    const runLabel = labelOf(run)!;
+    const runTag = kindTag({ kind: run.kind, line: run.lines[0]! });
+    const inRun = new Set(subtreeLabels(run));
+    const home = before.get(runLabel)!;
+    for (const seam of dropSeams(doc, [run])) {
+      for (const c of seam.candidates) {
+        destinations++;
+        const result = moveSubtreesTo(
+          doc,
+          [[run.id]],
+          c.level === undefined ? { parentId: c.parentId, index: c.index } : { parentId: c.parentId, index: c.index, level: c.level },
+        );
+        if (!result.ok) {
+          bump(`refused-on-release:${result.rejection.reason}`);
+          continue;
+        }
+        const after = parentMap(result.value.doc);
+        const target = c.landsUnder ?? c.parentId;
+        const targetLabel = target === 'root' ? 'ROOT' : labelOf([...walkNodes(doc)].find((n) => n.id === target)!)!;
+        const writtenTag = kindTag({ kind: c.mark.kind, line: c.firstLine });
+        if (c.mark.kind === 'paragraph' && run.kind === 'list-item') bump('KIND: a list item written as a paragraph (the attachment rule)');
+        if (c.mark.kind === 'list-item' && run.kind === 'paragraph') bump('KIND: a paragraph written as a list item');
+        if (c.mark.kind === 'list-item' && run.kind === 'heading') bump('KIND: a heading written as a list item');
+        if (c.mark.kind === run.kind) bump('KIND: kept');
+        // Expected parents.
+        const expected = new Map<string, string>();
+        for (const [label, e] of before) expected.set(label, e.parent);
+        expected.set(runLabel, targetLabel);
+        for (const shift of c.absorbs?.shifts ?? []) {
+          const absorbed = byStart.get(shift.from);
+          const l = absorbed && labelOf(absorbed);
+          if (l) expected.set(l, runLabel);
+        }
+        let clean = true;
+        let removalMap: Map<string, { parent: string }> | undefined;
+        const causes = new Set<string>();
+        for (const [label, want] of expected) {
+          const got = after.get(label)?.parent;
+          if (got === want) continue;
+          clean = false;
+          const who = label === runLabel ? 'run' : inRun.has(label) ? 'descendant' : 'bystander';
+          if (!removalMap) {
+            const removed = deleteSubtreeGroups(doc, [[run.id]]);
+            removalMap = removed.ok ? parentMap(removed.value.doc) : new Map();
+          }
+          let cause: string;
+          if (got === undefined) cause = 'node lost';
+          else if (who === 'bystander' && removalMap.get(label) && removalMap.get(label)!.parent !== before.get(label)!.parent) cause = 'removal re-parents a neighbour';
+          else if (who === 'descendant') cause = 'a descendant leaves the run';
+          else if (who === 'run') cause = 'the run lands elsewhere';
+          else if (inRun.has(got) && got !== runLabel) cause = "the run's own last node adopts what follows";
+          else if (got === runLabel) cause = 'the run adopts what follows, undrawn';
+          else cause = 'other';
+          causes.add(cause);
+          const key = `moved: ${cause} | ${who} | run ${runTag}->${writtenTag} | ${tagOf(doc, label)}: ${want === 'ROOT' ? 'ROOT' : tagOf(doc, want)} -> ${got === undefined ? 'LOST' : got === 'ROOT' ? 'ROOT' : tagOf(doc, got)}`;
+          bump(key, `${JSON.stringify(text)} run=${runLabel} dest=${targetLabel}@${c.index} depth=${c.depth} wrote=${JSON.stringify(c.firstLine)} node=${label}`);
+        }
+        for (const cause of causes) bump(`DEST: ${cause}`);
+        const place = c.landsUnder !== undefined ? 'levelled column' : c.level !== undefined ? 'kept heading' : 'plain';
+        const inList = seam.aboveId !== undefined && insideList.has(seam.aboveId);
+        for (const cause of causes) bump(`WHERE: ${cause} | ${place}${place === 'levelled column' ? (inList ? ' inside a list' : ' outside lists') : ''}`);
+        if (clean) bump('DEST: clean');
+
+        // Drop vs paste, same destination, no named level, run leaves its scope.
+        const crossScope = c.parentId !== (home.parent === 'ROOT' ? 'root' : nodeByLabel(doc, home.parent)?.id);
+        const keptLevel = c.level !== undefined && c.landsUnder === undefined;
+        if (keptLevel) bump('drop names a level the paste would not (kept heading)');
+        if ((c.level === undefined || keptLevel) && crossScope) {
+          const removed = deleteSubtreeGroups(doc, [[run.id]]);
+          if (removed.ok) {
+            const rdoc = removed.value.doc;
+            const parentLabel = c.parentId === 'root' ? 'ROOT' : labelOf([...walkNodes(doc)].find((n) => n.id === c.parentId)!);
+            const rparent = parentLabel === 'ROOT' ? undefined : parentLabel ? nodeByLabel(rdoc, parentLabel) : undefined;
+            const kids = parentLabel === 'ROOT' ? rdoc.children : rparent?.children;
+            if (kids && kids.length > 0) {
+              const origKids = c.parentId === 'root' ? doc.children : [...walkNodes(doc)].find((n) => n.id === c.parentId)!.children;
+              // Resolve the destination by the labelled sibling it sits before.
+              const beforeNode = origKids[c.index];
+              const anchorLabel = beforeNode ? labelOf(beforeNode) : undefined;
+              const afterLabel = !beforeNode && c.index > 0 ? labelOf(origKids[c.index - 1]!) : undefined;
+              const anchor = anchorLabel ? nodeByLabel(rdoc, anchorLabel) : afterLabel ? nodeByLabel(rdoc, afterLabel) : undefined;
+              if (anchor) {
+                const payload = parse(encode({ preamble: [], children: [run] })).children;
+                const pasted = insertSubtrees(rdoc, anchor.id, payload, anchorLabel ? 'before' : 'after');
+                if (!pasted.ok) {
+                  bump(`drop-vs-paste:paste-refused:${runTag}->${writtenTag}:${pasted.rejection.reason}`, `${JSON.stringify(text)} run=${runLabel} dest=${targetLabel}@${c.index}`);
+                } else {
+                  const pmap = parentMap(pasted.value.doc);
+                  const pe = pmap.get(runLabel);
+                  const de = after.get(runLabel);
+                  const same = pe?.line.trim() === de?.line.trim() && pe?.parent === de?.parent;
+                  if (same) bump(`drop-vs-paste:same${keptLevel ? ' (kept heading)' : ''}`);
+                  else
+                    bump(
+                      `drop-vs-paste:differ${keptLevel ? ' (kept heading)' : ''}:${runTag}: drop ${de ? kindTag(de) : '?'} under ${de?.parent === 'ROOT' ? 'ROOT' : de ? tagOf(doc, de.parent) : '?'} / paste ${pe ? kindTag(pe) : '?'} under ${pe?.parent === 'ROOT' ? 'ROOT' : pe ? tagOf(doc, pe.parent) : '?'}`,
+                      `${JSON.stringify(text)} run=${runLabel} dest=${targetLabel}@${c.index} drop=${JSON.stringify(de?.line)} paste=${JSON.stringify(pe?.line)}`,
+                    );
+                }
+              }
+            }
+          }
+        }
+
+        // Move it back.
+        const rdoc = result.value.doc;
+        const landed = nodeByLabel(rdoc, runLabel);
+        const homeParent = home.parent === 'ROOT' ? 'root' : nodeByLabel(rdoc, home.parent)?.id;
+        if (landed && homeParent !== undefined) {
+          const homeKids = homeParent === 'root' ? rdoc.children : nodeByLabel(rdoc, home.parent)!.children;
+          const cur = homeKids.findIndex((n) => n.id === landed.id);
+          const index = cur !== -1 && cur < home.index ? home.index + 1 : home.index;
+          if (index <= homeKids.length) {
+            const back = moveSubtreesTo(rdoc, [[landed.id]], { parentId: homeParent, index });
+            const shapeOf = (d: OutlineDoc): string =>
+              [...parentMap(d)].map(([l, e]) => `${l}<${e.parent}:${kindTag(e)}:${e.line.trim()}`).join('|');
+            const restored = back.ok && shapeOf(back.value.doc) === shapeOf(doc);
+            const shape = c.absorbs ? 'absorbing' : 'plain';
+            if (restored) bump(`reverse:restored`);
+            else
+              bump(
+                `reverse:${back.ok ? 'differs' : 'refused:' + back.rejection.reason}:${shape}:${runTag}->${writtenTag}`,
+                `${JSON.stringify(text)} run=${runLabel} dest=${targetLabel}@${c.index} wrote=${JSON.stringify(c.firstLine)}`,
+              );
+          }
+        }
+      }
+    }
+  }
+}
+
+console.log(`notes ${texts.length}, destinations ${destinations}`);
+for (const [key, count] of [...tally].sort((a, b) => a[0].localeCompare(b[0]))) {
+  console.log(`${String(count).padStart(7)}  ${key}`);
+}
+if (process.env.EX) {
+  for (const [key, list] of examples) {
+    if (!key.includes(process.env.EX)) continue;
+    console.log(`\n## ${key}`);
+    for (const e of list) console.log(`  ${e}`);
+  }
+}

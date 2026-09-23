@@ -1,0 +1,209 @@
+// Exhaustive context table: for each destination context and moved kind, which writings
+// of the node are admissible there (land under the named parent, move no other node), and
+// what the drop and the paste currently write.
+import { dropSeams } from '../src/drop-destinations';
+import { moveSubtreesTo, insertSubtrees } from '../src/ops';
+import { walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
+import { parse, encode, labelOf, parentMap, nodeByLabel, kindTag } from './labelled-notes';
+
+// Every bystander is labelled nK; the moved node is n99, its child (when it has one) n98.
+interface Context {
+  name: string;
+  /** Template lines; '@@' marks where the node is written. */
+  lines: string[];
+  /** Indentation the node is written at. */
+  indent: string;
+  /** Label of the parent the destination names ('ROOT' at top). */
+  parent: string;
+}
+
+const C = (name: string, text: string, indent: string, parent: string): Context => ({
+  name,
+  lines: text.split('\n'),
+  indent,
+  parent,
+});
+
+const CONTEXTS: Context[] = [
+  C('heading, alone', '## n1\n\n@@', '', 'n1'),
+  C('heading, after a paragraph', '## n1\n\nn2\n\n@@', '', 'n1'),
+  C('heading, after a paragraph that owns a list', '## n1\n\nn2\n- n3\n\n@@', '', 'n1'),
+  C('heading, after a list item', '## n1\n\n- n2\n\n@@', '', 'n1'),
+  C('heading, after an atom', '## n1\n\n```\nn2\n```\n\n@@', '', 'n1'),
+  C('heading, before a paragraph', '## n1\n\n@@\n\nn2', '', 'n1'),
+  C('heading, before a list item', '## n1\n\n@@\n\n- n2', '', 'n1'),
+  C('heading, between two list items', '## n1\n\n- n2\n\n@@\n\n- n3', '', 'n1'),
+  C('heading, between two paragraphs', '## n1\n\nn2\n\n@@\n\nn3', '', 'n1'),
+  C('heading, between a list item and a paragraph', '## n1\n\n- n2\n\n@@\n\nn3', '', 'n1'),
+  C('heading, between an atom and a list item', '## n1\n\n```\nn2\n```\n\n@@\n\n- n3', '', 'n1'),
+  C('heading, between a paragraph, an atom and a list item', '## n1\n\nn2\n\n```\nn3\n```\n\n@@\n\n- n4', '', 'n1'),
+  C('heading, before its first sub-heading', '## n1\n\nn2\n\n@@\n\n### n3\n\nn4', '', 'n1'),
+  C('heading, after a sub-heading', '## n1\n\n### n2\n\nn3\n\n@@', '', 'n1'),
+  C('heading, after a sub-heading that skips levels', '## n1\n\n##### n2\n\nn3\n\n@@', '', 'n1'),
+  C('heading, between two sub-headings', '## n1\n\n### n2\n\nn3\n\n@@\n\n### n4\n\nn5', '', 'n1'),
+  C('paragraph, before its first list item', '## n1\n\nn2\n@@\n- n3', '', 'n2'),
+  C('paragraph, between its list items', '## n1\n\nn2\n- n3\n@@\n- n4', '', 'n2'),
+  C('paragraph, after its last list item', '## n1\n\nn2\n- n3\n@@', '', 'n2'),
+  C('list item, no children', '## n1\n\n- n2\n@@', '  ', 'n2'),
+  C('list item, after a child item', '## n1\n\n- n2\n  - n3\n@@', '  ', 'n2'),
+  C('list item, before a child item', '## n1\n\n- n2\n@@\n  - n3', '  ', 'n2'),
+  C('list item, after a child paragraph', '## n1\n\n- n2\n\n  n3\n\n@@', '  ', 'n2'),
+  C('list item, after a child atom', '## n1\n\n- n2\n  ```\n  n3\n  ```\n@@', '  ', 'n2'),
+  C('paragraph inside a list item', '## n1\n\n- n2\n\n  n3\n\n@@', '    ', 'n3'),
+];
+
+interface Payload {
+  name: string;
+  /** Canonical source lines at column 0, as the node sits under `# n90` for the drop. */
+  source: string[];
+  /** Writings the node could legitimately take. */
+  writings: { tag: string; lines: (indent: string) => string[] }[];
+}
+
+const heading = (level: number) => ({
+  tag: `h${level}`,
+  lines: (i: string) => [`${i}${'#'.repeat(level)} n99`],
+});
+const PARA = { tag: 'para', lines: (i: string) => [`${i}n99`] };
+const ITEM = { tag: 'item', lines: (i: string) => [`${i}- n99`] };
+const TASK = { tag: 'task', lines: (i: string) => [`${i}- [ ] n99`] };
+const ITEM_H = { tag: 'item#', lines: (i: string) => [`${i}- ### n99`] };
+const CODE = { tag: 'code', lines: (i: string) => [`${i}\`\`\``, `${i}n99`, `${i}\`\`\``] };
+
+const PAYLOADS: Payload[] = [
+  { name: 'paragraph', source: ['n99'], writings: [PARA, ITEM] },
+  { name: 'list item', source: ['- n99'], writings: [ITEM, PARA] },
+  { name: 'task', source: ['- [ ] n99'], writings: [TASK] },
+  {
+    name: 'heading h3',
+    source: ['### n99'],
+    writings: [heading(1), heading(2), heading(3), heading(4), heading(5), heading(6), ITEM_H, ITEM],
+  },
+  { name: 'list item carrying ###', source: ['- ### n99'], writings: [ITEM_H, heading(3), heading(4)] },
+  { name: 'code block', source: ['```', 'n99', '```'], writings: [CODE] },
+];
+
+function fill(ctx: Context, lines: string[]): string {
+  const out: string[] = [];
+  for (const line of ctx.lines) {
+    if (line === '@@') out.push('', ...lines, '');
+    else out.push(line);
+  }
+  return out.join('\n') + '\n';
+}
+
+function judge(ctx: Context, text: string): { verdict: 'clean' | 'absorbs' | 'no'; why?: string } {
+  const doc = parse(text);
+  const base = parentMap(parse(fill(ctx, [])));
+  const after = parentMap(doc);
+  const x = after.get('n99');
+  if (!x) return { verdict: 'no', why: 'lost' };
+  if (x.parent !== ctx.parent) return { verdict: 'no', why: `lands under ${x.parent}` };
+  let absorbs = false;
+  for (const [label, e] of base) {
+    const got = after.get(label)?.parent;
+    if (got === e.parent) continue;
+    if (got === 'n99') absorbs = true;
+    else return { verdict: 'no', why: `${label} moves to ${got}` };
+  }
+  return { verdict: absorbs ? 'absorbs' : 'clean' };
+}
+
+/** The destination as a parent id and index in `doc`: the index is where '@@' sits among the parent's children. */
+function destinationIn(doc: OutlineDoc, ctx: Context, markerLine: number): { parentId: number | 'root'; index: number } | undefined {
+  const parent = ctx.parent === 'ROOT' ? undefined : nodeByLabel(doc, ctx.parent);
+  const kids = parent ? parent.children : doc.children;
+  // Count the parent's children whose first line is above the marker.
+  let line = doc.preamble.length;
+  const starts = new Map<number, number>();
+  const walk = (nodes: readonly OutlineNode[]): void => {
+    for (const node of nodes) {
+      starts.set(node.id, line);
+      line += node.lines.length + node.trailingGap.length;
+      walk(node.children);
+    }
+  };
+  walk(doc.children);
+  const index = kids.filter((k) => (starts.get(k.id) ?? 0) < markerLine).length;
+  return { parentId: parent ? parent.id : 'root', index };
+}
+
+const rows: string[] = [];
+for (const ctx of CONTEXTS) {
+  for (const payload of PAYLOADS) {
+    const admissible: string[] = [];
+    const absorbing: string[] = [];
+    for (const w of payload.writings) {
+      const j = judge(ctx, fill(ctx, w.lines(ctx.indent)));
+      if (j.verdict === 'clean') admissible.push(w.tag);
+      else if (j.verdict === 'absorbs') absorbing.push(w.tag);
+    }
+    // The drop: the node parked under `# n90` after the context, dropped at the marked place.
+    const markerLine = ctx.lines.indexOf('@@');
+    const bare = ctx.lines.filter((l) => l !== '@@');
+    const withPark = [...bare, '', '# n90', '', ...payload.source, ''].join('\n');
+    const doc = parse(withPark);
+    const moved = nodeByLabel(doc, 'n99')!;
+    const dest = destinationIn(doc, ctx, markerLine);
+    let drop = '-';
+    let dropLanded = '';
+    if (dest) {
+      const cands = dropSeams(doc, [moved]).flatMap((s) => s.candidates);
+      const c = cands.find(
+        (d) => (d.landsUnder ?? d.parentId) === dest.parentId && d.index === dest.index && d.landsUnder === undefined,
+      );
+      if (!c) drop = 'not offered';
+      else {
+        const r = moveSubtreesTo(doc, [[moved.id]], c.level === undefined ? { parentId: c.parentId, index: c.index } : { parentId: c.parentId, index: c.index, level: c.level });
+        if (!r.ok) drop = `refused (${r.rejection.reason})`;
+        else {
+          const e = parentMap(r.value.doc).get('n99')!;
+          drop = kindTag(e);
+          const beforeMap = parentMap(doc);
+          const afterMap = parentMap(r.value.doc);
+          const moves = [...beforeMap].filter(([l, b]) => l !== 'n99' && afterMap.get(l)?.parent !== b.parent && afterMap.get(l)?.parent !== 'n99');
+          const absorbed = [...beforeMap].filter(([l, b]) => l !== 'n99' && afterMap.get(l)?.parent === 'n99' && b.parent !== 'n99');
+          dropLanded =
+            (e.parent === ctx.parent ? '' : ` under ${e.parent}!`) +
+            (absorbed.length ? ` +absorbs` : '') +
+            (moves.length ? ` moves ${moves.map(([l]) => l).join(',')}!` : '');
+        }
+      }
+    }
+    // The paste: the payload's canonical text inserted at the same parent and index.
+    let paste = '-';
+    let pasteLanded = '';
+    {
+      const pdoc = parse(bare.join('\n') + '\n');
+      const pdest = destinationIn(pdoc, ctx, markerLine)!;
+      const parentNode = pdest.parentId === 'root' ? undefined : [...walkNodes(pdoc)].find((n) => n.id === pdest.parentId);
+      const kids = parentNode ? parentNode.children : pdoc.children;
+      const anchor = kids[pdest.index] ?? kids[pdest.index - 1];
+      if (!anchor) paste = 'no anchor';
+      else {
+        const r = insertSubtrees(pdoc, anchor.id, parse(payload.source.join('\n')).children, kids[pdest.index] ? 'before' : 'after');
+        if (!r.ok) paste = `refused (${r.rejection.reason})`;
+        else {
+          const e = parentMap(r.value.doc).get('n99')!;
+          paste = kindTag(e);
+          const beforeMap = parentMap(pdoc);
+          const afterMap = parentMap(r.value.doc);
+          const moves = [...beforeMap].filter(([l, b]) => afterMap.get(l)?.parent !== b.parent && afterMap.get(l)?.parent !== 'n99');
+          const absorbed = [...beforeMap].filter(([l, b]) => afterMap.get(l)?.parent === 'n99' && b.parent !== 'n99');
+          pasteLanded =
+            (e.parent === ctx.parent ? '' : ` under ${e.parent}!`) +
+            (absorbed.length ? ` +absorbs` : '') +
+            (moves.length ? ` moves ${moves.map(([l]) => l).join(',')}!` : '');
+        }
+      }
+    }
+    rows.push(
+      `| ${ctx.name} | ${payload.name} | ${admissible.join(', ') || '—'} | ${absorbing.join(', ') || '—'} | ${drop}${dropLanded} | ${paste}${pasteLanded} |`,
+    );
+  }
+}
+console.log('| context | moved | admissible, clean | admissible, absorbing | drop writes | paste writes |');
+console.log('| --- | --- | --- | --- | --- | --- |');
+for (const row of rows) console.log(row);
+void encode;
+void labelOf;
