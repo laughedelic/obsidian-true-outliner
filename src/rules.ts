@@ -17,31 +17,25 @@ export function listAttachesTo(precedingSibling: OutlineNode | undefined): boole
 }
 
 /**
- * Context-determined encoding: the structural kind a reparented
- * paragraph/list-item node takes at its destination. Pure function of the
- * new surroundings; atoms and headings never pass through here.
+ * The kind a brand-new content node takes at a destination — what a split
+ * materialises as a first child, where there is no node whose kind could be
+ * kept. It reads the scope: the nearest content sibling's kind, preceding
+ * first, then following; with none, a paragraph under a heading or the root
+ * and a list item under anything else, since a paragraph's or a list item's
+ * children are list items.
  *
- * Note one nuance vs the spec's shorthand: only paragraph/list-item siblings
- * can donate a kind — headings and atoms are skipped when scanning, because
- * \"encode like your neighbor\" only makes sense between the two kinds that
- * are interchangeable encodings of a content node. A heading arriving at a
- * destination takes its LEVEL from `destinationHeadingLevel` below rather than
- * a kind from here; the two are the same rule over the two regimes.
+ * Only paragraph and list-item siblings donate a kind. Headings and atoms are
+ * skipped when scanning, because "encode like your neighbour" only makes sense
+ * between the two kinds that are interchangeable encodings of a content node.
  */
-export function encodingKindAtDestination(context: {
+export function nativeContentKind(context: {
   parentKind: NodeKind | 'root';
   precedingSiblings: readonly OutlineNode[];
   followingSiblings: readonly OutlineNode[];
 }): 'paragraph' | 'list-item' {
-  const donor = (nodes: readonly OutlineNode[]): 'paragraph' | 'list-item' | undefined => {
-    for (const node of nodes) {
-      if (node.kind === 'paragraph' || node.kind === 'list-item') return node.kind;
-    }
-    return undefined;
-  };
-  const preceding = donor([...context.precedingSiblings].reverse());
+  const preceding = contentDonor([...context.precedingSiblings].reverse());
   if (preceding) return preceding;
-  const following = donor(context.followingSiblings);
+  const following = contentDonor(context.followingSiblings);
   if (following) return following;
   return context.parentKind === 'heading' || context.parentKind === 'root'
     ? 'paragraph'
@@ -54,7 +48,7 @@ export const DEFAULT_LIST_STYLE: ListStyle = { type: 'bullet', marker: '-' };
 /**
  * Context-determined list style: the marker a node CONVERTED into a list item
  * takes at its destination. The third regime of the same rule as
- * `encodingKindAtDestination` and `destinationHeadingLevel`, read the same way
+ * `nativeContentKind` and `destinationHeadingLevel`, read the same way
  * — nearest preceding list-item sibling, else nearest following, else the
  * default — because a marker is what a row has to sit level with.
  *
@@ -90,11 +84,71 @@ export function destinationListStyle(context: {
 }
 
 /**
+ * Whether a run that stays in its scope, kept as written, would re-parse under
+ * the sibling it lands after: a list item set right after a paragraph is that
+ * paragraph's child. A move takes such a run as an insertion instead, which
+ * writes the item as the paragraph's sibling or refuses a task there, and the
+ * drop's preview asks the same question.
+ */
+export function reorderReparents(
+  roots: readonly OutlineNode[],
+  after: OutlineNode | undefined,
+): boolean {
+  return roots[0]?.kind === 'list-item' && listAttachesTo(after);
+}
+
+/**
+ * The kind an EXISTING content node must take at a destination, or `undefined`
+ * where it keeps its own.
+ *
+ * A node keeps its kind wherever the destination can hold that kind: a list
+ * item under a heading is a list item there too, and the reader who wants a
+ * paragraph has outdent for it. Two destinations cannot hold a kind, and only
+ * there is a node converted:
+ *
+ * - A paragraph landing in a LIST scope — under a list item or a paragraph,
+ *   whose children are list items, or beside list items — becomes a list item,
+ *   since a paragraph written among list items ends the list.
+ * - A list item landing right after a paragraph becomes a paragraph, since the
+ *   attachment rule (`listAttachesTo`, the reading `parse` takes) would make it
+ *   that paragraph's child rather than the sibling the destination names.
+ *
+ * A heading or an atom is never converted here: headings have the level rule
+ * below, and atoms keep their kind everywhere they are allowed at all.
+ *
+ * The caller decides what a conversion means for a node that cannot survive
+ * one — a task's checkbox is a list marker, and a paragraph has none.
+ */
+export function forcedContentKind(
+  context: {
+    parentKind: NodeKind | 'root';
+    precedingSiblings: readonly OutlineNode[];
+    followingSiblings: readonly OutlineNode[];
+  },
+  kind: NodeKind,
+): 'paragraph' | 'list-item' | undefined {
+  if (kind !== 'paragraph' && kind !== 'list-item') return undefined;
+  if (kind === 'list-item') {
+    return listAttachesTo(context.precedingSiblings[context.precedingSiblings.length - 1])
+      ? 'paragraph'
+      : undefined;
+  }
+  return nativeContentKind(context) === 'list-item' ? 'list-item' : undefined;
+}
+
+function contentDonor(nodes: readonly OutlineNode[]): 'paragraph' | 'list-item' | undefined {
+  for (const node of nodes) {
+    if (node.kind === 'paragraph' || node.kind === 'list-item') return node.kind;
+  }
+  return undefined;
+}
+
+/**
  * The heading level a payload's root takes at a destination, or `undefined`
  * where a heading cannot be written at all — below a list item or a paragraph,
  * which `parse.ts` never nests one under.
  *
- * The heading regime's half of `encodingKindAtDestination`, and it reads its
+ * The heading regime's half of `nativeContentKind`, and it reads its
  * surroundings the same way: the level comes from the destination's own heading
  * SIBLINGS first — nearest preceding, else following — because siblings are
  * what the payload has to sit level with. Only where the scope has no heading
@@ -103,7 +157,11 @@ export function destinationListStyle(context: {
  *
  * Reading the parent alone was wrong wherever a scope SKIPS a level: under an
  * `h1` whose children are `h3`, a payload took `h2` and, being shallower than
- * the siblings it landed among, opened a section that swallowed them.
+ * the siblings it landed among, opened a section that swallowed them. Both
+ * readings are defensible there — a heading one past its parent, or one level
+ * with what it lands beside — and the sibling one is kept because it never
+ * takes in content nobody pointed at. A drop that wants the other reading
+ * names a level of its own (`MoveDestination.level`).
  *
  * A level past 6 is the heading regime running out. The caller decides what
  * that means; here it is simply the number the rule produces.

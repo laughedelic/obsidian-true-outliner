@@ -68,6 +68,7 @@ describe('persisted plugin data', () => {
       guideHideSingleRoot: true,
       guideIntensity: 'strong' as const,
       hideGapLines: true,
+      touchDragging: true,
     };
     expect(normalizePluginData(onDisk)).toEqual(onDisk);
   });
@@ -1285,11 +1286,18 @@ describe('the settings tab, derived from the declarations', () => {
     expect(flagged).toEqual(['hideGapLines']);
   });
 
-  it('keeps the two values persisted without a row out of the tab', () => {
+  it('keeps the values persisted without a row out of the tab', () => {
     const keys = settingDefinitions().map((d) => d.control.key);
     expect(keys).not.toContain('coexistenceWarned');
     expect(keys).not.toContain('backlinksSort');
+    expect(keys).not.toContain('touchDragging');
     expect(Object.keys(DEFAULT_DATA)).toContain('coexistenceWarned');
     expect(Object.keys(DEFAULT_DATA)).toContain('backlinksSort');
+    expect(Object.keys(DEFAULT_DATA)).toContain('touchDragging');
+  });
+
+  it('leaves touch dragging off unless the file turns it on', () => {
+    expect(normalizePluginData({}).touchDragging).toBe(false);
+    expect(normalizePluginData({ touchDragging: true }).touchDragging).toBe(true);
   });
 });

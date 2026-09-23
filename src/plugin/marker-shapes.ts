@@ -132,6 +132,44 @@ export function markerShapes(subject: MarkSubject): readonly Shape[] {
 }
 
 /* ---------------------------------------------------------------------------
+ * List marks: what replaces a bullet when an item carries state of its own
+ * ------------------------------------------------------------------------- */
+
+/**
+ * A task's checkbox, drawn by its state. Read-only wherever it is drawn: the
+ * backlinks footer cannot toggle a task, and neither can a run in flight.
+ */
+export function checkboxShapes(done: boolean): readonly Shape[] {
+  const box: Shape = {
+    tag: 'rect',
+    attrs: { ...CHECKBOX_STROKE, x: '2.8', y: '2.8', width: '10.4', height: '10.4' },
+  };
+  if (!done) return [box];
+  return [box, { tag: 'polyline', attrs: { ...CHECKBOX_STROKE, points: '5,8.2 7.4,10.6 11.4,5.8' } }];
+}
+
+/**
+ * An ordered item's mark where its number is not known: an `x`, the unknown,
+ * and the item's own delimiter. The drag's ghost draws this rather than a
+ * number, because the number an item lands with is the renumbering's answer,
+ * not the item's. A letter at x-height, so it is not read as a digit.
+ */
+export function ordinalPlaceholderShapes(delimiter: '.' | ')'): readonly Shape[] {
+  const n: Shape = { tag: 'path', attrs: { ...STROKE, d: 'M3 6.5L9 13M9 6.5L3 13' } };
+  return delimiter === '.'
+    ? [n, { tag: 'circle', attrs: { cx: '12.6', cy: '12.2', r: '1.1', fill: 'currentColor' } }]
+    : [n, { tag: 'path', attrs: { ...STROKE, d: 'M11.8 5Q14.4 9 11.8 13' } }];
+}
+
+const CHECKBOX_STROKE = {
+  stroke: 'currentColor',
+  'stroke-width': '1.6',
+  fill: 'none',
+  'stroke-linecap': 'round',
+  'stroke-linejoin': 'round',
+} as const;
+
+/* ---------------------------------------------------------------------------
  * Heading marks
  * ------------------------------------------------------------------------- */
 

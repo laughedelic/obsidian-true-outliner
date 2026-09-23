@@ -286,8 +286,8 @@ async function clickMark(selector: string, index = 0, modifier = false): Promise
       const y = r.top + r.height / 2;
       const target = mark.ownerDocument.elementFromPoint(x, y) as HTMLElement | null;
       if (!target) throw new Error('nothing at the mark');
-      // Read BEFORE dispatching. The press re-roots the view synchronously, so
-      // `target` is detached by the time the handler returns and no longer has
+      // Read BEFORE dispatching. The release re-roots the view synchronously,
+      // so `target` is detached by the time this call returns and no longer has
       // the ancestors a selector could match against.
       const reached = target.closest(MARKS)
         ? 'mark'
@@ -305,8 +305,13 @@ async function clickMark(selector: string, index = 0, modifier = false): Promise
         metaKey: modifier,
         ctrlKey: modifier,
       };
+      // In the order a real press produces them. The `pointerup` is what
+      // resolves a mark press now: a press means neither zoom nor drag until
+      // the button comes up, so a helper that never released it zoomed
+      // nothing at all.
       target.dispatchEvent(new PointerEvent('pointerdown', opts));
       target.dispatchEvent(new MouseEvent('mousedown', opts));
+      target.dispatchEvent(new PointerEvent('pointerup', { ...opts, buttons: 0 }));
       target.dispatchEvent(new MouseEvent('mouseup', { ...opts, buttons: 0 }));
       target.dispatchEvent(new MouseEvent('click', { ...opts, buttons: 0 }));
       // What the pointer would actually have reached, for a caller that wants
@@ -1054,6 +1059,11 @@ describe('outline zoom', function () {
       mark.dispatchEvent(new PointerEvent('pointerdown', { ...opts, buttons: 1 }));
       const contentDom = cm.contentDOM as HTMLElement;
       contentDom.dispatchEvent(new MouseEvent('mousedown', { ...opts, buttons: 1 }));
+      // On the mark, where the pointer is: the release is what resolves the
+      // press into a zoom. The trailing events below still go to the content,
+      // which is the point of this case — they are swallowed by the press this
+      // gesture took, not by where they happen to originate.
+      mark.dispatchEvent(new PointerEvent('pointerup', { ...opts, buttons: 0 }));
       contentDom.dispatchEvent(new MouseEvent('mouseup', { ...opts, buttons: 0 }));
       const click = new MouseEvent('click', { ...opts, buttons: 0 });
       contentDom.dispatchEvent(click);

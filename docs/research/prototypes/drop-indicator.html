@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drop indicator treatments</title>
+<!--
+  Companion mockup for docs/research/node-drag-and-drop.md, and the comparison
+  behind `drag-nodes-with-a-drop-preview`'s D6.
+
+  The question is not whether a drop indicator is drawn but what it has to say.
+  A seam between two rendered rows stands for several destinations at once, so
+  an indicator that only says WHERE VERTICALLY answers the easy half and leaves
+  the half that decides the result — which parent, at which depth — to be
+  guessed from a few pixels of horizontal offset.
+
+  Geometry is the measured pass in node-drag-and-drop.md section 1: 32px per
+  outline level, a 14px marker gutter, a 13.6px marker icon, text beginning on
+  the column 14px right of its own depth's column. Static page, no
+  dependencies.
+-->
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --panel: #fbfbfc;
+    --line: #e3e3e6;
+    --text: #1f2023;
+    --muted: #6a6c72;
+    --faint: #a8aab0;
+    --guide: #d9dade;
+    --accent: #6c63d8;
+    --accent-soft: #6c63d81f;
+    --unit: 32px;
+    --gutter: 14px;
+    --icon: 13.6px;
+  }
+  [data-theme="dark"] {
+    --bg: #1e1e20;
+    --panel: #232326;
+    --line: #37373d;
+    --text: #dcddde;
+    --muted: #9a9ba1;
+    --faint: #6b6d74;
+    --guide: #3a3a41;
+    --accent: #a79ffb;
+    --accent-soft: #a79ffb26;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 2.5rem clamp(1rem, 5vw, 4rem) 5rem;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; margin-bottom: .5rem; }
+  h1 { font-size: 1.5rem; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: 1rem; margin: 2.75rem 0 .25rem; letter-spacing: -0.005em; }
+  p.note { color: var(--muted); max-width: 72ch; margin: .25rem 0 1.25rem; font-size: .9rem; }
+  p.note b { color: var(--text); font-weight: 600; }
+  code { font-size: .92em; background: var(--panel); padding: .05em .3em; border-radius: 3px; }
+  button.theme {
+    margin-left: auto; border: 1px solid var(--line); background: var(--panel);
+    color: var(--text); border-radius: 6px; padding: .35rem .7rem; cursor: pointer;
+    font: inherit; font-size: .85rem;
+  }
+
+  /* ---- the outline surface ---------------------------------------------- */
+  .surface {
+    position: relative;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: .75rem 1rem .75rem 0;
+    font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden;
+  }
+  .row { position: relative; height: 26px; display: flex; align-items: center; }
+  .row .mark {
+    position: absolute; width: var(--icon); height: var(--icon);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--faint);
+  }
+  .row .mark svg { width: 100%; height: 100%; display: block; }
+  .row .label { position: absolute; white-space: nowrap; }
+  .row .guide {
+    position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--guide);
+  }
+  .row.lifted .label, .row.lifted .mark { opacity: .38; }
+  .row.lifted { background: var(--accent-soft); }
+
+  /* ---- the treatments ---------------------------------------------------- */
+  .seam { position: relative; height: 0; }
+  .seam .bar {
+    position: absolute; top: -1px; height: 2px; right: 1rem;
+    background: var(--accent); border-radius: 1px;
+  }
+  .seam .cap {
+    position: absolute; top: -4px; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent);
+  }
+  .seam .ghost {
+    position: absolute; top: -9px; width: 18px; height: 18px;
+    display: flex; align-items: center; justify-content: center; color: var(--accent);
+    background: var(--panel); border: 1.5px solid var(--accent); border-radius: 50%;
+  }
+  .seam .ghost svg { width: 100%; height: 100%; display: block; padding: 2px; }
+  .slot { height: 26px; }
+  .slot .outline {
+    position: absolute; right: 1rem; height: 22px; margin-top: 2px;
+    border: 1px dashed var(--accent); border-radius: 4px; background: var(--accent-soft);
+  }
+  .row .guide.lit { background: var(--accent); width: 2px; }
+  .row.parent-lit .label { color: var(--accent); font-weight: 600; }
+  .ticks { position: absolute; height: 0; }
+  .ticks i {
+    position: absolute; top: -3px; width: 5px; height: 5px; border-radius: 50%;
+    background: var(--faint); transform: translateX(-2px);
+  }
+  .ticks i.on { background: var(--accent); width: 7px; height: 7px; top: -4px; transform: translateX(-3px); }
+
+  /* ---- the absorbed region ----------------------------------------------- */
+  .row.absorbed { background: repeating-linear-gradient(135deg, var(--accent-soft) 0 4px, transparent 4px 9px); }
+  .row.absorbed .label { color: var(--accent); }
+  .row .brace {
+    position: absolute; top: 0; bottom: 0; width: 0;
+    border-left: 2px solid var(--accent); opacity: .7;
+  }
+  .row .brace.first { top: 3px; border-top: 2px solid var(--accent); width: 6px; }
+  .row .brace.last { bottom: 3px; border-bottom: 2px solid var(--accent); width: 6px; }
+  .row .ellipsis { position: absolute; color: var(--accent); font-weight: 600; letter-spacing: .15em; }
+  .seam .badge {
+    position: absolute; top: -10px; right: 1rem; height: 18px; padding: 0 .45rem;
+    border-radius: 9px; background: var(--accent); color: #fff; font-size: .68rem;
+    font-weight: 700; line-height: 18px; letter-spacing: .02em;
+  }
+  /* J draws no tint: the move is the statement. */
+  .verdict.open { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+
+  /* ---- layout ------------------------------------------------------------ */
+  .grid { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); max-width: 1180px; }
+  .case h3 { font-size: .85rem; margin: 0 0 .35rem; letter-spacing: .01em; }
+  .case h3 span { color: var(--muted); font-weight: 400; }
+  .case p { color: var(--muted); font-size: .84rem; margin: .5rem 0 0; max-width: 56ch; }
+  .verdict { display: inline-block; font-size: .68rem; font-weight: 700; letter-spacing: .06em;
+             text-transform: uppercase; padding: .1rem .4rem; border-radius: 3px; margin-left: .4rem;
+             vertical-align: 1px; }
+  .verdict.keep { background: var(--accent); color: #fff; }
+  .verdict.no { background: color-mix(in srgb, var(--faint) 35%, transparent); color: var(--muted); }
+  .controls { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
+              margin: .25rem 0 1rem; font-size: .85rem; color: var(--muted); }
+  .controls input[type=range] { width: 320px; }
+  .controls output { color: var(--text); font-weight: 600; min-width: 22ch; display: inline-block; }
+  .legend { font-size: .8rem; color: var(--muted); margin-top: .5rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Where will it land?</h1>
+  <button class="theme" id="theme">Dark</button>
+</header>
+<p class="note">
+  Five ways of saying where a dragged run will land, drawn at the geometry
+  <code>node-drag-and-drop.md</code> measured: 32px per level, a 14px marker gutter, a 13.6px
+  marker icon. In every panel the same two items — <b>prototype review</b> and its child — have
+  been picked up from further down the note and are held over the same seam.
+</p>
+
+<h2>1. One seam, six destinations</h2>
+<p class="note">
+  The pointer is between <b>touch fallback</b> and <b>The next section</b>. Five destinations sit
+  on that seam for this run, and only the horizontal position tells them apart. Drag the slider to move the
+  pointer sideways: the dots are the seam's legal columns, and the indicator's left end is the
+  answer.
+</p>
+<div class="controls">
+  <label for="depth">pointer x</label>
+  <input type="range" id="depth" min="0" max="4" step="1" value="3">
+  <output id="depthOut"></output>
+</div>
+<div class="surface" id="ambiguity"></div>
+<p class="legend" id="legend"></p>
+
+<h2>2. The five treatments, at one destination</h2>
+<p class="note">
+  All five show the same drop: the run becomes a child of <b>open questions</b>, after
+  <b>touch fallback</b>. What separates them is how much of that sentence they actually say.
+</p>
+<div class="grid" id="treatments"></div>
+
+<h2>3. The cross-regime case</h2>
+<p class="note">
+  A heading section dragged into a list does not stay a heading — the destination's encoding
+  decides, and the whole subtree re-encodes with it. An indicator that draws the run's
+  <em>current</em> mark promises something the release will not deliver; one that draws the mark
+  the run will <em>have</em> is the only version that stays true across this case.
+</p>
+<div class="grid" id="regime"></div>
+
+<h2>4. The absorbed region</h2>
+<p class="note">
+  A heading dropped among siblings opens a section, and the anchor's following siblings fall
+  into it — up to the next heading that can stand beside it. Those rows change parent without
+  moving, so nothing at the seam says they are involved. Here <b>Move me</b>, a
+  <code>##</code> heading with a body, is dropped after <b>intro</b>: <b>details</b>,
+  <b>more details</b> and <b>a list</b> join its section, and <b>Next</b>, itself a
+  <code>##</code>, does not. Five ways of saying so. J is carried: the rows drawn where they will
+  sit, and nothing else.
+</p>
+<div class="grid" id="absorb"></div>
+
+<script>
+const UNIT = 32, GUTTER = 14, ICON = 13.6, PAD = 22;
+
+const GLYPH = {
+  bullet: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3" fill="currentColor"/></svg>',
+  heading: '<svg viewBox="0 0 16 16"><path d="M4 3v10M12 3v10M4 8h8" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>',
+  para: '<svg viewBox="0 0 16 16"><path d="M3 4.5h10M3 8h10M3 11.5h6" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>',
+  task: '<svg viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx="2.5" stroke="currentColor" stroke-width="1.6" fill="none"/></svg>',
+};
+
+const col = (d) => PAD + d * UNIT;
+
+function rowEl(r) {
+  const el = document.createElement('div');
+  el.className = 'row' + (r.lifted ? ' lifted' : '') + (r.parentLit ? ' parent-lit' : '');
+  for (let g = 0; g < r.depth; g++) {
+    const gu = document.createElement('div');
+    gu.className = 'guide' + (r.litGuide === g ? ' lit' : '');
+    gu.style.left = col(g) + 'px';
+    el.appendChild(gu);
+  }
+  const m = document.createElement('div');
+  m.className = 'mark';
+  m.style.left = (col(r.depth) - ICON / 2) + 'px';
+  m.innerHTML = GLYPH[r.kind] || GLYPH.bullet;
+  el.appendChild(m);
+  const t = document.createElement('div');
+  t.className = 'label';
+  t.style.left = (col(r.depth) + GUTTER) + 'px';
+  t.textContent = r.text;
+  el.appendChild(t);
+  return el;
+}
+
+/* The fixture. `lifted` marks the run the pointer is carrying. */
+const DOC = [
+  { depth: 0, kind: 'heading', text: 'Section' },
+  { depth: 1, kind: 'bullet', text: 'work' },
+  { depth: 2, kind: 'bullet', text: 'thread' },
+  { depth: 3, kind: 'bullet', text: 'shipped' },
+  { depth: 3, kind: 'bullet', text: 'prototype review', lifted: true },
+  { depth: 4, kind: 'bullet', text: 'severity sort', lifted: true },
+  { depth: 3, kind: 'bullet', text: 'open questions' },
+  { depth: 4, kind: 'bullet', text: 'touch fallback' },
+  { depth: 0, kind: 'heading', text: 'The next section' },
+];
+const SEAM_AFTER = 7;               /* the seam sits below "touch fallback" */
+/* Columns this seam can legally land on, for the bulleted run in flight. The
+ * root is not among them: a bulleted run written before "The next section" is
+ * still inside "Section", so that column is a heading run's alone, re-levelled. */
+const LEGAL = [1, 2, 3, 4, 5];
+const NAMES = {
+  0: 'a sibling of Section \u2014 top level',
+  1: 'a child of Section, after work',
+  2: 'a child of work, after thread',
+  3: 'a child of thread, after open questions',
+  4: 'a child of open questions, after touch fallback',
+  5: 'a child of touch fallback',
+};
+const PARENT_OF = { 0: null, 1: 0, 2: 1, 3: 2, 4: 6, 5: 7 };
+
+function render(host, opts) {
+  host.innerHTML = '';
+  DOC.forEach((r, i) => {
+    const row = { ...r };
+    if (opts.hideLifted && r.lifted) return;
+    if (!opts.lift) delete row.lifted;
+    if (opts.parentRow === i) { row.parentLit = true; }
+    if (opts.litGuideAt !== undefined && i > opts.parentRow && i <= SEAM_AFTER) {
+      row.litGuide = opts.litGuideAt;
+    }
+    host.appendChild(rowEl(row));
+    if (i !== SEAM_AFTER) return;
+
+    if (opts.style === 'none') return;
+
+    if (opts.style === 'band') {
+      const seam0 = document.createElement('div');
+      seam0.className = 'seam';
+      const bar0 = document.createElement('div');
+      bar0.className = 'bar';
+      bar0.style.left = '0px';
+      seam0.appendChild(bar0);
+      host.appendChild(seam0);
+      return;
+    }
+    if (opts.style === 'slot') {
+      const s = document.createElement('div');
+      s.className = 'slot';
+      const o = document.createElement('div');
+      o.className = 'outline';
+      o.style.left = (col(opts.depth) - ICON / 2 - 4) + 'px';
+      s.appendChild(o);
+      host.appendChild(s);
+      return;
+    }
+    const seam = document.createElement('div');
+    seam.className = 'seam';
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    bar.style.left = col(opts.depth) + 'px';
+    seam.appendChild(bar);
+    const cap = document.createElement('div');
+    cap.className = 'cap';
+    cap.style.left = (col(opts.depth) - 4) + 'px';
+    seam.appendChild(cap);
+    if (opts.ghost) {
+      cap.remove();
+      const g = document.createElement('div');
+      g.className = 'ghost';
+      g.style.left = (col(opts.depth) - ICON / 2) + 'px';
+      g.innerHTML = GLYPH[opts.ghostKind || 'bullet'];
+      seam.appendChild(g);
+      bar.style.left = (col(opts.depth) + 11) + 'px';
+    }
+    if (opts.ticks) {
+      const t = document.createElement('div');
+      t.className = 'ticks';
+      for (const d of LEGAL) {
+        const i2 = document.createElement('i');
+        if (d === opts.depth) i2.className = 'on';
+        i2.style.left = col(d) + 'px';
+        t.appendChild(i2);
+      }
+      seam.appendChild(t);
+    }
+    host.appendChild(seam);
+  });
+}
+
+/* ---- 1: the ambiguity --------------------------------------------------- */
+const slider = document.getElementById('depth');
+const out = document.getElementById('depthOut');
+const legend = document.getElementById('legend');
+function drawAmbiguity() {
+  const d = LEGAL[+slider.value];
+  render(document.getElementById('ambiguity'), {
+    // The ghost is the kind the run ARRIVES as, which the destination decides
+    // (D7). Every column of this seam is a list scope for this run.
+    style: 'bar', depth: d, lift: true, ticks: true, ghost: true,
+    ghostKind: 'bullet',
+    parentRow: PARENT_OF[d] ?? -1,
+    litGuideAt: PARENT_OF[d] === null ? undefined : d - 1,
+  });
+  out.textContent = NAMES[d];
+  legend.textContent =
+    'The rows flanking the seam bound it at both ends. Nothing shallower than the row below is' +
+    ' offered \u2014 landing there would make "The next section" a descendant of what was dropped,' +
+    ' which is a different operation. Nothing deeper than one level inside the row above is' +
+    ' offered either, because no parent exists at that depth. Everything between is a real' +
+    ' destination, which is why there are five of them and not one. A sixth, beside Section' +
+    ' at the root, exists for a heading run only: anything else written there is still inside' +
+    ' Section.';
+}
+slider.addEventListener('input', drawAmbiguity);
+drawAmbiguity();
+
+/* ---- 2: the treatments -------------------------------------------------- */
+const TREATMENTS = [
+  {
+    name: 'A. Seam line only',
+    sub: 'a rule between two rows, full width',
+    verdict: 'no',
+    opts: { style: 'band', lift: true },
+    note: 'Says which two rows, and nothing else. All six destinations in panel 1 draw exactly ' +
+          'this, so the reader learns nothing about the result.',
+  },
+  {
+    name: 'B. Seam line from the landing column',
+    sub: 'left end on the destination column',
+    verdict: 'no',
+    opts: { style: 'bar', depth: 4, lift: true },
+    note: 'The left end distinguishes the six. It still asks the reader to count columns to ' +
+          'name the parent, and a cap alone says nothing about what the run becomes.',
+  },
+  {
+    name: 'C. Line with a ghost mark',
+    sub: 'the mark the run will have, at the column it will have',
+    verdict: 'keep',
+    opts: { style: 'bar', depth: 4, lift: true, ghost: true, ghostKind: 'bullet' },
+    note: 'The mark sits where the real mark will sit, so the preview is a picture of the result ' +
+          'rather than a pointer at it — and it is the only variant that can show a kind change.',
+  },
+  {
+    name: 'D. Ghost mark, plus the destination parent lit',
+    sub: 'C, with the parent row and its guide accented',
+    verdict: 'keep',
+    opts: { style: 'bar', depth: 4, lift: true, ghost: true, ghostKind: 'bullet',
+            parentRow: 6, litGuideAt: 3, ticks: true },
+    note: 'Names the parent instead of leaving it to be counted, using the accent the caret ' +
+          'trail already owns. The ticks show the seam’s other legal columns, which makes ' +
+          'the sideways axis discoverable rather than something to find by accident.',
+  },
+  {
+    name: 'E. A parted slot',
+    sub: 'the rows move apart to open the landing place',
+    verdict: 'no',
+    opts: { style: 'slot', depth: 4, lift: true },
+    note: 'The most literal, and the most expensive: every pointer move re-lays out the document ' +
+          'below the seam, and a cancelled drag has to put all of it back.',
+  },
+];
+const host = document.getElementById('treatments');
+for (const t of TREATMENTS) {
+  const wrap = document.createElement('div');
+  wrap.className = 'case';
+  const h = document.createElement('h3');
+  h.innerHTML = t.name + ' <span>— ' + t.sub + '</span>' +
+    '<span class="verdict ' + t.verdict + '">' + (t.verdict === 'keep' ? 'carried' : 'dropped') + '</span>';
+  wrap.appendChild(h);
+  const s = document.createElement('div');
+  s.className = 'surface';
+  wrap.appendChild(s);
+  const p = document.createElement('p');
+  p.textContent = t.note;
+  wrap.appendChild(p);
+  host.appendChild(wrap);
+  render(s, t.opts);
+}
+
+/* ---- 3: the cross-regime case ------------------------------------------- */
+const REGIME = [
+  {
+    name: 'Draws the mark the run has now',
+    sub: 'a heading glyph, at a list depth',
+    verdict: 'no',
+    kind: 'heading',
+    note: 'The release converts the heading to a list item, so this preview showed a row that ' +
+          'never existed.',
+  },
+  {
+    name: 'Draws the mark the run will have',
+    sub: 'the destination’s own encoding',
+    verdict: 'keep',
+    kind: 'bullet',
+    note: 'Computed by the same re-encoding the release performs, so the preview and the result ' +
+          'cannot disagree — the whole reason to compute the preview from the operation ' +
+          'rather than from the pointer.',
+  },
+];
+const rhost = document.getElementById('regime');
+for (const t of REGIME) {
+  const wrap = document.createElement('div');
+  wrap.className = 'case';
+  const h = document.createElement('h3');
+  h.innerHTML = t.name + ' <span>— ' + t.sub + '</span>' +
+    '<span class="verdict ' + t.verdict + '">' + (t.verdict === 'keep' ? 'carried' : 'dropped') + '</span>';
+  wrap.appendChild(h);
+  const s = document.createElement('div');
+  s.className = 'surface';
+  wrap.appendChild(s);
+  const p = document.createElement('p');
+  p.textContent = t.note;
+  wrap.appendChild(p);
+  rhost.appendChild(wrap);
+  render(s, {
+    style: 'bar', depth: 4, lift: true, ghost: true, ghostKind: t.kind,
+    parentRow: 6, litGuideAt: 3,
+  });
+}
+
+/* ---- 4: the absorbed region --------------------------------------------- */
+/* A second fixture: a heading section whose children are the anchor and the
+ * rows a dropped heading would take in. `absorbed` marks those rows. */
+const ABSORB_DOC = [
+  { depth: 0, kind: 'heading', text: 'Section' },
+  { depth: 1, kind: 'para',    text: 'intro' },
+  { depth: 1, kind: 'para',    text: 'details',      absorbed: true },
+  { depth: 1, kind: 'para',    text: 'more details', absorbed: true },
+  { depth: 1, kind: 'bullet',  text: 'a list',       absorbed: true },
+  { depth: 1, kind: 'heading', text: 'Next' },
+  { depth: 2, kind: 'para',    text: 'body of Next' },
+  { depth: 1, kind: 'heading', text: 'Move me', lifted: true },
+  { depth: 2, kind: 'para',    text: 'its body', lifted: true },
+];
+const ABSORB_SEAM_AFTER = 1;   /* the seam sits below "intro" */
+const ABSORB_DEPTH = 1;        /* a child of Section, after intro */
+
+function renderAbsorb(host, opts) {
+  host.innerHTML = '';
+  const absorbed = ABSORB_DOC.map((r, i) => i).filter((i) => ABSORB_DOC[i].absorbed);
+  ABSORB_DOC.forEach((r, i) => {
+    const row = { ...r };
+    delete row.absorbed;
+    if (opts.span === 'all' && r.absorbed) row.absorbedNow = true;
+    if (opts.span === 'first' && i === absorbed[0]) row.absorbedNow = true;
+    if (opts.shift && r.absorbed) { row.depth += 1; row.shifted = true; }
+    const el = rowEl(row);
+    if (row.shifted) el.classList.add('shifted');
+    if (row.absorbedNow) el.classList.add('absorbed');
+    if (opts.brace && r.absorbed) {
+      const b = document.createElement('div');
+      b.className = 'brace' + (i === absorbed[0] ? ' first' : '') + (i === absorbed[absorbed.length - 1] ? ' last' : '');
+      b.style.left = (col(ABSORB_DEPTH) + 3) + 'px';
+      el.appendChild(b);
+    }
+    if (opts.span === 'first' && i === absorbed[0]) {
+      const e = document.createElement('div');
+      e.className = 'ellipsis';
+      e.style.left = (col(ABSORB_DEPTH) + GUTTER + 90) + 'px';
+      e.textContent = '\u2026 +' + (absorbed.length - 1);
+      el.appendChild(e);
+    }
+    host.appendChild(el);
+    if (i !== ABSORB_SEAM_AFTER) return;
+    const seam = document.createElement('div');
+    seam.className = 'seam';
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    bar.style.left = (col(ABSORB_DEPTH) + 11) + 'px';
+    seam.appendChild(bar);
+    const g = document.createElement('div');
+    g.className = 'ghost';
+    g.style.left = (col(ABSORB_DEPTH) - ICON / 2) + 'px';
+    g.innerHTML = GLYPH.heading;
+    seam.appendChild(g);
+    if (opts.badge) {
+      const badge = document.createElement('div');
+      badge.className = 'badge';
+      badge.textContent = 'takes ' + absorbed.length + ' below';
+      seam.appendChild(badge);
+    }
+    host.appendChild(seam);
+  });
+}
+
+const ABSORB = [
+  {
+    name: 'F. The whole span, tinted',
+    sub: 'every row the section will take, marked distinctly from the lifted run',
+    opts: { span: 'all' },
+    note: 'States the result completely: the reader sees exactly which rows change parent, and ' +
+          'where it stops. The most ink, and on a long section the most of the screen turned ' +
+          'purple.',
+  },
+  {
+    name: 'G. The whole span, as a brace',
+    sub: 'a bracket down the destination column, first row to last',
+    opts: { brace: true },
+    note: 'Same completeness, in the column vocabulary the guides already use: the rows are ' +
+          'shown becoming children of the ghost by the line that will connect them. Less ink; ' +
+          'reads as structure rather than as highlight.',
+  },
+  {
+    name: 'H. The first row, with a count',
+    sub: 'one row marked, the rest stated as a number',
+    opts: { span: 'first' },
+    note: 'Says that absorption happens and where it begins, and asks the reader to trust the ' +
+          'count for where it ends. Bounded ink on any section; the end is not drawn.',
+  },
+  {
+    name: 'J. The rows shifted a column',
+    sub: 'the absorbed rows drawn one level in, under the ghost, before anything is written',
+    opts: { shift: true },
+    note: 'Shows the result as the result: the rows sit where they will sit, under the mark that ' +
+          'will own them, with the guide that will connect them, and nothing tinted — on a long ' +
+          'section a tint is half a page of colour, and the move already says it. It is the one ' +
+          'treatment that moves rows while the drag is in flight — horizontally, and only the ' +
+          'absorbed ones — so a wrapped row can change height. Chosen.',
+  },
+  {
+    name: 'I. A count at the seam',
+    sub: 'nothing on the rows; a badge on the indicator',
+    opts: { badge: true },
+    note: 'The least ink and the least information: the rows themselves say nothing, so the ' +
+          'reader has to work out which ones the number means.',
+  },
+];
+const ahost = document.getElementById('absorb');
+for (const t of ABSORB) {
+  const wrap = document.createElement('div');
+  wrap.className = 'case';
+  const h = document.createElement('h3');
+  const chosen = t.name.startsWith('J.');
+  h.innerHTML = t.name + ' <span>\u2014 ' + t.sub + '</span><span class="verdict ' +
+    (chosen ? 'keep' : 'no') + '">' + (chosen ? 'carried' : 'dropped') + '</span>';
+  wrap.appendChild(h);
+  const s = document.createElement('div');
+  s.className = 'surface';
+  wrap.appendChild(s);
+  const p = document.createElement('p');
+  p.textContent = t.note;
+  wrap.appendChild(p);
+  ahost.appendChild(wrap);
+  renderAbsorb(s, t.opts);
+}
+
+/* ---- theme -------------------------------------------------------------- */
+const btn = document.getElementById('theme');
+btn.addEventListener('click', () => {
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+  btn.textContent = dark ? 'Dark' : 'Light';
+});
+</script>
+</body>
+</html>

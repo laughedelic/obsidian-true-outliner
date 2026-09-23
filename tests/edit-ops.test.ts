@@ -518,6 +518,33 @@ describe('insertSubtrees', () => {
     expect(encode(tightResult.value.doc)).toBe('- one\n  - a\n  - b\n  - x\n');
   });
 
+  it('a run at the START of a scope takes that scope\'s own separation', () => {
+    // The mirror of the case above, and the reason the parent's own gap is not
+    // the answer: it separates a parent from its first child, which is a
+    // NESTING boundary, while the run's own lower boundary is a sibling one.
+    // The scope's first boundary is a sibling boundary, so it answers.
+    const tight = parse('one\n\n- a\n- b\n');
+    const tightResult = insertSubtrees(
+      tight,
+      byLine(tight, '- a').id,
+      parse('- x\n').children,
+      'before',
+    );
+    if (!tightResult.ok) throw new Error(tightResult.rejection.reason);
+    expect(encode(tightResult.value.doc)).toBe('one\n\n- x\n- a\n- b\n');
+
+    // Negative control: the same shape with the list loose keeps it loose.
+    const loose = parse('one\n\n- a\n\n- b\n');
+    const looseResult = insertSubtrees(
+      loose,
+      byLine(loose, '- a').id,
+      parse('- x\n').children,
+      'before',
+    );
+    if (!looseResult.ok) throw new Error(looseResult.rejection.reason);
+    expect(encode(looseResult.value.doc)).toBe('one\n\n- x\n\n- a\n\n- b\n');
+  });
+
   it('a pasted item\'s own surplus marker run is normalized to one space, like any other rewritten first line', () => {
     // The verbatim re-indent path (reindentSubtreeVerbatim) otherwise carried
     // a surplus run through unchanged, contradicting list-marker-content-column's
@@ -1170,10 +1197,11 @@ describe('a seam is judged on the kind the re-parse will see', () => {
     if (!result.ok) return;
     // Before the fix: `## H2` / `\titem` / `\t> quote` / `\tbody`, which reads
     // back as ONE paragraph carrying three lines — two payload nodes and the
-    // section's own paragraph gone.
-    expect(encode(result.value.doc)).toBe('## H2\n\titem\n\n\t> quote\n\n\tbody\n');
+    // section's own paragraph gone. The list item keeps its kind under the
+    // heading, which can hold one.
+    expect(encode(result.value.doc)).toBe('## H2\n\t- item\n\t> quote\n\n\tbody\n');
     expect(shape(encode(result.value.doc))).toBe(
-      ['h2: ## H2', '  paragraph: item', '  paragraph: > quote', '  paragraph: body'].join('\n'),
+      ['h2: ## H2', '  list-item: - item', '  paragraph: > quote', '  paragraph: body'].join('\n'),
     );
   });
 
@@ -1205,11 +1233,11 @@ describe('a seam is judged on the kind the re-parse will see', () => {
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(encode(result.value.doc)).toBe('## H2\n\titem\n\t- - -\n\tbody\n');
+    expect(encode(result.value.doc)).toBe('## H2\n\t- item\n\t- - -\n\tbody\n');
     expect(shape(encode(result.value.doc))).toBe(
-      // The rule attaches UNDER the paragraph above it, as a list following a
-      // paragraph does anywhere; every node is present either way.
-      ['h2: ## H2', '  paragraph: item', '    list-item: - - -', '  paragraph: body'].join('\n'),
+      // The list item keeps its kind under the heading, and the rule is the
+      // next item of its list; every node is present either way.
+      ['h2: ## H2', '  list-item: - item', '  list-item: - - -', '  paragraph: body'].join('\n'),
     );
   });
 
@@ -1291,9 +1319,9 @@ describe('a seam is judged on the kind the re-parse will see', () => {
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(encode(result.value.doc)).toBe('## H2\nitem\n> quote\npara\n');
+    expect(encode(result.value.doc)).toBe('## H2\n- item\n> quote\npara\n');
     expect(shape(encode(result.value.doc))).toBe(
-      ['h2: ## H2', '  paragraph: item', '  quote: > quote', '  paragraph: para'].join('\n'),
+      ['h2: ## H2', '  list-item: - item', '  quote: > quote', '  paragraph: para'].join('\n'),
     );
   });
 });
