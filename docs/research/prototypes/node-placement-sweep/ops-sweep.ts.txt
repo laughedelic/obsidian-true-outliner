@@ -1,0 +1,181 @@
+// Sweep: indent, outdent, move up/down, and paste over generated labelled notes.
+// For each accepted operation, every labelled node's parent is compared with the parent the
+// operation names; a paste is compared with the destination its anchor names.
+import fc from 'fast-check';
+import { indent, outdent, moveUp, moveDown, insertSubtrees } from '../src/ops';
+import { walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
+import { arbDocText, parse, encode, labelOf, parentMap, subtreeLabels, kindTag } from './labelled-notes';
+
+const RUNS = Number(process.env.RUNS ?? 300);
+const SEED = Number(process.env.SEED ?? 42);
+const texts = fc.sample(arbDocText, { numRuns: RUNS, seed: SEED });
+
+const tally = new Map<string, number>();
+const examples = new Map<string, string[]>();
+const bump = (key: string, example?: string): void => {
+  tally.set(key, (tally.get(key) ?? 0) + 1);
+  if (example) {
+    const list = examples.get(key) ?? [];
+    if (list.length < 3) list.push(example);
+    examples.set(key, list);
+  }
+};
+
+const tagOf = (map: ReturnType<typeof parentMap>, label: string): string => {
+  const e = map.get(label);
+  return label === 'ROOT' ? 'ROOT' : e ? kindTag(e) : '?';
+};
+
+function siblingsOf(doc: OutlineDoc, label: string): { parent: OutlineNode | undefined; kids: readonly OutlineNode[]; index: number } {
+  const walk = (nodes: readonly OutlineNode[], parent: OutlineNode | undefined): ReturnType<typeof siblingsOf> | undefined => {
+    for (let i = 0; i < nodes.length; i++) {
+      if (labelOf(nodes[i]!) === label) return { parent, kids: nodes, index: i };
+      const found = walk(nodes[i]!.children, nodes[i]);
+      if (found) return found;
+    }
+    return undefined;
+  };
+  return walk(doc.children, undefined)!;
+}
+
+function check(op: string, text: string, doc: OutlineDoc, subject: string, result: OutlineDoc, expected: Map<string, string>, absorbing: boolean): void {
+  const before = parentMap(doc);
+  const after = parentMap(result);
+  const inRun = new Set(subtreeLabels([...walkNodes(doc)].find((n) => labelOf(n) === subject)!));
+  const causes = new Set<string>();
+  for (const [label, want] of expected) {
+    const got = after.get(label)?.parent;
+    if (got === want) continue;
+    const who = label === subject ? 'subject' : inRun.has(label) ? 'descendant' : 'bystander';
+    let cause: string;
+    if (got === undefined) cause = 'node lost';
+    else if (who === 'subject') cause = 'the subject lands elsewhere';
+    else if (who === 'descendant') cause = 'a descendant leaves the subject';
+    else if (got === subject && absorbing) cause = 'a written heading takes what follows';
+    else if (got === subject) cause = 'the subject adopts what follows';
+    else if (inRun.has(got)) cause = "the subject's own last node adopts what follows";
+    else cause = 'other';
+    causes.add(cause);
+    bump(
+      `${op}: ${cause} | ${who} | ${tagOf(before, subject)}->${tagOf(after, subject)} | ${tagOf(before, label)}: ${tagOf(before, want)} -> ${got === undefined ? 'LOST' : tagOf(before, got)}`,
+      `${JSON.stringify(text)} subject=${subject} node=${label}`,
+    );
+  }
+  for (const cause of causes) bump(`${op} TOTAL: ${cause}`);
+  bump(`${op} ACCEPTED`);
+  if (causes.size > 0) bump(`${op} ANY`);
+  if (causes.size === 0) bump(`${op} TOTAL: clean`);
+}
+
+for (const text of texts) {
+  const doc = parse(text);
+  const before = parentMap(doc);
+  const labelled = [...walkNodes(doc)].filter((n) => labelOf(n));
+  for (const node of labelled) {
+    const label = labelOf(node)!;
+    const { parent, kids, index } = siblingsOf(doc, label);
+    const parentLabel = parent ? labelOf(parent) ?? '?' : 'ROOT';
+    const base = new Map<string, string>([...before].map(([l, e]) => [l, e.parent]));
+
+    // indent (non-heading subjects): becomes the previous sibling's child.
+    if (node.kind !== 'heading') {
+      const r = indent(doc, node.id);
+      if (!r.ok) bump(`indent refused: ${r.rejection.reason}`);
+      else {
+        const expected = new Map(base);
+        const prev = kids[index - 1];
+        if (prev && labelOf(prev)) expected.set(label, labelOf(prev)!);
+        check('indent', text, doc, label, r.value.doc, expected, false);
+      }
+      // outdent: becomes the grandparent's child, adopting its following siblings.
+      const o = outdent(doc, node.id);
+      if (!o.ok) bump(`outdent refused: ${o.rejection.reason} | ${kindTag({ kind: node.kind, line: node.lines[0]! })} under ${parent ? kindTag({ kind: parent.kind, line: parent.lines[0]! }) : 'ROOT'}`);
+      else {
+        const expected = new Map(base);
+        expected.set(label, before.get(parentLabel)?.parent ?? 'ROOT');
+        for (const sib of kids.slice(index + 1)) {
+          const l = labelOf(sib);
+          if (l) expected.set(l, label);
+        }
+        check('outdent', text, doc, label, o.value.doc, expected, false);
+      }
+    }
+    // move up / down: no parent changes at all.
+    for (const [name, op] of [['moveUp', moveUp], ['moveDown', moveDown]] as const) {
+      const r = op(doc, node.id);
+      if (!r.ok) continue;
+      check(name, text, doc, label, r.value.doc, base, false);
+    }
+  }
+
+  // paste: a copy of each labelled subtree, relabelled, before and after every node.
+  const sources = labelled.slice(0, 12);
+  for (const source of sources) {
+    let k = 0;
+    const payloadText = encode({ preamble: [], children: [source] }).replace(/\bn(\d+)\b/g, () => `p${++k}`);
+    const payload = parse(payloadText).children;
+    if (payload.length !== 1) continue;
+    for (const caretNode of labelled) {
+      // The paste layer's own rule (enforce.ts pasteAnchor), caret on the node's line:
+      // before its first child where it has one, else after it.
+      const first = caretNode.children[0];
+      const anchor = first ?? caretNode;
+      const position = first ? ('before' as const) : ('after' as const);
+      {
+        const r = insertSubtrees(doc, anchor.id, payload, position);
+        if (!r.ok) {
+          bump(`paste refused: ${r.rejection.reason} | ${kindTag({ kind: source.kind, line: source.lines[0]! })} on ${kindTag({ kind: caretNode.kind, line: caretNode.lines[0]! })}`);
+          continue;
+        }
+        const { parent } = siblingsOf(doc, labelOf(anchor)!);
+        // Content written after a childless heading is inside its section by position.
+        const intoHeading = !first && caretNode.kind === 'heading' && source.kind !== 'heading';
+        const want = intoHeading ? labelOf(caretNode)! : parent ? labelOf(parent)! : 'ROOT';
+        const after = parentMap(r.value.doc);
+        const p1 = after.get('p1');
+        const writtenHeading = p1?.kind === 'heading';
+        const expected = new Map<string, string>([...before].map(([l, e]) => [l, e.parent]));
+        const causes = new Set<string>();
+        if (!p1) causes.add('payload lost');
+        else if (p1.parent !== want) {
+          causes.add('the payload lands elsewhere');
+          bump(
+            `paste: the payload lands elsewhere | ${kindTag({ kind: source.kind, line: source.lines[0]! })}->${kindTag(p1)} | named ${tagOf(parentMap(doc), want)} -> under ${p1.parent === 'ROOT' ? 'ROOT' : p1.parent.startsWith('p') ? 'itself' : tagOf(parentMap(doc), p1.parent)}`,
+            `${JSON.stringify(text)} caret=${labelOf(caretNode)} payload=${JSON.stringify(payloadText)}`,
+          );
+        }
+        for (const [l, w] of expected) {
+          const got = after.get(l)?.parent;
+          if (got === w) continue;
+          let cause: string;
+          if (got === undefined) cause = 'node lost';
+          else if (got === 'p1' && writtenHeading) cause = 'a written heading takes what follows';
+          else if (got === 'p1') cause = 'the payload adopts what follows';
+          else if (got.startsWith('p')) cause = "the payload's own last node adopts what follows";
+          else cause = 'other';
+          causes.add(cause);
+          bump(
+            `paste: ${cause} | ${kindTag({ kind: source.kind, line: source.lines[0]! })}->${p1 ? kindTag(p1) : '?'} | ${tagOf(before, l)}: ${tagOf(before, w)} -> ${got === undefined ? 'LOST' : got.startsWith('p') ? 'payload' : tagOf(before, got)}`,
+            `${JSON.stringify(text)} caret=${labelOf(caretNode)} payload=${JSON.stringify(payloadText)} node=${l}`,
+          );
+        }
+        for (const cause of causes) bump(`paste TOTAL: ${cause}`);
+        bump('paste ACCEPTED');
+        if (causes.size > 0) bump('paste ANY');
+        if (causes.size === 0) bump('paste TOTAL: clean');
+      }
+    }
+  }
+}
+
+console.log(`notes ${texts.length}`);
+for (const [key, count] of [...tally].sort((a, b) => a[0].localeCompare(b[0]))) {
+  console.log(`${String(count).padStart(7)}  ${key}`);
+}
+if (process.env.EX) {
+  for (const [key, list] of examples) {
+    if (!key.includes(process.env.EX)) continue;
+    console.log(`\n## ${key}`);
+    for (const e of list) console.log(`  ${e}`);
+  }
+}
