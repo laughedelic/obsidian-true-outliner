@@ -299,12 +299,21 @@ emits a marker element of its own for that line. The gesture SHALL work for ever
 mark is not already claimed by another click affordance, including one rendered as an opaque
 widget, whose mark is injected rather than decorated.
 
+The zoom SHALL resolve when the press is RELEASED, not when it arrives. A press on a mark can mean
+this gesture or the drag `node-dragging` states, and which one it means is not known until the
+pointer has either moved or not — so a press that moves past that capability's threshold is a drag
+and SHALL NOT zoom, and a press released without passing it is this gesture. The press SHALL still
+be claimed at the moment it arrives, so that nothing else acts on it while its meaning is
+undecided; only the moment the zoom's effect is dispatched moves.
+
 A TASK list item is the one exception: its mark is Obsidian's own checkbox, whose click already
 toggles the task, and this gesture SHALL NOT contest that click. A task SHALL remain zoomable by
 the command, the context menu, and a hotkey — the same three entry points every node has — so the
 gap is a missing FOURTH way in for one kind, not a node this feature cannot reach at all. Giving a
-task a click-to-zoom affordance without breaking its checkbox is open, and recorded in
-docs/research/decoration-follow-ups rather than decided here.
+task a click-to-zoom affordance without breaking its checkbox is open, and tracked in #202
+rather than decided here. The task's mark is nevertheless a
+DRAG source, which costs the checkbox nothing: its claim is on the click, not on the press
+(docs/research/node-drag-and-drop).
 
 The click SHALL NOT also do what a click there would otherwise do: it SHALL NOT place the caret,
 begin a selection, or fold the node. The caret SHALL move to the new zoom root, since the node
@@ -335,6 +344,14 @@ piece of work.
 #### Scenario: A widget-rendered node's mark works the same
 - **WHEN** the user clicks the marker beside a table
 - **THEN** the view zooms to the table
+
+#### Scenario: A press that moves is not a zoom
+- **WHEN** the user presses a marker, moves the pointer past the drag threshold, and releases
+- **THEN** no zoom happens, and the press was the drag gesture instead
+
+#### Scenario: The zoom happens on release
+- **WHEN** the user presses a marker and holds the button down without moving
+- **THEN** the view has not zoomed yet, and it zooms when the button is released
 
 #### Scenario: A task's checkbox keeps its own click
 - **WHEN** the user clicks a task list item's checkbox

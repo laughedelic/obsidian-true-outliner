@@ -1,0 +1,141 @@
+/*
+ * The node drag: what it measures with, and what it draws.
+ *
+ * Its own part, per the one-part-per-feature rule — the root `styles.css` is a
+ * build output, so nothing shared is edited to add this.
+ */
+
+/*
+ * The probe the gesture resolves a depth's column with.
+ *
+ * `--to-decor-unit` is a plain custom property, so `getComputedStyle` hands
+ * back the unresolved token rather than a length. An element declared at that
+ * width reports it as a number, which is the only route to one
+ * (docs/research/node-drag-and-drop section 6a). It exists for a single
+ * synchronous measurement and never paints.
+ */
+.to-drag-unit-probe {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  height: 0;
+  width: var(--to-decor-unit);
+}
+
+/*
+ * The drop indicator.
+ *
+ * Declared here and consumed by `drag-preview.ts`'s background layer, which
+ * rides the guide overlay's own comma-separated list — a `.cm-line` has no
+ * pseudo-element left of its own (`10-editor.css` says which two took them),
+ * and that overlay is already shifted back to the true column origin, so a
+ * layer positioned at a depth's column lands where every marker and guide at
+ * that depth is.
+ *
+ * The accent, not a colour of its own: the indicator names a place in the same
+ * hierarchy the caret trail names one in, and a second accent would have the
+ * reader learning two vocabularies for one idea. Thicker than a guide, because
+ * it crosses the grain of every vertical line on the row and has to read as
+ * the answer to a gesture rather than as more chrome.
+ */
+.markdown-source-view.mod-cm6 .cm-content {
+  --to-drop-color: var(--to-decor-accent);
+  --to-drop-width: 2px;
+}
+
+/*
+ * The ghost mark: what the run will BE where it lands, drawn on the
+ * destination's own column.
+ *
+ * Absolutely positioned, where the editor's plain-line marker deliberately
+ * stays in inline flow: that one tracks the font metrics of the text it sits
+ * beside, and this one sits beside nothing — it hangs on a row's EDGE. Pulled
+ * half its own height back so it straddles that edge rather than sitting under
+ * it. Its containing block is the row, which is `position: relative` because
+ * the row carries the guide overlay — and it always does while it carries the
+ * seam, since the indicator rides in that same overlay.
+ *
+ * `left` comes through a property of the ghost's own, not the marker icons'
+ * shared `--to-marker-left`: the pass that keeps plain-line markers on their
+ * column rewrites that placement on every marker icon it finds, and this is a
+ * marker icon with a different placement. The arithmetic behind the value is
+ * still the shared marker anchor, so the ghost is centred on its column
+ * exactly as a real mark at that depth is.
+ */
+.markdown-source-view.mod-cm6 .cm-content .to-drag-ghost {
+  position: absolute;
+  left: var(--to-drag-ghost-left, 0px);
+  margin-left: 0;
+  top: 0;
+  transform: translateY(-50%);
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+/*
+ * How many nodes are in flight, at the rule's far end, in the fold count's own
+ * voice — the same ellipsis, colour and size. Straddles the row edge the rule
+ * is on, with the page's own background behind it and a leading pad as wide as
+ * the gap between the ghost and the rule's start, so the rule stops that far
+ * short of the count at one end as it starts that far from the ghost at the
+ * other. The edge classes are the ghost's.
+ */
+.markdown-source-view.mod-cm6 .cm-content .to-drag-count {
+  position: absolute;
+  right: 0;
+  top: 0;
+  transform: translateY(-50%);
+  padding-left: var(--to-drag-count-gap, 0.35em);
+  background: var(--background-primary);
+  color: var(--text-faint);
+  font-family: var(--font-interface);
+  font-size: 0.85em;
+  line-height: 1.4;
+  pointer-events: none;
+  user-select: none;
+}
+
+.markdown-source-view.mod-cm6 .cm-content .to-drag-count::before {
+  content: '…';
+  margin-right: 0.3em;
+  font-size: 1.15em;
+}
+
+.markdown-source-view.mod-cm6 .cm-content .to-drag-ghost-below {
+  top: auto;
+  bottom: 0;
+  transform: translateY(50%);
+}
+
+/* On the middle of a gap line, where the seam under a heading is drawn. */
+.markdown-source-view.mod-cm6 .cm-content .to-drag-ghost-middle {
+  top: 50%;
+}
+
+/*
+ * The rows in flight, lifted.
+ *
+ * Composed with the block-selection chrome the rows already wear: the cover's
+ * tint and edge stay, and say how many roots are travelling; this only fades
+ * the rows, so they read as picked up and not yet put down. Opacity alone —
+ * no transform, no margin, no size — because nothing about a drag may move a
+ * row until the release, and the seam geometry is read from these very rows.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .to-drag-lifted {
+  opacity: 0.55;
+}
+
+/*
+ * The ghost's bullet, at the native bullet's size.
+ *
+ * The shared mark vocabulary draws a bullet as a 6-unit dot in a 16-unit box,
+ * sized for the backlinks footer's unwrapped items, where nothing native stands
+ * beside it. On the grid it stands in for `--list-bullet-size`, and a dot
+ * smaller than the bullets around it reads as a different kind of mark.
+ */
+.markdown-source-view.mod-cm6
+  .cm-content
+  .to-drag-ghost[data-kind='list-item']:not([data-task]):not([data-ordered])
+  circle {
+  r: 3.6;
+}

@@ -21,6 +21,7 @@
 
 import type { SettingRow } from "./settings/declare";
 import { APPEARANCE_SETTINGS } from "./settings/appearance";
+import { DRAGGING_SETTINGS } from "./settings/dragging";
 import { FOLDING_SETTINGS } from "./settings/folding";
 import { FOOTER_SETTINGS } from "./settings/footer";
 import { MODE_SETTINGS } from "./settings/mode";
@@ -33,6 +34,7 @@ export const SETTINGS = [
   ...SHELL_SETTINGS,
   ...FOOTER_SETTINGS,
   ...APPEARANCE_SETTINGS,
+  ...DRAGGING_SETTINGS,
 ] as const;
 
 export type SettingDeclaration = (typeof SETTINGS)[number];

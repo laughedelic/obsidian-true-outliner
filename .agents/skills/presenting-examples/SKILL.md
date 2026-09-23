@@ -42,6 +42,25 @@ editor states out side by side as columns:
 A `diff` block showing only what changed suits a small change in a long document better than
 columns.
 
+## Where a node can land
+
+A drop, a paste or an indent can put a node at several depths at one place, and a flat Markdown
+column hides which one a sentence means. Draw the outline instead: one indent step per depth, the
+node's own markdown after it. Put a row of numbers where the node would land, each number under
+the column it lands at, and say what each number writes:
+
+```
+┆## A
+┆  ### B
+┆    P
+┆1 2 3 4
+```
+
+Then list the numbers, each with what the node is written as there and whose child it becomes,
+read from the code or a measurement rather than from memory. A place between two rows puts the
+number row between them. Name a position by its number afterwards, never by a name for the rule
+that produced it, and draw each result the same way, as a column.
+
 ## Glyphs
 
 | Glyph | Meaning |

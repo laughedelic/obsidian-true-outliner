@@ -117,6 +117,7 @@ import {
   type ProvisionalMaterialization,
   type PositionTrail,
   type PositionTrailFact,
+  type TrailAccent,
   type TrailExtent,
 } from './decorate';
 import { isOutlineMode } from './outline-state';
@@ -125,6 +126,20 @@ import { isNestedEditor, nestedEditorField } from './nested-editor';
 import { foldedChrome } from './fold-service';
 import { foldableEntries } from './fold-model';
 import { guideHoverField, type GuideHover } from './guide-hover';
+import { dragLiftField, dragPreviewField } from './drag-state';
+import {
+  absorbedGuide,
+  absorbedGuideHead,
+  guideAboveRule,
+  guideBesideGhost,
+  absorbedRows,
+  ghostMarkLeftExpr,
+  seamIndicator,
+  seamLayer,
+  type SeamIndicator,
+  type SeamEdge,
+  type ListMark,
+} from './drag-preview';
 import { toggleFoldAtLine } from './fold-commands';
 import {
   markerShapes,
@@ -133,6 +148,8 @@ import {
   type HeadingMarkerStyle,
   type MarkSubject,
   type Shape,
+  checkboxShapes,
+  ordinalPlaceholderShapes,
 } from './marker-shapes';
 
 // ---- Shared per-document fact computation (hardening 5.4) ------------------
@@ -315,16 +332,23 @@ function guideBackground(
   guideDepths: readonly number[],
   trail?: PositionTrailFact,
   lit?: number,
+  drop?: TrailAccent,
 ): string {
   const widthOf = (depth: number, rest: string): string =>
     depth === lit ? GUIDE_HOVER_WIDTH : rest;
-  if (!trail) {
+  if (!trail && !drop) {
     return guideDepths.map((depth) => guideLayer(depth, widthOf(depth, GUIDE_WIDTH))).join(', ');
   }
-  const accents = accentsOn(guideDepths, trail);
+  const accents = trail ? accentsOn(guideDepths, trail) : new Map<number, TrailExtent>();
   const layers: string[] = [];
+  // The drop's parent is accented in the trail's colour at the GUIDE's weight:
+  // it names which column the run will hang from, and a thicker line would
+  // read as the caret's own trail, which says something else. Where the
+  // trail already accents that column, the trail's own segment stands.
+  const dropAt = drop && !accents.has(drop.depth) && guideDepths.includes(drop.depth) ? drop.depth : -1;
+  if (drop && dropAt >= 0) accents.set(drop.depth, drop.extent);
   for (const [depth, extent] of accents) {
-    layers.push(accentLayer(depth, extent, widthOf(depth, TRAIL_WIDTH)));
+    layers.push(accentLayer(depth, extent, widthOf(depth, depth === dropAt ? GUIDE_WIDTH : TRAIL_WIDTH)));
   }
   for (const depth of guideDepths) {
     if (accents.get(depth) !== 'full') layers.push(guideLayer(depth, widthOf(depth, GUIDE_WIDTH)));
@@ -792,6 +816,16 @@ function markerClasses(trail: PositionTrail, lineNumber: number, markerAccent: b
   return ancestorIsListItem ? ` ${ANCESTOR_NATIVE_MARKER_CLASS}` : ` ${ANCESTOR_MARKER_CLASS}`;
 }
 
+/**
+ * The destination parent's marker class while a drag is in flight: the
+ * ancestor accent, which is colour alone, in the native-or-synthetic split the
+ * trail's own ancestors use. Added only where the trail puts nothing on the
+ * row; a parent that is also the caret's node or ancestor is accented already.
+ */
+function dropParentMarkerClass(fact: LineDecorationFact): string {
+  return fact.isListItem ? ` ${ANCESTOR_NATIVE_MARKER_CLASS}` : ` ${ANCESTOR_MARKER_CLASS}`;
+}
+
 // ---- Block markers (Experiment 5a: icon markers) ---------------------------
 //
 // See docs/research/experiment-5-block-markers.md (Experiment 5/5a). A
@@ -904,6 +938,12 @@ function svgEl<K extends keyof SVGElementTagNameMap>(
  * would be two answers to one question.
  */
 export function buildMarkerIcon(subject: MarkSubject): SVGSVGElement {
+  return buildShapesIcon(markerShapes(subject));
+}
+
+/** `buildMarkerIcon` for a shape list that is not a node kind's own — a task's
+ * checkbox, an ordered item's placeholder. */
+export function buildShapesIcon(shapes: readonly Shape[]): SVGSVGElement {
   // `aria-hidden`: the marker is purely decorative chrome (the node's kind
   // is already in the accessible text itself — heading level, code fence,
   // etc.), so screen readers should skip it entirely (hardening 5.6).
@@ -918,7 +958,7 @@ export function buildMarkerIcon(subject: MarkSubject): SVGSVGElement {
   // queried from the live document — so no CM6-owned or Obsidian-owned
   // subtree is being mutated.
   // eslint-disable-next-line no-restricted-syntax -- detached DOM: built here, never mounted by this code
-  svg.append(...markerShapes(subject).map(shapeElement));
+  svg.append(...shapes.map(shapeElement));
   return svg;
 }
 
@@ -1044,6 +1084,115 @@ class MarkerWidget extends WidgetType {
     return true;
   }
 }
+
+/**
+ * The mark the run will have where it lands, drawn at the destination's own
+ * column — the other half of what the seam indicator says.
+ *
+ * Absolutely positioned, unlike `MarkerWidget`: that one stays in inline flow
+ * so it tracks the surrounding TEXT's font metrics, and this one has no text
+ * to sit beside. It hangs on the seam, which is a row's edge rather than a
+ * place in its content, so it is positioned against the row's box and pulled
+ * half its own height back onto the edge.
+ */
+class GhostMarkWidget extends WidgetType {
+  constructor(
+    private readonly subject: MarkSubject,
+    private readonly list: ListMark | undefined,
+    private readonly leftExpr: string,
+    private readonly edge: SeamEdge,
+  ) {
+    super();
+  }
+
+  override eq(other: GhostMarkWidget): boolean {
+    return (
+      markKey(other.subject) === markKey(this.subject) &&
+      other.list?.task === this.list?.task &&
+      other.list?.ordered === this.list?.ordered &&
+      other.leftExpr === this.leftExpr &&
+      other.edge === this.edge
+    );
+  }
+
+  toDOM(): HTMLElement {
+    const wrapper = createSpan({
+      cls: `to-decor-marker-icon ${GHOST_MARK_CLASS} ${GHOST_MARK_EDGE_CLASS[this.edge]}`,
+    });
+    stateMark(wrapper, this.subject);
+    if (this.list?.task !== undefined) wrapper.dataset.task = this.list.task ? 'done' : 'open';
+    if (this.list?.ordered !== undefined) wrapper.dataset.ordered = this.list.ordered;
+    // Its OWN property, not `--to-marker-left`: the pass that keeps plain-line
+    // markers on their column rewrites that one on every marker icon it finds,
+    // and the ghost is a marker icon with a different placement.
+    wrapper.setCssProps({ '--to-drag-ghost-left': this.leftExpr });
+    // Detached DOM, mounted by CM6's own path — the same guard `MarkerWidget`
+    // carries, and for the same reason.
+    // eslint-disable-next-line no-restricted-syntax -- detached DOM: CM6 mounts toDOM()'s result via its own supported path
+    wrapper.appendChild(ghostIcon(this.subject, this.list));
+    return wrapper;
+  }
+
+  override ignoreEvent(): boolean {
+    return true;
+  }
+}
+
+/**
+ * The ghost's glyph: a list item's state where it has one — a task's checkbox
+ * as it is, since a drop does not toggle it, or an ordered item's placeholder
+ * — and the kind's own mark otherwise. The two list marks are the ones the
+ * backlinks footer draws in a bullet's place for the same reason: they are
+ * state the reader is looking for, not presentation.
+ */
+function ghostIcon(subject: MarkSubject, list: ListMark | undefined): SVGSVGElement {
+  if (list?.task !== undefined) return buildShapesIcon(checkboxShapes(list.task));
+  if (list?.ordered !== undefined) return buildShapesIcon(ordinalPlaceholderShapes(list.ordered));
+  return buildMarkerIcon(subject);
+}
+
+/** How many nodes are in flight, at the right end of the indicator. */
+class DragCountWidget extends WidgetType {
+  constructor(
+    private readonly count: number,
+    private readonly edge: SeamEdge,
+  ) {
+    super();
+  }
+
+  override eq(other: DragCountWidget): boolean {
+    return other.count === this.count && other.edge === this.edge;
+  }
+
+  toDOM(): HTMLElement {
+    const el = createSpan({
+      cls: `${DRAG_COUNT_CLASS} ${GHOST_MARK_EDGE_CLASS[this.edge]}`,
+      text: String(this.count),
+    });
+    // The gap the rule leaves before the count is the one it leaves after the
+    // ghost: from the ghost's edge to the rule's start is the marker gutter
+    // less half the mark.
+    el.setCssProps({
+      '--to-drag-count-gap': `calc(${MARKER_GUTTER_CSS} - var(--to-marker-icon-size, 0.85rem) / 2)`,
+    });
+    return el;
+  }
+
+  override ignoreEvent(): boolean {
+    return true;
+  }
+}
+
+/** The run's count; `90-dragging.css` places and styles it. */
+export const DRAG_COUNT_CLASS = 'to-drag-count';
+
+/** The ghost mark's own classes; `90-dragging.css` positions them. */
+export const GHOST_MARK_CLASS = 'to-drag-ghost';
+export const GHOST_MARK_EDGE_CLASS: Record<SeamEdge, string> = {
+  top: 'to-drag-ghost-top',
+  bottom: 'to-drag-ghost-below',
+  middle: 'to-drag-ghost-middle',
+};
 
 /** The class a folded node's own line carries, so the marker can say so. */
 export const FOLDED_NODE_CLASS = 'to-decor-folded';
@@ -1314,6 +1463,10 @@ interface LineRender {
   readonly folded: boolean;
   /** A folded multi-line node's last own line (`FOLDED_TAIL_CLASS`). */
   readonly foldedTail: boolean;
+  /** The drop indicator this row carries, if it carries one. The layer is
+   * already folded into `guides`; this is what the ghost mark needs, which is
+   * an element and cannot be. */
+  readonly seam: SeamIndicator | undefined;
   /** What a fold hides, counted after this line's text; 0 where nothing. */
   readonly hidden: number;
 }
@@ -1355,7 +1508,49 @@ function renderInputs(state: EditorState, modes: DecorationSource): RenderInputs
   const visibility = visibilityContext(state, modes, facts);
   const trail = positionTrail(state, modes);
   const hover = state.field(guideHoverField, false) ?? null;
+  // Where a drag in flight would land. Read here with the rest of the inputs
+  // so the indicator is painted by the same pass as everything else on the
+  // grid, rather than positioned over it (design D10).
+  const preview = state.field(dragPreviewField, false) ?? null;
+  const seam = seamIndicator(preview, new Set(facts.factsByLine.keys()), (line) => {
+    const fact = facts.factsByLine.get(line);
+    return fact ? { kind: fact.kind, atom: fact.isAtom } : undefined;
+  });
+  // The rows an absorbing drop would take, drawn where they will be for the
+  // drag's duration: one past the run's column, which is one level in under a
+  // deeper heading, level under one written beside their old parent, and out
+  // under one written shallower still. Their facts move by that much, so every
+  // depth rule moves them as one; the guides their own nodes draw move with
+  // them; the guides outside the run's column stay; and the run's own guide is
+  // added so the column that will connect them is drawn — begun below the ghost
+  // on the first row, and ending, as every guide does, on the last row with
+  // content rather than on a gap after it.
+  const absorbed = absorbedRows(preview, preview?.lineOffset ?? 0);
+  let absorbedLast = -1;
+  if (absorbed !== null) {
+    for (const line of facts.factsByLine.keys()) {
+      if (line >= absorbed.from && line < absorbed.to && line > absorbedLast) absorbedLast = line;
+    }
+  }
   const markerAccent = modes.markerHighlight !== 'off';
+  // The destination parent, named rather than counted out of columns (design
+  // D8): its marker takes the accent, and its own guide — the column the run
+  // will hang from — takes it on every row between the parent and the seam.
+  // A parent at the root has no row of its own, and nothing is accented.
+  const dropParent =
+    preview !== null && preview.parentLine !== null && preview.destination.depth > 0
+      ? { line: preview.parentLine, depth: preview.destination.depth - 1 }
+      : null;
+  const dropAccentOn = (lineNumber: number): TrailAccent | undefined => {
+    if (dropParent === null || seam === null || lineNumber <= dropParent.line) return undefined;
+    if (lineNumber < seam.lineNumber) return { depth: dropParent.depth, extent: 'full' };
+    // The seam's own row: through it where the indicator sits at its bottom,
+    // down to the middle where it sits there, and not at all at its top.
+    if (lineNumber === seam.lineNumber && seam.edge !== 'top') {
+      return { depth: dropParent.depth, extent: seam.edge === 'bottom' ? 'full' : 'top' };
+    }
+    return undefined;
+  };
   // Two lookups from one pass: a folded node's treatment belongs on the line
   // its marker is on, and the count of what it hides belongs after its own
   // text — the same line only when the node is a single line long.
@@ -1377,18 +1572,93 @@ function renderInputs(state: EditorState, modes: DecorationSource): RenderInputs
   const lines: LineRender[] = [];
   for (const guide of facts.guides) {
     const lineNumber = guide.lineNumber;
-    const fact = facts.factsByLine.get(lineNumber);
-    const depths = drawnGuideDepths(guide, visibility);
+    const taken =
+      absorbed !== null && lineNumber >= absorbed.from && lineNumber <= absorbedLast;
+    // The subtree this row moves with; a gap line between two takes the one
+    // it trails, whose span it is part of.
+    const shift = taken ? absorbed.shifts.find((s) => lineNumber >= s.from && lineNumber < s.to) : undefined;
+    const by = shift?.by ?? 0;
+    const own = facts.factsByLine.get(lineNumber);
+    const fact =
+      own && taken
+        ? {
+            ...own,
+            depth: own.depth + by,
+            supplementalDepth: own.supplementalDepth + by,
+          }
+        : own;
+    const drawn = drawnGuideDepths(guide, visibility);
+    // On an absorbed row a guide at its subtree root's old depth or deeper
+    // belongs to a node that moves with the row, so it moves by as much; one
+    // shallower than the run's column belongs to an ancestor the run keeps;
+    // and the run's own column is what the ghost's guide takes.
+    const ghostColumn = absorbed === null ? -1 : absorbed.column;
+    const rootDepth = ghostColumn + 1 - by;
+    const depths = taken
+      ? [
+          ...drawn.filter((d) => d < ghostColumn),
+          ...drawn.filter((d) => d >= rootDepth).map((d) => d + by),
+        ].filter((d) => d !== ghostColumn)
+      : drawn;
+    // The indicator FIRST, so it draws over the guides rather than under
+    // them: it is the one thing on the row the reader is looking for. A row
+    // that draws no guide still gets the overlay when it carries the seam —
+    // a depth-0 destination beside a top-level node is an ordinary case.
+    const layers: string[] = [];
+    const onSeam = seam && seam.lineNumber === lineNumber ? seam : undefined;
+    if (onSeam) layers.push(seamLayer(onSeam));
+    if (taken && absorbed !== null) {
+      layers.push(
+        lineNumber === absorbed.from && onSeam
+          ? absorbedGuideHead(ghostColumn)
+          : absorbedGuide(ghostColumn),
+      );
+    }
+    // The row the ghost sits on, where it is not also an absorbed row. A guide
+    // on the mark's own column or deeper belongs to a node the drop closes
+    // above the seam, so it does not reach this row at all when the row is the
+    // gap between the two nodes. Where the row is the node above's own — the
+    // rule at its bottom edge, the note's last row — those guides are the
+    // row's and run its height: the one on the mark's column stops short of
+    // the mark, and the deeper ones short of the rule. And where the drop
+    // takes the rows below, the run's own guide starts below the mark on this
+    // row rather than on the next one.
+    let visibleDepths = depths;
+    if (onSeam && !taken) {
+      const column = onSeam.depth;
+      if (onSeam.edge === 'bottom') {
+        for (const d of depths) {
+          if (d === column) layers.push(guideBesideGhost(column, onSeam.edge, 'above'));
+          else if (d > column) layers.push(guideAboveRule(d));
+        }
+      }
+      if (absorbed !== null && onSeam.edge !== 'top') {
+        layers.push(guideBesideGhost(column, onSeam.edge, 'below'));
+      }
+      visibleDepths = depths.filter((d) => d < column);
+    }
+    if (hasOverlay(visibleDepths)) {
+      layers.push(
+        guideBackground(
+          visibleDepths,
+          trail.byLine.get(lineNumber),
+          litGuideOn(hover, lineNumber),
+          dropAccentOn(lineNumber),
+        ),
+      );
+    }
     lines.push({
       lineNumber,
       fact,
       gap: guide.isGapLine,
-      guides: hasOverlay(depths)
-        ? guideBackground(depths, trail.byLine.get(lineNumber), litGuideOn(hover, lineNumber))
-        : undefined,
-      marker: fact ? markerClasses(trail, lineNumber, markerAccent) : '',
+      guides: layers.length > 0 ? layers.join(', ') : undefined,
+      marker: fact
+        ? markerClasses(trail, lineNumber, markerAccent) ||
+          (dropParent !== null && dropParent.line === lineNumber ? dropParentMarkerClass(fact) : '')
+        : '',
       folded: foldedMarkers.has(lineNumber),
       foldedTail: foldedTails.has(lineNumber),
+      seam: onSeam,
       hidden: foldedCounts.get(lineNumber) ?? 0,
     });
   }
@@ -1470,9 +1740,44 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
           gapLineDecoration(render.guides, modes.hideGapLines),
         );
       }
-      continue;
+    } else {
+      builder.add(line.from, line.from, lineDecoration(line.text, render.fact, render));
     }
-    builder.add(line.from, line.from, lineDecoration(line.text, render.fact, render));
+    // The ghost mark, where this row carries the seam — a gap line as readily
+    // as a row with a fact, since the seam under a heading sits on the blank
+    // line between the heading and its first child. An element rather than a
+    // background layer, because it is a drawn glyph — the indicator itself
+    // rides the overlay, and the two are positioned from the same column.
+    const ghost = render.seam ? render.seam.mark : null;
+    if (render.seam && ghost) {
+      builder.add(
+        line.from,
+        line.from,
+        Decoration.widget({
+          widget: new GhostMarkWidget(
+            markSubject(ghost, modes.headingMarkerStyle),
+            render.seam.list,
+            ghostMarkLeftExpr(render.seam.depth),
+            render.seam.edge,
+          ),
+          side: -1,
+        }),
+      );
+      // How many nodes are in flight, at the rule's far end, in the fold
+      // count's voice. The TOTAL, where a fold counts what it hides: a run can
+      // be several roots, and `…1` for two dragged nodes reads as one of them.
+      // Nothing for a lone node, as a fold with nothing under it shows none.
+      if (render.seam.runSize > 1) {
+        builder.add(
+          line.from,
+          line.from,
+          Decoration.widget({
+            widget: new DragCountWidget(render.seam.runSize, render.seam.edge),
+            side: -1,
+          }),
+        );
+      }
+    }
     // At the END of the node's own text, where a reader's eye already is when
     // they reach the end of what is visible — and where Obsidian puts its own
     // placeholder, which this one replaces.
@@ -1502,6 +1807,8 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
 // the same line (CM6 merges same-position line decorations across separate
 // providers), and this never touches the selection itself.
 export const SELECTED_NODE_CLASS = 'to-decor-node-selected';
+/** The rows in flight during a drag; `90-dragging.css` draws them lifted. */
+export const LIFTED_CLASS = 'to-drag-lifted';
 
 // Set on `view.dom` (the outer `.cm-editor`) whenever `allRangesCovered`
 // holds — styles.css uses it to suppress the native character-level
@@ -1701,6 +2008,13 @@ function computeSelectionDecorations(state: EditorState): DecorationSet {
   const { factsByLine } = baseFacts(state);
   const builder = new RangeSetBuilder<Decoration>();
   const targets = Array.from(selectedLineRootTargets(state).entries()).sort((a, b) => a[0] - b[0]);
+  // While a drag is in flight the cover IS the run in flight, so its rows take
+  // the lifted treatment on top of the chrome they already carry — composed,
+  // not swapped, since a multi-root cover's edge is what says how many roots
+  // are travelling.
+  const cls = (state.field(dragLiftField, false) ?? false)
+    ? `${SELECTED_NODE_CLASS} ${LIFTED_CLASS}`
+    : SELECTED_NODE_CLASS;
   for (const [line, rootTarget] of targets) {
     if (line >= totalLines) continue; // stale, defensive only
     const from = state.doc.line(line + 1).from; // CM6 lines are 1-indexed
@@ -1708,7 +2022,7 @@ function computeSelectionDecorations(state: EditorState): DecorationSet {
     // margin/padding-shifted), same fallback `gapLineDecoration` relies on.
     const ownShift = factsByLine.get(line) ? plainOwnShiftExpr(factsByLine.get(line)!) : '0px';
     const style = `--to-selected-left: calc(${rootTarget} - (${ownShift}))`;
-    builder.add(from, from, Decoration.line({ class: SELECTED_NODE_CLASS, attributes: { style } }));
+    builder.add(from, from, Decoration.line({ class: cls, attributes: { style } }));
   }
   return builder.finish();
 }
@@ -1894,6 +2208,7 @@ function clearWidgetPatch(el: HTMLElement): void {
   el.classList.remove(CURRENT_MARKER_CLASS);
   el.classList.remove(ANCESTOR_MARKER_CLASS);
   el.classList.remove(SELECTED_NODE_CLASS);
+  el.classList.remove(LIFTED_CLASS);
   el.classList.remove(WIDGET_PATCHED_CLASS);
   el.style.removeProperty('--to-guides');
   el.style.removeProperty('--to-own-shift');
@@ -3295,6 +3610,7 @@ class MarginCompensation implements PluginValue {
     const inputs = renderInputs(this.view.state, this.modes);
     const nativeBasePx = this.nativeMarginBasePx();
     const selectedLineTargets = selectedLineRootTargets(this.view.state);
+    const lifted = this.view.state.field(dragLiftField, false) ?? false;
     this.measureAccentStops(inputs.trail);
     // The right edge every plain `.cm-line` naturally reaches — read live
     // (not assumed to be `right: 0` relative to a widget's OWN box), since
@@ -3391,6 +3707,7 @@ class MarginCompensation implements PluginValue {
       // below, wherever this widget's own `ownShiftExpr` is in scope.
       const rootTarget = selectedLineTargets.get(lineNumber);
       el.classList.toggle(SELECTED_NODE_CLASS, rootTarget !== undefined);
+      el.classList.toggle(LIFTED_CLASS, rootTarget !== undefined && lifted);
       const render = inputs.byLine.get(lineNumber);
       const fact = render?.fact;
       // Keyed on "this element renders a line that HAS a fact", not on the
@@ -3649,7 +3966,13 @@ class MarginCompensation implements PluginValue {
       // active theme. A `querySelector` (not a `decorate()` fact lookup)
       // gates this: only a line `computeMarkers` actually placed an icon
       // on has one to correct.
-      const icon = el.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
+      // Not the drag preview's ghost mark, which is a marker icon with a
+      // placement of its own: it hangs on a seam at the destination's column,
+      // not beside this line's text, and an inline `left` from here would put
+      // it at the plain-line marker's shift regardless of what it was told.
+      const icon = el.querySelector<HTMLElement>(
+        `:scope > .to-decor-marker-icon:not(.${GHOST_MARK_CLASS})`,
+      );
       if (icon) {
         const iconLineStyle = getComputedStyle(el);
         const nativeShift =

@@ -46,8 +46,8 @@ import { matchRanges } from '../search';
 import { isOutlineMode } from './outline-state';
 import { nestedEditorField } from './nested-editor';
 import { contentEndAnchor } from './zoom-scope';
-import { buildMarkerIcon, FOLDED_NODE_CLASS } from './decorations';
-import { markSubject, type HeadingMarkerStyle, type NodeMark } from './marker-shapes';
+import { buildMarkerIcon, buildShapesIcon, FOLDED_NODE_CLASS } from './decorations';
+import { checkboxShapes, markSubject, type HeadingMarkerStyle, type NodeMark } from './marker-shapes';
 import { renderLineageContent } from './lineage-row';
 import {
   MARKER_LEFT_SHIFT_EXPR,
@@ -1768,21 +1768,7 @@ function ordinalMarker(label: string): HTMLElement {
  * is read-only (D2), and a checkbox that looks clickable and is not is worse
  * than one that does not. */
 function checkboxGlyph(done: boolean): SVGSVGElement {
-  const box = 'M2.8 2.8h10.4v10.4h-10.4z';
-  return done
-    ? glyph(16, [box, 'M5 8.2l2.4 2.4 4-4.8'], {
-        fill: 'none',
-        stroke: 'currentColor',
-        'stroke-width': '1.6',
-        'stroke-linecap': 'round',
-        'stroke-linejoin': 'round',
-      })
-    : glyph(16, [box], {
-        fill: 'none',
-        stroke: 'currentColor',
-        'stroke-width': '1.6',
-        'stroke-linejoin': 'round',
-      });
+  return buildShapesIcon(checkboxShapes(done));
 }
 
 /**

@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drop preview marks</title>
+<!--
+  Companion to drop-indicator.html, for two choices the drag preview leaves
+  open: the glyph that stands in for an ordered item's number while it is in
+  flight, and how the count of what a run carries sits at the rule's far end.
+
+  Geometry is the one drop-indicator.html uses, measured in
+  docs/research/node-drag-and-drop.md section 1: 32px per outline level, a 14px
+  marker gutter, a 13.6px marker icon. Glyphs are drawn in the plugin's own
+  16-unit box at the stroke weight its marks use. Static page, no dependencies.
+-->
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --panel: #fbfbfc;
+    --line: #e3e3e6;
+    --text: #1f2023;
+    --muted: #6a6c72;
+    --faint: #a8aab0;
+    --guide: #d9dade;
+    --accent: #6c63d8;
+    --accent-soft: #6c63d81f;
+    --unit: 32px;
+    --gutter: 14px;
+    --icon: 13.6px;
+  }
+  [data-theme="dark"] {
+    --bg: #1e1e20;
+    --panel: #232326;
+    --line: #37373d;
+    --text: #dcddde;
+    --muted: #9a9ba1;
+    --faint: #6b6d74;
+    --guide: #3a3a41;
+    --accent: #a79ffb;
+    --accent-soft: #a79ffb26;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 2.5rem clamp(1rem, 5vw, 4rem) 5rem;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; margin-bottom: .5rem; }
+  h1 { font-size: 1.5rem; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: 1rem; margin: 2.75rem 0 .25rem; letter-spacing: -0.005em; }
+  p.note { color: var(--muted); max-width: 72ch; margin: .25rem 0 1.25rem; font-size: .9rem; }
+  code { font-size: .92em; background: var(--panel); padding: .05em .3em; border-radius: 3px; }
+  button.theme {
+    margin-left: auto; border: 1px solid var(--line); background: var(--panel);
+    color: var(--text); border-radius: 6px; padding: .25rem .7rem; font: inherit; font-size: .85rem;
+    cursor: pointer;
+  }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 1rem; }
+  .card {
+    border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+    padding: .9rem 1rem 1rem; min-width: 0;
+  }
+  .card h3 { font-size: .9rem; margin: 0 0 .15rem; display: flex; gap: .5rem; align-items: baseline; }
+  .card h3 .tag {
+    font-size: .72rem; font-weight: 600; border-radius: 999px; padding: 0 .45rem;
+    background: var(--accent-soft); color: var(--accent);
+  }
+  .card p { color: var(--muted); font-size: .8rem; margin: .15rem 0 .6rem; }
+  .zoom { display: flex; gap: 1rem; align-items: center; margin: .2rem 0 .7rem; color: var(--faint); }
+  .zoom svg { width: 64px; height: 64px; }
+  .zoom .real { display: flex; gap: .6rem; align-items: center; }
+  .zoom .real svg { width: var(--icon); height: var(--icon); }
+  .zoom .real .vs { font-size: .72rem; color: var(--muted); }
+
+  /* A note's rows, at the plugin's geometry. */
+  .note-surface { position: relative; font-size: 15px; line-height: 26px; padding: 4px 0; overflow: hidden; }
+  .row { position: relative; height: 26px; white-space: nowrap; }
+  .row .text { position: absolute; top: 0; }
+  .row .mark { position: absolute; top: 6.2px; width: var(--icon); height: var(--icon); color: var(--faint); }
+  .row .num { position: absolute; top: 0; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .guide { position: absolute; width: 1px; background: var(--guide); }
+  .rule { position: absolute; height: 2px; background: var(--accent); right: 0; }
+  .ghost { position: absolute; width: var(--icon); height: var(--icon); color: var(--faint); opacity: .85;
+           transform: translateY(-50%); }
+  .lifted { opacity: .55; }
+  .count { position: absolute; right: 0; transform: translateY(-50%); font-size: .8em; line-height: 1.4;
+           color: var(--faint); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Drop preview marks</h1>
+  <button class="theme" id="theme">Dark</button>
+</header>
+<p class="note">
+  Two open choices in the drag preview. In every card the same run is in flight, an ordered item
+  <b>third</b> with two children, held at the seam between <b>first</b> and <b>second</b>. The
+  ghost is drawn where it will land; the item itself is lifted further down.
+</p>
+
+<h2>1. The ordered item's placeholder</h2>
+<p class="note">
+  The number an item lands with is the renumbering's answer, not the item's — the run's own
+  start at the head of a list, the previous item's plus one after it — so the ghost draws a
+  placeholder rather than predicting it. Each candidate is shown enlarged, at its real 13.6px
+  size beside a bullet, and on the seam. <code>#.</code> is shown beside the heading mark it
+  could be read as when heading marks are drawn as hashes.
+</p>
+<div class="grid" id="ordinals"></div>
+
+<h2>2. The count at the rule's end</h2>
+<p class="note">
+  How many nodes are in flight — here <b>third</b> and its two children, three — as a total rather
+  than what the ghost hides, since a run can be several roots and <code>…1</code> for two dragged
+  nodes reads as one of them. Nothing is drawn for a lone node. B is what the beta draws: the rule
+  stops as far short of the count as it starts from the ghost.
+</p>
+<div class="grid" id="counts"></div>
+
+<script>
+const UNIT = 32, GUTTER = 14, ICON = 13.6, ROW = 26, PAD = 18;
+const SVG = 'http://www.w3.org/2000/svg';
+
+/** A glyph in the plugin's 16-unit box, at its stroke weight. */
+function glyph(parts) {
+  const svg = document.createElementNS(SVG, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  for (const [tag, attrs] of parts) {
+    const el = document.createElementNS(SVG, tag);
+    const stroke = tag !== 'circle' || attrs.fill === 'none';
+    const base = stroke
+      ? { stroke: 'currentColor', 'stroke-width': '1.5', fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }
+      : { fill: 'currentColor' };
+    for (const [k, v] of Object.entries({ ...base, ...attrs })) el.setAttribute(k, v);
+    svg.appendChild(el);
+  }
+  return svg;
+}
+const DOT = ['circle', { cx: '12.6', cy: '12.2', r: '1.1', fill: 'currentColor' }];
+const path = (d) => ['path', { d }];
+
+const ORDINALS = [
+  { id: 'n.', name: 'n.', note: 'The first beta: a lowercase n, as in "item n". Reads as a letter before it reads as a numeral.',
+    parts: [path('M2.5 13V6.5M2.5 8.5Q2.5 6 5.75 6Q9 6 9 8.5V13'), DOT] },
+  { id: 'N.', name: 'N.', note: 'Capital, full cap height: fills the box like a digit does, and is the conventional name for "some number".',
+    parts: [path('M2.5 13V3.5L9 13V3.5'), DOT] },
+  { id: 'a.', name: 'a.', note: 'Reads as an alphabetic list marker — a different list style, which the item does not have.',
+    parts: [['circle', { cx: '5.6', cy: '9.8', r: '3.2', fill: 'none' }], path('M8.8 6.4V13'), DOT] },
+  { id: 'x.', name: 'x.', note: 'What the beta draws. Reads as "unknown", and is the one letter unlikely to be taken for a list style. Close to a task’s check mark in weight.',
+    parts: [path('M3 6.5L9 13M9 6.5L3 13'), DOT] },
+  { id: '1.', name: '1.', note: 'A real digit, so it is read as a number at once — and as THIS number, which the item may not land with.',
+    parts: [path('M3.5 5.5L6.5 3.5V13M4 13H9'), DOT] },
+  { id: '#.', name: '#.', note: 'The conventional "number" sign. Beside the hash-style heading mark (right) the two differ only by the period.',
+    parts: [path('M4.6 3.5L3.6 13M8.4 3.5L7.4 13M1.8 6.5H10M1.4 10H9.6'), DOT], compare: true },
+  { id: '№', name: '№', note: 'The numero sign, drawn: at 13.6px the raised o and its bar are a pixel or two each.',
+    parts: [path('M1.5 13V4L7 13V4'), ['circle', { cx: '11.5', cy: '6.3', r: '2', fill: 'none' }], path('M9.5 10.3H13.5')] },
+];
+const BULLET = [['circle', { cx: '8', cy: '8', r: '3.6', fill: 'currentColor' }]];
+const HEADING_HASH = [path('M5.2 2.5L3.8 13.5M10.2 2.5L8.8 13.5M2 6H13M1.5 10.2H12.5')];
+
+/**
+ * The fixture: a list under a heading, `third` (with two children) picked up
+ * from the end and held between `first` and `second`.
+ */
+function surface(ghostParts, countStyle) {
+  const s = document.createElement('div');
+  s.className = 'note-surface';
+  const rows = [
+    { depth: 0, mark: HEADING_HASH, text: 'Steps' },
+    { depth: 1, num: '1.', text: 'first' },
+    { depth: 1, num: '2.', text: 'second' },
+    { depth: 2, mark: BULLET, text: 'a detail' },
+    { depth: 1, num: '3.', text: 'third', lifted: true },
+    { depth: 2, mark: BULLET, text: 'one', lifted: true },
+    { depth: 2, mark: BULLET, text: 'two', lifted: true },
+  ];
+  const col = (d) => PAD + d * UNIT;
+  rows.forEach((r, i) => {
+    const row = document.createElement('div');
+    row.className = 'row' + (r.lifted ? ' lifted' : '');
+    if (r.mark) {
+      const m = glyph(r.mark); m.classList.add('mark');
+      m.style.left = (col(r.depth) - ICON / 2) + 'px';
+      row.appendChild(m);
+    }
+    if (r.num) {
+      const n = document.createElement('span'); n.className = 'num'; n.textContent = r.num;
+      n.style.left = (col(r.depth) - ICON / 2) + 'px';
+      row.appendChild(n);
+    }
+    const t = document.createElement('span'); t.className = 'text'; t.textContent = r.text;
+    t.style.left = (col(r.depth) + GUTTER) + 'px';
+    row.appendChild(t);
+    s.appendChild(row);
+  });
+  // Guides: the heading's column under the list, the second item's under its detail.
+  const guide = (d, fromRow, toRow) => {
+    const g = document.createElement('div'); g.className = 'guide';
+    g.style.left = col(d) + 'px';
+    g.style.top = (4 + fromRow * ROW) + 'px';
+    g.style.height = ((toRow - fromRow) * ROW) + 'px';
+    s.appendChild(g);
+  };
+  guide(0, 1, 7);
+  guide(1, 3, 4);
+  guide(1, 5, 7);
+  // The seam between `first` and `second`, at depth 1.
+  const y = 4 + 2 * ROW;
+  const rule = document.createElement('div'); rule.className = 'rule';
+  rule.style.left = (col(1) + GUTTER) + 'px'; rule.style.top = (y - 1) + 'px';
+  s.appendChild(rule);
+  const ghost = glyph(ghostParts); ghost.classList.add('ghost');
+  ghost.style.left = (col(1) - ICON / 2) + 'px'; ghost.style.top = y + 'px';
+  s.appendChild(ghost);
+  if (countStyle) countStyle(s, y);
+  return s;
+}
+
+function card(title, tag, note, body) {
+  const c = document.createElement('div'); c.className = 'card';
+  const h = document.createElement('h3'); h.textContent = title;
+  if (tag) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = tag; h.appendChild(t); }
+  const p = document.createElement('p'); p.textContent = note;
+  c.append(h, p, ...body);
+  return c;
+}
+
+const ordinals = document.getElementById('ordinals');
+for (const o of ORDINALS) {
+  const zoom = document.createElement('div'); zoom.className = 'zoom';
+  zoom.appendChild(glyph(o.parts));
+  const real = document.createElement('div'); real.className = 'real';
+  real.append(glyph(o.parts), glyph(BULLET));
+  if (o.compare) {
+    const vs = document.createElement('span'); vs.className = 'vs'; vs.textContent = 'vs heading';
+    real.append(vs, glyph(HEADING_HASH));
+  }
+  zoom.appendChild(real);
+  ordinals.appendChild(card(o.name, o.id === 'x.' ? 'beta' : '', o.note, [zoom, surface(o.parts)]));
+}
+
+const withText = (text, css = {}) => (s, y) => {
+  const c = document.createElement('span'); c.className = 'count'; c.textContent = text;
+  c.style.top = y + 'px';
+  Object.assign(c.style, css);
+  s.appendChild(c);
+};
+// The gap the rule leaves after the ghost: the marker gutter less half the mark.
+const GHOST_GAP = GUTTER - ICON / 2;
+const COUNTS = [
+  { id: 'A', name: 'Fold-count text', note: 'The fold count’s own voice: ellipsis and number in the faint colour, on the page background so the rule stops at it.',
+    draw: withText('… 3', { background: 'var(--bg)', paddingLeft: '.35em' }) },
+  { id: 'B', name: 'Text, rule stopped short', note: 'The same text, and the rule stops as far short of it as it starts from the ghost, so the two ends of the rule are spaced alike.',
+    draw: withText('… 3', { background: 'var(--bg)', paddingLeft: GHOST_GAP + 'px' }) },
+  { id: 'C', name: 'Outlined chip', note: 'An accent-outlined pill in the rule’s own colour: ties the count to the drop rather than to the note.',
+    draw: withText('3', { background: 'var(--bg)', color: 'var(--accent)', border: '1.5px solid var(--accent)',
+      borderRadius: '999px', padding: '0 .45em', fontWeight: '600' }) },
+  { id: 'D', name: 'Filled chip', note: 'The rule’s colour filled, the number knocked out. The loudest option: the eye goes to the count before the column.',
+    draw: withText('3', { background: 'var(--accent)', color: 'var(--bg)', borderRadius: '999px', padding: '0 .5em',
+      fontWeight: '600' }) },
+  { id: 'E', name: '+2', note: 'Says "and two more" rather than a total: accurate for one root, ambiguous for several.',
+    draw: withText('+2', { background: 'var(--bg)', paddingLeft: '.35em' }) },
+  { id: 'F', name: 'Small chip, "N more"', note: 'Words rather than notation, in a chip smaller than C and D: a quiet pill in the faint colour, the rule stopped at the same gap as B.',
+    draw: (s, y) => {
+      const wrap = document.createElement('span'); wrap.className = 'count';
+      wrap.style.top = y + 'px';
+      Object.assign(wrap.style, { background: 'var(--bg)', paddingLeft: GHOST_GAP + 'px', lineHeight: '1' });
+      const chip = document.createElement('span'); chip.textContent = '2 more';
+      Object.assign(chip.style, { display: 'inline-block', fontSize: '.72rem', lineHeight: '1.35', padding: '0 .4em',
+        borderRadius: '999px', border: '1px solid var(--line)', background: 'var(--panel)', color: 'var(--muted)' });
+      wrap.appendChild(chip);
+      s.appendChild(wrap);
+    } },
+];
+const counts = document.getElementById('counts');
+const ghostNow = ORDINALS.find((o) => o.id === 'x.').parts;
+for (const c of COUNTS) {
+  counts.appendChild(card(`${c.id}. ${c.name}`, c.id === 'B' ? 'beta' : '', c.note, [surface(ghostNow, c.draw)]));
+}
+
+const btn = document.getElementById('theme');
+btn.addEventListener('click', () => {
+  const dark = document.documentElement.dataset.theme !== 'dark';
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  btn.textContent = dark ? 'Light' : 'Dark';
+});
+</script>
+</body>
+</html>

@@ -105,6 +105,10 @@ describe('backlink index', function () {
   });
 
   it('classifies a plain link as a note reference', async function () {
+    // The first query after the rebuild in `before`: the cache it reads settles
+    // asynchronously, and on a loaded runner this test has queried before it
+    // did. The wait the later cases already use, applied to the first.
+    await waitForSources(TARGET, (paths) => paths.includes('Journal/2026-07-07.md'));
     const refs = await referencesFrom(TARGET, 'Journal/2026-07-07.md');
     expect(refs.length).toBeGreaterThan(0);
     expect(refs.every((r) => r.kind === 'note')).toBe(true);
