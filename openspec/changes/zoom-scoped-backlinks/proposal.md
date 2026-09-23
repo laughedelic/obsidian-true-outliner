@@ -86,10 +86,14 @@ _None._
 
 ## Sequencing
 
-Off `main`. At the file level the code overlaps two open drafts: `feat/search-palette`
+Stacks on the fix for [#207](https://github.com/laughedelic/obsidian-true-outliner/issues/207),
+which makes a lone `^id` line part of the node it names. This change reads what that fix adds:
+with it, where an id belongs follows from which node holds its line, and D2's attribution rule
+shrinks to the whole-list case.
+
+At the file level the code also overlaps two open drafts: `feat/search-palette`
 ([#95](https://github.com/laughedelic/obsidian-true-outliner/pull/95)) edits
 `backlinks-footer.ts`, `backlink-index.ts` and `footer-model.ts`, and
 `feat/drag-nodes-with-a-drop-preview`
 ([#124](https://github.com/laughedelic/obsidian-true-outliner/pull/124)) edits
-`backlinks-footer.ts`. This change reads nothing either of them adds. Whether to stack on one of
-them is left to review.
+`backlinks-footer.ts`. This change reads nothing either of them adds.
