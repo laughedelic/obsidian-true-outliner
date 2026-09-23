@@ -1,0 +1,162 @@
+/**
+ * The probe behind docs/research/lone-block-id: which structural operations
+ * separate a lone `^id` line from the block Obsidian says it names.
+ *
+ * To re-run it from the repository root:
+ *   npx esbuild docs/research/prototypes/lone-block-id-probe/ops-probe.ts.txt \
+ *     --loader:.txt=ts --bundle --platform=node --format=esm --outfile=/tmp/ops-probe.mjs
+ *   node /tmp/ops-probe.mjs
+ *
+ * For every shape it runs each operation on the node holding the named block
+ * and reports, for the result, the content line the id now follows (blank
+ * lines skipped) — the line Obsidian's attachment rule reads the id against.
+ * An operation keeps the id when that line still belongs to the named block;
+ * a deletion keeps it when the id goes with the block. `copy` is the
+ * block's subtree cover, which is what a block-selection copy or cut puts on
+ * the clipboard, and reports whether the id is inside it.
+ */
+
+import { parse } from '../../../../src/parse';
+import { encode } from '../../../../src/encode';
+import { walkNodes, type OutlineDoc, type OutlineNode } from '../../../../src/model';
+import {
+  deleteSubtreeGroups,
+  indentGroups,
+  moveGroupsDown,
+  moveGroupsUp,
+  outdentGroups,
+} from '../../../../src/ops';
+import { subtreeCoverOf } from '../../../../src/escalate';
+
+const LONE_ID_RE = /^[ \t]*\^[A-Za-z0-9-]+[ \t]*$/;
+
+interface Shape {
+  md: string;
+  /** First lines of the nodes the operations act on, as one sibling run. */
+  targets: string[];
+  /** Lines of the named block, trimmed: the id is kept when the content line
+   * it follows is one of them. More than one for a whole list, which any of
+   * its lines may end after a reorder inside it. */
+  named: string[];
+}
+
+const shapes: Record<string, Shape> = {
+  'paragraph, blank, ^p3': {
+    md: 'Intro.\n\nSome prose.\n\n^p3\n\nOutro.\n',
+    targets: ['Some prose.'],
+    named: ['Some prose.'],
+  },
+  'table, blank, ^t1': {
+    md: 'Intro.\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n^t1\n\nOutro.\n',
+    targets: ['| a | b |'],
+    named: ['| 1 | 2 |'],
+  },
+  'table, ^t2 directly under': {
+    md: 'Intro.\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n^t2\n\nOutro.\n',
+    targets: ['| a | b |'],
+    named: ['| 1 | 2 |'],
+  },
+  'quote, ^q2 directly under': {
+    md: 'Intro.\n\n> quoted\n^q2\n\nOutro.\n',
+    targets: ['> quoted'],
+    named: ['> quoted'],
+  },
+  'callout, blank, ^c1': {
+    md: 'Intro.\n\n> [!note] Title\n> body\n\n^c1\n\nOutro.\n',
+    targets: ['> [!note] Title'],
+    named: ['> body'],
+  },
+  'fence, blank, ^code1': {
+    md: 'Intro.\n\n```\ncode\n```\n\n^code1\n\nOutro.\n',
+    targets: ['```'],
+    named: ['```'],
+  },
+  'list at column 0, blank, ^l1 (whole list moved)': {
+    md: '> quote\n\n- a\n- b\n\n^l1\n\nOutro.\n',
+    targets: ['- a', '- b'],
+    named: ['- a', '- b'],
+  },
+  'list at column 0, blank, ^l1 (last item moved)': {
+    md: '> quote\n\n- a\n- b\n\n^l1\n\nOutro.\n',
+    targets: ['- b'],
+    named: ['- a', '- b'],
+  },
+  'list under a paragraph, blank, ^l2 (the paragraph moved)': {
+    md: '> quote\n\nLead.\n- item a\n- item b\n  - nested c\n\n^l2\n\nOutro.\n',
+    targets: ['Lead.'],
+    named: ['- item a', '- item b', '- nested c'],
+  },
+  'indented ^under-a under an item': {
+    md: '- item z\n- item a\n\n  ^under-a\n- item b\n',
+    targets: ['- item a'],
+    named: ['- item a'],
+  },
+};
+
+function idsFollow(md: string): Map<string, string | undefined> {
+  const lines = md.split('\n');
+  const out = new Map<string, string | undefined>();
+  lines.forEach((line, i) => {
+    if (!LONE_ID_RE.test(line)) return;
+    let j = i - 1;
+    while (j >= 0 && lines[j]!.trim() === '') j--;
+    out.set(line.trim(), j >= 0 ? lines[j] : undefined);
+  });
+  return out;
+}
+
+function findTargets(doc: OutlineDoc, firstLines: string[]): OutlineNode[] {
+  return firstLines.map((first) => {
+    for (const node of walkNodes(doc)) if (node.lines[0] === first) return node;
+    throw new Error(`no node starting ${first}`);
+  });
+}
+
+type Op = (doc: OutlineDoc, ids: number[]) => { ok: boolean; md?: string; reason?: string };
+const wrap =
+  (f: (doc: OutlineDoc, groups: number[][]) => ReturnType<typeof moveGroupsUp>): Op =>
+  (doc, ids) => {
+    const r = f(doc, [ids]);
+    return r.ok ? { ok: true, md: encode(r.value.doc) } : { ok: false, reason: r.rejection.reason };
+  };
+
+const ops: Record<string, Op> = {
+  moveUp: wrap(moveGroupsUp),
+  moveDown: wrap(moveGroupsDown),
+  indent: wrap((d, g) => indentGroups(d, g)),
+  outdent: wrap((d, g) => outdentGroups(d, g)),
+  delete: wrap((d, g) => deleteSubtreeGroups(d, g)),
+};
+
+const report: string[] = [];
+for (const [name, shape] of Object.entries(shapes)) {
+  const doc = parse(shape.md);
+  const id = [...idsFollow(shape.md).keys()][0]!;
+  const targets = findTargets(doc, shape.targets);
+  const rows = [`## ${name}`, JSON.stringify(shape.md)];
+  for (const [opName, op] of Object.entries(ops)) {
+    const r = op(doc, targets.map((t) => t.id));
+    if (!r.ok) {
+      rows.push(`${opName}: rejected (${r.reason})`);
+      continue;
+    }
+    const follows = idsFollow(r.md!);
+    let verdict: string;
+    if (opName === 'delete') {
+      verdict = follows.has(id) ? `id LEFT BEHIND, now follows ${JSON.stringify(follows.get(id))}` : 'id deleted with it';
+    } else {
+      const after = follows.get(id);
+      verdict = after !== undefined && shape.named.includes(after.trim()) ? 'id kept' : `id SEPARATED, now follows ${JSON.stringify(after)}`;
+    }
+    rows.push(`${opName}: ${verdict}\n    ${JSON.stringify(r.md)}`);
+  }
+  const lines = shape.md.split('\n');
+  const first = targets[0]!;
+  const last = targets[targets.length - 1]!;
+  const start = subtreeCoverOf(doc, first).start.line;
+  const end = subtreeCoverOf(doc, last).end;
+  const covered = lines.slice(start, end.line + 1).join('\n');
+  rows.push(`copy: ${covered.includes(id) ? 'id inside the cover' : 'id OUTSIDE the cover'} ${JSON.stringify(covered)}`);
+  report.push(rows.join('\n'));
+}
+console.log(report.join('\n\n'));
