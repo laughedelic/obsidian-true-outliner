@@ -126,7 +126,9 @@ be implemented behind isolated strategy functions.
 A HEADING node reaching a new destination — which only an insertion or a move can do, since the
 level-shifting operations move a heading by level rather than by reparenting — SHALL take its
 encoding from the same function, with one arm per kind of destination. A move whose destination
-names a level of its own (`node-dragging`'s shallower columns) writes that level instead:
+names a level of its own writes that level instead — `node-dragging`'s shallower columns, and a
+dragged heading kept a heading among a heading's list items, where the drop's column names the
+parent that an insertion at the caret cannot:
 
 - In a HEADING-BEARING scope (the root, or a heading's children) it SHALL remain a heading, and
   re-level to the destination's own depth. That level SHALL be taken from the destination's

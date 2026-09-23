@@ -274,10 +274,10 @@
 
 ## 8. Land
 
-- [ ] 8.1 Re-check every statement this change makes about the insertion rule against the layer
+- [x] 8.1 Re-check every statement this change makes about the insertion rule against the layer
       below as it finally merged — its six open tasks can still move the conversion — and correct
       anything that drifted; verify `openspec validate --strict` on both changes
-- [ ] 8.2 `npm run lint`, `npm test` and `npm run build` clean
-- [ ] 8.3 Sync the delta specs into the main specs and archive the change on this branch, per the
+- [x] 8.2 `npm run lint`, `npm test` and `npm run build` clean
+- [x] 8.3 Sync the delta specs into the main specs and archive the change on this branch, per the
       change lifecycle
-- [ ] 8.4 `openspec validate drag-nodes-with-a-drop-preview --strict`
+- [x] 8.4 `openspec validate drag-nodes-with-a-drop-preview --strict`
