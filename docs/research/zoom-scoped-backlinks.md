@@ -56,6 +56,9 @@ owns the previous content line — `nested c` there — walking up through list-
 outermost item, then back to the first item of that run. Stated that way, the rule gives
 Obsidian's start line for all seventeen shapes.
 
+The same reading separates an id from its block under a move — extracted to
+[#207](https://github.com/laughedelic/obsidian-true-outliner/issues/207).
+
 A table row ending in an id, an id after a nested quote, an id inside a footnote or an HTML block
 were not probed.
 

@@ -81,6 +81,11 @@ where `#Duplicate` lands.
 
 Memoized per `EditorState` in a `WeakMap`, like `parsedDoc` and `zoomScope`.
 
+The attribution rule exists because our parser reads a lone id line as a paragraph of its own
+([#207](https://github.com/laughedelic/obsidian-true-outliner/issues/207)). This change stacks on
+the fix for that issue; once the lone line belongs to the node it names, the rule reduces to "an id
+belongs to the node holding its line", with the whole-list case the only one left to state.
+
 *Alternative:* resolve against the note's own `getFileCache`. One source of truth and no rule of
 our own, but its lines run about two seconds behind the editor after every edit (research note,
 "How far the metadata runs behind the editor"), and during that window a deletion inside the
@@ -203,5 +208,5 @@ path as today (`scope: null`). Reverting the change restores the note-wide foote
 
 ## Open Questions
 
-- Whether to stack on `feat/search-palette` (#95) or `feat/drag-nodes-with-a-drop-preview` (#124),
-  which edit the same files. It changes the order of landing, not the plan.
+- Which node owns an id naming a whole list is decided by the fix for #207; the spec's first-item
+  reading is what this change assumes until then.
