@@ -1,0 +1,163 @@
+/**
+ * The embed probe behind docs/research/lone-block-id: what an embed of a block
+ * anchor SHOWS, in reading view and Live Preview; whether a markdown
+ * post-processor runs inside an embed and can tell which anchor it is
+ * rendering; whether it can replace what the embed shows; and whether
+ * `openFile`'s eState can land a link somewhere other than the anchor's block.
+ *
+ * To re-run it: copy to `e2e/specs/99-probe-anchor-embeds.e2e.ts` and
+ *   xvfb-run -a npm run test:e2e:narrow -- 99-probe-anchor-embeds
+ * It asserts nothing — it prints PROBE_RESULT lines and is kept out of the
+ * suite for that reason. The post-processor reads `ctx.containerEl`, which is
+ * not public API: it is recorded to show what the public fields lack.
+ */
+
+import { browser } from '@wdio/globals';
+import { obsidianPage } from 'wdio-obsidian-service';
+import * as h from '../helpers.js';
+
+const SHAPES: Record<string, { md: string; id: string }> = {
+  p1: { md: 'Before.\n\nSome prose. ^p1\n\nAfter.\n', id: 'p1' },
+  p3: { md: 'Before.\n\nSome prose.\n\n^p3\n\nAfter.\n', id: 'p3' },
+  t1: { md: 'Before.\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n^t1\n\nAfter.\n', id: 't1' },
+  q2: { md: 'Before.\n\n> quoted\n^q2\n\nAfter.\n', id: 'q2' },
+  c1: { md: 'Before.\n\n> [!note] Title\n> body\n\n^c1\n\nAfter.\n', id: 'c1' },
+  code1: { md: 'Before.\n\n```\ncode\n```\n\n^code1\n\nAfter.\n', id: 'code1' },
+  h1: { md: '## Head ^h1\n\nbody\n\n## Next\n\nnext body\n', id: 'h1' },
+  h2: { md: '## Head\n\n^h2\n\nbody\n\n## Next\n\nnext body\n', id: 'h2' },
+  li1: { md: '- parent ^li1\n  - child\n    - grandchild\n- sibling\n', id: 'li1' },
+  lp: { md: 'Lead. ^lp\n- a\n- b\n\nAfter.\n', id: 'lp' },
+  l1: { md: 'Before.\n\n- a\n- b\n\n^l1\n\nAfter.\n', id: 'l1' },
+  l2: { md: 'Lead.\n- a\n- b\n  - nested c\n\n^l2\n\nAfter.\n', id: 'l2' },
+  l3: { md: '- a\n- b\n^l3\n\nAfter.\n', id: 'l3' },
+  underA: { md: '- item a\n\n  ^under-a\n- item b\n', id: 'under-a' },
+  x1: { md: '- a\n  - child\n\n  ^x1\n- b\n', id: 'x1' },
+  x3: { md: '- a\n\n  inner prose\n\n  ^x3\n- b\n', id: 'x3' },
+  x5: { md: '- a\n\n  | x | y |\n  | --- | --- |\n  | 1 | 2 |\n\n  ^x5\n- b\n', id: 'x5' },
+  repl: { md: 'Replace me. ^r1\n\nOther.\n', id: 'r1' },
+};
+
+const target = (key: string) => `Scratch/Embed target ${key}.md`;
+const linker = (key: string) => `Scratch/Embed linker ${key}.md`;
+
+async function embedText(): Promise<string[]> {
+  // Waits for the active mode's embed to have content, then reads it. Only the
+  // container of the mode on screen is read: the view keeps both.
+  const read = () =>
+    browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const root: HTMLElement =
+        view.getMode() === 'preview'
+          ? view.previewMode.containerEl
+          : (view.editor as any).cm.contentDOM;
+      return [...root.querySelectorAll('.internal-embed')].map((embed) => {
+        const content = embed.querySelector('.markdown-embed-content') as HTMLElement | null;
+        const body =
+          (content?.querySelector('.markdown-preview-view, .cm-content') as HTMLElement | null) ??
+          content;
+        return `${embed.getAttribute('src')} => ${JSON.stringify(body?.innerText.trim() ?? null)}`;
+      });
+    });
+  let texts: string[] = [];
+  await browser.waitUntil(
+    async () => {
+      texts = await read();
+      return texts.length > 0 && texts.every((t) => !t.endsWith('=> ""') && !t.endsWith('=> null'));
+    },
+    { timeout: 2500, interval: 100 },
+  ).catch(() => undefined);
+  return texts;
+}
+
+describe('probe: block anchor embeds', function () {
+  before(async function () {
+    await obsidianPage.resetVault();
+    await h.resetPluginState();
+  });
+
+  it('measures embeds and post-processors', async function () {
+    this.timeout(900_000);
+    for (const [key, shape] of Object.entries(SHAPES)) {
+      await h.createNote(target(key), shape.md);
+      await h.createNote(linker(key), `Linker ${key}.\n\n![[Embed target ${key}#^${shape.id}]]\n`);
+    }
+    await h.waitForMetadataCache();
+
+    // A post-processor that records every call and replaces the `repl` target's
+    // content wherever it is rendered.
+    await browser.executeObsidian(({ plugins }) => {
+      const w = window as unknown as { __probe: unknown[] };
+      w.__probe = [];
+      (plugins.trueOutliner as any).registerMarkdownPostProcessor((el: HTMLElement, ctx: any) => {
+        const section = ctx.getSectionInfo(el);
+        const rec: Record<string, unknown> = {
+          sourcePath: ctx.sourcePath,
+          docId: ctx.docId,
+          tag: el.tagName,
+          text: el.innerText.slice(0, 30),
+          connected: el.isConnected,
+          embedSrcAtCall: el.closest('.internal-embed')?.getAttribute('src') ?? null,
+          section: section ? `${section.lineStart}-${section.lineEnd}` : null,
+          ctxKeys: Object.keys(ctx),
+          containerElCls: ctx.containerEl?.className ?? null,
+          containerEmbedSrc: ctx.containerEl?.closest?.('.internal-embed')?.getAttribute('src') ?? null,
+        };
+        w.__probe.push(rec);
+        setTimeout(() => {
+          rec.embedSrcLater = el.closest('.internal-embed')?.getAttribute('src') ?? null;
+          rec.connectedLater = el.isConnected;
+        }, 0);
+        if (String(ctx.sourcePath).endsWith('Embed target repl.md')) {
+          el.empty();
+          el.createDiv({ text: 'REPLACED BY PROBE' });
+        }
+      });
+    });
+
+    for (const key of Object.keys(SHAPES)) {
+      const out: Record<string, unknown> = { key };
+      await browser.executeObsidian(() => {
+        (window as unknown as { __probe: unknown[] }).__probe = [];
+      });
+      await h.openNote(linker(key));
+      await h.setViewMode('preview');
+      out.reading = await embedText();
+      await browser.pause(50);
+      out.calls = await browser.executeObsidian(
+        () => (window as unknown as { __probe: unknown[] }).__probe,
+      );
+      await h.setViewMode('source', false);
+      out.livePreview = await embedText();
+      console.log(`PROBE_RESULT ${JSON.stringify(out)}`);
+    }
+  });
+
+  it('measures landing a link through openFile eState', async function () {
+    this.timeout(120_000);
+    const filler = Array.from({ length: 60 }, (_, i) => `Filler paragraph ${i}.\n`).join('\n');
+    await h.createNote('Scratch/Nav target.md', `${filler}\nLead.\n- a\n- b\n\n^nav\n\nAfter.\n`);
+    await h.waitForMetadataCache();
+    const result = await browser.executeObsidian(async ({ app, obsidian }, path) => {
+      const out: Record<string, unknown> = {};
+      const file = app.vault.getAbstractFileByPath(path) as never;
+      const lines = (await app.vault.cachedRead(file)).split('\n');
+      out.leadLine = lines.indexOf('Lead.');
+      out.listLine = lines.indexOf('- a');
+      await app.workspace.openLinkText('Nav target#^nav', '', false);
+      await new Promise((r) => setTimeout(r, 500));
+      let view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      out.afterLinkCursor = view.editor.getCursor().line;
+      out.afterLinkEState = view.getEphemeralState();
+      out.afterLinkTopLine = (view.editor as any).cm.state.doc.lineAt(
+        (view.editor as any).cm.viewport.from,
+      ).number - 1;
+      await app.workspace.getLeaf(false).openFile(file, { eState: { line: out.leadLine } });
+      await new Promise((r) => setTimeout(r, 500));
+      view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      out.afterEStateCursor = view.editor.getCursor().line;
+      out.afterEStateEState = view.getEphemeralState();
+      return out;
+    }, 'Scratch/Nav target.md');
+    console.log(`PROBE_RESULT nav ${JSON.stringify(result)}`);
+  });
+});
