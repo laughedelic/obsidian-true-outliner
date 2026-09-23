@@ -84,6 +84,20 @@ export function destinationListStyle(context: {
 }
 
 /**
+ * Whether a run that stays in its scope, kept as written, would re-parse under
+ * the sibling it lands after: a list item set right after a paragraph is that
+ * paragraph's child. A move takes such a run as an insertion instead, which
+ * writes the item as the paragraph's sibling or refuses a task there, and the
+ * drop's preview asks the same question.
+ */
+export function reorderReparents(
+  roots: readonly OutlineNode[],
+  after: OutlineNode | undefined,
+): boolean {
+  return roots[0]?.kind === 'list-item' && listAttachesTo(after);
+}
+
+/**
  * The kind an EXISTING content node must take at a destination, or `undefined`
  * where it keeps its own.
  *

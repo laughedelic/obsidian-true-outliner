@@ -4,7 +4,7 @@ import { parse } from '../src/parse';
 import { encode } from '../src/encode';
 import { moveSubtreesTo } from '../src/ops';
 import { arbTree } from './generators';
-import { ownSpan, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
+import { isAtom, ownSpan, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
 import { resolveZoom } from '../src/zoom';
 import {
   dropSeams,
@@ -366,16 +366,17 @@ describe('dropSeams', () => {
     expect(underMaterials.candidates.map((c) => [c.depth, c.firstLine, c.level ?? null])).toEqual([
       [0, '# Plan', 1],
       [1, '## Plan', 2],
-      [2, '- ## Plan', null],
+      [2, '### Plan', 3],
     ]);
     // Written at level two, it takes every child of Materials — the quote too.
     const asPeer = underMaterials.candidates[1]!;
     expect(asPeer.absorbs).toMatchObject({ from: 10, to: 16 });
-    // One level in, it lands among Materials' list items, so it joins their
-    // list as an item carrying its `##` run (the heading rule's list arm),
-    // and a list item takes nothing in.
+    // One level in, a heading can still be Materials' child, so it stays one,
+    // one level inside Materials, and its section takes the list and the
+    // quote that follow it. Paste writes a list item here instead, since it
+    // has no column to say which parent was meant.
     const asChild = underMaterials.candidates[2]!;
-    expect(asChild.absorbs).toBeUndefined();
+    expect(asChild.absorbs).toMatchObject({ from: 10, to: 16 });
   });
 
   it('merges the seams either side of the run, and keeps the place it already has', () => {
@@ -522,6 +523,68 @@ describe('dropSeams', () => {
     expect(landing(skipped, [byLine(skipped, '## B')], levelled).under).toBe('### C');
   });
 
+  it('keeps a dragged heading a heading wherever the column’s parent can hold one', () => {
+    // B owns a list and then a paragraph. Dropped after P, the four columns
+    // are A's sibling, B's sibling, B's child and P's child; only the last
+    // parent cannot hold a heading. B's child was written as a list item
+    // there, which after P re-parsed as P's child.
+    const doc = parse(['## X', '## A', '### B', '- item', 'P', ''].join('\n'));
+    const x = byLine(doc, '## X');
+    const after = (line: string) =>
+      dropSeams(doc, [x]).find((seam) => seam.aboveId === byLine(doc, line).id)!.candidates;
+    const afterP = after('P');
+    expect(afterP.map((c) => c.firstLine)).toEqual(['## X', '### X', '#### X', '- ## X']);
+    expect(afterP.map((c) => landing(doc, [x], c).under)).toEqual([null, '## A', '### B', 'P']);
+    // Between the list item and P, B's child is still a heading, and its
+    // section takes P. Paste writes a list item here, joining the list: it
+    // has only the caret to go by (edit-ops, "a section landing among LIST
+    // ITEMS converts instead").
+    const afterItem = after('- item');
+    const asChild = afterItem.find((c) => c.depth === 2)!;
+    expect(asChild.firstLine).toBe('#### X');
+    expect(asChild.absorbs).toBeDefined();
+    expect(landing(doc, [x], asChild).under).toBe('### B');
+    expect(afterItem.find((c) => c.depth === 3)!.firstLine).toBe('  - ## X');
+  });
+
+  it('re-levels a heading moved within its parent past a shallower sibling', () => {
+    // Kept as written, `##### d` after `#### X` re-parses as X's child.
+    const doc = parse(['### T', '##### d', '#### X', 'x', ''].join('\n'));
+    const d = byLine(doc, '##### d');
+    const last = dropSeams(doc, [d]).find((seam) => seam.aboveId === byLine(doc, 'x').id)!;
+    const underT = last.candidates.find((c) => c.parentId === byLine(doc, '### T').id)!;
+    expect(underT.firstLine).toBe('#### d');
+    expect(landing(doc, [d], underT).under).toBe('### T');
+  });
+
+  it('writes a list item moved after a paragraph in its own parent as a paragraph', () => {
+    // Kept as written, it would be the paragraph's child; a task cannot be a
+    // paragraph, so that column is not offered to one.
+    const doc = parse(['- bullet', '', 'para one', '', 'para two', ''].join('\n'));
+    const bullet = byLine(doc, '- bullet');
+    const end = dropSeams(doc, [bullet]).find((seam) => seam.aboveId === byLine(doc, 'para two').id)!;
+    const top = end.candidates.find((c) => c.parentId === 'root')!;
+    expect(top.firstLine).toBe('bullet');
+    expect(landing(doc, [bullet], top).under).toBe(null);
+    const tasks = parse(['- [ ] chore', '', 'para', ''].join('\n'));
+    const chore = byLine(tasks, '- [ ] chore');
+    const afterPara = dropSeams(tasks, [chore]).find((seam) => seam.aboveId === byLine(tasks, 'para').id)!;
+    expect(afterPara.candidates.some((c) => c.parentId === 'root')).toBe(false);
+  });
+
+  it('takes a run whose roots have different parents to its first root’s place as a move', () => {
+    // `#### h` and `### C` are one cover. At h's own place, C comes to it,
+    // so the place is not a no-op, and the heading keeps its kind there like
+    // at any other: it was written `- #### h`, which after P re-parsed as P's
+    // child.
+    const doc = parse(['## A', '### B', '- x', 'P', '#### h', '### C', ''].join('\n'));
+    const roots = [byLine(doc, '#### h'), byLine(doc, '### C')];
+    const home = dropSeams(doc, roots).find((seam) => seam.aboveId === byLine(doc, 'P').id)!;
+    const underB = home.candidates.find((c) => c.parentId === byLine(doc, '### B').id)!;
+    expect(underB.firstLine).toBe('#### h');
+    expect(landing(doc, roots, underB).under).toBe('### B');
+  });
+
   it('draws what the release writes, at every destination it offers', () => {
     // Runs of one to three roots, each starting where the one before it ends,
     // which is every shape a cover takes. Some headings are written a level
@@ -548,9 +611,12 @@ describe('dropSeams', () => {
           for (const candidate of seam.candidates) {
             const landed = landing(doc, roots, candidate);
             expect(landed.firstLine).toBe(candidate.firstLine);
-            // And a heading written shallower than the seam lands under the
-            // node the preview accents, where its line names it.
-            if (candidate.level === undefined) continue;
+            // And it lands under the node the preview accents, where its line
+            // names it. Not for a run carrying an atom: taking one out from
+            // between a paragraph and a list lets the list attach to the
+            // paragraph, which moves a neighbour the preview does not draw
+            // (docs/research/node-drag-and-drop section 6l).
+            if (roots.some((root) => isAtom(root))) continue;
             const parentId = candidate.landsUnder ?? candidate.parentId;
             const parent = parentId === 'root' ? null : nodes.find((node) => node.id === parentId)!.lines[0]!;
             if (parent === null || lines.indexOf(parent) === lines.lastIndexOf(parent)) {

@@ -23,7 +23,7 @@ import { isAtom, type NodeKind, type OutlineDoc, type OutlineNode } from './mode
 import { ownSpan } from './model';
 import { reencodeBlocksForDestination } from './ops';
 import { parse } from './parse';
-import { destinationHeadingLevel } from './rules';
+import { destinationHeadingLevel, reorderReparents } from './rules';
 
 /** A place at a seam: a parent, a position among its children, and the depth a
  * node placed there takes. What a seam offers before any run is asked about. */
@@ -31,10 +31,12 @@ export interface SeamPlace {
   readonly parentId: number | 'root';
   readonly index: number;
   readonly depth: number;
-  /** Set where the place is SHALLOWER than the parent's children: the node is
-   * written at this same text position at a heading level of its own, and on
-   * re-parse closes the parent's section and takes what follows. Only a
-   * heading can be placed so. */
+  /** The heading level the run is written at, where the place names one: a
+   * place SHALLOWER than the parent's children, written at this same text
+   * position so that on re-parse it closes the parent's section and takes
+   * what follows; or, for a drop, a heading kept a heading where the
+   * destination's own rule would write it otherwise (`keptHeadingLevel`).
+   * Only a heading is placed so. */
   readonly level?: number;
   /** The node the run is a child of AFTER the drop, where that differs from
    * `parentId`: a levelled place is written at its parent's text position and
@@ -309,14 +311,22 @@ export function dropSeams(
     for (const place of seam.places) {
       // Dropped where it already is, as it already is. Offered, as the way
       // out of a drag the reader thinks better of, and named by the run's own
-      // index so the algebra reads it as the no-op it is.
+      // index so the algebra reads it as the no-op it is. Only a run whose
+      // roots share one parent has such a place: for any other, the first
+      // root's place brings the rest to it, which is a move like any other.
       const own =
         home !== undefined &&
+        siblings === operandRoots.length &&
         place.level === undefined &&
         place.parentId === home.parentId &&
         place.index >= home.index &&
         place.index <= home.index + siblings;
-      const placed = own ? { ...place, index: home.index } : place;
+      const moved = own ? { ...place, index: home.index } : place;
+      const kept =
+        own || place.level !== undefined
+          ? undefined
+          : keptHeadingLevel(doc, moved, operandRoots, operandRootIds);
+      const placed = kept === undefined ? moved : { ...moved, level: kept };
       const written = writtenFirst(doc, placed, operandRoots, operandRootIds, options);
       if (written === undefined) continue;
       const absorbs = absorbedSpan(doc, seam, written.firstLine, operandIds, all, placed.depth);
@@ -519,17 +529,20 @@ function writtenFirst(
             : { kind: node.kind },
     };
   };
-  const carried = siblings.filter((sibling) => operandRootIds.has(sibling.id)).length;
-  if (placed.level === undefined && carried === operandRoots.length) {
-    return written(operandRoots[0]!);
-  }
-  // Otherwise the operation removes the run before it inserts it, so the
-  // destination's context is its siblings without the run's roots, and the
-  // index shifts by the roots it had above it.
+  // The destination's context is its siblings without the run's roots, and
+  // the index shifts by the roots it had above it.
   const kept = siblings.filter((sibling) => !operandRootIds.has(sibling.id));
   const at =
     placed.index -
     siblings.slice(0, placed.index).filter((sibling) => operandRootIds.has(sibling.id)).length;
+  const carried = siblings.filter((sibling) => operandRootIds.has(sibling.id)).length;
+  if (
+    placed.level === undefined &&
+    carried === operandRoots.length &&
+    !reorderReparents(operandRoots, kept[at - 1])
+  ) {
+    return written(operandRoots[0]!);
+  }
   const result = reencodeBlocksForDestination(
     doc,
     parent,
@@ -540,6 +553,48 @@ function writtenFirst(
     placed.level,
   );
   return result.ok ? written(result.value[0]!) : undefined;
+}
+
+/**
+ * The level a dragged heading is written at where the drop has to name it to
+ * keep the run a heading at the column the reader aimed at — `undefined` where
+ * the unnamed write already does.
+ *
+ * A heading stays a heading wherever the column's parent can hold one, and
+ * converts only under content. Two places the unnamed write does otherwise.
+ * Among a heading's list items the shared step writes a heading as a list
+ * item, which is paste's answer: paste has only the caret to go by, and a
+ * drop's column says which parent was meant. And a run that stays in its
+ * parent keeps its lines, so a heading set after a shallower sibling would
+ * join that sibling's section. The level is the nearest heading sibling's, or
+ * one inside the parent where none gives one.
+ */
+function keptHeadingLevel(
+  doc: OutlineDoc,
+  placed: SeamPlace,
+  operandRoots: readonly OutlineNode[],
+  operandRootIds: ReadonlySet<number>,
+): number | undefined {
+  const first = operandRoots[0]!;
+  if (first.kind !== 'heading') return undefined;
+  const parent = placed.parentId === 'root' ? 'root' : nodeById(doc, placed.parentId);
+  if (parent === undefined || (parent !== 'root' && parent.kind !== 'heading')) return undefined;
+  const siblings = parent === 'root' ? doc.children : parent.children;
+  const kept = siblings.filter((sibling) => !operandRootIds.has(sibling.id));
+  const at =
+    placed.index -
+    siblings.slice(0, placed.index).filter((sibling) => operandRootIds.has(sibling.id)).length;
+  const preceding = kept.slice(0, at);
+  const following = kept.slice(at);
+  const before = [...preceding].reverse().find((node) => node.kind === 'heading');
+  if (siblings.filter((sibling) => operandRootIds.has(sibling.id)).length === operandRoots.length) {
+    return before && (before.level ?? 0) < (first.level ?? 0) ? before.level : undefined;
+  }
+  if (destinationHeadingLevel({ parent, precedingSiblings: preceding, followingSiblings: following }) !== undefined) {
+    return undefined;
+  }
+  const donor = before ?? following.find((node) => node.kind === 'heading');
+  return donor?.level ?? (parent === 'root' ? 1 : (parent.level ?? 0) + 1);
 }
 
 /** A list item's task state and ordered delimiter, read off its marker. */

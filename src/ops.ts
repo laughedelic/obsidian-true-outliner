@@ -36,6 +36,7 @@ import {
   forcedContentKind,
   listAttachesTo,
   nativeContentKind,
+  reorderReparents,
 } from './rules';
 import {
   childBaseCol,
@@ -2736,11 +2737,17 @@ export function moveSubtreesTo(
   // re-parse to state, exactly as it is for every other operation.
   // A named level is a re-encoding, which the reorder below does not do: a run
   // re-levelled in place goes through the insertion like any other.
-  if (sameScope && destination.level === undefined) {
-    const movedIds = new Set(roots.map((root) => root.id));
-    const ordered = [...roots].sort(
-      (a, b) => destSiblings.indexOf(a) - destSiblings.indexOf(b),
-    );
+  // Nor where the run, kept as written, would re-parse under the sibling it
+  // lands after: a list item right after a paragraph is that paragraph's
+  // child, and the insertion is what writes it as the paragraph's sibling.
+  const ordered = [...roots].sort((a, b) => destSiblings.indexOf(a) - destSiblings.indexOf(b));
+  const movedIds = new Set(roots.map((root) => root.id));
+  const staying = destSiblings.filter((node) => !movedIds.has(node.id));
+  const aboveCount = destSiblings
+    .slice(0, destination.index)
+    .filter((node) => movedIds.has(node.id)).length;
+  const landsAfter = staying[destination.index - aboveCount - 1];
+  if (sameScope && destination.level === undefined && !reorderReparents(ordered, landsAfter)) {
     const surgery = updateSiblings(doc, destParentPath, (nodes) => {
       const gaps = nodes.map((node) => subtreeFinalNode(node).trailingGap);
       const kept = nodes.filter((node) => !movedIds.has(node.id));
@@ -2778,7 +2785,6 @@ export function moveSubtreesTo(
   // And the index shifts by whatever the removal took from ABOVE it under this
   // same parent. Counted off the original sibling list, which still holds the
   // moved nodes.
-  const movedIds = new Set(roots.map((r) => r.id));
   const removedAbove = destSiblings
     .slice(0, destination.index)
     .filter((sibling) => movedIds.has(sibling.id)).length;

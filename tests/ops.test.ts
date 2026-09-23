@@ -1404,8 +1404,11 @@ describe('moveSubtreesTo', () => {
     // paragraph; a run that has not left its scope is already encoded for it.
     const src = ['- bullet', '', 'para one', '', 'para two', ''].join('\n');
     expect(moved(src, ['- bullet'], { parent: 'root', index: 0 })).toBe(src);
+    // Except where, kept as written, it would land as the child of the
+    // paragraph above it: there it is written as that paragraph's sibling, a
+    // paragraph, as a list item arriving from elsewhere is.
     expect(moved(src, ['- bullet'], { parent: 'root', index: 3 })).toBe(
-      ['para one', '', 'para two', '', '- bullet', ''].join('\n'),
+      ['para one', '', 'para two', '', 'bullet', ''].join('\n'),
     );
   });
 
@@ -1589,6 +1592,10 @@ describe('moveSubtreesTo', () => {
         // itself is asserted above.
         const landed = childrenAtPath(away.value.doc, path);
         if (landed.length !== siblings.length) return true;
+        // So is a run the destination converts: a list item landing right
+        // after a paragraph is written as a paragraph, and moving it back does
+        // not make it a list item again.
+        if (landed[j > i ? j - 1 : j]!.kind !== siblings[i]!.kind) return true;
 
         // Both indices are read against the PRE-removal sibling list, so the
         // return trip aims one past its origin whenever the run travelled

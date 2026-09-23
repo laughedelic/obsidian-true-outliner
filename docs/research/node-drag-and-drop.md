@@ -556,7 +556,10 @@ The first is the shared re-encode step's: a list item right after a paragraph is
 paragraph there and a task is refused, but a heading converted into a list item is written as one,
 so a paste at the same place nests it the same way. The second is the reorder's: a run that stays
 in its scope keeps its lines, and a heading kept at its level re-parses into the section it
-crosses. Neither is decided here.
+crosses. Both are settled for the drop by keeping a dragged heading a heading wherever its column's
+parent can hold one, and a further sweep settled a third shape the same way — a list item reordered
+to right after a paragraph (design D9b). The model, the sweeps that followed, the one place drop and
+paste now differ and why, and what is still open are in [node-kind-grammar.md](node-kind-grammar.md).
 
 ## 7. Where a drop can land: the seam and its depths
 

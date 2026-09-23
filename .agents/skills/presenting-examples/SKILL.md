@@ -56,10 +56,10 @@ the column it lands at, and say what each number writes:
 ┆1 2 3 4
 ```
 
-`## X` dropped here: 1 as A's sibling `## X`, 2 as B's sibling `### X`, 3 as B's child `#### X`,
-4 as P's child `- ## X`. A place between two rows puts the number row between them. Name a
-position by its number afterwards, never by a name for the rule that produced it, and draw each
-result the same way, as a column.
+Then list the numbers, each with what the node is written as there and whose child it becomes,
+read from the code or a measurement rather than from memory. A place between two rows puts the
+number row between them. Name a position by its number afterwards, never by a name for the rule
+that produced it, and draw each result the same way, as a column.
 
 ## Glyphs
 

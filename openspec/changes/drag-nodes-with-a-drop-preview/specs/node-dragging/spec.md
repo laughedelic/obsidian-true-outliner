@@ -183,7 +183,9 @@ Seams SHALL be read with the run TAKEN OUT of the document: the boundaries above
 are one seam, at the run's top, and its depths are those the nodes flanking the run bound once the
 run is gone. The run's own place — its parent and its index among the siblings it has — SHALL be
 offered at that seam, as the way out of a drag the reader thinks better of: a drop there writes
-nothing and leaves no undo entry. The run's own bottom SHALL be a seam that offers nothing, so a
+nothing and leaves no undo entry. Only a run whose roots share one parent has such a place; for a
+cover whose roots have different parents, its first root's place brings the others to it, and is
+a move like any other. The run's own bottom SHALL be a seam that offers nothing, so a
 pointer resting there names no destination rather than the seam past it; a release there cancels.
 
 A heading run SHALL additionally be offered, at every seam, each level SHALLOWER than the seam's
@@ -198,6 +200,33 @@ level rather than the one the destination's own parent would imply, so the previ
 written heading agree. A column whose parent would be anything but a heading or the top level
 SHALL NOT be offered this way: a heading written there lands under the nearest heading instead,
 which a shallower column of the same seam already names.
+
+A dragged node SHALL keep its kind wherever the column's parent can hold it, and convert only
+where it cannot: a heading SHALL stay a heading at every column whose parent is a heading or the
+top level, at the level of the nearest heading sibling or one inside the parent where none gives
+one, and becomes a list item only under a paragraph or a list item. This holds among a heading's
+list items too, where a paste at the caret joins the list instead: the drop's column names the
+parent. A run moved within its own parent SHALL keep its lines, except where, kept as written, it
+would re-parse under the sibling it lands after; there it SHALL be written as a run arriving from
+elsewhere would be.
+
+#### Scenario: A heading dropped among a heading's list items stays a heading
+- **WHEN** in `## A` / `### B` / `- item` / `P`, a heading is held after `P` on the column that
+  makes it B's child, and then between `- item` and `P` on the same column
+- **THEN** it is previewed and written as `#### X` both times, B's child — the second time taking
+  `P` into its section — and only the column that makes it P's or the item's child writes a list
+  item
+
+#### Scenario: A heading moved within its parent does not fall into a sibling's section
+- **WHEN** in `### T` / `##### d` / `#### X` / `x`, `##### d` is held after `x` on the column that
+  makes it T's child
+- **THEN** it is previewed and written as `#### d`, beside X, rather than kept as written and
+  re-parsed as X's child
+
+#### Scenario: A list item moved after a paragraph in its own parent is written as a paragraph
+- **WHEN** a list item is dropped at its own parent's column right after a paragraph there
+- **THEN** it is written as a paragraph, the paragraph's sibling, and a task is not offered that
+  column
 
 #### Scenario: A heading written where it closes a deeper section takes that section's level
 - **WHEN** in `# A` / `## B` / `## C` / `foo` / `#### D` / `bar`, `## B` is held between

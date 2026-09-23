@@ -159,7 +159,9 @@ seam, at its top, and the depths it offers are those the nodes on either side of
 once the run is gone — the same reading the release makes, since the algebra removes the run
 before it reads the destination's context. The run's own place is among them, as the way out of a
 drag the reader thinks better of — set the run down where it was, or move it sideways on the same
-seam — and it is named by the run's own index, which the algebra reads as the no-op it is. The
+seam — and it is named by the run's own index, which the algebra reads as the no-op it is. A
+cover whose roots have different parents has no such place: its first root's place brings the
+rest to it, so it is a move, re-encoded like any other. The
 run's own bottom stays in the seam list with nothing to offer, so a pointer over it resolves to
 nothing and a release there cancels. Dropping that seam instead let the pointer snap to the
 neighbouring seam, and a run set down where it was moved one place; the e2e case that asserts a
@@ -349,6 +351,27 @@ so a paste at the same destination writes what the drop previewed; the third was
 
 A node CREATED at a destination — the first child a split materialises — still takes the scope's
 own kind, since there is nothing to keep; that half of the old rule stands under its own name.
+
+**A dragged heading stays a heading wherever the column's parent can hold one.** The principle
+the three answers above share, stated for the kind the drop exposed last: the run keeps its kind
+where the destination can hold it, and converts only where it is forced. A heading is forced only
+under content — a paragraph's or a list item's child is written `- ## H`. The shared step goes
+further: among a heading's list items it writes a heading as a list item joining them (main's
+reading, #190), which the drop inherited. Two defects followed. Past a paragraph that closes the
+list, the list item re-parsed as that paragraph's child while the preview named the heading; and
+the column for "the heading's child" and the column for "the paragraph's child" wrote the same
+document. The drop now names the level where it has to (`keptHeadingLevel`): the nearest heading
+sibling's, or one inside the parent, so the heading is that parent's child and takes what follows
+it into its section, which the preview draws. Paste keeps #190: it lands at the caret with no
+column to say which parent was meant, and a new provisional node (Enter) is how a reader picks
+one before pasting. The two differ in this one place, recorded in docs/research/node-kind-grammar
+as input to the grammar the operations should share.
+
+A run that stays in its parent is a reorder and keeps its lines (D9), except where, kept as
+written, it would re-parse under the sibling it lands after: a heading after a shallower heading
+sibling joins that sibling's section, and a list item right after a paragraph is its child. The
+first takes the nearest heading sibling's level; the second goes through the insertion, which
+writes it as a paragraph or refuses a task — the same answers a run arriving from elsewhere gets.
 
 ### D9a. The operand's selection is set at the threshold, not at the press
 
