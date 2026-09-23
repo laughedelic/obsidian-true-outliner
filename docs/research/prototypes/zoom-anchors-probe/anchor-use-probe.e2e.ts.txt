@@ -1,0 +1,146 @@
+/**
+ * The second probe behind docs/research/zoom-scoped-backlinks: what a block
+ * link actually DOES for each id shape — the embed it renders and where
+ * following it lands — as against what the metadata cache reports.
+ *
+ * To re-run it: copy to `e2e/specs/99-probe-anchor-use.e2e.ts` and
+ *   sh e2e/docker/start-xvfb-and-run.sh npm run test:e2e:narrow -- 99-probe-anchor-use
+ * It asserts nothing — it prints PROBE_RESULT lines and is kept out of the
+ * suite for that reason.
+ */
+
+import { browser } from '@wdio/globals';
+import { obsidianPage } from 'wdio-obsidian-service';
+import * as h from '../helpers.js';
+
+const TARGET = 'Scratch/Anchor use.md';
+const LINKER = 'Scratch/Anchor use linker.md';
+
+/** Each shape under its own heading, so no two share a block. */
+const SHAPES: [string, string[]][] = [
+  ['p1', ['Paragraph with id at end. ^p1']],
+  ['p2', ['Paragraph on a line,', '^p2']],
+  ['p3', ['Paragraph then a blank.', '', '^p3']],
+  ['li1', ['- item with id ^li1', '  - its child']],
+  ['under', ['- item a', '', '  ^under', '- item b']],
+  ['t1', ['| a | b |', '| --- | --- |', '| 1 | 2 |', '', '^t1']],
+  ['t2', ['| a | b |', '| --- | --- |', '| 3 | 4 |', '^t2']],
+  ['tr', ['| a | b |', '| --- | --- |', '| 5 | 6 | ^tr']],
+  ['q2', ['> quoted', '^q2']],
+  ['qa', ['> quoted line ^qa']],
+  ['c1', ['> [!note] Callout', '> body', '', '^c1']],
+  ['cb', ['> [!note] Callout two', '> body line ^cb']],
+  ['code1', ['```', 'code line', '```', '', '^code1']],
+  ['l1', ['- list one', '- list two', '', '^l1']],
+];
+
+const TARGET_TEXT = SHAPES.flatMap(([id, lines]) => [`## Shape ${id}`, '', ...lines, '']).join('\n');
+
+describe('probe: what a block link does', function () {
+  before(async function () {
+    await obsidianPage.resetVault();
+    await h.resetPluginState();
+  });
+
+  it('measures embeds and navigation per shape', async function () {
+    const ids = SHAPES.map(([id]) => id);
+    await h.createNote(TARGET, TARGET_TEXT);
+    await h.createNote(LINKER, ids.map((id) => `![[Anchor use#^${id}]]`).join('\n\n') + '\n');
+    await h.waitForMetadataCache();
+
+    const cache = await browser.executeObsidian(({ app }, p) => {
+      const f = app.vault.getAbstractFileByPath(p) as never;
+      const blocks = app.metadataCache.getFileCache(f)?.blocks ?? {};
+      return Object.fromEntries(
+        Object.entries(blocks).map(([k, b]) => {
+          const pos = (b as { position: { start: { line: number }; end: { line: number } } }).position;
+          return [k, `${pos.start.line}-${pos.end.line}`];
+        }),
+      );
+    }, TARGET);
+
+    // Embeds, as reading view renders them.
+    await h.openNote(LINKER);
+    await h.setViewMode('preview');
+    await browser.pause(2500);
+    const embeds = await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const root = view.containerEl.querySelector('.markdown-reading-view') ?? view.containerEl;
+      return (Array.from(root.querySelectorAll('.internal-embed')) as HTMLElement[]).map((el) => ({
+        src: el.getAttribute('src'),
+        cls: el.className,
+        tags: Array.from(el.querySelectorAll('.markdown-embed-content > *, .markdown-embed-content table, .markdown-embed-content blockquote, .markdown-embed-content pre, .markdown-embed-content ul, .markdown-embed-content .callout'))
+          .map((c) => c.tagName.toLowerCase() + (c.classList.contains('callout') ? '.callout' : ''))
+          .slice(0, 6),
+        text: (el.querySelector('.markdown-embed-content')?.textContent ?? el.textContent ?? '')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 90),
+      }));
+    });
+
+    // Navigation, into the editing view with outline mode off.
+    const nav: Record<string, unknown> = {};
+    for (const id of ids) {
+      nav[id] = await browser.executeObsidian(
+        async ({ app, obsidian }, target, linker, id) => {
+          await app.workspace.openLinkText(`Anchor use#^${id}`, linker, false);
+          await new Promise((r) => setTimeout(r, 600));
+          const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+          if (!view || view.file?.path !== target) return { opened: view?.file?.path ?? null };
+          const ed = view.editor;
+          const from = ed.getCursor('from');
+          const to = ed.getCursor('to');
+          const flashed = Array.from(view.containerEl.querySelectorAll('.is-flashing, .mod-flashing'))
+            .map((e) => (e.textContent ?? '').trim().slice(0, 40));
+          return {
+            mode: view.getMode(),
+            sel: `${from.line}:${from.ch}-${to.line}:${to.ch}`,
+            line: ed.getLine(from.line).slice(0, 40),
+            flashed,
+          };
+        },
+        TARGET,
+        LINKER,
+        id,
+      );
+    }
+    console.log('PROBE_RESULT use ' + JSON.stringify({ cache, embeds, nav }, null, 1));
+  });
+  for (const outline of [false, true]) {
+    it(`measures the editing view with outline mode ${outline ? 'on' : 'off'}`, async function () {
+      const ids = SHAPES.map(([id]) => id);
+      await h.openNote(TARGET);
+      await h.setViewMode('source', false);
+      await h.setOutlineMode(outline);
+      await h.openNote(LINKER);
+      await h.setViewMode('source', false);
+      await h.setOutlineMode(outline);
+      await browser.pause(2500);
+      const embeds = await browser.executeObsidian(({ app, obsidian }) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+        return (Array.from(view.containerEl.querySelectorAll('.cm-content .internal-embed')) as HTMLElement[]).map((el) => ({
+          src: el.getAttribute('src'),
+          tags: Array.from(el.querySelectorAll('.markdown-embed-content table, .markdown-embed-content blockquote, .markdown-embed-content pre, .markdown-embed-content ul, .markdown-embed-content .callout, .markdown-embed-content p'))
+            .map((c) => c.tagName.toLowerCase() + (c.classList.contains('callout') ? '.callout' : '')).slice(0, 4),
+          text: (el.querySelector('.markdown-embed-content')?.textContent ?? el.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 60),
+        }));
+      });
+      const nav: Record<string, unknown> = {};
+      for (const id of ids) {
+        nav[id] = await browser.executeObsidian(async ({ app, obsidian }, target, linker, id) => {
+          await app.workspace.openLinkText(`Anchor use#^${id}`, linker, false);
+          await new Promise((r) => setTimeout(r, 700));
+          const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+          if (!view || view.file?.path !== target) return { opened: view?.file?.path ?? null };
+          const ed = view.editor;
+          const from = ed.getCursor('from');
+          const to = ed.getCursor('to');
+          return { mode: view.getMode(), sel: `${from.line}:${from.ch}-${to.line}:${to.ch}`, line: ed.getLine(from.line).slice(0, 30) };
+        }, TARGET, LINKER, id);
+        await h.openNote(LINKER);
+      }
+      console.log(`PROBE_RESULT edit-${outline ? 'on' : 'off'} ` + JSON.stringify({ embeds, nav }));
+    });
+  }
+});
