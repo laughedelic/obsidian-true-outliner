@@ -521,6 +521,43 @@ default unit the marks, fold controls and guides are too close together to land 
 one meant, and the finger covers the seam and column it aims at. Touch dragging is off by default
 since (design D12).
 
+## 6l. A heading written shallower took its column's depth, not its siblings' level
+
+The manual pass dragged `## B` into `# A` / `## B` / `## C` / `foo` / `#### D` / `bar` as C's
+child: every place wrote `#### B`, beside D, except the one between `#### D` and `bar`, which wrote
+`### B`. That place is one of a heading run's shallower columns, written at the seam's position to
+close D's section, and it took its level from its column's depth plus one where every other place
+takes the sibling rule's. The two agree only where a note skips no level.
+
+Probed over every candidate of the two fixtures below, comparing the preview's first line and
+the node it names as the parent against what the release writes:
+
+| Fixture | Candidates | Level differs from the siblings' | Lands under another node |
+|---|---|---|---|
+| `# A` / `## B` / `## C` / `foo` / `#### D` / `bar` | 19 | 1 (`### B` under C) | 0 |
+| `# A` / `## B` / `# A2` / `### C` / `#### D` / `bar` | 17 | 3 | 1 (`### B` closes `### C`, lands under `# A2`) |
+
+A randomized pass with the same parent check, over generated notes with some headings written a
+level deeper, then found another shape: a shallower column whose parent is a list item. A heading
+cannot be one's child, so it lands under the nearest heading, while the preview accented the list
+item. Both are fixed: the level is the sibling rule's at the column's parent, and a column whose
+parent is not a heading is not offered. The property now holds the first line over notes that
+skip levels, and the parent for these columns.
+
+The same parent check over every candidate — 800 generated notes, 58,077 destinations whose parent
+line is unique — found 60 more, in two shapes neither of these columns produces:
+
+| Shape | Destinations |
+|---|---|
+| A heading converted to a list item, written right after a paragraph, becomes that paragraph's child | 57 |
+| A heading moved within its own parent, past a shallower sibling heading, joins that sibling's section | 3 |
+
+The first is the shared re-encode step's: a list item right after a paragraph is written as a
+paragraph there and a task is refused, but a heading converted into a list item is written as one,
+so a paste at the same place nests it the same way. The second is the reorder's: a run that stays
+in its scope keeps its lines, and a heading kept at its level re-parses into the section it
+crosses. Neither is decided here.
+
 ## 7. Where a drop can land: the seam and its depths
 
 Not a measurement — the model the sections above leave to be chosen, recorded here so the design

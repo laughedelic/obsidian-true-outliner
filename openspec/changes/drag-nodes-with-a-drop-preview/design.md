@@ -171,8 +171,16 @@ takes its children; dropped at its own seam on the `#` column it is outdented in
 a seam-and-depth in the interval above — the shallow bound is the node below's depth — so they are
 added to every seam a heading run is offered, one per level from the shallow bound up to the top
 (the zoom root's child depth, under a zoom), each written at the seam's own position and carrying
-the LEVEL the column names. The algebra takes that level with the destination (D9): the parent
-would imply one level deeper, and the preview and the written heading have to agree.
+a LEVEL. The algebra takes that level with the destination (D9): the parent would imply one level
+deeper, and the preview and the written heading have to agree. The level is the one the sibling
+rule gives the column's parent at that position — the level of the heading whose section the drop
+closes, or one inside the parent where no heading sibling gives one — so a place writes what every
+other place under the same parent writes. It was the column's depth plus one at first, which
+agrees only where a note skips no level: under `## C` / `#### D` it wrote an h3 where every other
+place under C writes an h4, and where a level is skipped above the parent it wrote the parent's own
+level, which closes the parent and lands the run a level out from the accent
+(docs/research/node-drag-and-drop section 6l). A column whose parent is not a heading is not
+offered: a heading written there lands under the nearest heading, which a shallower column names.
 
 The horizontal rule is a PARTITION of the axis over the seam's legal columns, clamped at both
 ends: every x resolves to exactly one candidate, the nearest, with everything left of the first

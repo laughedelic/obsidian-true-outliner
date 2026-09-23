@@ -188,12 +188,22 @@ pointer resting there names no destination rather than the seam past it; a relea
 
 A heading run SHALL additionally be offered, at every seam, each level SHALLOWER than the seam's
 shallow bound, down to the top level — or, under an active zoom, the zoom root's own child depth —
-written at the position the seam names and at the level the column names. A heading closes the
-section it lands in: `## Plan` dropped between `## Materials` and its first child at the `##`
-column stands beside Materials, which is left childless, and `## Plan` dropped at its own seam on
-the `#` column is an outdent in place. The release SHALL write the level the column named rather
-than the one the destination's parent would imply, so the preview's mark and the written heading
-agree.
+written at the position the seam names. A heading closes the section it lands in: `## Plan`
+dropped between `## Materials` and its first child at the `##` column stands beside Materials,
+which is left childless, and `## Plan` dropped at its own seam on the `#` column is an outdent in
+place. The level written SHALL be the one every other place under the same parent takes: the
+level of the heading siblings it lands beside, which is the level of the heading whose section it
+closes, or one inside the parent where no heading sibling gives one. The release SHALL write that
+level rather than the one the destination's own parent would imply, so the preview's mark and the
+written heading agree. A column whose parent would be anything but a heading or the top level
+SHALL NOT be offered this way: a heading written there lands under the nearest heading instead,
+which a shallower column of the same seam already names.
+
+#### Scenario: A heading written where it closes a deeper section takes that section's level
+- **WHEN** in `# A` / `## B` / `## C` / `foo` / `#### D` / `bar`, `## B` is held between
+  `#### D` and `bar` on the column that makes it C's child
+- **THEN** it is previewed and written as `#### B`, beside D and taking `bar`, the level it has at
+  every other place under C
 
 The document's own two ends SHALL be seams, since moving a run to the top or the bottom is among
 the commonest things this gesture is for. Where there is no node below the seam, the shallow bound

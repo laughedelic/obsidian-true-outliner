@@ -4,7 +4,7 @@ import { parse } from '../src/parse';
 import { encode } from '../src/encode';
 import { moveSubtreesTo } from '../src/ops';
 import { arbTree } from './generators';
-import { walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
+import { ownSpan, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
 import { resolveZoom } from '../src/zoom';
 import {
   dropSeams,
@@ -452,8 +452,13 @@ describe('dropSeams', () => {
     }
   });
 
-  /** The first line the release writes for the run, at one of its candidates. */
-  function released(doc: OutlineDoc, roots: readonly OutlineNode[], c: DropSeam['candidates'][number]): string {
+  /** What the release writes for the run at one of its candidates: its first
+   * line, and the first line of the node it lands under (`null` at the top). */
+  function landing(
+    doc: OutlineDoc,
+    roots: readonly OutlineNode[],
+    c: DropSeam['candidates'][number],
+  ): { firstLine: string; under: string | null } {
     const result = moveSubtreesTo(
       doc,
       roots.map((root) => [root.id]),
@@ -461,8 +466,24 @@ describe('dropSeams', () => {
         ? { parentId: c.parentId, index: c.index }
         : { parentId: c.parentId, index: c.index, level: c.level },
     );
-    if (!result.ok) return `refused: ${result.rejection.reason}`;
-    return encode(result.value.doc).split('\n')[result.value.span.start.line]!;
+    if (!result.ok) return { firstLine: `refused: ${result.rejection.reason}`, under: null };
+    const at = result.value.span.start.line;
+    let line = result.value.doc.preamble.length;
+    let under: string | null | undefined;
+    const walk = (nodes: readonly OutlineNode[], parent: OutlineNode | null): void => {
+      for (const node of nodes) {
+        if (under !== undefined) return;
+        if (line === at) under = parent ? parent.lines[0]! : null;
+        line += ownSpan(node);
+        walk(node.children, node);
+      }
+    };
+    walk(result.value.doc.children, null);
+    return { firstLine: encode(result.value.doc).split('\n')[at]!, under: under ?? null };
+  }
+
+  function released(doc: OutlineDoc, roots: readonly OutlineNode[], c: DropSeam['candidates'][number]): string {
+    return landing(doc, roots, c).firstLine;
   }
 
   it('draws what the release writes for a run whose roots have different parents', () => {
@@ -478,14 +499,42 @@ describe('dropSeams', () => {
     expect(released(doc, roots, beside)).toBe('## a1');
   });
 
+  it('writes a heading beside the siblings it lands among, where its level closes the section above', () => {
+    // `## C` skips to `#### D`. Every place that makes B a child of C writes it
+    // an h4, beside D — the one between D and `bar` included, which closes D's
+    // section and takes `bar`. Its column's own depth read an h3.
+    const doc = parse(['# A', '## B', '## C', 'foo', '#### D', 'bar', ''].join('\n'));
+    const b = byLine(doc, '## B');
+    const c = byLine(doc, '## C').id;
+    const underC = dropSeams(doc, [b]).flatMap((seam) =>
+      seam.candidates.filter((d) => (d.landsUnder ?? d.parentId) === c).map((d) => d.firstLine),
+    );
+    expect(underC).toEqual(['#### B', '#### B', '#### B', '#### B']);
+    // Where a level is skipped above the parent too, the column's depth read
+    // the parent's own level, which closes the parent: B landed a level out
+    // from the one the preview named.
+    const skipped = parse(['# A', '## B', '# A2', '### C', '#### D', 'bar', ''].join('\n'));
+    const between = dropSeams(skipped, [byLine(skipped, '## B')]).find(
+      (seam) => seam.aboveId === byLine(skipped, '#### D').id,
+    )!;
+    const levelled = between.candidates.find((d) => d.landsUnder === byLine(skipped, '### C').id)!;
+    expect(levelled.firstLine).toBe('#### B');
+    expect(landing(skipped, [byLine(skipped, '## B')], levelled).under).toBe('### C');
+  });
+
   it('draws what the release writes, at every destination it offers', () => {
     // Runs of one to three roots, each starting where the one before it ends,
-    // which is every shape a cover takes.
+    // which is every shape a cover takes. Some headings are written a level
+    // deeper than the generator makes them, so a note can skip a level.
     const size = (node: OutlineNode): number =>
       1 + node.children.reduce((total, child) => total + size(child), 0);
     fc.assert(
-      fc.property(arbTree(), fc.nat(), fc.integer({ min: 1, max: 3 }), (tree, at, count) => {
-        const doc = parse(encode(tree));
+      fc.property(arbTree(), fc.nat(), fc.integer({ min: 1, max: 3 }), fc.nat(), (tree, at, count, skew) => {
+        let heading = 0;
+        const text = encode(tree).replace(/^(#{1,5}) /gm, (whole, marks: string) =>
+          (skew >> heading++ % 30) & 1 ? `#${marks} ` : whole,
+        );
+        const doc = parse(text);
         const nodes = [...walkNodes(doc)];
         if (nodes.length === 0) return;
         const roots = [nodes[at % nodes.length]!];
@@ -494,9 +543,19 @@ describe('dropSeams', () => {
           if (!next) break;
           roots.push(next);
         }
+        const lines = nodes.map((node) => node.lines[0]!);
         for (const seam of dropSeams(doc, roots)) {
           for (const candidate of seam.candidates) {
-            expect(released(doc, roots, candidate)).toBe(candidate.firstLine);
+            const landed = landing(doc, roots, candidate);
+            expect(landed.firstLine).toBe(candidate.firstLine);
+            // And a heading written shallower than the seam lands under the
+            // node the preview accents, where its line names it.
+            if (candidate.level === undefined) continue;
+            const parentId = candidate.landsUnder ?? candidate.parentId;
+            const parent = parentId === 'root' ? null : nodes.find((node) => node.id === parentId)!.lines[0]!;
+            if (parent === null || lines.indexOf(parent) === lines.lastIndexOf(parent)) {
+              expect(landed.under).toBe(parent);
+            }
           }
         }
       }),

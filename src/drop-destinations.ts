@@ -23,6 +23,7 @@ import { isAtom, type NodeKind, type OutlineDoc, type OutlineNode } from './mode
 import { ownSpan } from './model';
 import { reencodeBlocksForDestination } from './ops';
 import { parse } from './parse';
+import { destinationHeadingLevel } from './rules';
 
 /** A place at a seam: a parent, a position among its children, and the depth a
  * node placed there takes. What a seam offers before any run is asked about. */
@@ -244,13 +245,16 @@ export function seams(
         if (depth === 0 && options.scoped === true) continue;
         // The ancestor one level out from this depth is what the run lands
         // under: headings nest only under headings, and the node above's own
-        // chain is the one the re-parse reads.
+        // chain is the one the re-parse reads. Where that ancestor is not a
+        // heading, a heading written here lands under the nearest one that is,
+        // which is a shallower column of this same seam.
         const under = depth === 0 ? undefined : above?.chain[depth - 1];
+        if (under && under.node.kind !== 'heading') continue;
         places.unshift({
           parentId: anchor.parentId,
           index: anchor.index,
           depth,
-          level: depth + 1,
+          level: levelledAt(doc, under?.node, above?.chain[depth]?.node, outside),
           landsUnder: under ? under.node.id : 'root',
         });
       }
@@ -337,6 +341,35 @@ export function dropSeams(
     }
   }
   return out;
+}
+
+/**
+ * The level a heading takes written at a seam's text position so that it
+ * lands under `under`, just past `closes` — the child of `under` the position
+ * sits inside, whose section it closes.
+ *
+ * The rule every other place takes its level by, asked about that sibling
+ * position, so the run is written beside the headings it lands among rather
+ * than at a level its column implies. Where `closes` is a heading it is the
+ * nearest donor, and taking its level is what closes its section; any other
+ * donor is a heading child of `under`, deeper than `under` itself. Where no
+ * sibling donates, one level inside `under`.
+ */
+function levelledAt(
+  doc: OutlineDoc,
+  under: OutlineNode | undefined,
+  closes: OutlineNode | undefined,
+  outside: ReadonlySet<number>,
+): number {
+  const siblings = (under ? under.children : doc.children).filter((node) => !outside.has(node.id));
+  const cut = closes ? siblings.indexOf(closes) + 1 : 0;
+  return (
+    destinationHeadingLevel({
+      parent: under ?? 'root',
+      precedingSiblings: siblings.slice(0, cut),
+      followingSiblings: siblings.slice(cut),
+    }) ?? (under ? (under.level ?? 0) + 1 : 1)
+  );
 }
 
 /** A node's own first line, or `undefined` for an id the document lacks. */
