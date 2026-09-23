@@ -1,0 +1,173 @@
+/**
+ * Two measurements that read the grammar as a generator rather than a checker.
+ *
+ * 1. Enumerate the admissible forests directly from the grammar (no
+ *    generate-and-filter), count them per size, and check that each one's
+ *    canonical writing parses back to the same shape.
+ * 2. Local configurations — (parent, preceding sibling, node) over kind
+ *    classes, plus the heading-level relations — that the grammar admits,
+ *    against those `arbTree` produces.
+ *
+ * Run: npx tsx language.ts [maxN] [samples]
+ */
+import fc from 'fast-check';
+import { parse } from '../../../../src/parse';
+import type { OutlineDoc, OutlineNode } from '../../../../src/model';
+import { arbTree } from '../../../../tests/generators';
+
+type Label = 'h1' | 'h2' | 'h3' | 'P' | 'I' | 'C' | 'Q';
+interface T {
+  l: Label;
+  c: T[];
+}
+const isH = (l: Label) => l[0] === 'h';
+const lvl = (l: Label) => Number(l.slice(1));
+const HEADINGS: Label[] = ['h1', 'h2', 'h3'];
+
+// ---------------------------------------------------------------- generator
+// Each nonterminal of the grammar is a function from a size to the forests of
+// exactly that size it derives. `col` carries the opening-margin state.
+
+/** Section(n): Content* Heading*, no (P, I) pair, heading levels > n and
+ * non-increasing. `prev` and `maxH` are the sibling-sequence automaton's
+ * state. */
+function* section(k: number, n: number, col: number, prev: Label | undefined, maxH: number, seenH: boolean): Generator<T[]> {
+  if (k === 0) {
+    yield [];
+    return;
+  }
+  for (let s = 1; s <= k; s++) {
+    // content child
+    if (!seenH) {
+      for (const t of sectionContent(s, col, prev)) {
+        for (const rest of section(k - s, n, col, t.l, maxH, false)) yield [t, ...rest];
+      }
+    }
+    // heading child
+    for (const h of HEADINGS) {
+      const L = lvl(h);
+      if (L <= n || L > maxH) continue;
+      for (const kids of section(s - 1, L, col, undefined, Infinity, false)) {
+        const t: T = { l: h, c: kids };
+        for (const rest of section(k - s, n, col, h, L, true)) yield [t, ...rest];
+      }
+    }
+  }
+}
+function* sectionContent(s: number, col: number, prev: Label | undefined): Generator<T> {
+  if (s === 1) {
+    yield { l: 'C', c: [] };
+    if (col <= 3) yield { l: 'Q', c: [] };
+  }
+  for (const kids of items(s - 1, col)) yield { l: 'P', c: kids };
+  if (prev !== 'P') for (const t of item(s, col)) yield t;
+}
+/** I*: a paragraph's children. */
+function* items(k: number, col: number): Generator<T[]> {
+  if (k === 0) {
+    yield [];
+    return;
+  }
+  for (let s = 1; s <= k; s++)
+    for (const t of item(s, col)) for (const rest of items(k - s, col)) yield [t, ...rest];
+}
+/** Item: item[(Item | Leaf | Atom)*] */
+function* item(s: number, col: number): Generator<T> {
+  for (const kids of itemChildren(s - 1, col + 2)) yield { l: 'I', c: kids };
+}
+function* itemChildren(k: number, col: number): Generator<T[]> {
+  if (k === 0) {
+    yield [];
+    return;
+  }
+  for (let s = 1; s <= k; s++) {
+    const heads: T[] = [];
+    if (s === 1) {
+      heads.push({ l: 'P', c: [] }, { l: 'C', c: [] });
+      if (col <= 3) heads.push({ l: 'Q', c: [] });
+    }
+    const all: Iterable<T> = s === 1 ? [...heads, ...item(1, col)] : item(s, col);
+    for (const t of all) for (const rest of itemChildren(k - s, col)) yield [t, ...rest];
+  }
+}
+
+// ---------------------------------------------------------------- writer / reader
+function write(f: T[]): string {
+  const out: string[] = [];
+  let k = 0;
+  const w = (t: T, col: number): void => {
+    const pad = ' '.repeat(col);
+    const id = `x${k++}`;
+    if (t.l === 'P') out.push(pad + id);
+    else if (t.l === 'I') out.push(`${pad}- ${id}`);
+    else if (t.l === 'C') out.push(pad + '```', pad + id, pad + '```');
+    else if (t.l === 'Q') out.push(`${pad}> ${id}`);
+    else out.push(`${pad}${'#'.repeat(lvl(t.l))} ${id}`);
+    out.push('');
+    for (const c of t.c) w(c, t.l === 'I' ? col + 2 : col);
+  };
+  for (const t of f) w(t, 0);
+  return out.join('\n');
+}
+function label(n: OutlineNode): string {
+  if (n.kind === 'heading') return `h${n.level}`;
+  return { paragraph: 'P', 'list-item': 'I', code: 'C', quote: 'Q' }[n.kind as string] ?? `?${n.kind}`;
+}
+function sameShape(f: T[], ns: readonly OutlineNode[]): boolean {
+  return f.length === ns.length && f.every((t, i) => t.l === label(ns[i]!) && sameShape(t.c, ns[i]!.children));
+}
+
+const maxN = Number(process.argv[2] ?? 7);
+const samples = Number(process.argv[3] ?? 5000);
+
+console.log('n | admissible forests (grammar-directed) | round-trip failures | ms');
+for (let n = 1; n <= maxN; n++) {
+  const t0 = Date.now();
+  let count = 0;
+  let fail = 0;
+  for (const f of section(n, 0, 0, undefined, Infinity, false)) {
+    count++;
+    if (!sameShape(f, parse(write(f)).children)) fail++;
+  }
+  console.log(`${n} | ${count} | ${fail} | ${Date.now() - t0}`);
+}
+
+// ---------------------------------------------------------------- local configurations
+type Cls = 'root' | 'H' | 'P' | 'I' | 'A';
+const clsOfNode = (n: OutlineNode): Cls =>
+  n.kind === 'heading' ? 'H' : n.kind === 'paragraph' ? 'P' : n.kind === 'list-item' ? 'I' : 'A';
+function configs(doc: OutlineDoc): Set<string> {
+  const out = new Set<string>();
+  const walk = (ns: readonly OutlineNode[], parent: OutlineNode | undefined): void => {
+    ns.forEach((n, i) => {
+      const prev = ns[i - 1];
+      const p = parent ? clsOfNode(parent) : 'root';
+      out.add(`${p} / ${prev ? clsOfNode(prev) : '-'} / ${clsOfNode(n)}`);
+      if (n.kind === 'heading') {
+        if (parent?.kind === 'heading')
+          out.add(`heading under a heading, levels apart: ${n.level! - parent.level! > 1 ? '2+' : 1}`);
+        if (prev?.kind === 'heading')
+          out.add(`heading after heading sibling: ${prev.level === n.level ? 'same level' : 'shallower'}`);
+      }
+      walk(n.children, n);
+    });
+  };
+  walk(doc.children, undefined);
+  return out;
+}
+
+const admitted = new Map<string, number>();
+for (let n = 1; n <= 5; n++)
+  for (const f of section(n, 0, 0, undefined, Infinity, false))
+    for (const c of configs(parse(write(f)))) admitted.set(c, (admitted.get(c) ?? 0) + 1);
+
+const seen = new Map<string, number>();
+for (const doc of fc.sample(arbTree(), { numRuns: samples, seed: 42 }))
+  for (const c of configs(doc)) seen.set(c, (seen.get(c) ?? 0) + 1);
+
+console.log(`\nlocal configurations the grammar admits (forests up to 5 nodes): ${admitted.size}`);
+console.log(`reached by arbTree in ${samples} samples: ${[...admitted.keys()].filter((c) => seen.has(c)).length}`);
+console.log('never reached:');
+for (const c of [...admitted.keys()].sort()) if (!seen.has(c)) console.log(`  ${c}`);
+const extra = [...seen.keys()].filter((c) => !admitted.has(c));
+console.log('reached by arbTree but not admitted (should be empty):', extra);

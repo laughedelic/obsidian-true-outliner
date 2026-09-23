@@ -1,0 +1,290 @@
+/**
+ * Bounded-exhaustive probe: every ordered forest of kind-labelled nodes up to
+ * N nodes, written by a canonical writer, parsed back, and compared with the
+ * stated grammar's verdict.
+ *
+ * Run: npx tsx enumerate.ts [maxN]
+ */
+import { parse } from '../../../../src/parse';
+import type { OutlineNode } from '../../../../src/model';
+
+type Label = 'h1' | 'h2' | 'h3' | 'P' | 'I' | 'C' | 'Q';
+const LABELS: Label[] = ['h1', 'h2', 'h3', 'P', 'I', 'C', 'Q'];
+const ATOMS = new Set<Label>(['C', 'Q']);
+interface T {
+  l: Label;
+  c: T[];
+}
+
+// ------------------------------------------------------------ enumeration
+function* trees(n: number): Generator<T> {
+  for (const l of LABELS) {
+    if (ATOMS.has(l)) {
+      if (n === 1) yield { l, c: [] };
+      continue;
+    }
+    for (const c of forests(n - 1)) yield { l, c };
+  }
+}
+function* forests(n: number): Generator<T[]> {
+  if (n === 0) {
+    yield [];
+    return;
+  }
+  for (let s = 1; s <= n; s++) {
+    for (const t of trees(s)) for (const rest of forests(n - s)) yield [t, ...rest];
+  }
+}
+
+// ------------------------------------------------------------ grammar
+const isH = (l: Label) => l[0] === 'h';
+const lvl = (l: Label) => Number(l.slice(1));
+
+/** The grammar as stated in the brief. `margin` adds the opening-margin rule:
+ * a quote (and a heading) opens only within 3 columns, and with `- ` markers
+ * an item adds 2 columns. */
+function admissible(f: T[], margin: boolean): boolean {
+  const section = (cs: T[], n: number, col: number): boolean => {
+    let seenH = false;
+    let prevH = Infinity;
+    let prev: T | undefined;
+    for (const c of cs) {
+      if (isH(c.l)) {
+        const L = lvl(c.l);
+        if (L <= n || L > prevH) return false;
+        prevH = L;
+        seenH = true;
+        if (!section(c.c, L, col)) return false;
+      } else {
+        if (seenH) return false;
+        if (c.l === 'I' && prev?.l === 'P') return false;
+        if (c.l === 'P' && !c.c.every((k) => k.l === 'I' && item(k, col))) return false;
+        if (c.l === 'I' && !item(c, col)) return false;
+        if (c.l === 'Q' && margin && col > 3) return false;
+      }
+      prev = c;
+    }
+    return true;
+  };
+  const item = (t: T, col: number): boolean => {
+    const cc = col + 2;
+    return t.c.every((k) => {
+      if (isH(k.l)) return false;
+      if (k.l === 'P') return k.c.length === 0;
+      if (k.l === 'Q') return !(margin && cc > 3);
+      if (k.l === 'C') return true;
+      return item(k, cc);
+    });
+  };
+  return section(f, 0, 0);
+}
+
+
+/** Every rule the forest breaks, by name (margin rule included). */
+function violations(f: T[]): string[] {
+  const out: string[] = [];
+  const section = (cs: T[], n: number, col: number): void => {
+    let seenH = false;
+    let prevH = Infinity;
+    let prev: T | undefined;
+    for (const c of cs) {
+      if (isH(c.l)) {
+        const L = lvl(c.l);
+        if (L <= n) out.push('heading not deeper than its parent');
+        else if (L > prevH) out.push('(heading, deeper heading) siblings');
+        prevH = Math.min(prevH, L);
+        seenH = true;
+        section(c.c, L, col);
+      } else {
+        if (seenH) out.push('(heading, content) siblings');
+        if (c.l === 'I' && prev?.l === 'P') out.push('(paragraph, list item) siblings');
+        if (c.l === 'P')
+          for (const k of c.c) {
+            if (k.l === 'I') item(k, col);
+            else if (isH(k.l)) out.push('heading under a paragraph');
+            else if (k.l === 'P') out.push('paragraph under a paragraph');
+            else out.push('atom under a paragraph');
+          }
+        if (c.l === 'I') item(c, col);
+        if (c.l === 'Q' && col > 3) out.push('quote past the margin');
+      }
+      prev = c;
+    }
+  };
+  const item = (t: T, col: number): void => {
+    const cc = col + 2;
+    for (const k of t.c) {
+      if (isH(k.l)) out.push('heading under a list item');
+      else if (k.l === 'P') {
+        if (k.c.length) out.push('children under a paragraph inside a list item');
+      } else if (k.l === 'Q') {
+        if (cc > 3) out.push('quote past the margin');
+      } else if (k.l === 'I') item(k, cc);
+    }
+  };
+  section(f, 0, 0);
+  return out;
+}
+
+// ------------------------------------------------------------ writer
+function write(f: T[]): { text: string; ids: Map<string, T> } {
+  const out: string[] = [];
+  const ids = new Map<string, T>();
+  let k = 0;
+  const w = (t: T, col: number): void => {
+    const pad = ' '.repeat(col);
+    const id = `x${k++}`;
+    ids.set(id, t);
+    switch (t.l) {
+      case 'P':
+        out.push(pad + id);
+        break;
+      case 'I':
+        out.push(`${pad}- ${id}`);
+        break;
+      case 'C':
+        out.push(pad + '```', pad + id, pad + '```');
+        break;
+      case 'Q':
+        out.push(`${pad}> ${id}`);
+        break;
+      default:
+        out.push(`${pad}${'#'.repeat(lvl(t.l))} ${id}`);
+    }
+    out.push('');
+    const cc = t.l === 'I' ? col + 2 : col;
+    for (const c of t.c) w(c, cc);
+  };
+  for (const t of f) w(t, 0);
+  return { text: out.join('\n'), ids };
+}
+
+// ------------------------------------------------------------ read back
+function label(n: OutlineNode): string {
+  if (n.kind === 'heading') return `h${n.level}`;
+  if (n.kind === 'paragraph') return 'P';
+  if (n.kind === 'list-item') return 'I';
+  if (n.kind === 'code') return 'C';
+  if (n.kind === 'quote') return 'Q';
+  return `?${n.kind}`;
+}
+const idOf = (n: OutlineNode): string => {
+  const m = /x\d+/.exec(n.lines.join(' '));
+  return m ? m[0] : '';
+};
+function sameShape(f: T[], ns: readonly OutlineNode[]): boolean {
+  return (
+    f.length === ns.length &&
+    f.every((t, i) => t.l === label(ns[i]!) && sameShape(t.c, ns[i]!.children))
+  );
+}
+
+// Repair classification: where did each node go?
+type Move = 'kept' | 'relabelled' | 'joined-left' | 'lifted' | 'merged' | 'other';
+function classify(f: T[], text: string, ids: Map<string, T>): Set<Move> {
+  // input parent/left-sibling relation by id
+  const parentOf = new Map<string, string>();
+  const ancestors = new Map<string, string[]>();
+  const leftSiblingsDeep = new Map<string, Set<string>>();
+  const idByT = new Map<T, string>();
+  for (const [id, t] of ids) idByT.set(t, id);
+  const walkIn = (cs: T[], parent: string, anc: string[]): void => {
+    cs.forEach((t, i) => {
+      const id = idByT.get(t)!;
+      parentOf.set(id, parent);
+      ancestors.set(id, anc);
+      const left = new Set<string>();
+      const addDeep = (u: T): void => {
+        left.add(idByT.get(u)!);
+        u.c.forEach(addDeep);
+      };
+      cs.slice(0, i).forEach(addDeep);
+      leftSiblingsDeep.set(id, left);
+      walkIn(t.c, id, [...anc, id]);
+    });
+  };
+  walkIn(f, 'root', []);
+  const doc = parse(text);
+  const outParent = new Map<string, string>();
+  const outLabel = new Map<string, string>();
+  const walkOut = (ns: readonly OutlineNode[], parent: string): void => {
+    for (const n of ns) {
+      const id = idOf(n);
+      outParent.set(id, parent);
+      outLabel.set(id, label(n));
+      walkOut(n.children, id);
+    }
+  };
+  walkOut(doc.children, 'root');
+  const moves = new Set<Move>();
+  for (const [id, t] of ids) {
+    if (!outParent.has(id)) {
+      moves.add('merged');
+      continue;
+    }
+    if (outLabel.get(id) !== t.l) moves.add('relabelled');
+    const was = parentOf.get(id)!;
+    const now = outParent.get(id)!;
+    if (was === now) continue;
+    if (leftSiblingsDeep.get(id)!.has(now)) moves.add('joined-left');
+    else if (now === 'root' || ancestors.get(id)!.includes(now)) moves.add('lifted');
+    else if (leftSiblingsDeep.get(was)?.has(now) || ancestors.get(was)?.includes(now))
+      moves.add('lifted');
+    else moves.add('other');
+  }
+  if (moves.size === 0) moves.add('kept');
+  return moves;
+}
+
+const showDoc = (ns: readonly OutlineNode[]): string => ns.map((n) => (n.children.length ? `${label(n)}[${showDoc(n.children)}]` : label(n))).join(' ');
+const show = (f: T[]): string => f.map((t) => (t.c.length ? `${t.l}[${show(t.c)}]` : t.l)).join(' ');
+
+// ------------------------------------------------------------ run
+const maxN = Number(process.argv[2] ?? 5);
+for (const margin of [false, true]) {
+  console.log(`\n=== grammar ${margin ? 'WITH' : 'WITHOUT'} the opening-margin rule ===`);
+  console.log('n | forests | admissible | round-trips | adm&rt | adm&!rt | !adm&rt | ms');
+  const examples: Record<string, string[]> = { admNotRt: [], rtNotAdm: [] };
+  const repairs = new Map<string, number>();
+  const repairEx = new Map<string, string[]>();
+  let multi = 0;
+  for (let n = 1; n <= maxN; n++) {
+    let total = 0, adm = 0, rt = 0, both = 0, admNotRt = 0, rtNotAdm = 0;
+    const t0 = Date.now();
+    for (const f of forests(n)) {
+      total++;
+      const a = admissible(f, margin);
+      const { text, ids } = write(f);
+      const r = sameShape(f, parse(text).children);
+      if (a) adm++;
+      if (r) rt++;
+      if (a && r) both++;
+      if (a && !r) {
+        admNotRt++;
+        if (examples.admNotRt!.length < 6) examples.admNotRt!.push(show(f) + '  -> ' + JSON.stringify(text));
+      }
+      if (!a && r) {
+        rtNotAdm++;
+        if (examples.rtNotAdm!.length < 6) examples.rtNotAdm!.push(show(f));
+      }
+      if (!a && margin) {
+        const v = violations(f);
+        if (v.length === 0) throw new Error('inadmissible with no violation: ' + show(f));
+        if (v.length === 1) {
+          const key = v[0] + ' => ' + [...classify(f, text, ids)].sort().join('+');
+          repairs.set(key, (repairs.get(key) ?? 0) + 1);
+          const ex = repairEx.get(key) ?? [];
+          if (ex.length < 2) ex.push(show(f) + '  ==>  ' + showDoc(parse(text).children));
+          repairEx.set(key, ex);
+        } else multi++;
+      }
+    }
+    console.log(`${n} | ${total} | ${adm} | ${rt} | ${both} | ${admNotRt} | ${rtNotAdm} | ${Date.now() - t0}`);
+  }
+  console.log('admissible but not round-tripping:', examples.admNotRt);
+  console.log('round-tripping but not admissible:', examples.rtNotAdm);
+  if (margin) {
+    console.log(`what parse did to inadmissible forests breaking exactly one rule (${multi} break more than one):`);
+    for (const [k, v] of [...repairs].sort((a, b) => a[0].localeCompare(b[0]))) console.log(`  ${k}: ${v}   e.g. ${repairEx.get(k)!.join('  |  ')}`);
+  }
+}

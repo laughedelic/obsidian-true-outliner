@@ -1,0 +1,194 @@
+/**
+ * The conversion as a repair: for every place in every admissible forest up
+ * to N nodes, and every moved kind, which writings of a single moved node are
+ * CLEAN (the re-parse puts it exactly where it was placed and moves nothing
+ * else), which ABSORB (the only change is that siblings after it become its
+ * children), and which are neither. Then, per local context, the ties a cost
+ * order leaves.
+ *
+ * Run: npx tsx repair.ts [maxN]
+ */
+import { parse } from '../../../../src/parse';
+import type { OutlineNode } from '../../../../src/model';
+import { type Label, type T, isH, lvl, label, section, write } from './grammar';
+
+const maxN = Number(process.argv[2] ?? 4);
+const WRITINGS: Label[] = ['h1', 'h2', 'h3', 'h4', 'P', 'I', 'I#'];
+const MOVED: Label[] = ['h2', 'P', 'I', 'I#', 'C'];
+
+const eq = (f: T[], ns: readonly OutlineNode[]): boolean =>
+  f.length === ns.length && f.every((t, i) => t.l === label(ns[i]!) && eq(t.c, ns[i]!.children));
+
+/** Every (parent path, index) a node could be placed at; atoms hold nothing. */
+function places(f: T[]): { path: number[]; index: number; parent: T | undefined; grand: T | undefined }[] {
+  const out: { path: number[]; index: number; parent: T | undefined; grand: T | undefined }[] = [];
+  const walk = (cs: T[], path: number[], parent: T | undefined, grand: T | undefined): void => {
+    for (let i = 0; i <= cs.length; i++) out.push({ path, index: i, parent, grand });
+    cs.forEach((t, i) => {
+      if (t.l !== 'C' && t.l !== 'Q') walk(t.c, [...path, i], t, parent);
+    });
+  };
+  walk(f, [], undefined, undefined);
+  return out;
+}
+
+function edit(f: T[], path: number[], fn: (cs: T[]) => T[]): T[] {
+  if (path.length === 0) return fn(f);
+  const [h, ...rest] = path;
+  return f.map((t, i) => (i === h ? { ...t, c: edit(t.c, rest, fn) } : t));
+}
+
+type Verdict = 'clean' | 'absorbs' | 'misplaced';
+function verdict(f: T[], path: number[], index: number, w: Label): Verdict {
+  const placed = edit(f, path, (cs) => [...cs.slice(0, index), { l: w, c: [] }, ...cs.slice(index)]);
+  const got = parse(write(placed)).children;
+  if (eq(placed, got)) return 'clean';
+  // Absorption: the j siblings after the node became its children, nothing else moved.
+  let siblings: T[] = f;
+  for (const p of path) siblings = siblings[p]!.c;
+  for (let j = 1; j <= siblings.length - index; j++) {
+    const absorbed = edit(f, path, (cs) => [
+      ...cs.slice(0, index),
+      { l: w, c: cs.slice(index, index + j) },
+      ...cs.slice(index + j),
+    ]);
+    if (eq(absorbed, got)) return 'absorbs';
+  }
+  return 'misplaced';
+}
+
+const ctxLabel = (t: T | undefined, grand: T | undefined): string =>
+  t === undefined ? 'root' : t.l === 'P' && grand?.l === 'I' ? 'P(in item)' : t.l;
+
+// key -> writing -> verdict counts
+const table = new Map<string, Map<Label, Map<Verdict, number>>>();
+let instances = 0;
+for (let n = 0; n <= maxN; n++) {
+  for (const f of section(n, 0, 0, undefined, Infinity, false)) {
+    for (const { path, index, parent, grand } of places(f)) {
+      let siblings: T[] = f;
+      for (const p of path) siblings = siblings[p]!.c;
+      const prev = siblings[index - 1]?.l ?? '-';
+      const next = siblings[index]?.l ?? '-';
+      for (const moved of MOVED) {
+        const key = `${ctxLabel(parent, grand)} | ${prev} _ ${next} | ${moved}`;
+        const row = table.get(key) ?? new Map();
+        table.set(key, row);
+        instances++;
+        const ws = moved === 'C' ? (['C'] as Label[]) : WRITINGS;
+        for (const w of ws) {
+          const v = verdict(f, path, index, w);
+          const cell = row.get(w) ?? new Map<Verdict, number>();
+          cell.set(v, (cell.get(v) ?? 0) + 1);
+          row.set(w, cell);
+        }
+      }
+    }
+  }
+}
+
+// Is the verdict a function of the local context? A cell with two verdicts says no.
+let mixed = 0;
+const mixedEx: string[] = [];
+for (const [key, row] of table)
+  for (const [w, cell] of row)
+    if (cell.size > 1) {
+      mixed++;
+      if (mixedEx.length < 12) mixedEx.push(`${key} as ${w}: ${[...cell].map(([v, c]) => `${v} ${c}`).join(', ')}`);
+    }
+
+console.log(`placements (forest, place, moved kind): ${instances}; local contexts: ${table.size}`);
+console.log(`(context, writing) cells whose verdict varies across instances: ${mixed}`);
+for (const e of mixedEx) console.log('  ' + e);
+
+// Cost orders. A writing's verdict is taken as its majority verdict per context.
+const verdictOf = (cell: Map<Verdict, number>): Verdict =>
+  [...cell].sort((a, b) => b[1] - a[1])[0]![0];
+
+type Cost = (moved: Label, w: Label, v: Verdict, neighbour: Label | undefined) => number[];
+const family = (l: Label): string => (isH(l) ? 'H' : l === 'I#' ? 'I' : l);
+const level = (l: Label): number | undefined => (isH(l) ? lvl(l) : l === 'I#' ? 2 : undefined);
+const MARKS: Record<string, string[]> = { h1: ['#'], h2: ['#'], h3: ['#'], h4: ['#'], P: [], I: ['-'], 'I#': ['-', '#'], C: ['`'], Q: ['>'] };
+const M = (v: Verdict) => (v === 'misplaced' ? 1 : 0);
+const A = (v: Verdict) => (v === 'absorbs' ? 1 : 0);
+const K = (m: Label, w: Label) => (family(m) === family(w) ? 0 : 1);
+const L = (m: Label, w: Label) => {
+  const a = level(m), b = level(w);
+  return a !== undefined && b !== undefined ? Math.abs(a - b) : 0;
+};
+const R = (m: Label, w: Label) => {
+  const a = MARKS[m]!, b = MARKS[w]!;
+  return a.filter((x) => !b.includes(x)).length + b.filter((x) => !a.includes(x)).length;
+};
+const N = (w: Label, nb: Label | undefined) => (nb === undefined || family(nb) === family(w) ? 0 : 1);
+const Rdrop = (m: Label, w: Label) => MARKS[m]!.filter((x) => !MARKS[w]!.includes(x)).length;
+const Radd = (m: Label, w: Label) => MARKS[w]!.filter((x) => !MARKS[m]!.includes(x)).length;
+/** A conversion never writes a heading mark the node did not carry. */
+const illegit = (m: Label, w: Label) => (MARKS[w]!.includes('#') && !MARKS[m]!.includes('#') ? 1 : 0);
+const COSTS: Record<string, Cost> = {
+  'kind, then absorption': (m, w, v) => [M(v) + illegit(m, w), K(m, w), A(v), R(m, w), L(m, w)],
+  'absorption, then kind': (m, w, v) => [M(v) + illegit(m, w), A(v), K(m, w), R(m, w), L(m, w)],
+  'keep marks, unmarked joins': (m, w, v, nb) => [M(v) + illegit(m, w), A(v), Rdrop(m, w), MARKS[m]!.length === 0 ? N(w, nb) : 0, Radd(m, w), K(m, w), L(m, w)],
+  'join the neighbours': (m, w, v, nb) => [M(v) + illegit(m, w), A(v), N(w, nb), R(m, w), K(m, w), L(m, w)],
+};
+const lt = (a: number[], b: number[]): number => {
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i]! - b[i]!;
+  return 0;
+};
+
+const winners = new Map<string, Map<string, string>>(); // key -> order -> winner(s)
+for (const [name, cost] of Object.entries(COSTS)) {
+  let unique = 0;
+  let none = 0;
+  let tie = 0;
+  for (const [key, row] of table) {
+    const [, sib, movedS] = key.split(' | ');
+    const moved = movedS as Label;
+    const [prev, next] = sib!.split(' _ ');
+    const content = (x: string | undefined) => (x && x !== '-' ? (x as Label) : undefined);
+    const nb = content(prev) ?? content(next);
+    const scored = [...row].map(([w, cell]) => ({ w, v: verdictOf(cell), c: cost(moved, w, verdictOf(cell), nb) }));
+    const best = scored.reduce((a, b) => (lt(b.c, a.c) < 0 ? b : a));
+    let answer: string;
+    if (best.c[0]! > 0) {
+      none++;
+      answer = 'refused';
+    } else {
+      const tied = scored.filter((s) => lt(s.c, best.c) === 0);
+      answer = tied.map((s) => `${s.w}${s.v === 'absorbs' ? '*' : ''}`).join('/');
+      if (tied.length === 1) unique++;
+      else tie++;
+    }
+    const w = winners.get(key) ?? new Map();
+    w.set(name, answer);
+    winners.set(key, w);
+  }
+  console.log(`--- ${name}: one answer ${unique}, refused ${none}, tied ${tie}`);
+}
+let agree = 0;
+const groups = new Map<string, string[]>();
+for (const [key, w] of winners) {
+  const answers = [...w.values()];
+  if (answers.every((a) => a === answers[0]) && !answers[0]!.includes('/')) {
+    agree++;
+    continue;
+  }
+  const moved = key.split(' | ')[2];
+  const g = `${moved}: ${[...w.entries()].map(([n, a]) => a).join(' | ')}`;
+  groups.set(g, [...(groups.get(g) ?? []), key.split(' | ').slice(0, 2).join(' | ')]);
+}
+console.log(`\ncontexts where every order gives the same single answer: ${agree} of ${winners.size}`);
+console.log(`disagreement groups (moved: ${Object.keys(COSTS).join(' | ')}):`);
+for (const [g, keys] of [...groups].sort()) console.log(`  ${g}   [${keys.length}] e.g. ${keys.slice(0, 4).join(' ; ')}`);
+
+// Refused contexts under the keep-marks order, grouped by parent and moved kind.
+const refused = new Map<string, number>();
+for (const [key, w] of winners) {
+  if (w.get('keep marks, unmarked joins') !== 'refused') continue;
+  const [parent, sib, moved] = key.split(' | ');
+  const prev = sib!.split(' _ ')[0]!;
+  const g = `${moved} under ${parent}${isH(prev as Label) ? ', after a heading sibling' : ''}`;
+  refused.set(g, (refused.get(g) ?? 0) + 1);
+}
+console.log('\nrefused under keep-marks:');
+for (const [g, c] of [...refused].sort()) console.log(`  ${g}: ${c}`);
