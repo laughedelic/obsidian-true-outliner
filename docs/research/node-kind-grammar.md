@@ -72,7 +72,7 @@ is by line.
 
 | State of the drop | Destinations | Landed elsewhere |
 | --- | --- | --- |
-| Before (levelled columns fixed, `drag-nodes-with-a-drop-preview` 6l) | 58,077 | 60: 57 a heading converted to a list item after a paragraph, 3 a heading reordered past a shallower sibling |
+| Before (levelled columns fixed, [node-drag-and-drop.md](node-drag-and-drop.md) section 6l) | 58,077 | 60: 57 a heading converted to a list item after a paragraph, 3 a heading reordered past a shallower sibling |
 | Heading kept a heading where its parent can hold one; reorder re-levelled | 55,005 | 6: a list item reordered to right after a paragraph |
 | List item after a paragraph written as a paragraph in a reorder too | 57,066 | 1: taking an atom out from between a paragraph and a list lets the list attach to the paragraph |
 | Runs carrying no atom | 192,520 | 0 |
@@ -115,7 +115,7 @@ only those, are the genuinely ambiguous cases.
 
 ## Open
 
-- The removal that moves a neighbour (the sweep's last shape).
+- The removal that moves a neighbour (the sweep's atom shape).
 - Whether a heading written as a list item keeps its `#` run (position 4).
 - Whether paste should keep #190 or follow the drop, which is the grammar's question rather than
   either operation's.
