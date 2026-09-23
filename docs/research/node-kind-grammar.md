@@ -80,7 +80,8 @@ is by line.
 | Only a run whose roots share a parent has an own place; the same seed, 20,000 notes | — | 0 |
 
 The atom shape is the removal's rather than the destination's: the run's own removal moves a
-neighbour, and nothing the drop draws says so. It is open. The committed property checks the
+neighbour, and nothing the drop draws says so. It is open:
+[#206](https://github.com/laughedelic/obsidian-true-outliner/issues/206). The committed property checks the
 parent for every run that carries no atom, at 150 notes per run of the suite, so a shape this rare
 surfaces over many runs rather than one.
 
@@ -115,7 +116,7 @@ only those, are the genuinely ambiguous cases.
 
 ## Open
 
-- The removal that moves a neighbour (the sweep's atom shape).
+- The removal that moves a neighbour (the sweep's atom shape): #206.
 - Whether a heading written as a list item keeps its `#` run (position 4).
 - Whether paste should keep #190 or follow the drop, which is the grammar's question rather than
   either operation's.

@@ -615,7 +615,7 @@ describe('dropSeams', () => {
             // names it. Not for a run carrying an atom: taking one out from
             // between a paragraph and a list lets the list attach to the
             // paragraph, which moves a neighbour the preview does not draw
-            // (docs/research/node-drag-and-drop section 6l).
+            // (#206).
             if (roots.some((root) => isAtom(root))) continue;
             const parentId = candidate.landsUnder ?? candidate.parentId;
             const parent = parentId === 'root' ? null : nodes.find((node) => node.id === parentId)!.lines[0]!;
