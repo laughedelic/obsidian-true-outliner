@@ -278,6 +278,24 @@ describe('node dragging: the press and the drag it can become', function () {
       expect(dropped).not.toContain('[x]');
     });
 
+    it('does not toggle when a cancelled drag is released back over the box', async function () {
+      // The press becomes a drag, Escape cancels it, and the button comes up
+      // over the box it started on — the one release that still produces a
+      // click on it.
+      const box = await markPoint('.task-list-item-checkbox', 0);
+      await syntheticPointer('pointerdown', box, 'mouse');
+      await syntheticPointer('pointermove', { x: box.x + 30, y: box.y + 30 }, 'mouse');
+      await browser.pause(150);
+      await browser.keys(['Escape']);
+      await syntheticPointer('pointerup', box, 'mouse');
+      await browser.executeObsidian((_, x, y) => {
+        const target = document.elementFromPoint(x, y) as HTMLElement;
+        target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: x, clientY: y }));
+      }, Math.round(box.x), Math.round(box.y));
+      await browser.pause(300);
+      expect(await h.getBuffer()).not.toContain('[x]');
+    });
+
     it('still toggles on its own click', async function () {
       const box = await markPoint('.task-list-item-checkbox', 0);
       await h.clickAtPoint(box.x, box.y);

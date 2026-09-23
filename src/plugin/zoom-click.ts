@@ -111,7 +111,9 @@ const MARK_SELECTOR = '.to-decor-marker-icon, .list-bullet, .list-number, .to-de
  * it at all, so the browser never runs the input's activation behaviour and a
  * drag can start there with nothing suppressed. So the press is watched for
  * movement rather than taken, and a press that never moves reaches the
- * checkbox and toggles it exactly as it always has. The zoom half of that
+ * checkbox and toggles it exactly as it always has. Only once it is a drag are
+ * its trailing events taken, so a release back over the box does not toggle
+ * it. The zoom half of that
  * question stays where `outline-zoom` left it: a task is not zoomed by its
  * mark.
  */
@@ -613,6 +615,10 @@ class ZoomClickPlugin implements PluginValue {
     // editor's own element would not hear the Escape that cancels.
     this.view.dom.ownerDocument.addEventListener('keydown', this.onKeyDown, true);
     if (press.touch && this.touchClaim === null) this.touchClaim = 'moves';
+    // A checkbox's press was left to it until now. Once it is a drag, the
+    // click that can still follow — a release back over the box, after a drop
+    // or an Escape — would toggle the task, so its trailing events are ours.
+    this.consuming = true;
     this.pickUp(press);
     // The pick-up may have cancelled the press; only a drag that holds an
     // operand has rows to lift.

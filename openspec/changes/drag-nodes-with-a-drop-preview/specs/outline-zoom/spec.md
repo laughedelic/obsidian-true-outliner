@@ -19,8 +19,8 @@ A TASK list item is the one exception: its mark is Obsidian's own checkbox, whos
 toggles the task, and this gesture SHALL NOT contest that click. A task SHALL remain zoomable by
 the command, the context menu, and a hotkey — the same three entry points every node has — so the
 gap is a missing FOURTH way in for one kind, not a node this feature cannot reach at all. Giving a
-task a click-to-zoom affordance without breaking its checkbox is open, and recorded in
-docs/research/decoration-follow-ups rather than decided here. The task's mark is nevertheless a
+task a click-to-zoom affordance without breaking its checkbox is open, and tracked in #202
+rather than decided here. The task's mark is nevertheless a
 DRAG source, which costs the checkbox nothing: its claim is on the click, not on the press
 (docs/research/node-drag-and-drop).
 
