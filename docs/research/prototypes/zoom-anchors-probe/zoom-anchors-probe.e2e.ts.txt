@@ -1,0 +1,298 @@
+/**
+ * The probe behind docs/research/zoom-scoped-backlinks: what Obsidian's
+ * metadata says a heading or block anchor addresses, and how far behind the
+ * editor it runs.
+ *
+ * To re-run it: copy to `e2e/specs/99-probe-zoom-anchors.e2e.ts` and
+ *   sh e2e/docker/start-xvfb-and-run.sh npm run test:e2e:narrow -- 99-probe-zoom-anchors
+ * It asserts nothing — it prints PROBE_RESULT lines and is kept out of the
+ * suite for that reason.
+ */
+
+import { browser } from '@wdio/globals';
+import { obsidianPage } from 'wdio-obsidian-service';
+import * as h from '../helpers.js';
+
+const TARGET = 'Scratch/Anchor target.md';
+const LINKER = 'Scratch/Anchor linker.md';
+
+const TARGET_TEXT = [
+  '# Top',
+  '',
+  'Some prose. ^p1',
+  '',
+  'Prose on two lines',
+  '^p2',
+  '',
+  'Prose then a blank.',
+  '',
+  '^p3',
+  '',
+  '## Current sprint',
+  '',
+  '- parent ^li1',
+  '  - child ^li2',
+  '    - grandchild',
+  '- first line',
+  '  second line ^li3',
+  '',
+  '### Child: with colon',
+  '',
+  '| a | b |',
+  '| --- | --- |',
+  '| 1 | 2 |',
+  '',
+  '^t1',
+  '',
+  '> quoted',
+  '^q2',
+  '',
+  '> [!note] Title',
+  '> body',
+  '',
+  '^c1',
+  '',
+  '```',
+  'code',
+  '```',
+  '',
+  '^code1',
+  '',
+  '## Head with id ^h1',
+  '',
+  '## Duplicate',
+  '',
+  'first dup body',
+  '',
+  '## Duplicate',
+  '',
+  'second dup body',
+  '',
+  '## Emph *bold* and [[Other]] link',
+  '',
+  '## Case Mixed',
+  '',
+  '- a',
+  '- b',
+  '',
+  '^l1',
+  '',
+].join('\n');
+
+/** Subpaths as a link would carry them, `#` included. */
+const SUBPATHS = [
+  '#^p1',
+  '#^P1',
+  '#^p2',
+  '#^p3',
+  '#^li1',
+  '#^li2',
+  '#^li3',
+  '#^t1',
+  '#^q2',
+  '#^c1',
+  '#^code1',
+  '#^h1',
+  '#^l1',
+  '#^missing',
+  '#Top',
+  '#Current sprint',
+  '#current sprint',
+  '#Top#Current sprint',
+  '#Current sprint#Child: with colon',
+  '#Child: with colon',
+  '#Child with colon',
+  '#Child  with colon',
+  '#Top#Child: with colon',
+  '#Duplicate',
+  '#Emph *bold* and [[Other]] link',
+  '#Emph bold and Other link',
+  '#Case Mixed',
+  '#case mixed',
+  '#Head with id ^h1',
+  '#Head with id',
+  '#Nope',
+];
+
+describe('probe: zoom-scoped anchors', function () {
+  before(async function () {
+    await obsidianPage.resetVault();
+    await h.resetPluginState();
+  });
+
+  it('measures what an anchor addresses', async function () {
+    const linkLines = SUBPATHS.map((s) => `- [[Anchor target${s}]]`);
+    linkLines.push('- [[Anchor target#Current sprint|an alias]]');
+    linkLines.push('- ![[Anchor target#^t1]]');
+    linkLines.push('- ![[Anchor target#Current sprint]]');
+    await h.createNote(LINKER, linkLines.join('\n') + '\n');
+    await h.createNote(TARGET, TARGET_TEXT);
+    await h.waitForMetadataCache();
+
+    const result = await browser.executeObsidian(
+      ({ app, obsidian }, target, linker, subpaths) => {
+        const tf = app.vault.getAbstractFileByPath(target) as never;
+        const lf = app.vault.getAbstractFileByPath(linker) as never;
+        const cache = app.metadataCache.getFileCache(tf)!;
+        const lcache = app.metadataCache.getFileCache(lf)!;
+        const pos = (p: { start: { line: number }; end: { line: number } }) =>
+          `${p.start.line}-${p.end.line}`;
+        const blocks = Object.entries(cache.blocks ?? {}).map(([key, b]) => ({
+          key,
+          id: (b as { id: string }).id,
+          pos: pos((b as { position: never }).position),
+        }));
+        const headings = (cache.headings ?? []).map((x) => ({
+          heading: x.heading,
+          level: x.level,
+          line: x.position.start.line,
+          strip: obsidian.stripHeading(x.heading),
+          stripForLink: obsidian.stripHeadingForLink(x.heading),
+        }));
+        const sections = (cache.sections ?? []).map((s) => `${s.type}@${pos(s.position)}`);
+        const listItems = (cache.listItems ?? []).map(
+          (li) => `${pos(li.position)} parent=${li.parent}${li.id ? ` id=${li.id}` : ''}`,
+        );
+        const resolved = (subpaths as string[]).map((sp) => {
+          const r = obsidian.resolveSubpath(cache, sp) as
+            | null
+            | {
+                type: string;
+                start: { line: number };
+                end: { line: number } | null;
+                current?: { heading?: string; position?: never };
+                next?: { heading?: string } | null;
+                block?: { id: string; position: never };
+                list?: { position: never };
+              };
+          if (!r) return { sp, r: null };
+          return {
+            sp,
+            type: r.type,
+            start: r.start.line,
+            end: r.end ? r.end.line : null,
+            heading: r.current?.heading,
+            next: r.next?.heading ?? null,
+            block: r.block ? `${r.block.id}@${pos(r.block.position)}` : undefined,
+            list: r.list ? pos(r.list.position) : undefined,
+          };
+        });
+        const links = [...(lcache.links ?? []), ...(lcache.embeds ?? [])].map((l) => ({
+          link: l.link,
+          original: l.original,
+          subpath: obsidian.parseLinktext(l.link).subpath,
+        }));
+        return { blocks, headings, sections, listItems, resolved, links };
+      },
+      TARGET,
+      LINKER,
+      SUBPATHS,
+    );
+    console.log('PROBE_RESULT anchors ' + JSON.stringify(result, null, 1));
+  });
+
+  it('measures how far the cache runs behind the editor', async function () {
+    await h.openNote(TARGET);
+    await h.setOutlineMode(true);
+    await h.waitForMetadataCache();
+
+    // Five edits, each appending a fresh id to a line, timed until the cache
+    // reports it. The editor's own change is synchronous; the cache is what lags.
+    const samples = await browser.executeObsidian(async ({ app, obsidian }, target) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const tf = app.vault.getAbstractFileByPath(target) as never;
+      const out: { id: string; ms: number | null; savedMs: number | null }[] = [];
+      for (let i = 0; i < 5; i++) {
+        const id = `fresh${i}${Date.now() % 1000}`;
+        const editor = view.editor;
+        const line = 2; // 'Some prose. ^p1' — append after it on its own line
+        editor.replaceRange(`\n\nNew paragraph ${i}. ^${id}`, { line, ch: editor.getLine(line).length });
+        const started = performance.now();
+        let ms: number | null = null;
+        let savedMs: number | null = null;
+        const before = (await app.vault.cachedRead(tf)).includes(id);
+        while (performance.now() - started < 10_000) {
+          const blocks = app.metadataCache.getFileCache(tf)?.blocks ?? {};
+          if (savedMs === null && (await app.vault.cachedRead(tf)).includes(id)) {
+            savedMs = Math.round(performance.now() - started);
+          }
+          if (id.toLowerCase() in blocks || Object.values(blocks).some((b) => (b as { id: string }).id === id)) {
+            ms = Math.round(performance.now() - started);
+            break;
+          }
+          await new Promise((r) => setTimeout(r, 25));
+        }
+        out.push({ id: `${id}${before ? ' (on disk at once)' : ''}`, ms, savedMs });
+      }
+      return out;
+    }, TARGET);
+    console.log('PROBE_RESULT freshness ' + JSON.stringify(samples));
+  });
+  it('measures more shapes, and a resolver fed a cache of our own', async function () {
+    const TARGET2 = 'Scratch/Anchor target two.md';
+    const text2 = [
+      '| a | b |',
+      '| --- | --- |',
+      '| 1 | 2 |',
+      '^t2',
+      '',
+      '- item a',
+      '',
+      '  ^under-a',
+      '- item b',
+      '  - nested c',
+      '',
+      '^l2',
+      '',
+      '> [!note] Title',
+      '> body line ^cb',
+      '',
+      '> quoted line ^qa',
+      '',
+      '## Closing hashes ##',
+      '',
+      'Setext heading',
+      '---------------',
+      '',
+      '## Trailing spaces   ',
+      '',
+      '## With #tag inside',
+      '',
+    ].join('\n');
+    await h.createNote(TARGET2, text2);
+    await h.waitForMetadataCache();
+    const result = await browser.executeObsidian(({ app, obsidian }, target) => {
+      const tf = app.vault.getAbstractFileByPath(target) as never;
+      const cache = app.metadataCache.getFileCache(tf)!;
+      const pos = (p: { start: { line: number }; end: { line: number } }) => `${p.start.line}-${p.end.line}`;
+      const blocks = Object.entries(cache.blocks ?? {}).map(([k, b]) => `${k}@${pos((b as { position: never }).position)}`);
+      const headings = (cache.headings ?? []).map((x) => `${x.position.start.line}:H${x.level}:${JSON.stringify(x.heading)}`);
+      // A cache of our own: only headings and blocks, positions invented to
+      // tell the two apart. Does the public resolver accept it?
+      const mk = (line: number) => ({ start: { line, col: 0, offset: 0 }, end: { line, col: 0, offset: 0 } });
+      const synthetic = {
+        headings: [
+          { heading: 'Alpha: one', level: 2, position: mk(100) },
+          { heading: 'Beta', level: 3, position: mk(110) },
+          { heading: 'Alpha: one', level: 2, position: mk(120) },
+        ],
+        blocks: { xyz: { id: 'xyz', position: mk(130) } },
+      };
+      const ask = (sp: string) => {
+        try {
+          const r = obsidian.resolveSubpath(synthetic as never, sp) as null | { type: string; start: { line: number } };
+          return r ? `${r.type}@${r.start.line}` : null;
+        } catch (e) {
+          return `threw: ${(e as Error).message}`;
+        }
+      };
+      const synth = ['#Alpha one', '#alpha: one', '#Alpha: one#Beta', '#Beta', '#^xyz', '#^XYZ', '#^nope', '#Gamma'].map((sp) => `${sp} -> ${ask(sp)}`);
+      const real = ['#^t2', '#^under-a', '#^l2', '#^cb', '#^qa', '#Closing hashes', '#Setext heading', '#Trailing spaces', '#With #tag inside', '#With'].map((sp) => {
+        const r = obsidian.resolveSubpath(cache, sp) as null | { type: string; start: { line: number }; end: { line: number } | null };
+        return `${sp} -> ${r ? `${r.type}@${r.start.line}-${r.end ? r.end.line : 'eof'}` : null}`;
+      });
+      return { blocks, headings, synth, real };
+    }, TARGET2);
+    console.log('PROBE_RESULT more ' + JSON.stringify(result, null, 1));
+  });
+});

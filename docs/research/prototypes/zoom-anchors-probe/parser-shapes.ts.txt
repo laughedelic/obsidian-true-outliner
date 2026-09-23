@@ -1,0 +1,45 @@
+/**
+ * The parser half of docs/research/zoom-scoped-backlinks: which node our own
+ * parse puts each block-id shape in, for comparison with what Obsidian's
+ * metadata says the same id names (zoom-anchors-probe.e2e.ts.txt).
+ *
+ * To re-run it from the repository root:
+ *   npx esbuild docs/research/prototypes/zoom-anchors-probe/parser-shapes.ts.txt \
+ *     --loader:.txt=ts --bundle --platform=node --format=esm --outfile=/tmp/parser-shapes.mjs
+ *   node /tmp/parser-shapes.mjs
+ */
+
+import { parse } from '../../../../src/parse';
+import { forEachNodeWithLine } from '../../../../src/locate';
+
+const shapes: Record<string, string> = {
+  'paragraph, id at end': 'Some prose. ^p1\n',
+  'paragraph, id on own line below': 'Some prose.\n^p2\n',
+  'paragraph, id after blank line': 'Some prose.\n\n^p3\n',
+  'list item with children, id at end': '- parent ^li1\n  - child\n',
+  'nested item, id at end': '- parent\n  - child ^li2\n',
+  'multi-line item, id on continuation': '- first line\n  second line ^li3\n',
+  'heading, id at end': '## Head ^h1\n\nbody\n',
+  'table, id on own line': '| a | b |\n| --- | --- |\n| 1 | 2 |\n\n^t1\n',
+  'table, id directly below': '| a | b |\n| --- | --- |\n| 1 | 2 |\n^t2\n',
+  'quote, id on own line': '> quoted\n\n^q1\n',
+  'quote, id directly below': '> quoted\n^q2\n',
+  'callout, id on own line': '> [!note] Title\n> body\n\n^c1\n',
+  'code, id on own line': '```\ncode\n```\n\n^code1\n',
+  'list, id line below list': '- a\n- b\n\n^l1\n',
+  'indented id under an item, after a blank': '- item a\n\n  ^under-a\n- item b\n',
+  'nested list, id line below it': 'Lead.\n- item a\n- item b\n  - nested c\n\n^l2\n',
+  'callout, id at end of a body line': '> [!note] Title\n> body line ^cb\n',
+  'quote, id at end of its line': '> quoted line ^qa\n',
+};
+
+const out: string[] = [];
+for (const [name, md] of Object.entries(shapes)) {
+  const doc = parse(md);
+  const rows: string[] = [];
+  forEachNodeWithLine(doc, (node, line, depth) => {
+    rows.push(`${'  '.repeat(depth)}${node.kind}@${line}: ${JSON.stringify(node.lines)}${node.children.length ? ` (+${node.children.length} children)` : ''}`);
+  });
+  out.push(`## ${name}\n${JSON.stringify(md)}\n${rows.join('\n')}`);
+}
+console.log(out.join('\n\n'));
