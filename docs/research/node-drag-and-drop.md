@@ -514,6 +514,13 @@ and the long press — a caret in an editable region, a menu, the keyboard — i
 WebKit is not measured. A synthesised `TouchEvent` in desktop Chromium reports `defaultPrevented`,
 so the e2e checks which of a touch's events the handler refuses, in the page, on both runs.
 
+The second phone pass, on the build that refuses the touch from its start: holding a mark still
+selected its subtree, which is the dwell's pick-up, and moving the finger then did not drag it. Not
+diagnosed. The pass also found the gesture unfit for a phone on its own terms: at the phone's
+default unit the marks, fold controls and guides are too close together to land a finger on the
+one meant, and the finger covers the seam and column it aims at. Touch dragging is off by default
+since (design D12).
+
 ## 7. Where a drop can land: the seam and its depths
 
 Not a measurement — the model the sections above leave to be chosen, recorded here so the design
@@ -626,12 +633,11 @@ by predicting which operands absorb.
 
 - **Zoom on a task's mark.** Section 4 frees the checkbox's press for a drag, not its click. The
   affordance-budget entry's task question is untouched.
-- **The mobile gesture's hit-testing.** The dwell is built (design D12): a touch that rests on a
-  mark for 350ms, wandering less than 10px, is a drag, and one that moves first is let go and does
-  nothing; the touch is refused to the platform from its start (section 6k). The e2e drives both
-  with events synthesised in the page, on desktop and mobile alike, which proves the handler's
-  reading of a touch and nothing about whether a finger reaches a mark or what the platform's long
-  press does — section 2's harness note still holds, and that half is the device pass.
+- **Dragging on touch.** Built and shelved (design D12): off by default, and on a phone the pass
+  in section 6k found it unusable as a gesture rather than only broken. What a finger can pick up
+  and aim at is a question for a touch interface of its own; the code that stays behind the flag
+  is the dwell, the slop and the refusal of the touch's own events, which the e2e covers in the
+  page, and a tablet is where it would be judged next.
 - ~~**The cost of a preview per pointer move.**~~ Measured in section 6f: 0.4ms over the page's own
   cost of a move once the seams and the unit are read per press rather than per move, and a
   dispatch only when the destination changes.

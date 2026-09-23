@@ -36,14 +36,26 @@ the task, which a drag never produces — so this gesture reaches every node kin
 kind whose mark cannot carry the zoom.
 
 The gesture SHALL be expressed over POINTER input, so that mouse, pen and touch reach it by one
-path. On touch, a press SHALL become a drag only after a stated dwell, since without one a drag
-and a scroll are the same gesture, and a finger that wanders less than a stated slop while it rests
-SHALL still be resting.
+path.
 
-A touch that lands on a mark SHALL be the gesture's alone, from its start to its lift: the platform
-SHALL NOT act on it — no caret, no keyboard, no long-press menu, no scroll — so that a held finger
-drags without the editor changing mode under it. A task's checkbox keeps its tap, so its touch SHALL
-become the gesture's only once the dwell has made it a drag.
+A touch SHALL NOT pick a node up unless touch dragging is turned on, which it is not by default and
+which the settings tab does not offer: on a phone the marks sit too close together to land a finger
+on one, and the finger hides the place it aims at. With it off, a touch on a mark is the zoom it
+was and nothing else, and a touch that moves from it is the platform's scroll. The rest of this
+paragraph and the touch scenarios below hold where it is on.
+
+On touch, a press SHALL become a drag only after a stated dwell, since without one a drag and a
+scroll are the same gesture, and a finger that wanders less than a stated slop while it rests SHALL
+still be resting. A touch that lands on a mark SHALL be the gesture's alone, from its start to its
+lift: the platform SHALL NOT act on it — no caret, no keyboard, no long-press menu, no scroll — so
+that a held finger drags without the editor changing mode under it. A task's checkbox keeps its
+tap, so its touch SHALL become the gesture's only once the dwell has made it a drag.
+
+#### Scenario: A touch picks nothing up while touch dragging is off
+- **WHEN** touch dragging has not been turned on, and a touch rests on a bullet past the dwell and
+  lifts
+- **THEN** nothing is picked up, the view zooms to that item, and the platform was refused none of
+  the touch
 
 #### Scenario: A press that moves picks up the node
 - **WHEN** the user presses a list item's bullet and moves the pointer past the threshold

@@ -255,7 +255,10 @@ class ZoomClickPlugin implements PluginValue {
    * decided. */
   private press: MarkPress | null = null;
 
-  constructor(private readonly view: EditorView) {
+  constructor(
+    private readonly view: EditorView,
+    private readonly touchDragging: () => boolean,
+  ) {
     this.Element = view.dom.ownerDocument.defaultView?.Element ?? Element;
     // No realm check needed on `event` itself: a listener registered for
     // `'pointerdown'` is only ever invoked with a `PointerEvent`, whichever
@@ -1055,6 +1058,9 @@ class ZoomClickPlugin implements PluginValue {
    * costs the toggle nothing.
    */
   private watchTaskPress(event: PointerEvent, checkbox: HTMLElement): boolean {
+    // A checkbox's press is watched only to become a drag, which a touch
+    // cannot while touch dragging is off.
+    if (event.pointerType === 'touch' && !this.touchDragging()) return false;
     if (checkbox.closest(`.${OWN_CHROME_CLASS}`)) return false;
     if (isNestedEditor(this.view)) return false;
     if (!isOutlineMode(this.view.state)) return false;
@@ -1144,7 +1150,10 @@ class ZoomClickPlugin implements PluginValue {
     event.preventDefault();
     event.stopPropagation();
     this.consuming = true;
-    if (event.pointerType === 'touch') this.touchClaim = 'whole';
+    // Only a touch that can become a drag is kept from the platform. With
+    // touch dragging off, a touch on a mark is the zoom it was, and one that
+    // moves from it is the platform's scroll.
+    if (event.pointerType === 'touch' && this.touchDragging()) this.touchClaim = 'whole';
     // Claimed on arrival, before its meaning is known: nothing else acts on it
     // while it is undecided. A press that moves past the threshold is a drag;
     // one that does not is the zoom it has always been.
@@ -1172,7 +1181,7 @@ class ZoomClickPlugin implements PluginValue {
    * this: its drag begins on movement, as `trackPress` says.
    */
   private armDwell(press: MarkPress): void {
-    if (!press.touch) return;
+    if (!press.touch || !this.touchDragging()) return;
     press.dwell = window.setTimeout(() => {
       press.dwell = undefined;
       if (this.press !== press || press.dragging) return;
@@ -1303,6 +1312,8 @@ function foldedIds(view: EditorView, tree: OutlineDoc): Set<number> {
   return ids;
 }
 
-export function zoomClickExtension(): Extension {
-  return ViewPlugin.define((view) => new ZoomClickPlugin(view));
+/** `touchDragging` is read at each press, so a change to it holds from the
+ * next one. */
+export function zoomClickExtension(touchDragging: () => boolean): Extension {
+  return ViewPlugin.define((view) => new ZoomClickPlugin(view, touchDragging));
 }

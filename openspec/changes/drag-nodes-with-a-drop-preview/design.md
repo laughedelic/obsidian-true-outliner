@@ -416,6 +416,18 @@ checkbox's touch is refused only from the dwell, so its tap still toggles. A res
 more than the mouse's 4px threshold, so the rest has its own 10px slop, and the dwell ends in a
 short vibration where the platform offers one.
 
+Shelved on touch after the second phone pass. The hold took — the subtree's selection appeared —
+and no drag followed it; that was not diagnosed. The pass also found what a diagnosis would not
+fix: at the phone's default unit the marks, the fold controls and the guides sit too close together
+to land a finger on the one meant, and the finger covers the seam and the column it aims at, so the
+indicator that says where the run will land is the one thing the reader cannot see. A touch
+interface would be a different gesture — a mode that picks up, steps the aim and drops, or the
+structural commands on buttons — rather than this one on a finger. Touch dragging is a setting,
+`touchDragging`, off by default and absent from the settings tab: with it off, a touch press on a
+mark takes no dwell and keeps nothing from the platform, so a tap zooms and a swipe from the mark
+scrolls. The code stays, and the e2e turns the setting on to keep covering it; a tablet pass is
+the reason to turn it on.
+
 ### D13. Autoscroll is the scroller's, driven by the pointer's distance past its edge
 
 While the pointer is held within a band of the scroller's top or bottom edge, the scroller scrolls,

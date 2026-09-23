@@ -206,6 +206,10 @@
       touch's own events are refused in the page on both runs, a checkbox's tap is not, and a
       rest that wanders inside the slop is still a rest; negative control: the handler as it was
       refuses none of them, and the mouse threshold ends the wandering rest before the dwell
+- [x] 5.5 Put touch dragging behind `touchDragging`, off by default and without a row in the tab
+      (design D12) — verify a touch at rest on a mark picks nothing up, keeps nothing from the
+      platform and zooms on its lift while it is off, and that the touch cases pass with it on;
+      negative control: the handler without the setting lifts the run at the dwell
 
 ## 6. End-to-end coverage
 
@@ -256,8 +260,10 @@
 - [x] 7.1 Real-vault pass on desktop: drag across long distances with autoscroll, into and out of
       folded subtrees, across encoding regimes, and with several roots — record what the preview
       said against what landed
-- [ ] 7.2 Real-device pass on a phone via the beta build: the long press, the drag, the preview at
-      the mobile unit, and the cancel — record it, since the harness cannot drive it
+- [x] 7.2 Real-device pass on a phone via the beta build: the long press, the drag, the preview at
+      the mobile unit, and the cancel — record it, since the harness cannot drive it. (Recorded
+      in docs/research/node-drag-and-drop section 6k: the drag did not follow the hold, and the
+      gesture does not suit a phone; shelved on touch per 5.5.)
 - [ ] 7.3 Fold the pass's findings into docs/research/node-drag-and-drop's open-questions section.
       The affordance-budget entry in docs/research/decoration-follow-ups is settled in half by this
       change — the handle question is answered, the task's ZOOM is not — and the parking lots are

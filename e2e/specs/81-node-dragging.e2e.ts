@@ -32,6 +32,7 @@ import {
   scrollerBox,
   syntheticPointer,
   syntheticTouch,
+  setTouchDragging,
   editorBox,
   markPoint,
   pointOf,
@@ -1623,12 +1624,37 @@ describe('node dragging: a touch press', () => {
   // handler's reading of a touch — the dwell, the slop, and which of the
   // touch's own events it refuses the platform — and not the platform's
   // hit-testing or its gestures, which stay with the device pass.
+  //
+  // Touch dragging is off unless turned on, so each case here turns it on,
+  // but the first.
   before(async function () {
     await openDraggable();
   });
 
   beforeEach(async function () {
     await openDraggable();
+    await setTouchDragging(true);
+  });
+
+  after(async function () {
+    await setTouchDragging(false);
+  });
+
+  it('picks nothing up on touch while touch dragging is off, and a rest still zooms', async function () {
+    await setTouchDragging(false);
+    await h.setCursorSettled(0, 0);
+    const mark = await markPoint(BULLET, 0);
+    await syntheticPointer('pointerdown', mark, 'touch');
+    // Nothing of the touch is kept from the platform, so a swipe from the
+    // mark scrolls as it did before dragging existed.
+    expect(await syntheticTouch('touchstart', mark)).toBe(false);
+    await browser.pause(600);
+    expect(await dragTraces()).toEqual({ lifted: 0, ghosts: 0, indicators: 0, preview: false });
+    await syntheticPointer('pointerup', mark, 'touch');
+    expect(await syntheticTouch('touchend', mark)).toBe(false);
+    await browser.pause(300);
+    expect(await zoomed()).toBe(true);
+    expect(await h.getBuffer()).toBe(DOC);
   });
 
   it('becomes a drag by resting on the mark, and drops where the touch is lifted', async function () {

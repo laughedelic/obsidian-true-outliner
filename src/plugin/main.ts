@@ -453,7 +453,7 @@ export default class TrueOutlinerPlugin extends Plugin {
     // the established layers attributable to them.
     this.registerEditorExtension(zoomDecorationsExtension());
     this.registerEditorExtension(zoomTrailExtension(this));
-    this.registerEditorExtension(zoomClickExtension());
+    this.registerEditorExtension(zoomClickExtension(() => this.data.touchDragging));
     this.registerEditorExtension(zoomViewExtension());
     // A footer's unfolded state belongs to the reading, not to the note: when
     // its tab closes, the state goes with it. `layout-change` is the event that

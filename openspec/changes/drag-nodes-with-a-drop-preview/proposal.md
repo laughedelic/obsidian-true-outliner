@@ -51,7 +51,9 @@ has to be undone.
 - **The picked-up run renders as lifted** while the drag is in flight, and the document does not
   move until the release. Escape, or a release outside any legal destination, cancels with nothing
   written.
-- **A touch drag starts on a long press**, which is what separates it from a scroll.
+- **A touch drag starts on a long press**, which is what separates it from a scroll — built, and
+  then shelved behind a flag that is off by default: the phone pass found the marks too close
+  together to land a finger on and the aim hidden under the finger (design D12).
 - The drag is confined to the zoom scope and declines inside nested editors, on the same terms
   every other gesture in this plugin does.
 

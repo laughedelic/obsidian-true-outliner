@@ -488,6 +488,18 @@ export function syntheticPointer(
 }
 
 /**
+ * Turns touch dragging on or off for the running plugin. It has no row in the
+ * settings tab, so it is written where the press reads it, and holds from the
+ * next press.
+ */
+export function setTouchDragging(on: boolean): Promise<void> {
+  return browser.executeObsidian(({ plugins }, on) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+    (plugins.trueOutliner as any).data.touchDragging = on;
+  }, on);
+}
+
+/**
  * A touch's own event at a point, dispatched in the page the way
  * `syntheticPointer` dispatches the pointer events it follows, and whether the
  * editor refused its default — the platform's tap, long press or pan.
