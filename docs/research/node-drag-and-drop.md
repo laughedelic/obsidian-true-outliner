@@ -632,12 +632,14 @@ by predicting which operands absorb.
 ## 8. What stays open
 
 - **Zoom on a task's mark.** Section 4 frees the checkbox's press for a drag, not its click. The
-  affordance-budget entry's task question is untouched.
+  affordance-budget entry's task question is untouched, and moved out to
+  [#202](https://github.com/laughedelic/obsidian-true-outliner/issues/202).
 - **Dragging on touch.** Built and shelved (design D12): off by default, and on a phone the pass
   in section 6k found it unusable as a gesture rather than only broken. What a finger can pick up
   and aim at is a question for a touch interface of its own; the code that stays behind the flag
   is the dwell, the slop and the refusal of the touch's own events, which the e2e covers in the
-  page, and a tablet is where it would be judged next.
+  page, and a tablet is where it would be judged next. Tracked in
+  [#201](https://github.com/laughedelic/obsidian-true-outliner/issues/201).
 - ~~**The cost of a preview per pointer move.**~~ Measured in section 6f: 0.4ms over the page's own
   cost of a move once the seams and the unit are read per press rather than per move, and a
   dispatch only when the destination changes.

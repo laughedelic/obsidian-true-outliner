@@ -947,67 +947,15 @@ first.
 
 ### The affordance budget: four gestures, one 14px gutter, and a task with no mark to spare
 
-Raised from real use once click-to-zoom shipped (`outline-zoom` D15), and open. Nothing is
-settled here; this records the constraint, what other outliners do about it, and the options,
-so the next person does not start from the beginning.
-
-**The constraint.** A node's row offers one marker gutter — 14px — and the gestures that want it
-keep arriving: zoom into the node, fold its subtree, drag it somewhere else, open a menu about it.
-Two of the four already fit, because they are two adjacent targets: the native fold chevron paints
-its ink 3px clear of the marker column (measured), and the mark itself takes the click. The other
-two have nowhere to go.
-
-And one node kind has already run out. A TASK's mark is Obsidian's checkbox, whose click is
-already spoken for by toggling the task — so a task is the one node that cannot be zoomed with the
-pointer at all. Today it is reachable by the command, the context menu, and a hotkey, which is a
-keyboard answer to a mouse question.
-
-**What other outliners do.** Every one of them puts zoom on the bullet and fold on a separate
-chevron beside it, and every one of them then runs out of room the same way:
-
-| | zoom | fold | drag | more |
-| --- | --- | --- | --- | --- |
-| Workflowy | click the bullet | chevron, revealed left of the bullet on hover | drag the bullet | `⋯` on hover |
-| Logseq | click the bullet | arrow left of the bullet; a folded bullet keeps a halo | drag the bullet | right-click the bullet |
-| Roam | click the bullet | arrow left of the bullet | drag the bullet | shift-click opens the sidebar |
-| Dynalist | click the bullet | arrow left of the bullet | drag the bullet | `⋯` on hover |
-| Notion | (no zoom; "open as page") | chevron on toggle blocks | drag the `⠿` handle | click the same handle |
-| Craft | via the row menu | chevron | drag the handle | click the handle |
-
-Two observations worth carrying. First, the bullet doing double duty as zoom target AND drag
-handle is universal — nobody splits those. Second, none of them has our problem, because in all of
-them a task's checkbox is inline CONTENT and the bullet still sits outside it. Obsidian instead
-replaces the marker with the checkbox, which is what closes the door here.
-
-**Options, none costed yet.**
-
-- *A hover-revealed node handle.* One small target per row, appearing on hover in the gutter, that
-  carries every node-level gesture: click to zoom, drag to move, right-click for a menu. This is
-  Notion's and Craft's answer, and it is the only option that solves the task case rather than
-  working around it, since it does not depend on which element a node's mark happens to be. It
-  costs a gutter column and a hover state on every row, and it is a second thing in the space the
-  fold chevron already appears in.
-- *A modifier on the checkbox.* Alt-click a task's checkbox to zoom. Cheap, and undiscoverable —
-  Roam's shift-click-for-sidebar is the precedent, and it is a power-user affordance in an app
-  whose ordinary one is already the bullet.
-- *The guide as a target,* which is where this question came from. A guide is a `pointer-events:
-  none` pseudo-element with no hit area, so this needs a real element invented before it can be
-  judged at all (see the marker/guide entry above). It also cannot be the ONLY route: guides are
-  optional, and an affordance that disappears with a display setting is not one.
-- *The hanging-indent strip.* The dead space between a list item's marker and its text is real
-  estate nothing uses. It is narrow, it varies with the marker's width, and clicking near text to
-  zoom rather than to place a caret is the opposite of what every other click there does.
-- *Our own mark beside the checkbox.* Restore the plugin's marker for task lines specifically, in
-  the gutter, with the checkbox left as content. Consistent with every other kind, and it puts a
-  third element into the same 14px the chevron is already borrowing.
-- *Leave it.* A task is zoomable by command, hotkey and context menu today. The gap is real but it
-  is one kind, and the keyboard answer is not nothing.
-
-**The question to answer first** is not which option but whether the gutter is the right place at
-all. Every option above except the handle is an attempt to fit a fourth gesture into a column that
-already holds two; the handle asks instead whether node-level gestures belong in their own space,
-outside the notation. That is a bigger change than any of the others and probably the one worth
-measuring.
+**Extracted to [#202](https://github.com/laughedelic/obsidian-true-outliner/issues/202).** A
+node's row offers one 14px marker gutter to four node-level gestures: zoom, fold, drag and a menu.
+Zoom and fold fit as two adjacent targets, since the native fold chevron paints its ink 3px clear
+of the marker column (measured). `drag-nodes-with-a-drop-preview` put the drag on the mark, and
+ruled out a handle of its own on the 0.83px of gutter left unclaimed
+([node-drag-and-drop.md](node-drag-and-drop.md) section 1). What was left is a task, whose mark is
+Obsidian's checkbox and so cannot take the zoom click; the comparison with other outliners, the
+options and what closing it involves are in the issue. Whether node-level gestures belong in the
+gutter at all is a Discussions question (#157).
 
 ### Outline decorations in reading mode
 

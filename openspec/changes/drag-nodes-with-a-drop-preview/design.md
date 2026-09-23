@@ -426,7 +426,7 @@ structural commands on buttons — rather than this one on a finger. Touch dragg
 `touchDragging`, off by default and absent from the settings tab: with it off, a touch press on a
 mark takes no dwell and keeps nothing from the platform, so a tap zooms and a swipe from the mark
 scrolls. The code stays, and the e2e turns the setting on to keep covering it; a tablet pass is
-the reason to turn it on.
+the reason to turn it on. A touch interface for moving nodes is #201.
 
 ### D13. Autoscroll is the scroller's, driven by the pointer's distance past its edge
 

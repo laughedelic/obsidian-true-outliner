@@ -264,12 +264,13 @@
       the mobile unit, and the cancel — record it, since the harness cannot drive it. (Recorded
       in docs/research/node-drag-and-drop section 6k: the drag did not follow the hold, and the
       gesture does not suit a phone; shelved on touch per 5.5.)
-- [ ] 7.3 Fold the pass's findings into docs/research/node-drag-and-drop's open-questions section.
+- [x] 7.3 Fold the pass's findings into docs/research/node-drag-and-drop's open-questions section.
       The affordance-budget entry in docs/research/decoration-follow-ups is settled in half by this
       change — the handle question is answered, the task's ZOOM is not — and the parking lots are
       closed to new entries, so that residue MOVES OUT to an issue as this change touches it,
       with the user's go-ahead, rather than being edited in place. Its measurements stay in the
-      note; the issue carries the diagnosis and what closing it would involve
+      note; the issue carries the diagnosis and what closing it would involve. (Findings in
+      sections 6d–6k and 8; the task's zoom moved out to #202, and moving nodes on touch to #201.)
 
 ## 8. Land
 
