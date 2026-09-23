@@ -150,3 +150,37 @@ describe('normalizeMarkerRun', () => {
     expect(normalizeMarkerRun('-  [ ]  bar')).toBe('- [ ]  bar');
   });
 });
+
+describe('reencodeForDestination changes characters, never columns (#154)', () => {
+  // Every line below the first lands where a shift of the whole subtree by the
+  // width delta puts it, and a line that does not open with the node's own
+  // indentation is written exactly as that shift writes it.
+  const firsts = ['- a', '-  a', '-\ta', '1. a', '\t- a', '  - a', '    -\ta', ' \t- a'];
+  const belows = ['  b', '   b', '\tb', '  \tb', '\t  b', '    b', '\t\tb', ' \t  b', ''];
+  const targets = ['', '\t', '  ', '    ', '\t\t', '\t  ', '   '];
+
+  it.each(targets)('into %j', (indentText) => {
+    for (const first of firsts) {
+      for (const below of belows) {
+        const md = `${first}\n${below}\n`;
+        const node = parse(md).children[0]!;
+        const out = reencodeForDestination(node, undefined, indentText);
+        const normalized = normalizeMarkerRun(first);
+        const shift =
+          indentWidth(indentText) - indentWidth(first) + markerWidth({ ...node, lines: [normalized] }) - markerWidth(node);
+        const expected = shiftSubtree(node, shift);
+        const pairs = [...walkNodes({ children: [out] } as never)].flatMap((n: OutlineNode) => n.lines.slice(1));
+        const wants = [...walkNodes({ children: [expected] } as never)].flatMap((n: OutlineNode) => n.lines.slice(1));
+        const prefix = /^[ \t]*/.exec(first)![0];
+        pairs.forEach((line, i) => {
+          const want = wants[i]!;
+          expect(indentWidth(line), JSON.stringify({ first, below, indentText })).toBe(indentWidth(want));
+          expect(line.trimStart()).toBe(want.trimStart());
+          if (!/^[ \t]*/.exec(below)![0].startsWith(prefix) || below === '') {
+            expect(line, JSON.stringify({ first, below, indentText })).toBe(want);
+          }
+        });
+      }
+    }
+  });
+});

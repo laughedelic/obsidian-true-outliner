@@ -41,9 +41,15 @@ and puts a space in front of a tab. `shiftLine`'s own comments give the reason n
 in front of a tab vanishes into the stop the moment the prefix narrows. The swap is refused
 there unless the line already had one, and `shiftLine` writes `\t    bar`.
 
-### D4. Normalization first, then the swap
+### D4. The swap first, then the marker's change
 
 A list item's marker run is normalized with the line it sits on, which moves its content column
-and so its continuation lines and children. That move is a width change inside the node and is
-applied with `shiftBelowMarker` before the prefix swap, so the swap sees lines already at their
-new relative column and the prefix the node started with.
+and so its continuation lines and children, by the change in the marker's width. A swapped line
+takes that change after the swap, as a dedent of the swapped line, which keeps the destination's
+prefix because the line sits at or past the node's content column. A line that is not swapped
+takes the width delta and the marker's change as ONE shift, which is `main`'s own output for it.
+
+Applying the marker's change first, as a separate pass, was the first reading and the review
+round's finding against it: a dedent run on its own breaks a tab it cannot keep into spaces, and
+the fallback then adds its own spaces on top — a whole tab stop spelled in spaces on a line
+`main` had written with tabs, the shape the change exists to remove.

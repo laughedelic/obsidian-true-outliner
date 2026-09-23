@@ -125,6 +125,8 @@ export function shiftBelowMarker(node: OutlineNode, delta: number): OutlineNode 
   };
 }
 
+const TAB_AFTER_SPACE = / \t/;
+
 /**
  * Move a line whose indentation OPENS with the node's own first-line
  * indentation by swapping that prefix for the destination's, so the node's
@@ -132,6 +134,11 @@ export function shiftBelowMarker(node: OutlineNode, delta: number): OutlineNode 
  * cannot say which characters to write: `shiftLine` makes up an indent in
  * spaces, and a node indented with a tab came out with a tab on its first line
  * and spaces on every line below it.
+ *
+ * `columnDelta` is the node's own content column moving — a marker run
+ * normalized on the way — and is applied after the swap, so a swapped line
+ * keeps the destination's prefix and a line that is not swapped takes the one
+ * combined shift it always has.
  *
  * The swap is taken only where it lands on the column the delta asks for. A
  * tab AFTER the prefix re-expands from wherever the new prefix ends, so a swap
@@ -146,6 +153,7 @@ function reprefixLine(
   from: string,
   to: string,
   delta: number,
+  columnDelta: number,
   keepBlank: boolean,
 ): string {
   if (keepBlank && line.trim() === '') return line;
@@ -153,19 +161,25 @@ function reprefixLine(
   if (ws.startsWith(from)) {
     const swapped = to + line.slice(from.length);
     const lands = indentWidth(swapped) === Math.max(0, indentWidth(line) + delta);
-    const tabAfterSpace = / \t/;
-    if (lands && (tabAfterSpace.test(ws) || !tabAfterSpace.test(leadingWhitespace(swapped)))) {
-      return swapped;
+    if (lands && (TAB_AFTER_SPACE.test(ws) || !TAB_AFTER_SPACE.test(leadingWhitespace(swapped)))) {
+      return shiftLine(swapped, columnDelta, keepBlank);
     }
   }
-  return shiftLine(line, delta, keepBlank);
+  return shiftLine(line, delta + columnDelta, keepBlank);
 }
 
-function reprefixSubtree(node: OutlineNode, from: string, to: string, delta: number): OutlineNode {
+function reprefixSubtree(
+  node: OutlineNode,
+  from: string,
+  to: string,
+  delta: number,
+  columnDelta: number,
+): OutlineNode {
+  if (from === to && delta === 0 && columnDelta === 0) return node;
   return {
     ...node,
-    lines: node.lines.map((line) => reprefixLine(line, from, to, delta, isAtom(node))),
-    children: node.children.map((child) => reprefixSubtree(child, from, to, delta)),
+    lines: node.lines.map((line) => reprefixLine(line, from, to, delta, columnDelta, isAtom(node))),
+    children: node.children.map((child) => reprefixSubtree(child, from, to, delta, columnDelta)),
   };
 }
 
@@ -207,8 +221,7 @@ export function reencodeForDestination(
     // under it at the same relative depth.
     const normalized = node.kind === 'list-item' ? normalizeMarkerRun(first) : first;
     const columnDelta = normalized === first ? 0 : markerWidthOf(normalized) - markerWidthOf(first);
-    const retargeted = shiftBelowMarker({ ...node, lines: [normalized, ...node.lines.slice(1)] }, columnDelta);
-    const shifted = reprefixSubtree(retargeted, leadingWhitespace(first), indentText, delta);
+    const shifted = reprefixSubtree(node, leadingWhitespace(first), indentText, delta, columnDelta);
     return {
       ...shifted,
       lines: [

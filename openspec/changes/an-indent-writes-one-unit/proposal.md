@@ -36,7 +36,8 @@ below cannot apply, and a 690-row differential against `main`.
   Everywhere else, `shiftLine` answers exactly as it does on `main`, so no line moves to a
   different column than it did.
 - The marker-run normalization (`-  a` to `- a`) still moves the continuation lines and children
-  by the marker's width change first, and the prefix swap runs on the result.
+  by the marker's width change: after the swap on a swapped line, and together with the width
+  delta, as one shift, on any other.
 
 ## Non-Goals
 

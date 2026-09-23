@@ -39,6 +39,13 @@ shifted by the width delta instead.
 - **THEN** the continuation line is written `\t  bar`, at the column the width delta asks for,
   rather than `  \tbar`, whose tab re-expands two columns short
 
+#### Scenario: A normalized marker run keeps the tabs of a line the swap does not reach
+- **WHEN** `    -\tfoo` with a child `\t\t- kid` is indented with a tab as the destination's
+  indentation
+- **THEN** the child is written `\t\t  - kid`, the combined shift of the width delta and the
+  marker's change, and no line gains a tab stop's worth of spaces
+
 #### Scenario: An outdent restores the node
-- **WHEN** a node indented with a tab is outdented back to the column it came from
+- **WHEN** a node whose marker run is already one space wide, indented with a tab, is outdented
+  back to the column it came from
 - **THEN** every line it owns is restored byte-identically

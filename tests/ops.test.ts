@@ -447,6 +447,23 @@ describe('an indent writes its unit on every line the node owns (#154)', () => {
     expect(indentWidth('\t  bar')).toBe(indentWidth('\tbar') + 2);
   });
 
+  it('a normalized marker run over a line without the node’s prefix keeps the tabs it had', () => {
+    // `-\t` normalizes to `- `, moving the content column two to the left.
+    // `\t\t- kid` does not open with `    `, so it takes the one combined shift.
+    const text = indentWith('- a\n\t- s\n\t\t- t\n    -\tfoo\n\t\t- kid\n', '    -\tfoo', '\t');
+    expect(text).toBe('- a\n\t- s\n\t\t- t\n\t\t- foo\n\t\t  - kid\n');
+  });
+
+  it('a normalized marker run under a tab unit still writes the tab on the node’s lines', () => {
+    const text = indentWith('- top\n\t- sib\n-  foo\n   bar\n   - kid\n', '-  foo', '  ');
+    expect(text).toBe('- top\n\t- sib\n\t- foo\n\t  bar\n\t  - kid\n');
+  });
+
+  it('a fenced block under the node takes the unit on every line, its content untouched past it', () => {
+    const text = indentWith('- top\n- foo\n  ```\n  code\n\n    more\n  ```\n', '- foo', '\t');
+    expect(text).toBe('- top\n\t- foo\n\t  ```\n\t  code\n\n\t    more\n\t  ```\n');
+  });
+
   it('an outdent back out restores the original lines', () => {
     const indented = indentWith('- top\n- foo\n  bar\n', '- foo', '\t');
     const { text } = applyOk(outdent, indented, '\t- foo');

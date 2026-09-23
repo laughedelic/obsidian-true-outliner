@@ -51,6 +51,14 @@ every other line:
 The width check is what keeps the change a characters-only change: a line either lands on the
 column `shiftLine` would have put it at, or `shiftLine` puts it there.
 
+A list item whose marker run is normalized on the way (`-  a` or `-\ta` to `- a`) moves its own
+content column as well, by the change in the marker's width. That shift is applied AFTER the
+swap, to the swapped line, and a line that is not swapped takes the width delta and the marker's
+change as one shift, exactly as `main` gives it. Applying the marker's change first, as a
+separate dedent, breaks a tab the dedent cannot keep into spaces before the fallback ever sees
+the line: `\t\t- kid` under `    -\tfoo`, indented with a tab, came out `\t      - kid` where
+`main` writes `\t\t  - kid`.
+
 ## Measured
 
 A differential over `indent` and `outdent` on every node of thirteen targeted shapes and the
@@ -66,12 +74,20 @@ of them rejections on both sides. The probe is
 | …of which `main` wrote a tab stop's worth of spaces after a tab on a line it moved | 21 |
 | a space in front of a tab, anywhere in the result | 0 on `main`, 0 here |
 
-Every changed row is an indent; no outdent changes. The corpus's own tab-indented list
+Every changed row in this sweep is an indent. An outdent can change text too — through the
+siblings it re-parents under the node, or a marker run it normalizes — and the review round's randomized sweep over
+6 000 generated documents found such rows, each at the same column as on `main`. The corpus's own tab-indented list
 (`02-deep-lists.md`) is where most of them are: indenting `- Archive` under `- 2. second`
 wrote `\t    - old stuff` on `main` and writes `\t\t- old stuff` here. Three changed rows still
 carry four spaces after a tab on a moved line, all the same shape: a continuation line the source
 wrote four columns past its own item (`  - kid` / `    more`), whose relative indent the swap
 carries over verbatim.
+
+`tests/reencode.test.ts` states the invariant directly, over every pairing of eight first-line
+shapes, nine continuation shapes and seven destination strings: each line below the first lands
+on the column a shift of the whole node by the combined delta gives it, with the same text past
+its indentation, and a line that does not open with the node's own indentation is written
+character for character as that shift writes it.
 
 `commonmark` 0.31.2 renders `main`'s encoding and this one identically for the issue's frame,
 for a node with children and a continuation, for a fenced block in a list item, and for a quote
