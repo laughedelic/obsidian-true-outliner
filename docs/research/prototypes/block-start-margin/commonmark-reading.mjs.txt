@@ -1,0 +1,20 @@
+import cases from './cases.mjs';  // cases.mjs.txt, renamed
+import { createRequire } from 'module';
+const require = createRequire(process.cwd() + '/');
+const { Parser } = require('commonmark');
+const p = new Parser();
+const TYPES = { block_quote: 'quote', thematic_break: 'hr', html_block: 'html', code_block: 'code', paragraph: 'paragraph', list: 'list-item', item: 'list-item', heading: 'heading' };
+const out = cases.map((c) => {
+  const doc = p.parse(c.md);
+  // the probed line is the last source line; find the innermost block starting on it
+  const lastLine = c.md.split('\n').length - 1;
+  const w = doc.walker(); let ev, found = null, foundReal = false;
+  while ((ev = w.next())) { const n = ev.node; if (ev.entering && TYPES[n.type] && n.sourcepos && n.sourcepos[0][0] === lastLine && n.type !== 'document') { const k = TYPES[n.type]; if (k === 'list-item') { found ??= n; } else if (!found || TYPES[found.type] === 'list-item') { if (!found || !foundReal) { found = n; foundReal = true; } } } }
+  let kind = found ? TYPES[found.type] ?? found.type : 'continuation';
+  if (kind === 'quote' && c.kind === 'callout') kind = 'callout';
+  if (kind === 'list-item' && c.kind.startsWith('hr')) {
+    // `- - -` as an item: find innermost
+  }
+  return { ...c, commonmark: kind };
+});
+console.log(JSON.stringify(out));

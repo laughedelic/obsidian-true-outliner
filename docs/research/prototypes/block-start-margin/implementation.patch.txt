@@ -1,0 +1,287 @@
+diff --git a/src/ops.ts b/src/ops.ts
+index d3fee13..a882140 100644
+--- a/src/ops.ts
++++ b/src/ops.ts
+@@ -26,7 +26,7 @@ import { forEachNodeWithLine, nodeAtLine, nodeStartLine } from './locate';
+ import { subtreeCoverOf, type Cover } from './escalate';
+ import { posBefore, type LinePos } from './line-pos';
+ import { encode, encodeLines } from './encode';
+-import { parse, indentWidth, kindAsWritten, tailAsWritten } from './parse';
++import { parse, indentWidth, kindAsWritten, parseListMarker, tailAsWritten } from './parse';
+ import type { Edit, OpResult } from './result';
+ import { accept, diffLines, reject } from './result';
+ import {
+@@ -381,15 +381,15 @@ function scopeSeparation(
+  * `kindAsWritten` closes that gap: the separator is chosen for the node the
+  * document will actually contain.
+  */
+-function needsBlankBetween(prev: OutlineNode, next: OutlineNode): boolean {
+-  const final = subtreeFinalNode(prev);
++function needsBlankBetween(prev: OutlineNode, next: OutlineNode, margin: number): boolean {
++  const { node: final, margin: finalMargin } = subtreeFinalWithMargin(prev, margin);
+   if (final.trailingGap.length > 0) return false;
+   // Above the seam, the block the leaf's last line lands in; below it, the
+   // block the next node's first line opens. For a demoted `html` block those
+   // are different blocks of the same node.
+-  const leaf = tailAsWritten(final);
++  const leaf = tailAsWritten(final, finalMargin);
+   const leafKind = leaf.kind;
+-  const nextKind = kindAsWritten(next);
++  const nextKind = kindAsWritten(next, margin);
+   if (leafKind === 'paragraph') {
+     return (
+       nextKind === 'paragraph' ||
+@@ -425,6 +425,25 @@ function needsBlankBetween(prev: OutlineNode, next: OutlineNode): boolean {
+   return false;
+ }
+ 
++/**
++ * The column a node's children measure their block starts from: a list item's
++ * content column, and whatever its own parent measured from for any other kind
++ * — `parse` opens a margin only for a list item.
++ */
++function childMargin(node: OutlineNode, margin: number): number {
++  if (node.kind !== 'list-item') return margin;
++  return parseListMarker(node.lines[0] ?? '')?.contentCol ?? margin;
++}
++
++/** `subtreeFinalNode`, with the margin its lines are measured from. */
++function subtreeFinalWithMargin(
++  node: OutlineNode,
++  margin: number,
++): { node: OutlineNode; margin: number } {
++  const last = node.children[node.children.length - 1];
++  return last ? subtreeFinalWithMargin(last, childMargin(node, margin)) : { node, margin };
++}
++
+ /**
+  * Kinds that a list item's own CONTINUATION LINES swallow when they follow its
+  * marker line with no blank between — measured against `parse` at every child
+@@ -447,25 +466,26 @@ function swallowedAsContinuation(kind: NodeKind): boolean {
+  * cannot exist there — so it only ever touches op-created seams.
+  */
+ function normalizeBoundaries(doc: OutlineDoc): OutlineDoc {
+-  const fixList = (nodes: readonly OutlineNode[]): readonly OutlineNode[] => {
++  const fixList = (nodes: readonly OutlineNode[], margin: number): readonly OutlineNode[] => {
+     const out = nodes.map((node) => {
+-      let fixed: OutlineNode = { ...node, children: fixList(node.children) };
++      const inner = childMargin(node, margin);
++      let fixed: OutlineNode = { ...node, children: fixList(node.children, inner) };
+       const firstChild = fixed.children[0];
+       if (
+         firstChild &&
+         fixed.kind === 'list-item' &&
+         fixed.trailingGap.length === 0 &&
+-        swallowedAsContinuation(kindAsWritten(firstChild))
++        swallowedAsContinuation(kindAsWritten(firstChild, inner))
+       ) {
+         fixed = { ...fixed, trailingGap: [''] };
+       }
+       return fixed;
+     });
+     return out.map((node, i) =>
+-      i < out.length - 1 && needsBlankBetween(node, out[i + 1]!) ? appendFinalGap(node) : node,
++      i < out.length - 1 && needsBlankBetween(node, out[i + 1]!, margin) ? appendFinalGap(node) : node,
+     );
+   };
+-  return { ...doc, children: fixList(doc.children) };
++  return { ...doc, children: fixList(doc.children, 0) };
+ }
+ 
+ // ------------------------------------------------------ ordered renumbering
+diff --git a/src/parse.ts b/src/parse.ts
+index a33262f..e1b735b 100644
+--- a/src/parse.ts
++++ b/src/parse.ts
+@@ -56,6 +56,22 @@ export function indentPrefixCh(line: string, columns: number): number {
+ 
+ const isBlank = (line: string): boolean => line.trim() === '';
+ 
++/**
++ * `line` as its CONTAINER sees it: the columns up to `margin` taken off its
++ * indentation, and whatever indentation is left spelled in spaces.
++ *
++ * CommonMark measures a block start's `^ {0,3}` from the content column of the
++ * list item holding it, not from column 0, so a quote written at a list item's
++ * child column opens a quote there. The margin-anchored patterns below are
++ * applied to this view of a line rather than to the raw line; the raw line is
++ * what a block keeps.
++ */
++function fromMargin(line: string, margin: number): string {
++  if (margin === 0) return line;
++  const lead = line.length - line.trimStart().length;
++  return ' '.repeat(Math.max(0, indentWidth(line) - margin)) + line.slice(lead);
++}
++
+ const ATX_RE = /^ {0,3}(#{1,6})(?:[ \t]|$)/;
+ const FENCE_OPEN_RE = /^([ \t]*)(`{3,}|~{3,})/;
+ const LIST_ITEM_RE = /^([ \t]*)([-+*]|\d{1,9}[.)])([ \t]+)/;
+@@ -98,10 +114,13 @@ export const OPENING_MARGIN = 3;
+  * A setext heading is judged on its UNDERLINE, the line that carries its
+  * `^ {0,3}`; every other kind on the line that opens it.
+  */
+-export function kindAsWritten(node: Pick<OutlineNode, 'kind' | 'lines' | 'setext'>): NodeKind {
++export function kindAsWritten(
++  node: Pick<OutlineNode, 'kind' | 'lines' | 'setext'>,
++  margin = 0,
++): NodeKind {
+   const kind = node.kind;
+   if (kind === 'heading' && node.setext === true) {
+-    return demote(node.lines[node.lines.length - 1] ?? '', kind);
++    return demote(node.lines[node.lines.length - 1] ?? '', kind, 0);
+   }
+   if (
+     kind !== 'heading' &&
+@@ -112,11 +131,11 @@ export function kindAsWritten(node: Pick<OutlineNode, 'kind' | 'lines' | 'setext
+   ) {
+     return kind;
+   }
+-  return demote(node.lines[0] ?? '', kind);
++  return demote(node.lines[0] ?? '', kind, kind === 'heading' ? 0 : margin);
+ }
+ 
+-function demote(line: string, kind: NodeKind): NodeKind {
+-  if (indentWidth(line) <= OPENING_MARGIN) return kind;
++function demote(line: string, kind: NodeKind, margin: number): NodeKind {
++  if (indentWidth(line) - margin <= OPENING_MARGIN) return kind;
+   return LIST_ITEM_RE.test(line) ? 'list-item' : 'paragraph';
+ }
+ 
+@@ -135,13 +154,18 @@ function demote(line: string, kind: NodeKind): NodeKind {
+  */
+ export function tailAsWritten(
+   node: Pick<OutlineNode, 'kind' | 'lines' | 'setext'>,
++  margin = 0,
+ ): Pick<OutlineNode, 'kind' | 'lines' | 'setext'> {
+-  const kind = kindAsWritten(node);
++  const kind = kindAsWritten(node, margin);
+   if (kind === node.kind) return node;
+   if (node.lines.length <= 1) return { kind, lines: node.lines };
+   let tail: OutlineNode | undefined;
+-  for (const block of walkNodes(parse(node.lines.join('\n')))) tail = block;
+-  return tail ?? { kind, lines: node.lines };
++  const own = node.lines.map((line) => fromMargin(line, margin));
++  for (const block of walkNodes(parse(own.join('\n')))) tail = block;
++  if (!tail) return { kind, lines: node.lines };
++  // The tail's own lines, as the node writes them rather than as the margin
++  // sees them: a caller measures columns on them.
++  return { ...tail, lines: node.lines.slice(node.lines.length - tail.lines.length) };
+ }
+ 
+ /**
+@@ -230,15 +254,23 @@ function looksLikeTable(lines: readonly string[], i: number): boolean {
+   );
+ }
+ 
+-/** Would this line terminate an open paragraph by starting another block? */
+-function startsNewBlock(lines: readonly string[], i: number): boolean {
++/**
++ * Would this line terminate an open paragraph by starting another block?
++ * `margin` is the content column of the list item the paragraph sits in.
++ *
++ * A rule that could also underline the paragraph as a setext heading is read
++ * from column 0, as the underline itself is: a heading is a section here, never
++ * a block inside a list item, so the margin does not reach it.
++ */
++function startsNewBlock(lines: readonly string[], i: number, margin: number): boolean {
+   const line = lines[i]!;
++  const seen = fromMargin(line, margin);
+   return (
+     ATX_RE.test(line) ||
+     FENCE_OPEN_RE.test(line) ||
+     LIST_ITEM_RE.test(line) ||
+-    QUOTE_RE.test(line) ||
+-    HR_RE.test(line) ||
++    QUOTE_RE.test(seen) ||
++    (HR_RE.test(seen) && (seen === line || !SETEXT_RE.test(seen))) ||
+     looksLikeTable(lines, i)
+   );
+ }
+@@ -255,6 +287,11 @@ function segment(lines: readonly string[], start: number): Block[] {
+     return preambleGapSink;
+   };
+ 
++  // Content columns of the list items still open at `i`, innermost last — the
++  // same stack `parse` pops when it attaches blocks, kept here so a block start
++  // is measured from the item that holds it.
++  const openItems: number[] = [];
++
+   while (i < lines.length) {
+     const line = lines[i]!;
+ 
+@@ -272,6 +309,9 @@ function segment(lines: readonly string[], start: number): Block[] {
+     }
+ 
+     const indent = indentWidth(line);
++    while (openItems.length > 0 && indent < openItems[openItems.length - 1]!) openItems.pop();
++    const margin = openItems[openItems.length - 1] ?? 0;
++    const seen = fromMargin(line, margin);
+ 
+     // Fenced code block.
+     const fence = FENCE_OPEN_RE.exec(line);
+@@ -295,6 +335,7 @@ function segment(lines: readonly string[], start: number): Block[] {
+     // ATX heading.
+     const atx = ATX_RE.exec(line);
+     if (atx) {
++      openItems.length = 0;
+       blocks.push({
+         kind: 'heading',
+         indent: 0,
+@@ -308,10 +349,14 @@ function segment(lines: readonly string[], start: number): Block[] {
+     }
+ 
+     // Blockquote / callout.
+-    if (QUOTE_RE.test(line)) {
+-      const kind = CALLOUT_RE.test(line) ? 'callout' : 'quote';
++    if (QUOTE_RE.test(seen)) {
++      const kind = CALLOUT_RE.test(seen) ? 'callout' : 'quote';
+       const block: Block = { kind, indent, contentCol: indent, lines: [], gap: [] };
+-      while (i < lines.length && QUOTE_RE.test(lines[i]!)) {
++      while (
++        i < lines.length &&
++        indentWidth(lines[i]!) >= margin &&
++        QUOTE_RE.test(fromMargin(lines[i]!, margin))
++      ) {
+         block.lines.push(lines[i]!);
+         i++;
+       }
+@@ -320,7 +365,7 @@ function segment(lines: readonly string[], start: number): Block[] {
+     }
+ 
+     // Thematic break (checked before list: `- - -` etc).
+-    if (HR_RE.test(line)) {
++    if (HR_RE.test(seen)) {
+       blocks.push({ kind: 'hr', indent, contentCol: indent, lines: [line], gap: [] });
+       i++;
+       continue;
+@@ -357,18 +402,19 @@ function segment(lines: readonly string[], start: number): Block[] {
+         indentWidth(lines[i]!) >= marker.contentCol &&
+         !LIST_ITEM_RE.test(lines[i]!) &&
+         !FENCE_OPEN_RE.test(lines[i]!) &&
+-        !QUOTE_RE.test(lines[i]!) &&
++        !QUOTE_RE.test(fromMargin(lines[i]!, marker.contentCol)) &&
+         !looksLikeTable(lines, i)
+       ) {
+         block.lines.push(lines[i]!);
+         i++;
+       }
+       blocks.push(block);
++      openItems.push(marker.contentCol);
+       continue;
+     }
+ 
+     // HTML block.
+-    if (HTML_OPEN_RE.test(line)) {
++    if (HTML_OPEN_RE.test(seen)) {
+       const block: Block = { kind: 'html', indent, contentCol: indent, lines: [], gap: [] };
+       while (i < lines.length && !isBlank(lines[i]!)) {
+         block.lines.push(lines[i]!);
+@@ -381,7 +427,7 @@ function segment(lines: readonly string[], start: number): Block[] {
+     // Paragraph (may become a setext heading).
+     const block: Block = { kind: 'paragraph', indent, contentCol: indent, lines: [line], gap: [] };
+     i++;
+-    while (i < lines.length && !isBlank(lines[i]!) && !startsNewBlock(lines, i)) {
++    while (i < lines.length && !isBlank(lines[i]!) && !startsNewBlock(lines, i, margin)) {
+       const underline = SETEXT_RE.exec(lines[i]!);
+       if (underline) {
+         block.kind = 'heading';

@@ -1,0 +1,74 @@
+import { describe, it } from 'vitest';
+import { writeFileSync } from 'node:fs';
+import { indentWidth, parse, parseListMarker } from '../src/parse';
+import { encode } from '../src/encode';
+import { makeNode, walkNodes, type OutlineNode } from '../src/model';
+import { finalize } from '../src/ops';
+
+// One sample per kind, written at column 0; `at` re-indents it.
+const SAMPLES: { kind: OutlineNode['kind']; lines: string[]; extra?: Record<string, unknown> }[] = [
+  { kind: 'paragraph', lines: ['text'] },
+  { kind: 'paragraph', lines: ['a | b'] },
+  { kind: 'paragraph', lines: ['> looks like a quote'] },
+  { kind: 'paragraph', lines: ['<!-- looks like html -->'] },
+  { kind: 'paragraph', lines: ['---'] },
+  { kind: 'list-item', lines: ['- item'], extra: { listStyle: { type: 'bullet', marker: '-' } } },
+  { kind: 'list-item', lines: ['- see [[a|b]]'], extra: { listStyle: { type: 'bullet', marker: '-' } } },
+  { kind: 'heading', lines: ['## H'], extra: { level: 2 } },
+  { kind: 'heading', lines: ['Title', '====='], extra: { level: 1, setext: true } },
+  { kind: 'hr', lines: ['---'] },
+  { kind: 'hr', lines: ['- - -'] },
+  { kind: 'quote', lines: ['> q'] },
+  { kind: 'callout', lines: ['> [!note] c'] },
+  { kind: 'html', lines: ['<div>x</div>'] },
+  // An HTML block runs to a blank line whatever its lines hold, so past the
+  // margin its later lines open blocks of their own.
+  { kind: 'html', lines: ['<div>', '| a |', '| - |'] },
+  { kind: 'html', lines: ['<div>', '- x'] },
+  { kind: 'html', lines: ['<div>', '```', 'c', '```'] },
+  { kind: 'code', lines: ['```', 'c', '```'] },
+  { kind: 'table', lines: ['| a |', '| - |'] },
+];
+const COLS = [0, 2, 4];
+const at = (s: (typeof SAMPLES)[number], col: number): OutlineNode =>
+  makeNode({ kind: s.kind, lines: s.lines.map((l) => ' '.repeat(col) + l), ...(s.extra ?? {}) } as never);
+const label = (s: (typeof SAMPLES)[number], col: number): string => `${s.kind}@${col}:${JSON.stringify(s.lines[0])}`;
+
+describe('sweep', () => {
+  it('every bare seam between two sibling roots', () => {
+    const losses: string[] = [];
+    let total = 0;
+    for (const a of SAMPLES) for (const ca of COLS) for (const b of SAMPLES) for (const cb of COLS) {
+      // Only seams an encoding could produce: a sibling is never written
+      // shallower than a root that precedes it at the same scope — skip nothing,
+      // but record the column pair so each loss can be read for reachability.
+      const left = at(a, ca);
+      const right = at(b, cb);
+      // A heading's section would take the next node as a child; keep the pair flat.
+      const r = finalize(parse(''), { preamble: [], children: [left, right] }, left.id);
+      total++;
+      if (!r.ok) continue;
+      const text = encode(r.value.doc);
+      // Each side is judged against the blocks ITS OWN lines form alone: a
+      // demoted multi-line html block splits into several, and a merge at the
+      // seam that takes one of them back nets out in a bare node count.
+      // A node is read from the content column of the list item it lands in,
+      // not from column 0: under a list item the right-hand node's lines are
+      // parsed below a stand-in item with the same content column.
+      const alone = (n: OutlineNode, margin = 0): string[] => {
+        if (margin === 0) return [...walkNodes(parse(n.lines.join('\n')))].map((x) => x.lines.join('\n'));
+        const host = ' '.repeat(margin - 2) + '- host';
+        const nodes = [...walkNodes(parse([host, '', ...n.lines].join('\n')))].slice(1);
+        return nodes.map((x) => x.lines.join('\n'));
+      };
+      const marker = left.kind === 'list-item' ? parseListMarker(left.lines[0]!) : undefined;
+      const inside = marker && indentWidth(right.lines[0]!) >= marker.contentCol ? marker.contentCol : 0;
+      const expected = [...alone(left), ...alone(right, inside)];
+      const actual = [...walkNodes(r.value.doc)].map((x) => x.lines.join('\n'));
+      if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+        losses.push(`${label(a, ca)}  >>  ${label(b, cb)}   =>  ${JSON.stringify(text)}`);
+      }
+    }
+    writeFileSync(process.env.SWEEP_OUT ?? '/tmp/sweep.txt', `total ${total}, losses ${losses.length}\n` + losses.join('\n'));
+  });
+});
