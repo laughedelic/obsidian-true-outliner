@@ -121,9 +121,13 @@ constructed so their result re-parses with the id attached; the unit tests asser
 - **Glyph.** The decorate facts carry a `misplaced` flag for the paragraph's first line; the marker
   builder draws a warning icon in the marker slot when it is set, keeping `data-kind` and adding
   `data-misplaced`. The glyph ignores `markerVisibility`.
-- **Press.** One capture-phase `pointerdown` listener, the surplus mark's pattern, takes a press on
-  either element, swallows its trailing mouse events, and opens the menu. `zoom-click.ts` returns
-  early on a mark carrying `data-misplaced`, so the glyph's press is never a zoom.
+- **Press.** The mark on the id text takes its press the way the surplus-space mark does: one
+  capture-phase `pointerdown` listener that swallows the trailing mouse events and opens the menu
+  at release. The glyph is a node mark, so its press is already `zoom-click.ts`'s `MarkPress`,
+  which resolves at release because a press that moves is a drag (`node-dragging`). Its `zooms`
+  flag, which already holds a task's checkbox back from zooming, becomes what a release in place
+  does — zoom, open the correction menu, or nothing — and a mark carrying `data-misplaced` takes
+  the menu. A press on the glyph that moves still drags the paragraph.
 - **Menu.** Obsidian's `Menu` (public): the disabled reading row, one row per correction, the
   removal row. `showAtMouseEvent` for a press, `showAtPosition` from `coordsAtPos` for the command.
 - **Dispatch.** A correction is one transaction carrying a new plugin-own `userEvent`,

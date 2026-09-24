@@ -53,7 +53,8 @@
 - [ ] 4.3 `tailAsWritten` returns a paragraph tail for a node with an id, so `needsBlankBetween` and
       `normalizeBoundaries` separate the id from a paragraph or html block below it (D4).
 - [ ] 4.4 Add a test per `structural-operations` scenario in `tests/ops.test.ts`: the issue's move
-      case with its encoding stated in full, delete, the block selection's cover end, indent into a
+      case with its encoding stated in full, the same table moved by `moveSubtreesTo` as a drag
+      moves it, delete, the block selection's cover end, indent into a
       list item, split, and the rejected merge. Negative control: skipping 4.1's re-indent fails the
       indent case with the id detached.
 - [ ] 4.5 Run the closure, group-oracle and operation property suites over the generators from 2.3
@@ -81,9 +82,10 @@
 - [ ] 6.1 Add the mark view plugin (`to-decor-misplaced-id`, titled with the reading) and the
       `misplaced` fact the marker builder turns into the warning glyph with `data-misplaced`, drawn
       at every `markerVisibility` (D6). Add `styles/` part for both.
-- [ ] 6.2 Add the capture-phase press handler for the mark and the glyph, opening Obsidian's `Menu`
-      with the reading row, the corrections and the removal row, and make `zoom-click.ts` return
-      early on `data-misplaced` (D6).
+- [ ] 6.2 Add the capture-phase press handler for the mark, opening Obsidian's `Menu` with the
+      reading row, the corrections and the removal row at release; turn `MarkPress.zooms` in
+      `zoom-click.ts` into what a release in place does, so a glyph carrying `data-misplaced` opens
+      the same menu and a press that moves still drags (D6).
 - [ ] 6.3 Dispatch a correction as one transaction with `userEvent` `input.structure.block-id`, and
       add that value to `classify.ts`'s plugin-own list. Verify with a classify test that the
       event is plugin-own; negative control: removing it from the list fails the test.
@@ -97,8 +99,9 @@
       glyph appear together and only in outline mode, a press on either opens the menu with the
       rows in order, a correction applies and undoes as one step, the command opens the menu at the
       caret, and a press on the glyph never zooms. Run with
-      `npm run test:e2e:narrow -- <spec>` desktop and `--mobile`. Negative control: removing the
-      `data-misplaced` early return from `zoom-click.ts` fails the no-zoom case.
+      `npm run test:e2e:narrow -- <spec>` desktop and `--mobile`. A press on the glyph that moves
+      drags the paragraph. Negative control: resolving a glyph's release as a zoom fails the
+      no-zoom case.
 - [ ] 6.7 Move a table with an attached id through the move command in the editor and follow
       `[[Note#^t1]]` afterwards, in an e2e case that asserts the link still lands on the table.
       Negative control: running it on `main` fails.

@@ -66,9 +66,10 @@ in a nested per-cell editor, and never changing the document.
 - **THEN** the misplaced id's line still draws the warning glyph
 
 ### Requirement: A press on the mark or the glyph opens the corrections
-A plain press on the mark or on the warning glyph SHALL open the correction menu at the press, on a
-mouse and on a touch screen alike. The press SHALL NOT place a caret, begin a selection, fold, or
-zoom.
+A plain press on the mark or on the warning glyph, released without moving past `node-dragging`'s
+threshold, SHALL open the correction menu at the press, on a mouse and on a touch screen alike. The
+press SHALL NOT place a caret, begin a selection, fold, or zoom. The glyph is still the paragraph's
+mark, so a press on it that moves past the threshold drags the paragraph as it would any node.
 
 The menu SHALL be compact: a first row, disabled, stating Obsidian's reading; then one row per
 correction below; then a row removing the id. Choosing a row SHALL apply that edit as one undo

@@ -23,7 +23,7 @@ misplaced, with a correction one press away (`docs/research/lone-block-id`, "Two
   line. The id and the blank lines before it become part of that node's own span, the way an
   inline ` ^id` is part of its line.
 - Every structural operation that moves, deletes, copies or re-indents a node takes its attached
-  id with it. The round trip stays byte-identical.
+  id with it, a drag by the node's mark included. The round trip stays byte-identical.
 - Every other lone id stays the paragraph it parses as today, and outline mode marks it as
   misplaced: a highlight on the id and a warning glyph in place of the line's block marker, with a
   title saying what Obsidian reads it as.
