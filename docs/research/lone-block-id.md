@@ -61,6 +61,19 @@ Four findings:
 - **An id line has to be exact.** Trailing whitespace, or text on the line directly under it, and
   Obsidian registers no id at all. Of two lone ids in a row, only the second is registered.
 
+Inline ids inside a list item follow the same rule as lone ones. Four more shapes, measured the
+same day with the same probe:
+
+| Shape | Names |
+| --- | --- |
+| `- a`, blank, `  inner prose ^x8` | item `a`, not the paragraph |
+| `- a`, blank, a table under it whose last row ends ` ^x9` | item `a`, not the table |
+| `- a`, blank, `  > quoted ^x10` | item `a`, not the quote |
+| `Lead.`, `- a`, `- b`, `  - c ^l6` | item `c` |
+
+So no id, inline or lone, names a block INSIDE a list item: every one names the item. The only
+list-item content an id can single out is a nested item.
+
 ## What an embed shows
 
 Each shape embedded from a note of its own, `![[Embed target#^id]]`, read from the rendered embed.
@@ -209,6 +222,5 @@ to offer a choice rather than make one.
 
 ## Not measured
 
-What Obsidian names for an inline id at the end of a paragraph or a table row INSIDE a list item;
-an id after a nested quote, in a footnote, or after a math block; hover previews and canvas embeds;
+An id after a nested quote, in a footnote, or after a math block; hover previews and canvas embeds;
 the mobile app.
