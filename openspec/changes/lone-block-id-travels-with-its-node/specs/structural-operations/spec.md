@@ -7,7 +7,8 @@ A block id attached to a node (`document-tree-mapping`, "A lone block id belongs
 names") SHALL stay attached to that node through every accepted operation, and SHALL leave the
 document with it:
 
-- Move up, move down and their group forms SHALL carry the id with the node.
+- Move up, move down and their group forms SHALL carry the id with the node, and so SHALL moving
+  subtrees to a named destination, the operation a drag makes.
 - Deleting a node's subtree SHALL delete its id with it.
 - A node's subtree cover SHALL include its id, so copying or cutting a block selection takes the
   id along.
@@ -27,6 +28,11 @@ attached ids are the ones the operation's result states.
   siblings, and the table moves up
 - **THEN** the result reads the table, a blank line, `^t1`, a blank line, `Intro.`, a blank line,
   `Outro.`, and `^t1` is still attached to the table
+
+#### Scenario: Dragging a table takes its id
+- **WHEN** the same table is moved to the end of the note as a drag moves it
+- **THEN** the result reads `Intro.`, a blank line, `Outro.`, a blank line, the table, a blank
+  line and `^t1`, and `^t1` is still attached to the table
 
 #### Scenario: Deleting a node deletes its id
 - **WHEN** a callout with `^c1` attached is deleted
