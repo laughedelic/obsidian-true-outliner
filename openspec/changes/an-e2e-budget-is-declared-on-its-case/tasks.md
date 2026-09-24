@@ -19,7 +19,7 @@
 
 ## 2. Guard the form
 
-- [ ] 2.1 Add `tests/e2e-case-budgets.test.ts`. It parses every `.ts` and `.mts` under `e2e/`. It
+- [x] 2.1 Add `tests/e2e-case-budgets.test.ts`. It parses every `.ts` and `.mts` under `e2e/`. It
       accepts a `this.timeout(n)` only where its `this` belongs to a `describe` callback and no
       earlier statement of that body declares a case, a hook or a suite. It refuses
       `this.test.timeout(n)` everywhere. It also runs the rule on thirteen small sources. The
