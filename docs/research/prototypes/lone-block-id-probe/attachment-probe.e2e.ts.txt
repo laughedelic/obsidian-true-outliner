@@ -41,6 +41,10 @@ const SHAPES: Record<string, string> = {
   'quote inside an item, indented id directly under': '- a\n\n  > quoted\n  ^x7\n- b\n',
   'table under a heading, blank, id': '## Head\n\n| x | y |\n| --- | --- |\n| 1 | 2 |\n\n^t6\n\nAfter.\n',
   'paragraph with a list under it, then id directly under the list': 'Lead.\n- a\n- b\n^l5\n\nAfter.\n',
+  'inline id ending a paragraph inside an item': '- a\n\n  inner prose ^x8\n- b\n',
+  'inline id ending the last row of a table inside an item': '- a\n\n  | x | y |\n  | --- | --- |\n  | 1 | 2 | ^x9\n- b\n',
+  'inline id ending a quote line inside an item': '- a\n\n  > quoted ^x10\n- b\n',
+  'inline id on a nested item under a lead paragraph': 'Lead.\n- a\n- b\n  - c ^l6\n\nAfter.\n',
 };
 
 describe('probe: lone block ids', function () {
