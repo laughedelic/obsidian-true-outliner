@@ -26,7 +26,7 @@ import { forEachNodeWithLine, nodeAtLine, nodeStartLine } from './locate';
 import { subtreeCoverOf, type Cover } from './escalate';
 import { posBefore, type LinePos } from './line-pos';
 import { encode, encodeLines } from './encode';
-import { parse, indentWidth, kindAsWritten, tailAsWritten } from './parse';
+import { parse, indentWidth, kindAsWritten, parseListMarker, tailAsWritten } from './parse';
 import type { Edit, OpResult } from './result';
 import { accept, diffLines, reject } from './result';
 import {
@@ -380,16 +380,21 @@ function scopeSeparation(
  * paragraphs with nothing between them are one paragraph. Asking
  * `kindAsWritten` closes that gap: the separator is chosen for the node the
  * document will actually contain.
+ *
+ * `margin` is the content column of the list item holding `prev` and `next`,
+ * or 0 outside every list item — the column `parse` measures their block
+ * starts from. The leaf above the seam can sit deeper, and is judged at the
+ * margin of the item holding it.
  */
-function needsBlankBetween(prev: OutlineNode, next: OutlineNode): boolean {
-  const final = subtreeFinalNode(prev);
+function needsBlankBetween(prev: OutlineNode, next: OutlineNode, margin: number): boolean {
+  const { node: final, margin: finalMargin } = subtreeFinalWithMargin(prev, margin);
   if (final.trailingGap.length > 0) return false;
   // Above the seam, the block the leaf's last line lands in; below it, the
   // block the next node's first line opens. For a demoted `html` block those
   // are different blocks of the same node.
-  const leaf = tailAsWritten(final);
+  const leaf = tailAsWritten(final, finalMargin);
   const leafKind = leaf.kind;
-  const nextKind = kindAsWritten(next);
+  const nextKind = kindAsWritten(next, margin);
   if (leafKind === 'paragraph') {
     return (
       nextKind === 'paragraph' ||
@@ -426,6 +431,25 @@ function needsBlankBetween(prev: OutlineNode, next: OutlineNode): boolean {
 }
 
 /**
+ * The column a node's children measure their block starts from: a list item's
+ * content column, and whatever its own parent measured from for any other kind
+ * — `parse` opens a margin only for a list item.
+ */
+function childMargin(node: OutlineNode, margin: number): number {
+  if (node.kind !== 'list-item') return margin;
+  return parseListMarker(node.lines[0] ?? '')?.contentCol ?? margin;
+}
+
+/** `subtreeFinalNode`, with the margin its lines are measured from. */
+function subtreeFinalWithMargin(
+  node: OutlineNode,
+  margin: number,
+): { node: OutlineNode; margin: number } {
+  const last = node.children[node.children.length - 1];
+  return last ? subtreeFinalWithMargin(last, childMargin(node, margin)) : { node, margin };
+}
+
+/**
  * Kinds that a list item's own CONTINUATION LINES swallow when they follow its
  * marker line with no blank between — measured against `parse` at every child
  * column. A node that lands there stops being a node at all: its lines join the
@@ -447,25 +471,26 @@ function swallowedAsContinuation(kind: NodeKind): boolean {
  * cannot exist there — so it only ever touches op-created seams.
  */
 function normalizeBoundaries(doc: OutlineDoc): OutlineDoc {
-  const fixList = (nodes: readonly OutlineNode[]): readonly OutlineNode[] => {
+  const fixList = (nodes: readonly OutlineNode[], margin: number): readonly OutlineNode[] => {
     const out = nodes.map((node) => {
-      let fixed: OutlineNode = { ...node, children: fixList(node.children) };
+      const inner = childMargin(node, margin);
+      let fixed: OutlineNode = { ...node, children: fixList(node.children, inner) };
       const firstChild = fixed.children[0];
       if (
         firstChild &&
         fixed.kind === 'list-item' &&
         fixed.trailingGap.length === 0 &&
-        swallowedAsContinuation(kindAsWritten(firstChild))
+        swallowedAsContinuation(kindAsWritten(firstChild, inner))
       ) {
         fixed = { ...fixed, trailingGap: [''] };
       }
       return fixed;
     });
     return out.map((node, i) =>
-      i < out.length - 1 && needsBlankBetween(node, out[i + 1]!) ? appendFinalGap(node) : node,
+      i < out.length - 1 && needsBlankBetween(node, out[i + 1]!, margin) ? appendFinalGap(node) : node,
     );
   };
-  return { ...doc, children: fixList(doc.children) };
+  return { ...doc, children: fixList(doc.children, 0) };
 }
 
 // ------------------------------------------------------ ordered renumbering

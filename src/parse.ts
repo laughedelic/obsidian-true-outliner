@@ -56,6 +56,23 @@ export function indentPrefixCh(line: string, columns: number): number {
 
 const isBlank = (line: string): boolean => line.trim() === '';
 
+/**
+ * `line` as its CONTAINER sees it: the columns up to `margin` taken off its
+ * indentation, and whatever indentation is left spelled in spaces. Only spaces
+ * and tabs are indentation, as `indentWidth` counts them.
+ *
+ * CommonMark measures a block start's `^ {0,3}` from the content column of the
+ * list item holding it, not from column 0, so a quote written at a list item's
+ * child column opens a quote there. `QUOTE_RE`, `CALLOUT_RE` and `HR_RE` are
+ * applied to this view of a line rather than to the raw line; the raw line is
+ * what a block keeps.
+ */
+function fromMargin(line: string, margin: number): string {
+  if (margin === 0) return line;
+  const lead = /^[ \t]*/.exec(line)![0].length;
+  return ' '.repeat(Math.max(0, indentWidth(line) - margin)) + line.slice(lead);
+}
+
 const ATX_RE = /^ {0,3}(#{1,6})(?:[ \t]|$)/;
 const FENCE_OPEN_RE = /^([ \t]*)(`{3,}|~{3,})/;
 const LIST_ITEM_RE = /^([ \t]*)([-+*]|\d{1,9}[.)])([ \t]+)/;
@@ -67,9 +84,12 @@ const TABLE_DELIM_RE = /^[ \t]*\|?[ \t:|-]*-[ \t:|-]*\|?[ \t]*$/;
 const HTML_OPEN_RE = /^ {0,3}<[a-zA-Z!/]/;
 
 /**
- * The last column at which an `hr`, a `quote`, a `callout`, an `html` block or
- * an ATX heading still OPENS one: `HR_RE`, `QUOTE_RE`, `CALLOUT_RE`,
- * `HTML_OPEN_RE` and `ATX_RE` all anchor at `^ {0,3}`. Past it the same line
+ * How many columns past its MARGIN a line may sit and still OPEN an `hr`, a
+ * `quote`, a `callout`, an `html` block or an ATX heading: `HR_RE`,
+ * `QUOTE_RE`, `CALLOUT_RE`, `HTML_OPEN_RE` and `ATX_RE` all anchor at
+ * `^ {0,3}`. The margin is the content column of the list item holding the
+ * line for the first three, and column 0 for a heading and an HTML block,
+ * which `segment` measures from there wherever they sit. Past it the same line
  * opens whatever it opens with no margin of its own — a list item, where the
  * bytes carry a marker — or nothing, and is then read as a paragraph or as a
  * continuation of the paragraph above.
@@ -79,7 +99,9 @@ export const OPENING_MARGIN = 3;
 /**
  * The kind a node's lines PARSE AS where they now sit, which is not always the
  * kind the tree holds. A re-indent writes those lines at a new column, and the
- * kinds above survive only within `OPENING_MARGIN` of the left margin.
+ * kinds above survive only within `OPENING_MARGIN` of their margin: `margin`,
+ * the content column of the list item the node sits in, for a quote, a
+ * callout and a rule, and column 0 for a heading and an HTML block.
  *
  * Anything reasoning about what a seam will re-parse as has to ask this rather
  * than read `node.kind`: the two disagree exactly where a re-indent has
@@ -98,10 +120,13 @@ export const OPENING_MARGIN = 3;
  * A setext heading is judged on its UNDERLINE, the line that carries its
  * `^ {0,3}`; every other kind on the line that opens it.
  */
-export function kindAsWritten(node: Pick<OutlineNode, 'kind' | 'lines' | 'setext'>): NodeKind {
+export function kindAsWritten(
+  node: Pick<OutlineNode, 'kind' | 'lines' | 'setext'>,
+  margin = 0,
+): NodeKind {
   const kind = node.kind;
   if (kind === 'heading' && node.setext === true) {
-    return demote(node.lines[node.lines.length - 1] ?? '', kind);
+    return demote(node.lines[node.lines.length - 1] ?? '', kind, margin);
   }
   if (
     kind !== 'heading' &&
@@ -112,11 +137,13 @@ export function kindAsWritten(node: Pick<OutlineNode, 'kind' | 'lines' | 'setext
   ) {
     return kind;
   }
-  return demote(node.lines[0] ?? '', kind);
+  return demote(node.lines[0] ?? '', kind, margin);
 }
 
-function demote(line: string, kind: NodeKind): NodeKind {
-  if (indentWidth(line) <= OPENING_MARGIN) return kind;
+function demote(line: string, kind: NodeKind, margin: number): NodeKind {
+  // A heading and an HTML block are measured from column 0 wherever they sit.
+  if (kind === 'heading' || kind === 'html') margin = 0;
+  if (indentWidth(line) - margin <= OPENING_MARGIN) return kind;
   return LIST_ITEM_RE.test(line) ? 'list-item' : 'paragraph';
 }
 
@@ -131,17 +158,25 @@ function demote(line: string, kind: NodeKind): NodeKind {
  * the table's. The answer is read from `parse` over the node's own lines rather
  * than from the opening line, since the parse is what decides where one block
  * of them ends and the next begins. A node the margin leaves alone, and a
- * single demoted line, are their own tail.
+ * single demoted line, are their own tail. `margin` is `kindAsWritten`'s.
  */
 export function tailAsWritten(
   node: Pick<OutlineNode, 'kind' | 'lines' | 'setext'>,
+  margin = 0,
 ): Pick<OutlineNode, 'kind' | 'lines' | 'setext'> {
-  const kind = kindAsWritten(node);
+  const kind = kindAsWritten(node, margin);
   if (kind === node.kind) return node;
   if (node.lines.length <= 1) return { kind, lines: node.lines };
   let tail: OutlineNode | undefined;
-  for (const block of walkNodes(parse(node.lines.join('\n')))) tail = block;
-  return tail ?? { kind, lines: node.lines };
+  // Read from the margin the node's kind was judged at, so the lines below the
+  // opening one are measured as the whole document would measure them.
+  const from = node.kind === 'html' || node.kind === 'heading' ? 0 : margin;
+  const own = node.lines.map((line) => fromMargin(line, from));
+  for (const block of walkNodes(parse(own.join('\n')))) tail = block;
+  if (!tail) return { kind, lines: node.lines };
+  // The tail's own lines, as the node writes them rather than as the margin
+  // sees them: a caller measures columns on them.
+  return { ...tail, lines: node.lines.slice(node.lines.length - tail.lines.length) };
 }
 
 /**
@@ -230,15 +265,23 @@ function looksLikeTable(lines: readonly string[], i: number): boolean {
   );
 }
 
-/** Would this line terminate an open paragraph by starting another block? */
-function startsNewBlock(lines: readonly string[], i: number): boolean {
+/**
+ * Would this line terminate an open paragraph by starting another block?
+ * `margin` is the content column of the list item the paragraph sits in.
+ *
+ * A rule that could also underline the paragraph as a setext heading is read
+ * from column 0, as the underline itself is: a heading is a section here, never
+ * a block inside a list item, so the margin does not reach it.
+ */
+function startsNewBlock(lines: readonly string[], i: number, margin: number): boolean {
   const line = lines[i]!;
+  const seen = fromMargin(line, margin);
   return (
     ATX_RE.test(line) ||
     FENCE_OPEN_RE.test(line) ||
     LIST_ITEM_RE.test(line) ||
-    QUOTE_RE.test(line) ||
-    HR_RE.test(line) ||
+    QUOTE_RE.test(seen) ||
+    (HR_RE.test(seen) && (seen === line || !SETEXT_RE.test(seen))) ||
     looksLikeTable(lines, i)
   );
 }
@@ -254,6 +297,11 @@ function segment(lines: readonly string[], start: number): Block[] {
     preambleGapSink ??= [];
     return preambleGapSink;
   };
+
+  // Content columns of the list items still open at `i`, innermost last — the
+  // same stack `parse` pops when it attaches blocks, kept here so a block start
+  // is measured from the item that holds it.
+  const openItems: number[] = [];
 
   while (i < lines.length) {
     const line = lines[i]!;
@@ -272,6 +320,9 @@ function segment(lines: readonly string[], start: number): Block[] {
     }
 
     const indent = indentWidth(line);
+    while (openItems.length > 0 && indent < openItems[openItems.length - 1]!) openItems.pop();
+    const margin = openItems[openItems.length - 1] ?? 0;
+    const seen = fromMargin(line, margin);
 
     // Fenced code block.
     const fence = FENCE_OPEN_RE.exec(line);
@@ -295,6 +346,7 @@ function segment(lines: readonly string[], start: number): Block[] {
     // ATX heading.
     const atx = ATX_RE.exec(line);
     if (atx) {
+      openItems.length = 0;
       blocks.push({
         kind: 'heading',
         indent: 0,
@@ -308,10 +360,14 @@ function segment(lines: readonly string[], start: number): Block[] {
     }
 
     // Blockquote / callout.
-    if (QUOTE_RE.test(line)) {
-      const kind = CALLOUT_RE.test(line) ? 'callout' : 'quote';
+    if (QUOTE_RE.test(seen)) {
+      const kind = CALLOUT_RE.test(seen) ? 'callout' : 'quote';
       const block: Block = { kind, indent, contentCol: indent, lines: [], gap: [] };
-      while (i < lines.length && QUOTE_RE.test(lines[i]!)) {
+      while (
+        i < lines.length &&
+        indentWidth(lines[i]!) >= margin &&
+        QUOTE_RE.test(fromMargin(lines[i]!, margin))
+      ) {
         block.lines.push(lines[i]!);
         i++;
       }
@@ -320,7 +376,7 @@ function segment(lines: readonly string[], start: number): Block[] {
     }
 
     // Thematic break (checked before list: `- - -` etc).
-    if (HR_RE.test(line)) {
+    if (HR_RE.test(seen)) {
       blocks.push({ kind: 'hr', indent, contentCol: indent, lines: [line], gap: [] });
       i++;
       continue;
@@ -357,13 +413,14 @@ function segment(lines: readonly string[], start: number): Block[] {
         indentWidth(lines[i]!) >= marker.contentCol &&
         !LIST_ITEM_RE.test(lines[i]!) &&
         !FENCE_OPEN_RE.test(lines[i]!) &&
-        !QUOTE_RE.test(lines[i]!) &&
+        !QUOTE_RE.test(fromMargin(lines[i]!, marker.contentCol)) &&
         !looksLikeTable(lines, i)
       ) {
         block.lines.push(lines[i]!);
         i++;
       }
       blocks.push(block);
+      openItems.push(marker.contentCol);
       continue;
     }
 
@@ -381,9 +438,10 @@ function segment(lines: readonly string[], start: number): Block[] {
     // Paragraph (may become a setext heading).
     const block: Block = { kind: 'paragraph', indent, contentCol: indent, lines: [line], gap: [] };
     i++;
-    while (i < lines.length && !isBlank(lines[i]!) && !startsNewBlock(lines, i)) {
+    while (i < lines.length && !isBlank(lines[i]!) && !startsNewBlock(lines, i, margin)) {
       const underline = SETEXT_RE.exec(lines[i]!);
       if (underline) {
+        openItems.length = 0;
         block.kind = 'heading';
         block.level = underline[1]![0] === '=' ? 1 : 2;
         block.setext = true;
@@ -397,6 +455,7 @@ function segment(lines: readonly string[], start: number): Block[] {
     // A `---` right after a paragraph is a setext h2 even though it also
     // matches HR_RE — handle it here since startsNewBlock stopped the loop.
     if (block.kind === 'paragraph' && i < lines.length && SETEXT_RE.test(lines[i]!) && HR_RE.test(lines[i]!)) {
+      openItems.length = 0;
       block.kind = 'heading';
       block.level = 2;
       block.setext = true;
