@@ -17,9 +17,6 @@ The probes behind "A budget raised from inside a case never reaches wdio's timer
   `npm run test:e2e:narrow -- 99-zz-timeout-probe`. Delete the copy afterwards, since
   `tests/e2e-case-budgets.test.ts` refuses its first case.
 
-- `implementation.patch.txt` is the whole of `an-e2e-budget-is-declared-on-its-case`: specs `53`
-  and `62` with their budgets declared on the case, and the unit test that guards the form.
-
-  ```bash
-  git apply docs/research/prototypes/e2e-case-budget/implementation.patch.txt
-  ```
+- `implementation.patch.txt` is `an-e2e-budget-is-declared-on-its-case` as it was proposed and
+  reviewed: specs `53` and `62` with their budgets declared on the case, and the unit test that
+  guards the form. The change applied it as it stands.

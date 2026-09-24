@@ -44,12 +44,12 @@
       which reports 2 passing: the stress case and the case its body used to run into. This is a
       regression check rather than a control: locally the stress case finishes well inside the old
       60 s, so it passes before the move too. 1.2 is what tells the two forms apart.
-- [ ] 3.2 `53-decoration-dom-baseline.e2e.ts`: move all three budgets (120 000, 120 000 in the
+- [x] 3.2 `53-decoration-dom-baseline.e2e.ts`: move all three budgets (120 000, 120 000 in the
       per-fixture loop, 60 000) to their declarations. Verified by
       `npm run test:e2e:narrow -- 53-decoration-dom-baseline`, with every case passing, and by
       2.1's test, which now passes. The narrow run is a regression check, as in 3.1.
 
 ## 4. Confirm nothing else moved
 
-- [ ] 4.1 `npm test`, `npm run build`, `npm run build:e2e` and `npm run lint` all pass.
-- [ ] 4.2 `openspec validate an-e2e-budget-is-declared-on-its-case --strict`
+- [x] 4.1 `npm test`, `npm run build`, `npm run build:e2e` and `npm run lint` all pass.
+- [x] 4.2 `openspec validate an-e2e-budget-is-declared-on-its-case --strict`
