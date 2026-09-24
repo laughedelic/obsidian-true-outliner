@@ -11,7 +11,8 @@ heading carries that anchor on its UNDERLINE rather than on its first line. `cod
 have no such limit. The margin is the one the parser measures from: column 0 outside every list
 item, and inside one the content column of the innermost item holding the node, so a node's
 children are judged at their parent's content column when the parent is a list item and at the
-parent's own margin otherwise. A heading is judged at column 0 wherever it sits. Normalization runs on the TREE and encoding runs after it, so a node a
+parent's own margin otherwise. A heading and an HTML block are judged at column 0 wherever they
+sit, as the parser reads them. Normalization runs on the TREE and encoding runs after it, so a node a
 re-encode has pushed past that margin is separated as the kind it was and read back as the kind
 its new column makes it. Measured, a `quote` needs no separator before a paragraph and the
 paragraph it becomes at column 4 does: the two nodes come back as one, and the payload the

@@ -90,7 +90,7 @@ index d3fee13..a882140 100644
  
  // ------------------------------------------------------ ordered renumbering
 diff --git a/src/parse.ts b/src/parse.ts
-index a33262f..e1b735b 100644
+index a33262f..e19af71 100644
 --- a/src/parse.ts
 +++ b/src/parse.ts
 @@ -56,6 +56,22 @@ export function indentPrefixCh(line: string, columns: number): number {
@@ -109,7 +109,7 @@ index a33262f..e1b735b 100644
 + */
 +function fromMargin(line: string, margin: number): string {
 +  if (margin === 0) return line;
-+  const lead = line.length - line.trimStart().length;
++  const lead = /^[ \t]*/.exec(line)![0].length;
 +  return ' '.repeat(Math.max(0, indentWidth(line) - margin)) + line.slice(lead);
 +}
 +
@@ -132,12 +132,13 @@ index a33262f..e1b735b 100644
    }
    if (
      kind !== 'heading' &&
-@@ -112,11 +131,11 @@ export function kindAsWritten(node: Pick<OutlineNode, 'kind' | 'lines' | 'setext
+@@ -112,11 +131,12 @@ export function kindAsWritten(node: Pick<OutlineNode, 'kind' | 'lines' | 'setext
    ) {
      return kind;
    }
 -  return demote(node.lines[0] ?? '', kind);
-+  return demote(node.lines[0] ?? '', kind, kind === 'heading' ? 0 : margin);
++  // A heading and an HTML block open only within the margin of column 0.
++  return demote(node.lines[0] ?? '', kind, kind === 'heading' || kind === 'html' ? 0 : margin);
  }
  
 -function demote(line: string, kind: NodeKind): NodeKind {
@@ -147,7 +148,7 @@ index a33262f..e1b735b 100644
    return LIST_ITEM_RE.test(line) ? 'list-item' : 'paragraph';
  }
  
-@@ -135,13 +154,18 @@ function demote(line: string, kind: NodeKind): NodeKind {
+@@ -135,13 +155,19 @@ function demote(line: string, kind: NodeKind): NodeKind {
   */
  export function tailAsWritten(
    node: Pick<OutlineNode, 'kind' | 'lines' | 'setext'>,
@@ -160,7 +161,8 @@ index a33262f..e1b735b 100644
    let tail: OutlineNode | undefined;
 -  for (const block of walkNodes(parse(node.lines.join('\n')))) tail = block;
 -  return tail ?? { kind, lines: node.lines };
-+  const own = node.lines.map((line) => fromMargin(line, margin));
++  const from = node.kind === 'html' || node.kind === 'heading' ? 0 : margin;
++  const own = node.lines.map((line) => fromMargin(line, from));
 +  for (const block of walkNodes(parse(own.join('\n')))) tail = block;
 +  if (!tail) return { kind, lines: node.lines };
 +  // The tail's own lines, as the node writes them rather than as the margin
@@ -169,7 +171,7 @@ index a33262f..e1b735b 100644
  }
  
  /**
-@@ -230,15 +254,23 @@ function looksLikeTable(lines: readonly string[], i: number): boolean {
+@@ -230,15 +256,23 @@ function looksLikeTable(lines: readonly string[], i: number): boolean {
    );
  }
  
@@ -197,7 +199,7 @@ index a33262f..e1b735b 100644
      looksLikeTable(lines, i)
    );
  }
-@@ -255,6 +287,11 @@ function segment(lines: readonly string[], start: number): Block[] {
+@@ -255,6 +289,11 @@ function segment(lines: readonly string[], start: number): Block[] {
      return preambleGapSink;
    };
  
@@ -209,7 +211,7 @@ index a33262f..e1b735b 100644
    while (i < lines.length) {
      const line = lines[i]!;
  
-@@ -272,6 +309,9 @@ function segment(lines: readonly string[], start: number): Block[] {
+@@ -272,6 +311,9 @@ function segment(lines: readonly string[], start: number): Block[] {
      }
  
      const indent = indentWidth(line);
@@ -219,7 +221,7 @@ index a33262f..e1b735b 100644
  
      // Fenced code block.
      const fence = FENCE_OPEN_RE.exec(line);
-@@ -295,6 +335,7 @@ function segment(lines: readonly string[], start: number): Block[] {
+@@ -295,6 +337,7 @@ function segment(lines: readonly string[], start: number): Block[] {
      // ATX heading.
      const atx = ATX_RE.exec(line);
      if (atx) {
@@ -227,7 +229,7 @@ index a33262f..e1b735b 100644
        blocks.push({
          kind: 'heading',
          indent: 0,
-@@ -308,10 +349,14 @@ function segment(lines: readonly string[], start: number): Block[] {
+@@ -308,10 +351,14 @@ function segment(lines: readonly string[], start: number): Block[] {
      }
  
      // Blockquote / callout.
@@ -245,7 +247,7 @@ index a33262f..e1b735b 100644
          block.lines.push(lines[i]!);
          i++;
        }
-@@ -320,7 +365,7 @@ function segment(lines: readonly string[], start: number): Block[] {
+@@ -320,7 +367,7 @@ function segment(lines: readonly string[], start: number): Block[] {
      }
  
      // Thematic break (checked before list: `- - -` etc).
@@ -254,7 +256,7 @@ index a33262f..e1b735b 100644
        blocks.push({ kind: 'hr', indent, contentCol: indent, lines: [line], gap: [] });
        i++;
        continue;
-@@ -357,18 +402,19 @@ function segment(lines: readonly string[], start: number): Block[] {
+@@ -357,13 +404,14 @@ function segment(lines: readonly string[], start: number): Block[] {
          indentWidth(lines[i]!) >= marker.contentCol &&
          !LIST_ITEM_RE.test(lines[i]!) &&
          !FENCE_OPEN_RE.test(lines[i]!) &&
@@ -270,13 +272,7 @@ index a33262f..e1b735b 100644
        continue;
      }
  
-     // HTML block.
--    if (HTML_OPEN_RE.test(line)) {
-+    if (HTML_OPEN_RE.test(seen)) {
-       const block: Block = { kind: 'html', indent, contentCol: indent, lines: [], gap: [] };
-       while (i < lines.length && !isBlank(lines[i]!)) {
-         block.lines.push(lines[i]!);
-@@ -381,7 +427,7 @@ function segment(lines: readonly string[], start: number): Block[] {
+@@ -381,9 +429,10 @@ function segment(lines: readonly string[], start: number): Block[] {
      // Paragraph (may become a setext heading).
      const block: Block = { kind: 'paragraph', indent, contentCol: indent, lines: [line], gap: [] };
      i++;
@@ -284,4 +280,15 @@ index a33262f..e1b735b 100644
 +    while (i < lines.length && !isBlank(lines[i]!) && !startsNewBlock(lines, i, margin)) {
        const underline = SETEXT_RE.exec(lines[i]!);
        if (underline) {
++        openItems.length = 0;
          block.kind = 'heading';
+         block.level = underline[1]![0] === '=' ? 1 : 2;
+         block.setext = true;
+@@ -397,6 +446,7 @@ function segment(lines: readonly string[], start: number): Block[] {
+     // A `---` right after a paragraph is a setext h2 even though it also
+     // matches HR_RE — handle it here since startsNewBlock stopped the loop.
+     if (block.kind === 'paragraph' && i < lines.length && SETEXT_RE.test(lines[i]!) && HR_RE.test(lines[i]!)) {
++      openItems.length = 0;
+       block.kind = 'heading';
+       block.level = 2;
+       block.setext = true;

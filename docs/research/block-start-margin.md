@@ -31,21 +31,44 @@ Two shapes, both Markdown source, `┆` the left edge of the column and `⏵` a 
 ## What the prototype does
 
 `segment` keeps the stack of content columns of the list items still open at each line — the
-same stack `parse` pops when it attaches blocks — and applies the four margin-anchored patterns
-to the line as that innermost item sees it: the item's content column taken off the indentation.
-The raw line is what the block keeps, so the round trip is untouched. The same margin reaches the
-three places a block start is tested from inside another block: a list item's continuation loop
-(a `>` line at the item's child column is a quote child, as it already was at column 2), a
-paragraph's interruption test, and a quote's own run, which also stops at a line indented short
-of the margin.
+same stack `parse` pops when it attaches blocks, cleared by a heading of either spelling as
+`parse` clears its own — and applies `QUOTE_RE`, `CALLOUT_RE` and `HR_RE` to the line as that
+innermost item sees it: the item's content column taken off the indentation, counting spaces and
+tabs only. The raw line is what the block keeps, so the round trip is untouched. The same margin
+reaches the three places a quote or a rule is tested from inside another block: a list item's
+continuation loop (a `>` line at the item's child column is a quote child, as it already was at
+column 2), a paragraph's interruption test, and a quote's own run, which also stops at a line
+indented short of the margin.
 
 The seam rules in `src/ops.ts` read `kindAsWritten` and `tailAsWritten` from `parse.ts`, and both
 take the same margin: `normalizeBoundaries` passes each list of siblings the content column of
-the list item that holds them. Without it the seams go on judging a quote at a child column as
-the paragraph `main` read it as, and the payload-survival property in `tests/edit-ops.test.ts`
-finds the disagreement within 20 runs.
+the list item that holds them. Without it a seam is judged on a kind the re-parse will not read.
+In the differential below that costs no node — a quote judged as a paragraph is separated at
+least as often as a quote needs — but it is what decides the 18 rows whose encodings change.
 
 The prototype is `prototypes/block-start-margin/implementation.patch.txt`.
+
+## HTML blocks are left out, and why
+
+A first pass gave `HTML_OPEN_RE` the margin too. Review found two ways that moves away from
+CommonMark, each verified against `commonmark`:
+
+- `HTML_OPEN_RE` (`^ {0,3}<[a-zA-Z!/]`) is far wider than CommonMark's seven HTML block starts.
+  At the margin, every child paragraph opening with an inline tag or an autolink became an HTML
+  block, and took the lines below it: `- a` / blank / `⏵<b>Note</b> text` / `⏵- c` read the nested
+  item as part of the block, where `main` and CommonMark read a paragraph and a list item.
+- An HTML block runs to a blank line whatever the indentation, so at the margin it ran past the
+  item it sat in: `- a` / `  - b` / blank / `    <div>` / `  - c` lost the sibling `- c`. The same
+  happens on `main` at columns 0-3; the margin would have carried it to every depth.
+
+Narrowing the pattern to CommonMark's block starts, and ending the run where its container
+closes, is a change of its own. Until then an HTML block keeps measuring from column 0, and
+`kindAsWritten` judges it there.
+
+The same review found a setext heading leaving the margin of the list above it open — `segment`
+cleared the stack only for an ATX heading — which the seam rules, reading the heading's children
+at column 0, disagreed with: an `html` node took a following list item into its lines. The stack
+now clears for both spellings.
 
 ## Headings are left out, on purpose
 
@@ -70,23 +93,36 @@ column × spaces or tabs: 610 documents. Each is read by `commonmark`, by `parse
 | container | shapes | agree on `main` | agree with the patch |
 | --- | --- | --- | --- |
 | the root | 40 | 36 | 36 |
-| inside a list item | 570 | 184 | 456 |
+| inside a list item | 570 | 184 | 422 |
 
-272 readings change, every one of them toward `commonmark`'s; none moves away from it. By kind:
+238 readings change, every one of them toward `commonmark`'s; none of these 610 moves away from
+it. By kind:
 
 | opener | `main` → patch | shapes |
 | --- | --- | --- |
 | `> q`, `> [!note] c` | paragraph → quote, callout | 68 |
 | `> q`, `> [!note] c` | continuation of the item → quote, callout | 68 |
-| `***`, `<div>` | paragraph → hr, html | 68 |
+| `***` | paragraph → hr | 34 |
 | `- - -` | list item → hr | 68 |
 
-The 114 in-item shapes that still disagree are all outside what this changes, and none changed; the root's 4 are `- - -` at column 4, the same #138 row:
+The 148 in-item shapes that still disagree are all outside what this changes, and none changed;
+the root's 4 are `- - -` at column 4, the same #138 row:
 
 | shape | shapes | where |
 | --- | --- | --- |
 | an `hr` or `<div>` directly under an item's marker line, no blank | 74 | a continuation to us; CommonMark interrupts. The latent list-item half of #197 |
 | `- - -` four or more columns past a margin | 40 | a list item to us; indented code, or a lazy continuation with no blank, to CommonMark. #138 and Q35 |
+| `<div>` at a child column after a blank line | 34 | a paragraph to us, an HTML block to CommonMark; left out above |
+
+The probe is a grid, and a grid reaches only the shapes it was built from. The review's random
+differential against `commonmark` — 20 000 documents, run on the first pass — found readings
+moving away as well as toward, and every class it named is either closed here or recorded here:
+the HTML cases above, a non-breaking space counted as indentation (the first pass took the lead
+with `trimStart`, which also strips it; it now counts spaces and tabs only, as `indentWidth`
+does), and a lazy continuation of a quote. That last one stands: `  1. a` / `⏵⏵> q` / `⏵  para`
+now reads a quote and then a paragraph, where CommonMark continues the quote. It is the reading
+the root already gives `> q` / `para` — we model no lazy continuation anywhere (the header of
+`src/parse.ts`) — carried into the item.
 
 ## Measured: the corpus
 
@@ -102,20 +138,19 @@ added — atoms the payload carried that the result no longer holds as atoms of 
 | | rows accepted | rows losing a node | rows losing an atom's kind |
 | --- | --- | --- | --- |
 | `main` | 912 | 0 | 132 |
-| the patch | 912 | 0 | 30 |
+| the patch | 912 | 0 | 54 |
 
-No verdict changes. The 30 that remain are all in the three destinations whose body sits at
+No verdict changes. Of the 54 that remain, 30 are in the three destinations whose body sits at
 column 4 under a heading (`## H2` / `⏵   body`), which is the root divergence of #138 — CommonMark
-reads that body as indented code, so there is no kind to keep. 28 encodings change, and all 28
-differ only in blank lines: an atom that survives as an atom now takes the separator its kind
-asks for, where `main` wrote the paragraph it had become flush.
+reads that body as indented code, so there is no kind to keep — and 24 are an HTML block at a
+list item's child column, left out above. 18 encodings change, and all 18 differ only in blank
+lines: a rule spelled `* * *` that `main` wrote flush under a converted item, and read back as a
+list item, now stays a rule and takes the separator the first-child rule asks for.
 
 The 3 249-pair bare-seam sweep reads 63 wrong pairs on `main` and 63 with the patch, the same
-pairs. Its oracle had to learn the margin first: it read each side's lines alone, at the root,
-so a `<div>` at column 4 under `- item` was expected to split into a paragraph and a list item.
-With the patch that line is an HTML block inside the item, which `commonmark` confirms, and the
-unamended oracle counts the 12 such pairs as losses. The amended probe parses the right-hand node
-below a stand-in item with the same content column.
+pairs. Its oracle reads a node below a list item from the item's content column
+(`seam-sweep-margin.test.ts.txt`); read at the root, a node at a child column would be judged by
+a margin the parser no longer uses.
 
 ## Not measured
 

@@ -1,27 +1,42 @@
 ## 1. Measure the margin from the item
 
-- [ ] 1.1 In `src/parse.ts`, add `fromMargin` and the open-item stack in `segment`; apply the
-      margin to `QUOTE_RE`, `CALLOUT_RE`, `HR_RE` and `HTML_OPEN_RE` (D1, D2).
+- [ ] 1.1 In `src/parse.ts`, add `fromMargin` (spaces and tabs only) and the open-item stack in
+      `segment`, cleared by an ATX heading and by a setext underline; apply the margin to
+      `QUOTE_RE`, `CALLOUT_RE` and `HR_RE`, and leave `HTML_OPEN_RE` and `ATX_RE` at column 0
+      (D1, D2, D4).
 - [ ] 1.2 Pass the margin to the quote run, the list item's continuation loop and
       `startsNewBlock`, leaving a setext-shaped rule at column 0 (D3, D4).
-- [ ] 1.3 Give `kindAsWritten` and `tailAsWritten` a margin, and thread it through
-      `normalizeBoundaries` and `needsBlankBetween` (D5).
+- [ ] 1.3 Give `kindAsWritten` and `tailAsWritten` a margin, judge a heading and an HTML block at
+      column 0 in both, and thread the margin through `normalizeBoundaries` and
+      `needsBlankBetween` (D5).
+- [ ] 1.4 Rewrite the doc comments that still describe a column-0 margin: `OPENING_MARGIN`,
+      `kindAsWritten`, `tailAsWritten`, and the header of `needsBlankBetween`.
 
 ## 2. Tests
 
-- [ ] 2.1 `tests/corpus.test.ts` or a parse test: #136's four cases — the quote at two spaces,
-      one tab and four spaces under `- alpha`, and the tab-indented heading, which stays a
-      paragraph (D4). Negative control: reverting 1.1 turns the tab and four-space quotes back
-      into paragraphs.
-- [ ] 2.2 Each margin-anchored kind at a depth-2 child column, with and without a blank line,
-      parses as its kind and as a child of the inner item; at the same column plus four it is a
-      paragraph. Negative control: 1.1 reverted.
+- [ ] 2.1 A parse test for #136's four cases — the quote at two spaces, one tab and four spaces
+      under `- alpha`, and the tab-indented heading, which stays a paragraph (D4). Negative
+      control: reverting 1.1 turns the tab and four-space quotes back into paragraphs.
+- [ ] 2.2 Each of `> q`, `> [!note] c`, `***` and `- - -` at a depth-2 child column, with and
+      without a blank line, parses as its kind and as a child of the inner item; four columns
+      further in it is not. Negative control: 1.1 reverted.
 - [ ] 2.3 A quote's run ends at a `>` line indented short of the margin. Negative control: drop
       the indentation check from the run.
-- [ ] 2.4 `tests/edit-ops.test.ts`: #158's case 1 through `insertSubtrees` — the `---` arrives as
-      an `hr`. Negative control: `kindAsWritten` without the margin, which fails the
-      payload-survival property.
-- [ ] 2.5 `kindAsWritten` at both sides of `margin + OPENING_MARGIN`.
+- [ ] 2.4 A setext heading closes the margin: `- a` / blank / `  para` / `  ---` / `    > q` reads
+      the last line as a paragraph, and an insertion after a `    <div>` there keeps a following
+      `- x` a node. Negative control: clear the stack for an ATX heading only.
+- [ ] 2.5 An inline tag or an autolink opening a child paragraph at a tab's depth is a paragraph,
+      and the nested item below it stays a list item; `<div>` at a child column does not run past
+      the item. Negative control: give `HTML_OPEN_RE` the margin.
+- [ ] 2.6 A non-breaking space is not indentation: `- a` / blank / NBSP and two spaces then `> q`
+      is a paragraph. Negative control: take the lead with `trimStart`.
+- [ ] 2.7 `tests/edit-ops.test.ts`: #158's case 1 through `insertSubtrees` — the `---` arrives as
+      an `hr`, a child of `  - ## H`. Negative control: 1.1 reverted.
+- [ ] 2.8 `## H` / `* * *` inserted after `  - two` keeps the rule an `hr` with a separator above
+      it. Negative control: `kindAsWritten` without the margin, which reads the rule as a list
+      item and writes it flush.
+- [ ] 2.9 `kindAsWritten` at both sides of `margin + OPENING_MARGIN` for a quote, and at
+      `OPENING_MARGIN` for an HTML block whatever the margin.
 
 ## 3. Decorations, in a real instance
 
