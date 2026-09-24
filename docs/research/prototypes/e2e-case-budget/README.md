@@ -4,7 +4,9 @@ The probes behind "A budget raised from inside a case never reaches wdio's timer
 [`../../e2e-ci-budgets.md`](../../e2e-ci-budgets.md), and the change they led to.
 
 - `case-budget-probe.mjs` runs mocha in Node through `@wdio/utils`' own wrapper, one row per
-  place a budget can be set, at a scaled timescale. It needs no Obsidian:
+  place a budget can be set, at a scaled timescale. It loads the mocha `@wdio/mocha-framework`
+  resolves (10.8.2 at the time of writing), not the root's 12, and prints its version. It needs
+  no Obsidian:
 
   ```bash
   node docs/research/prototypes/e2e-case-budget/case-budget-probe.mjs

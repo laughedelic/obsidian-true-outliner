@@ -86,10 +86,10 @@ index 7e2ac67..e09f97b 100644
  
 diff --git a/tests/e2e-case-budgets.test.ts b/tests/e2e-case-budgets.test.ts
 new file mode 100644
-index 0000000..af56256
+index 0000000..809a9ef
 --- /dev/null
 +++ b/tests/e2e-case-budgets.test.ts
-@@ -0,0 +1,138 @@
+@@ -0,0 +1,201 @@
 +import { readFileSync, readdirSync } from 'node:fs';
 +import { join, relative } from 'node:path';
 +import ts from 'typescript';
@@ -102,23 +102,39 @@ index 0000000..af56256
 + * (`@wdio/utils`), which reads the runnable's timeout once, on entry, and races
 + * the body against a timer of that length. A `this.timeout()` inside the body
 + * moves mocha's own timer and leaves wdio's where it was, so a raise from there
-+ * is capped at `mochaOpts.timeout` and the case fails with a bare
-+ * `Error: Timeout` while its body keeps driving the editor into the next case
-+ * (docs/research/e2e-ci-budgets). Mocha honours the same call where it runs
-+ * before the wrapper does: on the Test that `it` returns, or in a `describe`
-+ * body.
++ * is capped at whatever the runnable held on entry, and the case fails with a
++ * bare `Error: Timeout` while its body keeps driving the editor into the next
++ * case (docs/research/e2e-ci-budgets).
 + *
-+ * So `this.timeout(n)` is accepted in a `describe` body and refused everywhere
-+ * else. Lowering from inside a body does take effect, because mocha's timer
-+ * fires first; it is refused all the same, since the rule is about where a
-+ * budget is declared rather than which way it moves.
++ * A budget reaches wdio when it is on the runnable before wdio enters it: on
++ * the Test that `it` returns, or in a `describe` body ahead of the cases and
++ * hooks it covers. The mocha wdio loads copies a suite's budget onto a case or
++ * a hook when that case or hook is declared, so a `describe`-level call after
++ * one reaches nothing already declared.
++ *
++ * So `this.timeout(n)` is accepted only in a `describe` body before anything
++ * is declared in it, and `this.test.timeout(n)` nowhere. The rule refuses a
++ * lowering from inside a body as well, although mocha's own timer would honour
++ * that one.
 + */
 +
 +const E2E = join(__dirname, '..', 'e2e');
 +
 +/** The functions whose callback body is a SUITE, where `this` is mocha's suite
-+ * context and a budget reaches every case in it. */
-+const SUITE_FUNCTIONS = new Set(['describe', 'context', 'suite']);
++ * context and a budget reaches what is declared after it. */
++const SUITE_FUNCTIONS = new Set(['describe', 'context', 'suite', 'xdescribe', 'xcontext']);
++
++/** Every function that declares something a suite's budget is copied onto. */
++const DECLARING = new Set([
++  ...SUITE_FUNCTIONS,
++  'it',
++  'specify',
++  'xit',
++  'before',
++  'beforeEach',
++  'after',
++  'afterEach',
++]);
 +
 +/** `describe`, `describe.only` and `describe.skip` all name `describe`. */
 +function calleeName(callee: ts.Expression): string | undefined {
@@ -143,28 +159,61 @@ index 0000000..af56256
 +  return undefined;
 +}
 +
-+function isSuiteBody(fn: ts.Node): boolean {
++function isSuiteBody(fn: ts.Node): fn is ts.FunctionExpression {
 +  const call = fn.parent;
 +  if (!ts.isFunctionExpression(fn) || call === undefined || !ts.isCallExpression(call)) return false;
 +  const name = calleeName(call.expression);
 +  return name !== undefined && SUITE_FUNCTIONS.has(name) && call.arguments.includes(fn);
 +}
 +
-+/** The 1-based lines of every `this.timeout(n)` outside a `describe` body. */
++function declaresAnything(node: ts.Node): boolean {
++  if (ts.isCallExpression(node)) {
++    const name = calleeName(node.expression);
++    if (name !== undefined && DECLARING.has(name)) return true;
++  }
++  return ts.forEachChild(node, declaresAnything) ?? false;
++}
++
++/** Whether a statement of `body` ahead of the one holding `node` declares a
++ * case, a hook or a suite. */
++function declaredBefore(body: ts.FunctionExpression, node: ts.Node): boolean {
++  for (const statement of body.body.statements) {
++    if (statement.pos <= node.pos && node.end <= statement.end) return false;
++    if (declaresAnything(statement)) return true;
++  }
++  return false;
++}
++
++/** `this.timeout(n)` answers `this`; `this.test.timeout(n)` answers `test`. */
++function budgetReceiver(node: ts.CallExpression): 'this' | 'test' | undefined {
++  if (node.arguments.length === 0) return undefined;
++  const callee = node.expression;
++  if (!ts.isPropertyAccessExpression(callee) || callee.name.text !== 'timeout') return undefined;
++  let target: ts.Expression = callee.expression;
++  while (ts.isNonNullExpression(target) || ts.isParenthesizedExpression(target)) target = target.expression;
++  if (target.kind === ts.SyntaxKind.ThisKeyword) return 'this';
++  if (
++    ts.isPropertyAccessExpression(target) &&
++    target.name.text === 'test' &&
++    target.expression.kind === ts.SyntaxKind.ThisKeyword
++  ) {
++    return 'test';
++  }
++  return undefined;
++}
++
++/** The 1-based lines of every budget set where wdio cannot read it. */
 +function unseenBudgets(source: string): number[] {
 +  const file = ts.createSourceFile('spec.ts', source, ts.ScriptTarget.Latest, true);
 +  const lines: number[] = [];
 +  const visit = (node: ts.Node): void => {
-+    if (
-+      ts.isCallExpression(node) &&
-+      node.arguments.length > 0 &&
-+      ts.isPropertyAccessExpression(node.expression) &&
-+      node.expression.expression.kind === ts.SyntaxKind.ThisKeyword &&
-+      node.expression.name.text === 'timeout'
-+    ) {
-+      const owner = thisOwner(node);
-+      if (owner === undefined || !isSuiteBody(owner)) {
-+        lines.push(file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1);
++    if (ts.isCallExpression(node)) {
++      const receiver = budgetReceiver(node);
++      if (receiver !== undefined) {
++        const owner = thisOwner(node);
++        const seen =
++          receiver === 'this' && owner !== undefined && isSuiteBody(owner) && !declaredBefore(owner, node);
++        if (!seen) lines.push(file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1);
 +      }
 +    }
 +    ts.forEachChild(node, visit);
@@ -188,6 +237,10 @@ index 0000000..af56256
 +    expect(unseenBudgets(`it('x', async function () {\n  this.timeout(180_000);\n});`)).toEqual([2]);
 +  });
 +
++  it('refuses one set on the case from inside it', () => {
++    expect(unseenBudgets(`it('x', async function () {\n  this.test!.timeout(180_000);\n});`)).toEqual([2]);
++  });
++
 +  it('refuses one set from inside a hook, which wdio wraps the same way', () => {
 +    expect(unseenBudgets(`before(async function () {\n  this.timeout(180_000);\n});`)).toEqual([2]);
 +  });
@@ -201,12 +254,19 @@ index 0000000..af56256
 +    expect(unseenBudgets(`async function body(this: Mocha.Context) {\n  this.timeout(5);\n}`)).toEqual([2]);
 +  });
 +
++  it('refuses one set in a describe body after a case, a hook or a loop of cases', () => {
++    expect(unseenBudgets(`describe('s', function () {\n  it('x', f);\n  this.timeout(120_000);\n});`)).toEqual([3]);
++    expect(unseenBudgets(`describe('s', function () {\n  before(f);\n  this.timeout(120_000);\n});`)).toEqual([3]);
++    const loop = `describe('s', function () {\n  for (const x of xs) it(x, f);\n  this.timeout(120_000);\n});`;
++    expect(unseenBudgets(loop)).toEqual([3]);
++  });
++
 +  it('accepts a budget declared on the case', () => {
 +    expect(unseenBudgets(`it('x', async function () {\n  await go();\n}).timeout(180_000);`)).toEqual([]);
 +  });
 +
-+  it('accepts one set in a describe body, and in describe.only', () => {
-+    expect(unseenBudgets(`describe('s', function () {\n  this.timeout(120_000);\n});`)).toEqual([]);
++  it('accepts one set in a describe body ahead of what it covers, and in describe.only', () => {
++    expect(unseenBudgets(`describe('s', function () {\n  this.timeout(120_000);\n  it('x', f);\n});`)).toEqual([]);
 +    expect(unseenBudgets(`describe.only('s', function () {\n  this.timeout(120_000);\n});`)).toEqual([]);
 +  });
 +
@@ -221,10 +281,13 @@ index 0000000..af56256
 +});
 +
 +describe('e2e budgets', () => {
-+  it('are never set from inside a case or a hook', () => {
++  it('are set only where wdio reads them', () => {
 +    const offenders = e2eSources(E2E).flatMap((file) =>
 +      unseenBudgets(readFileSync(file, 'utf8')).map((line) => `${relative(join(E2E, '..'), file)}:${line}`),
 +    );
-+    expect(offenders, 'declare the budget on the case instead: it(...).timeout(ms)').toEqual([]);
++    expect(
++      offenders,
++      'declare a case budget on the case, it(...).timeout(ms); a hook takes its from the describe body, ahead of the hook',
++    ).toEqual([]);
 +  });
 +});

@@ -7,6 +7,8 @@ from it:
 
 - wdio reads a case's budget once, when it enters the case. Only a budget that is already set on
   the runnable by then takes effect.
+- The mocha wdio loads is its own 10.8.2, not the root's 12. It copies a suite's budget onto a case
+  or a hook only when that case or hook is declared.
 - The same wrapper runs hooks, and it reads a trailing number passed to `it` as a retry count, not
   as a budget.
 
@@ -27,11 +29,11 @@ from it:
 
 **Declare each budget on its case: `it(title, fn).timeout(ms)`.** Mocha's `it` returns the
 `Test`. wdio's wrapper returns whatever mocha's `it` returned, so `.timeout()` sets `_timeout` on
-the runnable before any case has run. Rows D and E′ of the probe show it honoured, and the
+the runnable before any case has run. Row D of the probe shows it honoured, and the
 real-harness probe shows it with a 70 s pause against the 60 s default. Alternatives considered:
 
-- *A `describe`-level `this.timeout()`* is honoured too (rows E and E′). It sets the budget for
-  every case in the suite, though. `62` holds 59 cases in one `describe`, and all but one fit
+- *A `describe`-level `this.timeout()`* is honoured too, but only by what is declared after it
+  (rows E and E′). It sets the budget for every case in the suite, though. `62` holds 59 cases in one `describe`, and all but one fit
   the default. Giving them all 180 s would only delay the report when one of them hangs. `53` could take one, but
   its folded-heading case asks for 60 000 ms and the others for 120 000 ms. One form across the
   suite is simpler to check.
@@ -46,14 +48,18 @@ real-harness probe shows it with a 70 s pause against the 60 s default. Alternat
 **`h.waitBudget()` is evaluated at declaration, not in the body.** The result is the same.
 `waitBudget` reads `E2E_MAX_INSTANCES` from the worker's environment. The launcher sets that
 variable before it spawns workers (`scripts/run-e2e.mjs`, the CI action, `e2e-docker.mjs`), and
-nothing sets it later. On CI, with four instances, `62`'s stress case gets the 360 s its code
-always asked for.
+nothing sets it later. `62` is in the `clipboard` group, which `run-e2e.mjs` always runs with one
+instance, so on CI its stress case gets the 180 s its code always asked for.
 
 **Guard it with a unit test that parses `e2e/` as text.** `tests/e2e-case-budgets.test.ts` parses
-each `.ts` and `.mts` file under `e2e/` with the TypeScript compiler API. It refuses a
-`this.timeout(n)` whose `this` belongs to anything except a `describe` callback. Arrows are
-skipped when finding which function a `this` belongs to, since an arrow takes its `this` from the
-enclosing function. Alternatives considered:
+each `.ts` and `.mts` file under `e2e/` with the TypeScript compiler API. It accepts a
+`this.timeout(n)` only where its `this` belongs to a `describe` callback and no earlier statement
+of that body declares a case, a hook or a suite, since mocha 10 copies the budget only onto what
+is declared after it. It refuses `this.test.timeout(n)` everywhere: inside a case it comes too
+late, as `this.timeout(n)` does. Arrows are skipped when finding which function a `this` belongs
+to, since an arrow takes its `this` from the enclosing function. A hook takes its budget from the
+`describe` body, ahead of the hook (row G), because `before()` returns nothing to chain
+`.timeout()` on. Alternatives considered:
 
 - *A lenient rule that refuses only a function passed directly to `it` or a hook* would miss a
   named function passed to `it` by reference. The strict rule refuses that too, and the suite
@@ -63,11 +69,12 @@ enclosing function. Alternatives considered:
   separate piece of work: that tree has never been linted.
 - *A grep in a script* cannot tell a `describe` body from a case body.
 
-The test also runs its rule against nine small sources, so each shape the rule has to tell apart
-has a case. Four are refused: a case body, a hook, an arrow inside a case, and a named function.
-Five are accepted: a declared budget, a `describe` and a `describe.only` budget, an arrow inside a
-`describe` body, and a bare read. The arrow inside a `describe` body is the case that needs the
-arrow skip.
+The test also runs its rule against thirteen small sources, so each shape the rule has to tell
+apart has a case. Eight are refused: a case body, `this.test` inside a case, a hook, an arrow
+inside a case, a named function, and a `describe` budget after a case, after a hook, and after a
+loop of cases. Five are accepted: a declared budget, a `describe` budget ahead of its case, a
+`describe.only` budget, an arrow inside a `describe` body, and a bare read. The arrow inside a
+`describe` body is the case that needs the arrow skip.
 
 It reads the files and never imports, compiles or runs them. `e2e-verification`'s scenario
 "Harness excluded from bundle and unit tests" is about the harness running under `npm test`, and
@@ -82,9 +89,13 @@ equals the default, moves to its declaration with the rest.
 
 - [A future wdio stops returning the `Test` from `it`] → `.timeout` on `undefined` throws when
   the spec file loads, so the whole file fails loudly and no case silently keeps the default.
-- [The rule is syntactic: `const self = this; self.timeout(…)`, or any other route to mocha's
-  `Context`, gets past it] → Nothing in the suite does this. The test states the rule it
-  enforces, and the research note records the mechanism for anyone who meets another route.
+- [The rule is syntactic: `const self = this; self.timeout(…)`, `this['timeout'](…)`,
+  `this.runnable().timeout(…)`, or any other route to mocha's `Context`, gets past it] → Nothing
+  in the suite does this. The test states the rule it enforces, and the research note records the
+  mechanism for anyone who meets another route.
+- [wdio moves to a mocha that passes a suite's budget on to cases already declared] → The rule
+  then refuses a form that would work. That direction is safe, and the probe prints the mocha
+  version it measured, so the note can be re-checked when the dependency moves.
 - [A budget that is now honoured lets a hung case take up to that long to report] → This is what
   each case asked for when its budget was written. No budget changes size here.
 

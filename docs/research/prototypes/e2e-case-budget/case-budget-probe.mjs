@@ -6,6 +6,10 @@
  * called once per interface function on `pre-require`), so every row goes
  * through the real `executeAsync` without launching Obsidian or a browser.
  *
+ * The mocha is the copy `@wdio/mocha-framework` itself resolves, which is not
+ * necessarily the one at the root of `node_modules`: the two can differ in how
+ * a suite's budget reaches the cases already declared in it.
+ *
  * The figures are scaled down: the default budget stands in for
  * `mochaOpts.timeout` (60 s in both wdio configs), every body outlives it, and
  * every raise asks for enough to cover the body.
@@ -13,8 +17,12 @@
  *   node docs/research/prototypes/e2e-case-budget/case-budget-probe.mjs
  */
 
-import Mocha from 'mocha';
+import { createRequire } from 'node:module';
 import { wrapGlobalTestMethod } from '@wdio/utils';
+
+const wdioRequire = createRequire(import.meta.resolve('@wdio/mocha-framework'));
+const Mocha = wdioRequire('mocha');
+const MOCHA_VERSION = wdioRequire('mocha/package.json').version;
 
 const DEFAULT = 1000; // stands in for mochaOpts.timeout
 const BODY = 1500; // outlives DEFAULT
@@ -107,8 +115,8 @@ all.push(
   })),
 );
 
-// E': at describe level AFTER the case is declared, which mocha 12 copies onto
-// the cases the suite already holds (mochajs/mocha#5422).
+// E': at describe level AFTER the case is declared. Whether the case sees it
+// depends on the mocha version (mochajs/mocha#5422 is where it began to).
 all.push(
   ...(await runSuite('wrapped, suite budget after the case', true, function () {
     globalThis.it("E'. set on the describe, after the case", async function () {
@@ -129,7 +137,18 @@ all.push(
   })),
 );
 
-console.log(`budget ${DEFAULT} ms, body ${BODY} ms, raised to ${RAISED} ms\n`);
+// G: a hook's budget set in the describe body before the hook is declared.
+all.push(
+  ...(await runSuite('wrapped, suite budget before a hook', true, function () {
+    this.timeout(RAISED);
+    globalThis.before(async function () {
+      await sleep(BODY);
+    });
+    globalThis.it('G. (after a `before` given the describe budget)', async function () {});
+  })),
+);
+
+console.log(`mocha ${MOCHA_VERSION}; budget ${DEFAULT} ms, body ${BODY} ms, raised to ${RAISED} ms\n`);
 console.log('| case | result | after | error |');
 console.log('| --- | --- | --- | --- |');
 for (const r of all) {
