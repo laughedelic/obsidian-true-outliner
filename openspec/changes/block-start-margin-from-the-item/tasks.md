@@ -49,6 +49,6 @@
 
 ## 4. Land
 
-- [ ] 4.1 `npm test`, `npm run lint`, `npm run build`.
+- [x] 4.1 `npm test`, `npm run lint`, `npm run build`.
 - [x] 4.2 Update `open-questions` Q38 to point at this change.
-- [ ] 4.3 `openspec validate block-start-margin-from-the-item --strict`.
+- [x] 4.3 `openspec validate block-start-margin-from-the-item --strict`.
