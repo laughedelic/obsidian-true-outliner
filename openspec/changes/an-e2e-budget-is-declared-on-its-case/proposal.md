@@ -1,9 +1,11 @@
 ## Why
 
-Three e2e cases raise their own budget with `this.timeout()` as the first statement of their body,
-and none of those raises has ever taken effect. WebdriverIO wraps every case in `executeAsync`,
-which reads the budget once, before the body runs, and races the body against a timer of that
-length. So each of the three has had `mochaOpts.timeout`'s 60 s all along. The stress case in `62`
+Four e2e budgets are set with `this.timeout()` as the first statement of a case body. Three of
+them raise the budget: `62`'s stress case, and two in `53`, one of which sits in a loop that
+declares four cases. None of those raises has ever taken effect. WebdriverIO wraps every case in
+`executeAsync`, which reads the budget once, before the body runs, and races the body against a
+timer of that length. So all six cases have had `mochaOpts.timeout`'s 60 s all along. The fourth
+budget, in `53`, asks for 60 000 ms, which equals the default. The stress case in `62`
 fails on a loaded mobile runner with a bare `Error: Timeout`, and its body keeps sending keystrokes
 into the case after it, which fails too. #172 has the diagnosis and the failing run. The mechanism
 is measured in [`docs/research/e2e-ci-budgets.md`](../../../docs/research/e2e-ci-budgets.md),
@@ -15,7 +17,7 @@ same note's earlier reading that the in-body call "is honoured inside wdio's wra
 - Every e2e budget that is set today from inside a case body is declared on the case instead,
   `it(title, fn).timeout(ms)`. Mocha's `it` returns the `Test` through wdio's wrapper, so the
   budget is in place when `executeAsync` reads it. The affected cases are `62`'s stress case
-  (`h.waitBudget(180_000)`) and the three cases in `53` (120 000, 120 000 and 60 000 ms). The
+  (`h.waitBudget(180_000)`) and the three in `53` (120 000, 120 000 and 60 000 ms). The
   budgets stay the same size and only move to where they are set.
 - A unit test parses every file under `e2e/` as text and refuses a `this.timeout(n)` call anywhere
   except a `describe` body. It also runs its rule on small sources of its own. It refuses a

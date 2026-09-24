@@ -159,8 +159,9 @@ The wrapper has one more trap for anyone who tries a per-case budget as an argum
 `wrapTestFunction` reads a trailing number passed to `it` as a retry count, so
 `it(title, fn, 180_000)` would request 180 000 retries, not a budget.
 
-So `62`'s stress case and the three cases in `53` that asked for 120 000, 120 000 and
-60 000 ms, all four set from inside the body, each ran with 60 s. The change that closes #172,
+So every budget set from inside a body ran as 60 s. There were four: `62`'s stress case, and
+three in `53` asking for 120 000, 120 000 and 60 000 ms, where the second covers the four cases
+its loop declares. The change that closes #172,
 `an-e2e-budget-is-declared-on-its-case`, declares each of them on its case, and adds
 `tests/e2e-case-budgets.test.ts`, which refuses a `this.timeout(n)` anywhere except a
 `describe` body.
