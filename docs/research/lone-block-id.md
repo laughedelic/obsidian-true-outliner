@@ -148,8 +148,13 @@ result is `- a` with `^l1` directly under it, which Obsidian reads as naming ite
 
 Move, delete and copy separate the id in every shape where it follows a block at the same level.
 The only shape that already keeps it is an id indented under an item, which the parser already
-makes the item's child, so every subtree operation carries it. Drag is not an operation of ours:
-a drag in the editor is a text selection.
+makes the item's child, so every subtree operation carries it.
+
+Dragging a node by its mark (#124, landed after the probe above) moves it with `moveSubtreesTo`,
+the removal and re-encoded insertion a paste also uses. Measured on `main` at c6b12c5: dragging
+the table in `Intro.`, blank, a table, blank, `^t1`, blank, `Outro.` to the top of the note gives
+the table, `Intro.`, `^t1`, `Outro.` — the id now follows `Intro.` — and dragging it to the end
+leaves `^t1` under `Intro.` the same way. A drag separates the id as a move does.
 
 ## Two groups
 
