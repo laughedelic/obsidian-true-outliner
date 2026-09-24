@@ -1,0 +1,13 @@
+// #172's probe, for the real harness: copy to e2e/specs/99-zz-timeout-probe.e2e.ts
+// and run `npm run test:e2e:narrow -- 99-zz-timeout-probe`. Both cases pause
+// past `mochaOpts.timeout` (60 s) with a budget of 180 s asked for.
+describe('99 timeout probe', function () {
+  it('in-body raise outlives mochaOpts.timeout', async function () {
+    this.timeout(180_000);
+    await browser.pause(70_000);
+  });
+
+  it('declared raise outlives mochaOpts.timeout', async function () {
+    await browser.pause(70_000);
+  }).timeout(180_000);
+});
