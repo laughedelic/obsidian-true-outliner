@@ -1,0 +1,56 @@
+# Spec Delta
+
+## ADDED Requirements
+
+### Requirement: An attached block id travels with its node
+A block id attached to a node (`document-tree-mapping`, "A lone block id belongs to the node it
+names") SHALL stay attached to that node through every accepted operation, and SHALL leave the
+document with it:
+
+- Move up, move down and their group forms SHALL carry the id with the node.
+- Deleting a node's subtree SHALL delete its id with it.
+- A node's subtree cover SHALL include its id, so copying or cutting a block selection takes the
+  id along.
+- An operation that re-indents or re-encodes a node — indent, outdent, a paste, a conversion
+  between paragraph and list item, unwrapping a list item — SHALL re-indent the id line with the
+  node, to the node's content column when it is a list item and to the node's own column
+  otherwise, so the id is still attached when the result is re-parsed.
+- A split SHALL leave the id attached to the node that keeps the original's first line.
+- A merge SHALL keep the id of whichever of the two nodes carried one, and SHALL be rejected with
+  `merge-not-expressible` when both did.
+
+The closure guarantee holds with ids included: every accepted result re-parses to a tree whose
+attached ids are the ones the operation's result states.
+
+#### Scenario: Moving a table takes its id
+- **WHEN** a paragraph `Intro.`, a table with `^t1` attached and a paragraph `Outro.` are
+  siblings, and the table moves up
+- **THEN** the result reads the table, a blank line, `^t1`, a blank line, `Intro.`, a blank line,
+  `Outro.`, and `^t1` is still attached to the table
+
+#### Scenario: Deleting a node deletes its id
+- **WHEN** a callout with `^c1` attached is deleted
+- **THEN** no line of the result holds `^c1`
+
+#### Scenario: A block selection's copy includes the id
+- **WHEN** the table with `^t1` attached is block-selected
+- **THEN** the selection's range ends at the end of the `^t1` line
+
+#### Scenario: Indenting a paragraph keeps its id attached
+- **WHEN** a paragraph with `^p3` attached is indented under the paragraph above it and becomes a
+  list item
+- **THEN** `^p3` sits at the new item's content column after a blank line, and is attached to the
+  item
+
+#### Scenario: A split leaves the id where it was
+- **WHEN** a paragraph with `^p3` attached is split in the middle of its text
+- **THEN** `^p3` is attached to the first half
+
+#### Scenario: A merge of two nodes with ids is rejected
+- **WHEN** two paragraphs that both carry attached ids are merged
+- **THEN** the merge is rejected with `merge-not-expressible` and the document is unchanged
+
+#### Scenario: Closure with ids
+- **WHEN** the operation property suites run over generated documents that include attached and
+  unattached lone ids
+- **THEN** every accepted result re-parses to the tree it states
