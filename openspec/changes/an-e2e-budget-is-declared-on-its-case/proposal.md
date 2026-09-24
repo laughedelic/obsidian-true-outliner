@@ -19,12 +19,12 @@ same note's earlier reading that the in-body call "is honoured inside wdio's wra
   budget is in place when `executeAsync` reads it. The affected cases are `62`'s stress case
   (`h.waitBudget(180_000)`) and the three in `53` (120 000, 120 000 and 60 000 ms). The
   budgets stay the same size and only move to where they are set.
-- A unit test parses every file under `e2e/` as text. It accepts a `this.timeout(n)` call only in
-  a `describe` body ahead of anything declared there, and refuses `this.test.timeout(n)`
-  everywhere. It also runs its rule on small sources of its own. It refuses a budget set in a
-  case body, a hook, an arrow inside a case, or a named function, or in a `describe` body after a
-  case or a hook. It accepts a declared budget, a `describe` budget ahead of its cases, an arrow
-  inside a `describe` body, and a bare read.
+- A unit test parses every file under `e2e/` as text. It accepts a `this.timeout(n)` call only as
+  a statement of a `describe` body itself, ahead of anything declared there, and refuses
+  `this.test.timeout(n)` everywhere. It also runs its rule on small sources of its own. It refuses
+  a budget set in a case body, a hook, an arrow (inside a case or a `describe` body), or a named
+  function, or in a `describe` body after a case or a hook. It accepts a declared budget, a
+  `describe` budget ahead of its cases, and a bare read.
 - `docs/research/e2e-ci-budgets.md` records the measurement. It corrects its own paragraph about
   the negative control: that control showed a lowered budget is honoured, not a raised one.
 

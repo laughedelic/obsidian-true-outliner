@@ -20,21 +20,21 @@
 ## 2. Guard the form
 
 - [x] 2.1 Add `tests/e2e-case-budgets.test.ts`. It parses every `.ts` and `.mts` under `e2e/`. It
-      accepts a `this.timeout(n)` only where its `this` belongs to a `describe` callback and no
-      earlier statement of that body declares a case, a hook or a suite. It refuses
-      `this.test.timeout(n)` everywhere. It also runs the rule on thirteen small sources. The
-      refused shapes are a case body, `this.test` inside a case, a hook, an arrow inside a case, a
-      named function, and a `describe` budget after a case, after a hook and after a loop of
-      cases. The accepted ones are a declared budget, a `describe` budget ahead of its case, a
-      `describe.only` budget, an arrow inside a `describe` body, and a bare read. Verified by
-      `npx vitest run tests/e2e-case-budgets.test.ts`, which fails at this point naming
-      `62-outline-edit-enforcement.e2e.ts:607` and `53-decoration-dom-baseline.e2e.ts:139`, `:150`
-      and `:164`. Negative controls: that failure is the control for the scan. Removing the arrow
-      skip in `thisOwner` must fail "accepts one set from an arrow inside a describe body".
-      Accepting `it` as a suite function must fail "refuses a budget set from inside a case" and
-      "refuses one set from an arrow inside a case". Dropping the `declaredBefore` check must fail
-      "refuses one set in a describe body after a case, a hook or a loop of cases". Ignoring the
-      `this.test` receiver must fail "refuses one set on the case from inside it".
+      accepts a `this.timeout(n)` only where the call runs in a `describe` callback itself, arrows
+      counting as functions, and no earlier statement of that body declares a case, a hook or a
+      suite. It refuses `this.test.timeout(n)` everywhere. It also runs the rule on thirteen small
+      sources. The refused shapes are a case body, `this.test` inside a case, a hook, an arrow
+      inside a case, an arrow inside a `describe` body called from a case, a named function, and a
+      `describe` budget after a case, after a hook and after a loop of cases. The accepted ones are
+      a declared budget, a `describe` budget ahead of its case, a `describe.only` budget, and a bare
+      read. Verified by `npx vitest run tests/e2e-case-budgets.test.ts`, which fails at this point
+      naming `62-outline-edit-enforcement.e2e.ts:607` and `53-decoration-dom-baseline.e2e.ts:139`,
+      `:150` and `:164`. Negative controls: that failure is the control for the scan. Skipping
+      arrows in `enclosingFunction` must fail "refuses one set from an arrow inside a describe
+      body, which can run after the cases". Accepting `it` as a suite function must fail "refuses
+      a budget set from inside a case". Dropping the `declaredBefore` check must fail "refuses one
+      set in a describe body after a case, a hook or a loop of cases". Ignoring the `this.test`
+      receiver must fail "refuses one set on the case from inside it".
 
 ## 3. Declare each budget on its case
 

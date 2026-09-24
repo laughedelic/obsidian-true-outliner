@@ -20,10 +20,13 @@ import { describe, expect, it } from 'vitest';
  * a hook when that case or hook is declared, so a `describe`-level call after
  * one reaches nothing already declared.
  *
- * So `this.timeout(n)` is accepted only in a `describe` body before anything
- * is declared in it, and `this.test.timeout(n)` nowhere. The rule refuses a
- * lowering from inside a body as well, although mocha's own timer would honour
- * that one.
+ * So `this.timeout(n)` is accepted only as a statement of a `describe` body
+ * itself, before anything is declared in it, and `this.test.timeout(n)`
+ * nowhere. A call inside a nested function is refused even where its `this` is
+ * the suite's: an arrow defined in a `describe` body can be called from inside
+ * a case, and where the call is written says nothing about when it runs. The
+ * rule refuses a lowering from inside a body as well, although mocha's own
+ * timer would honour that one.
  */
 
 const E2E = join(__dirname, '..', 'e2e');
@@ -57,11 +60,10 @@ function calleeName(callee: ts.Expression): string | undefined {
   return undefined;
 }
 
-/** The function a `this` at `node` binds to: the nearest enclosing function
- * that is not an arrow, since an arrow takes its `this` from outside. */
-function thisOwner(node: ts.Node): ts.Node | undefined {
+/** The function a call at `node` runs inside: the nearest enclosing function,
+ * arrows included, since an arrow runs wherever it is called from. */
+function enclosingFunction(node: ts.Node): ts.Node | undefined {
   for (let n = node.parent; n !== undefined; n = n.parent) {
-    if (ts.isArrowFunction(n)) continue;
     if (ts.isFunctionLike(n) || ts.isClassLike(n)) return n;
   }
   return undefined;
@@ -118,7 +120,7 @@ function unseenBudgets(source: string): number[] {
     if (ts.isCallExpression(node)) {
       const receiver = budgetReceiver(node);
       if (receiver !== undefined) {
-        const owner = thisOwner(node);
+        const owner = enclosingFunction(node);
         const seen =
           receiver === 'this' && owner !== undefined && isSuiteBody(owner) && !declaredBefore(owner, node);
         if (!seen) lines.push(file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1);
@@ -178,9 +180,9 @@ describe('the rule, on the shapes it has to tell apart', () => {
     expect(unseenBudgets(`describe.only('s', function () {\n  this.timeout(120_000);\n});`)).toEqual([]);
   });
 
-  it('accepts one set from an arrow inside a describe body, whose `this` is the suite', () => {
-    const src = `describe('s', function () {\n  const set = () => this.timeout(120_000);\n  set();\n});`;
-    expect(unseenBudgets(src)).toEqual([]);
+  it('refuses one set from an arrow inside a describe body, which can run after the cases', () => {
+    const src = `describe('s', function () {\n  const set = () => this.timeout(120_000);\n  it('x', async function () {\n    set();\n  });\n});`;
+    expect(unseenBudgets(src)).toEqual([2]);
   });
 
   it('accepts reading the budget, which sets nothing', () => {

@@ -171,8 +171,8 @@ So every budget set from inside a body ran as 60 s. There were four: `62`'s stre
 three in `53` asking for 120 000, 120 000 and 60 000 ms, where the second covers the four cases
 its loop declares. The change that closes #172, `an-e2e-budget-is-declared-on-its-case`, declares
 each of them on its case. It also adds `tests/e2e-case-budgets.test.ts`, which accepts a
-`this.timeout(n)` only in a `describe` body ahead of anything declared there, and refuses a
-`this.test.timeout(n)` everywhere.
+`this.timeout(n)` only as a statement of a `describe` body itself, ahead of anything declared
+there, and refuses a `this.test.timeout(n)` everywhere.
 
 On CI this shows up rarely. We read the logs of 26 failed e2e jobs from 2026-09-10 to
 2026-09-24, and one was this cap: `62`'s stress case on `mobile (clipboard)` in run 34674419905

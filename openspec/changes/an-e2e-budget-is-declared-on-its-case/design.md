@@ -53,28 +53,32 @@ instance, so on CI its stress case gets the 180 s its code always asked for.
 
 **Guard it with a unit test that parses `e2e/` as text.** `tests/e2e-case-budgets.test.ts` parses
 each `.ts` and `.mts` file under `e2e/` with the TypeScript compiler API. It accepts a
-`this.timeout(n)` only where its `this` belongs to a `describe` callback and no earlier statement
+`this.timeout(n)` only where the call runs in a `describe` callback itself and no earlier statement
 of that body declares a case, a hook or a suite, since mocha 10 copies the budget only onto what
-is declared after it. It refuses `this.test.timeout(n)` everywhere: inside a case it comes too
-late, as `this.timeout(n)` does. Arrows are skipped when finding which function a `this` belongs
-to, since an arrow takes its `this` from the enclosing function. A hook takes its budget from the
-`describe` body, ahead of the hook (row G), because `before()` returns nothing to chain
-`.timeout()` on. Alternatives considered:
+is declared after it. "Runs in" counts arrows as functions. An arrow defined in a `describe` body
+has the suite's `this`, but it can be called from inside a case, and where it is written says
+nothing about when it runs. It refuses `this.test.timeout(n)` everywhere: inside a case it comes
+too late, as `this.timeout(n)` does. A hook takes its budget from the `describe` body, ahead of
+the hook (row G), because `before()` returns nothing to chain `.timeout()` on. Alternatives
+considered:
 
 - *A lenient rule that refuses only a function passed directly to `it` or a hook* would miss a
   named function passed to `it` by reference. The strict rule refuses that too, and the suite
   has no other legitimate `this.timeout(n)`.
+- *Following an arrow to its call sites* would accept an arrow called at `describe` time, ahead
+  of the cases. The rule refuses that form instead, which is the safe direction: the same budget
+  can always be written as a statement of the body.
 - *An ESLint `no-restricted-syntax` selector* cannot say which function a `this` belongs to
   through nested arrows. It would also need `e2e/` brought under `npm run lint`, which is a
   separate piece of work: that tree has never been linted.
 - *A grep in a script* cannot tell a `describe` body from a case body.
 
 The test also runs its rule against thirteen small sources, so each shape the rule has to tell
-apart has a case. Eight are refused: a case body, `this.test` inside a case, a hook, an arrow
-inside a case, a named function, and a `describe` budget after a case, after a hook, and after a
-loop of cases. Five are accepted: a declared budget, a `describe` budget ahead of its case, a
-`describe.only` budget, an arrow inside a `describe` body, and a bare read. The arrow inside a
-`describe` body is the case that needs the arrow skip.
+apart has a case. Nine are refused: a case body, `this.test` inside a case, a hook, an arrow
+inside a case, an arrow inside a `describe` body called from a case, a named function, and a
+`describe` budget after a case, after a hook, and after a loop of cases. Four are accepted: a
+declared budget, a `describe` budget ahead of its case, a `describe.only` budget, and a bare
+read.
 
 It reads the files and never imports, compiles or runs them. `e2e-verification`'s scenario
 "Harness excluded from bundle and unit tests" is about the harness running under `npm test`, and

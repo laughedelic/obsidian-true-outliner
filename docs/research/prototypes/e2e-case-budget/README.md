@@ -19,4 +19,6 @@ The probes behind "A budget raised from inside a case never reaches wdio's timer
 
 - `implementation.patch.txt` is `an-e2e-budget-is-declared-on-its-case` as it was proposed and
   reviewed: specs `53` and `62` with their budgets declared on the case, and the unit test that
-  guards the form. The change applied it as it stands.
+  guards the form. The change applied it as it stands, and review then tightened the test: a
+  `this.timeout(n)` inside an arrow is refused even in a `describe` body, since the arrow can be
+  called from a case.
