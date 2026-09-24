@@ -42,7 +42,7 @@
 
 ## 3. Decorations, in a real instance
 
-- [ ] 3.1 A narrow e2e case for a tab-indented quote under a list item: it takes the quote's
+- [x] 3.1 A narrow e2e case for a tab-indented quote under a list item: it takes the quote's
       block marker and stands in the item's child column.
 - [ ] 3.2 Manual check in Obsidian: #136's case 2 and #158's case 1 in outline mode, including
       Q38's `HyperMD-quote-lazy` line.
