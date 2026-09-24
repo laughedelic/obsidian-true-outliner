@@ -38,7 +38,7 @@
 
 ## 3. Declare each budget on its case
 
-- [ ] 3.1 `62-outline-edit-enforcement.e2e.ts`: move the stress case's `h.waitBudget(180_000)` from
+- [x] 3.1 `62-outline-edit-enforcement.e2e.ts`: move the stress case's `h.waitBudget(180_000)` from
       the body to `it(...).timeout(...)`, with its comment. Verified by
       `npm run test:e2e:narrow -- 62-outline-edit-enforcement "performance|find-and-replace"`,
       which reports 2 passing: the stress case and the case its body used to run into. This is a
