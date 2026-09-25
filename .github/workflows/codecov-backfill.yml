@@ -1,0 +1,73 @@
+name: Codecov backfill
+
+# Uploads e2e test results rebuilt from the logs of CI runs that predate the
+# JUnit upload, so Test Analytics starts with the history the logs still hold.
+# `scripts/codecov-backfill.mjs` says how a log becomes JUnit and which runs it
+# skips. A dry run stops before the upload and keeps what it rebuilt as an
+# artifact to inspect.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Rebuild and keep the results as an artifact, without uploading.
+        type: boolean
+        default: true
+      limit:
+        description: How many CI runs to read, newest first. Blank reads every run whose logs remain.
+        required: false
+        default: ""
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+
+      - run: node scripts/codecov-backfill.mjs collect backfill ${LIMIT:+--limit "$LIMIT"}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          LIMIT: ${{ inputs.limit }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: codecov-backfill
+          path: backfill/
+          retention-days: 7
+
+      - if: ${{ !inputs.dry-run }}
+        run: pip install codecov-cli==11.3.1
+
+      - if: ${{ !inputs.dry-run }}
+        run: |
+          uploaded=0 failed=0
+          while IFS=$'\t' read -r sha branch pr flag name build url file; do
+            [ -n "$sha" ] || continue
+            [ "$pr" != - ] || pr=
+            if codecovcli upload-process \
+                --report-type test_results \
+                --token "$CODECOV_TOKEN" \
+                --git-service github --slug "$GITHUB_REPOSITORY" \
+                --sha "$sha" --branch "$branch" ${pr:+--pr "$pr"} \
+                --flag "$flag" --name "$name" \
+                --build "$build" --build-url "$url" \
+                --file "$file" --disable-search; then
+              uploaded=$((uploaded + 1))
+            else
+              failed=$((failed + 1))
+            fi
+          done < backfill/manifest.tsv
+          echo "uploaded $uploaded, failed $failed" | tee -a "$GITHUB_STEP_SUMMARY"
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
