@@ -57,13 +57,29 @@ jobs:
           cache: npm
 
       - run: npm ci
-      - run: npm run test:coverage
+      - run: >-
+          npm run test:coverage --
+          --reporter=default --reporter=junit
+          --outputFile.junit=test-results/unit.junit.xml
 
       - if: always()
         uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage/lcov.info
+          flags: unittests
+          fail_ci_if_error: false
+
+      # Test Analytics: per-test pass/fail history, from which Codecov reports
+      # flaky tests. A failing run is the one worth recording, so this runs
+      # whatever the tests did, short of a cancellation.
+      - if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          report_type: test_results
+          files: test-results/unit.junit.xml
+          disable_search: true
           flags: unittests
           fail_ci_if_error: false
 
@@ -95,6 +111,7 @@ jobs:
           group: ${{ matrix.group }}
           platform: desktop
           max-instances: ${{ env.max-instances }}
+          codecov-token: ${{ secrets.CODECOV_TOKEN }}
 
   # Same specs under Obsidian's mobile emulation — still the Electron app at a
   # phone viewport, not the Capacitor one. Its own job tree rather than a
@@ -117,6 +134,7 @@ jobs:
           group: ${{ matrix.group }}
           platform: mobile
           max-instances: ${{ env.max-instances }}
+          codecov-token: ${{ secrets.CODECOV_TOKEN }}
 
   # A stable check name per platform for branch protection: matrix job names
   # change whenever the groups do.

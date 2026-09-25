@@ -990,6 +990,7 @@ function pasteThroughBothGates(
   from: { line: number; ch: number },
   to: { line: number; ch: number },
   payload: string,
+  fallbackIndentUnit?: string,
 ): Verdict {
   const doc = parse(md);
   const facts: TransactionFacts = {
@@ -1008,7 +1009,7 @@ function pasteThroughBothGates(
     cursorBefore: from,
   };
   const edit: EditFact = { from, to, insert: payload, cursorBefore: from };
-  return computeVerdict(classify(facts, doc), doc, edit);
+  return computeVerdict(classify(facts, doc), doc, edit, fallbackIndentUnit);
 }
 
 /** The pasted subtree's own shape, relative to its root — so results landing at
@@ -1177,7 +1178,8 @@ describe('a paste on the blank line under a node lands in it', () => {
     );
     expect(child.kind).toBe('rewrite');
     if (child.kind !== 'rewrite') return;
-    expect(encode(child.after)).toBe('\t- one\n\t\t\n\t\t- alpha\n\t\t  - beta\n\n\t\t- sub\n');
+    // The payload's two-space level is written in the vault's tab.
+    expect(encode(child.after)).toBe('\t- one\n\t\t\n\t\t- alpha\n\t\t\t- beta\n\n\t\t- sub\n');
 
     // One tab in is column 4, short of 6, so it is still the sibling reading —
     // the comparison is columns against columns, not characters against either.
@@ -1186,7 +1188,113 @@ describe('a paste on the blank line under a node lands in it', () => {
     );
     expect(sibling.kind).toBe('rewrite');
     if (sibling.kind !== 'rewrite') return;
-    expect(encode(sibling.after)).toBe('\t- one\n\t\t\n\t\t- sub\n\t- alpha\n\t  - beta\n');
+    expect(encode(sibling.after)).toBe('\t- one\n\t\t\n\t\t- sub\n\t- alpha\n\t\t- beta\n');
+  });
+
+  it('a caret paste writes the clipboard’s levels in the document’s unit (#216)', () => {
+    // Negative control: every level below the pasted root keeps the
+    // clipboard's characters, `\t  - b` and `  \t- b`.
+    const intoTabs = pasteThroughBothGates('- top\n\t- sib\n', pos(1, 6), pos(1, 6), '- a\n  - b\n    - c\n');
+    expect(intoTabs.kind).toBe('rewrite');
+    if (intoTabs.kind !== 'rewrite') return;
+    expect(encode(intoTabs.after)).toBe('- top\n\t- sib\n\t- a\n\t\t- b\n\t\t\t- c\n');
+
+    const intoSpaces = pasteThroughBothGates('- top\n  - sib\n', pos(1, 7), pos(1, 7), '- a\n\t- b\n\t\t- c\n');
+    expect(intoSpaces.kind).toBe('rewrite');
+    if (intoSpaces.kind !== 'rewrite') return;
+    expect(encode(intoSpaces.after)).toBe('- top\n  - sib\n  - a\n    - b\n      - c\n');
+  });
+
+  it('a paste into a note with no node starts the outline in the editor’s unit', () => {
+    // Negative control: the note is all preamble, which the paste path passed
+    // to Obsidian, so the clipboard's two spaces landed as they were.
+    const empty = pasteThroughBothGates('', pos(0, 0), pos(0, 0), '- a\n  - b\n    - c\n', '\t');
+    expect(empty.kind).toBe('rewrite');
+    if (empty.kind !== 'rewrite') return;
+    expect(encode(empty.after)).toBe('- a\n\t- b\n\t\t- c\n');
+    expect(empty.cursor).toEqual({ line: 2, ch: 5 });
+
+    // The blank lines below the caret become the run's trailing gap.
+    const above = pasteThroughBothGates('\n\n', pos(0, 0), pos(0, 0), '- a\n  - b\n', '\t');
+    expect(above.kind).toBe('rewrite');
+    if (above.kind !== 'rewrite') return;
+    expect(encode(above.after)).toBe('- a\n\t- b\n\n');
+    expect(above.cursor).toEqual({ line: 1, ch: 4 });
+
+    const spaces = pasteThroughBothGates('', pos(0, 0), pos(0, 0), '- a\n\t- b\n', '    ');
+    expect(spaces.kind).toBe('rewrite');
+    if (spaces.kind !== 'rewrite') return;
+    expect(encode(spaces.after)).toBe('- a\n    - b\n');
+  });
+
+  it('a paste over a selection of an empty note’s blank lines starts the outline too', () => {
+    // Negative control: the selection routed to the deletion path, which finds
+    // no node to cover in the preamble and passed the paste to Obsidian.
+    const oneLine = pasteThroughBothGates('  \n', pos(0, 0), pos(0, 2), '- a\n  - b\n', '\t');
+    expect(oneLine.kind).toBe('rewrite');
+    if (oneLine.kind !== 'rewrite') return;
+    expect(encode(oneLine.after)).toBe('- a\n\t- b\n');
+
+    // Select-all over a note of blank lines.
+    const all = pasteThroughBothGates('\n  \n\t\n', pos(0, 0), pos(3, 0), '- a\n  - b\n', '\t');
+    expect(all.kind).toBe('rewrite');
+    if (all.kind !== 'rewrite') return;
+    expect(encode(all.after)).toBe('- a\n\t- b\n');
+
+    // A selection reaching into the frontmatter is Obsidian's, as it always was.
+    expect(
+      pasteThroughBothGates('---\na: 1\n---\n\n', pos(2, 0), pos(4, 0), '- a\n  - b\n', '\t'),
+    ).toEqual({ kind: 'pass' });
+  });
+
+  it('a paste below a template’s frontmatter lands under it, and the frontmatter stays out of reach', () => {
+    const body = pasteThroughBothGates('---\na: 1\n---\n\n', pos(4, 0), pos(4, 0), '- a\n  - b\n', '\t');
+    expect(body.kind).toBe('rewrite');
+    if (body.kind !== 'rewrite') return;
+    expect(encode(body.after)).toBe('---\na: 1\n---\n\n- a\n\t- b\n');
+
+    // Inside the frontmatter the paste is Obsidian's, as it always was.
+    expect(pasteThroughBothGates('---\na: 1\n---\n', pos(1, 0), pos(1, 0), '- a\n  - b\n', '\t')).toEqual({
+      kind: 'pass',
+    });
+    // So is plain text, which opens no block structure to converge.
+    expect(pasteThroughBothGates('', pos(0, 0), pos(0, 0), 'plain words', '\t')).toEqual({ kind: 'pass' });
+  });
+
+  it('a pasted payload’s blank lines are written empty', () => {
+    // Negative control: each gap kept the clipboard's whitespace, a line of two
+    // spaces in a tab-indented note, and of a tab in a two-space one.
+    const intoTabs = pasteThroughBothGates(
+      '- top\n\t- sib\n', pos(1, 6), pos(1, 6), '- a\n  \n  - b\n  - c\n  \n  - d\n',
+    );
+    expect(intoTabs.kind).toBe('rewrite');
+    if (intoTabs.kind !== 'rewrite') return;
+    expect(encode(intoTabs.after)).toBe('- top\n\t- sib\n\t- a\n\n\t\t- b\n\t\t- c\n\n\t\t- d\n');
+
+    const intoSpaces = pasteThroughBothGates(
+      '- top\n  - sib\n', pos(1, 7), pos(1, 7), '- a\n\t- b\n\t\n\t- c\n',
+    );
+    expect(intoSpaces.kind).toBe('rewrite');
+    if (intoSpaces.kind !== 'rewrite') return;
+    expect(encode(intoSpaces.after)).toBe('- top\n  - sib\n  - a\n    - b\n\n    - c\n');
+  });
+
+  it('a whitespace-only line inside a pasted code block is code, and stays', () => {
+    const verdict = pasteThroughBothGates(
+      '- top\n\t- sib\n', pos(1, 6), pos(1, 6), '- a\n  ```\n  x\n    \n  y\n  ```\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(encode(verdict.after)).toBe('- top\n\t- sib\n\t- a\n\t  ```\n\t  x\n    \n\t  y\n\t  ```\n');
+  });
+
+  it('a payload pasted over a selection writes its blank lines empty too', () => {
+    const md = '- one\n- two\n- three\n';
+    const edit: EditFact = { from: pos(1, 0), to: pos(1, '- two'.length), insert: '- a\n  \n- b\n' };
+    const verdict = computeVerdict('boundary-crossing-edit', parse(md), edit);
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(encode(verdict.after)).toBe('- one\n- a\n\n- b\n- three\n');
   });
 
   it('a gap the payload lands PAST is left alone', () => {

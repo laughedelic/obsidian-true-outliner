@@ -8,6 +8,11 @@
 # add here is patch (diff) coverage — did the lines a PR actually touches get
 # tested — so that's the one check set to actually gate; everything else is
 # informational (visible in the PR comment, doesn't block merging).
+#
+# Test Analytics is a separate upload (`report_type: test_results`) of JUnit
+# XML from both suites: `unittests` for vitest, `e2e-desktop` and `e2e-mobile`
+# for the wdio groups. Those flags need no entry under `flags:` below, which
+# scopes coverage only.
 coverage:
   status:
     project:

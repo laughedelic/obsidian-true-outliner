@@ -80,15 +80,38 @@ export const FAILURE_SUMMARY_FILE = path.join(process.cwd(), '.obsidian-cache', 
 
 const JSON_REPORT_FILE_PATTERN = /^wdio-.*-json-reporter\.json$/;
 
+/** Where each worker's JUnit XML lands, for Codecov Test Analytics. CI
+ * uploads the directory with the platform as its flag
+ * (`.github/actions/e2e/action.yml`). */
+export const JUNIT_REPORT_DIR = path.join(process.cwd(), '.obsidian-cache', 'junit');
+
 /** The two configs' `reporters` array — `obsidian` for the human-readable
- * stdout run, `json` feeding `writeFailureSummary`'s condensed file. */
+ * stdout run, `json` feeding `writeFailureSummary`'s condensed file, `junit`
+ * for Codecov.
+ *
+ * The JUnit names are the mocha titles as written: the reporter's default
+ * format strips every non-alphanumeric character and prefixes the classname
+ * with the capabilities, which carry the Obsidian version — a new release
+ * would then start every test's history over. Codecov tells desktop from
+ * mobile by the upload's flag instead. */
 export const reporters: NonNullable<WebdriverIO.Config['reporters']> = [
   'obsidian',
   ['json', { outputDir: JSON_REPORT_DIR }],
+  [
+    'junit',
+    {
+      outputDir: JUNIT_REPORT_DIR,
+      outputFileFormat: ({ cid }: { cid: string }) => `wdio-${cid}-junit.xml`,
+      suiteNameFormat: /\s+/,
+      classNameFormat: ({ suite }: { suite?: { fullTitle?: string; title: string } }) =>
+        suite?.fullTitle ?? suite?.title ?? '',
+      addFileAttribute: true,
+    },
+  ],
 ];
 
 /**
- * Clears `JSON_REPORT_DIR` and any leftover `FAILURE_SUMMARY_FILE` before a
+ * Clears `JSON_REPORT_DIR`, `JUNIT_REPORT_DIR` and any leftover `FAILURE_SUMMARY_FILE` before a
  * new invocation writes into them.
  *
  * The summary is removed here, not just the report dir: `writeFailureSummary`
@@ -106,6 +129,7 @@ export async function resetE2eReports(): Promise<void> {
   if (process.env.WDIO_WORKER_ID !== undefined) return;
   await fsp.rm(JSON_REPORT_DIR, { recursive: true, force: true });
   await fsp.mkdir(JSON_REPORT_DIR, { recursive: true });
+  await fsp.rm(JUNIT_REPORT_DIR, { recursive: true, force: true });
   await fsp.rm(FAILURE_SUMMARY_FILE, { force: true });
 }
 

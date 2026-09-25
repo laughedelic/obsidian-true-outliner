@@ -93,4 +93,67 @@ describe('a tab-indented vault: every line a node owns takes the tab', function 
     await browser.keys([process.platform === 'darwin' ? Key.Command : Key.Ctrl, 'z']);
     expect(await h.getBuffer()).toBe(before);
   });
+
+  // A clipboard from outside the vault indents with spaces, and every level
+  // below the pasted root used to keep them (#216).
+  it('a two-space list pasted into a tab list lands in tabs at every level', async function () {
+    await outlineNote('- top\n\t- sib\n', 1, 6);
+    await h.pasteText('- a\n  - b\n    - c\n');
+    expect(await h.getBuffer()).toBe('- top\n\t- sib\n\t- a\n\t\t- b\n\t\t\t- c\n');
+    expect(await h.getCursor()).toEqual({ line: 4, ch: 6 });
+  });
+
+  it('a four-space list pasted at the root lands in tabs below its root', async function () {
+    await outlineNote('- top\n\t- sib\n- end\n', 2, 5);
+    await h.pasteText('- a\n    - b\n        - c\n');
+    expect(await h.getBuffer()).toBe('- top\n\t- sib\n- end\n- a\n\t- b\n\t\t- c\n');
+    expect(await h.getCursor()).toEqual({ line: 5, ch: 5 });
+  });
+
+  // A note with no nested item of its own has no unit to read, so the vault's
+  // setting answers: the editor's own indent unit.
+  it('a two-space list pasted into a note with no nested item lands in tabs', async function () {
+    await outlineNote('- top\n', 0, 5);
+    await h.pasteText('- a\n  - b\n    - c\n');
+    expect(await h.getBuffer()).toBe('- top\n- a\n\t- b\n\t\t- c\n');
+    expect(await h.getCursor()).toEqual({ line: 3, ch: 5 });
+  });
+
+  it('a two-space list pasted into an empty note lands in tabs', async function () {
+    await outlineNote('', 0, 0);
+    await h.pasteText('- a\n  - b\n    - c\n');
+    expect(await h.getBuffer()).toBe('- a\n\t- b\n\t\t- c\n');
+    expect(await h.getCursor()).toEqual({ line: 2, ch: 5 });
+  });
+
+  it('a two-space list pasted after a paragraph becomes a paragraph with a tab list', async function () {
+    await outlineNote('Some text.\n', 0, 10);
+    await h.pasteText('- a\n  - b\n    - c\n');
+    expect(await h.getBuffer()).toBe('Some text.\n\na\n- b\n\t- c\n');
+    expect(await h.getCursor()).toEqual({ line: 4, ch: 4 });
+  });
+
+  it('a pasted blank line of spaces lands empty', async function () {
+    await outlineNote('- top\n\t- sib\n', 1, 6);
+    await h.pasteText('- a\n  - b\n  \n  - c\n');
+    expect(await h.getBuffer()).toBe('- top\n\t- sib\n\t- a\n\t\t- b\n\n\t\t- c\n');
+    expect(await h.getCursor()).toEqual({ line: 5, ch: 5 });
+  });
+
+  it('a tab list pasted into a note with no nested item lands in spaces with tabs off', async function () {
+    await h.setIndentUsingTabs(false);
+    try {
+      await outlineNote('- top\n', 0, 5);
+      await h.pasteText('- a\n\t- b\n\t\t- c\n');
+      const lines = (await h.getBuffer()).split('\n');
+      expect(lines.slice(0, 2)).toEqual(['- top', '- a']);
+      // The width is the editor's space unit; what is pinned is that it is
+      // spaces, one unit per level.
+      const unit = /^ +/.exec(lines[2]!)?.[0] ?? '';
+      expect(unit.length).toBeGreaterThanOrEqual(2);
+      expect(lines.slice(2, 4)).toEqual([`${unit}- b`, `${unit}${unit}- c`]);
+    } finally {
+      await h.setIndentUsingTabs(true);
+    }
+  });
 });

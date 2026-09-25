@@ -14,7 +14,7 @@
 
 import type { OutlineDoc } from './model';
 import { lastPlaceIndex, placeLineText } from './model';
-import { nodeAtLine, nodeStartLine } from './locate';
+import { isEmptyBodyLine, isEmptyBodyRange, nodeAtLine, nodeStartLine } from './locate';
 import { parse } from './parse';
 import { isContentStartCh, surplusMarkerSpace } from './ops';
 import { coveredSubtreeRoots } from './escalate';
@@ -287,7 +287,21 @@ function isMultiBlockInsertion(
   const replaces =
     span.fromCh !== undefined && span.toCh !== undefined && span.fromCh !== span.toCh;
   if (replaces && facts.emptySelectionBefore) return false;
-  if (!nodeAtLine(doc, span.fromLine)) return false; // preamble: out of jurisdiction
+  // The preamble is out of jurisdiction, apart from the empty body of a note
+  // with no node yet, where a paste starts the outline.
+  if (!nodeAtLine(doc, span.fromLine) && !isEmptyBodyLine(doc, span.fromLine)) return false;
+  return isStructuralBlockSequence(parse(span.insertedText).children);
+}
+
+/**
+ * A structural payload replacing a selection that lies wholly in the body of a
+ * note with no node — whitespace, over one line or several. The caret's own
+ * case is `isMultiBlockInsertion`'s; a selection reaches none of the node-level
+ * shapes, having no node to cross.
+ */
+function isEmptyBodyPaste(doc: OutlineDoc, span: ChangedLineSpan): boolean {
+  if (!span.insertedText) return false;
+  if (!isEmptyBodyRange(doc, span.fromLine, span.toLine)) return false;
   return isStructuralBlockSequence(parse(span.insertedText).children);
 }
 
@@ -417,6 +431,7 @@ export function classify(facts: TransactionFacts, doc: OutlineDoc): TransactionC
   const other = facts.changedLineSpans.some(
     (span) =>
       isMultiBlockInsertion(doc, facts, span) ||
+      isEmptyBodyPaste(doc, span) ||
       crossesViaBoundaryDeletion(doc, span) ||
       crossesViaChromeDeletion(doc, facts, span) ||
       isExactSubtreeCoverDeletion(doc, span),

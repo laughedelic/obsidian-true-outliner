@@ -192,6 +192,55 @@ function addsTabAfterSpace(from: string, to: string, rest: string): boolean {
   return meets(to) && !meets(from);
 }
 
+/**
+ * A line a node owns below its first, carried to a node whose indentation went
+ * from `from` to `to` in a document indented with `unit`: its offset from the
+ * node's indentation survives, in the destination's characters.
+ *
+ * What follows the prefix is kept where it is spaces, or tabs in a tab
+ * document, and no space ends up in front of a tab; otherwise the offset is
+ * written in spaces, because a tab there is the clipboard's unit and not the
+ * document's. The offset is the one the source line had, not the one its tab
+ * reaches after the new prefix: a tab re-expands from wherever the prefix
+ * ends, and a child written one tab past its item's indentation would fall
+ * short of the item's content column once the prefix is narrower than a stop.
+ *
+ * A line that does not open with the node's own indentation goes to `carry`,
+ * which moves it with the block it belongs to, as a paste always has. A line
+ * the source wrote in a different unit from its node says nothing about where
+ * it belongs, and spelling its offset in spaces moved a tab continuation to
+ * where `>` opens a quote.
+ *
+ * An atom's lines are content, and go through `reprefixLine` instead.
+ */
+export function rewriteOwnLine(
+  line: string,
+  from: string,
+  to: string,
+  unit: string,
+  columnDelta: number,
+  carry: (line: string) => string,
+): string {
+  const ws = leadingWhitespace(line);
+  if (!ws.startsWith(from)) return carry(line);
+  const rest = ws.slice(from.length);
+  const swapped = to + line.slice(from.length);
+  if ((unit === '\t' || !rest.includes('\t')) && !addsTabAfterSpace(from, to, rest)) {
+    return shiftLine(swapped, columnDelta, false);
+  }
+  const offset = indentWidth(line) - indentWidth(from) + columnDelta;
+  return to + ' '.repeat(Math.max(0, offset)) + line.slice(ws.length);
+}
+
+/** `reprefixLine` for one atom's lines, whose whitespace is content: a line
+ * lands on the column the node's move gives it, in the destination's
+ * characters wherever the swap can say so. */
+export function reprefixAtomLines(node: OutlineNode, to: string): readonly string[] {
+  const from = leadingWhitespace(node.lines[0] ?? '');
+  const delta = indentWidth(to) - indentWidth(from);
+  return node.lines.map((line) => reprefixLine(line, from, to, delta, 0, true));
+}
+
 function reprefixSubtree(
   node: OutlineNode,
   from: string,

@@ -1,0 +1,156 @@
+// Differential fuzzer: random documents and payloads in every unit, main against the branch.
+// See README.md for how to run it; the two import roots below are the checkout and a copy
+// of main's src/ at ./main/src.
+import * as B from '../src/ops';
+import * as BP from '../src/parse';
+import * as BE from '../src/encode';
+import * as M from './main/src/ops';
+import * as MP from './main/src/parse';
+
+let seed = Number(process.env.SEED ?? 1);
+const rnd = () => {
+  seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff;
+  return seed / 0x7fffffff;
+};
+const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rnd() * xs.length)]!;
+
+const UNITS = ['\t', '  ', '    ', '   ', ' ', 'MIX'];
+function genDoc(): string {
+  const unit = pick(UNITS);
+  const u = (d: number) =>
+    unit === 'MIX' ? Array.from({ length: d }, () => pick(['\t', '  ', '    '])).join('') : unit.repeat(d);
+  const out: string[] = [];
+  let n = 0;
+  const item = (d: number, ind: string) => {
+    const marker = pick(['-', '-', '*', '1.', '10.', '100.', '2)']);
+    const run = pick(process.env.NOTABRUN ? [' ', ' ', '  ', '   '] : [' ', ' ', ' ', '  ', '\t', '   ']);
+    out.push(`${ind}${marker}${run}t${n++}`);
+    const contentPad = ind + ' '.repeat(marker.length + 1);
+    if (rnd() < 0.15) out.push(`${contentPad}cont${n}`);
+    if (rnd() < 0.08) out.push(`lazy${n}`);
+    if (rnd() < 0.1) out.push(pick(['', ' ', '\t']));
+    if (d < 3) {
+      const k = Math.floor(rnd() * 3);
+      for (let i = 0; i < k; i++) {
+        const r = rnd();
+        const cind = rnd() < 0.8 ? ind + u(1) : contentPad;
+        if (r < 0.7) item(d + 1, cind);
+        else if (r < 0.8) { out.push(`${cind}\`\`\``, `${cind}  code${n}`, `${cind}\`\`\``); }
+        else if (r < 0.87) out.push(`${cind}> q${n}`);
+        else if (r < 0.93) out.push(`${cind}| a | b |`, `${cind}| - | - |`);
+        else out.push(`${contentPad}para${n}`);
+      }
+    }
+  };
+  const k = 1 + Math.floor(rnd() * 3);
+  for (let i = 0; i < k; i++) {
+    const r = rnd();
+    if (r < 0.65) item(0, '');
+    else if (r < 0.8) {
+      out.push(`para${n++}`);
+      if (rnd() < 0.3) out.push(`   more${n}`);
+      if (rnd() < 0.7) item(0, pick(['', '', u(1)]));
+    } else if (r < 0.9 && !process.env.NOHEAD) out.push('# H' + n++);
+    else out.push('```', 'x', '```');
+    if (rnd() < 0.4) out.push('');
+  }
+  return out.join('\n');
+}
+
+type Sh = string;
+const k = (n: any) => (n.kind === 'paragraph' || n.kind === 'list-item' ? 'n' : n.kind[0]);
+const shape = (nodes: readonly any[]): Sh =>
+  nodes.map((n) => `${k(n)}${n.children.length ? '(' + shape(n.children) + ')' : ''}`).join(',');
+function intended(docNodes: readonly any[], anchorId: number, pay: readonly any[], pos: string): Sh {
+  const go = (nodes: readonly any[]): string[] => {
+    const out: string[] = [];
+    for (const n of nodes) {
+      if (n.id === anchorId && pos === 'before') out.push(shape(pay));
+      out.push(`${k(n)}${n.children.length ? '(' + go(n.children).join(',') + ')' : ''}`);
+      if (n.id === anchorId && pos === 'after') out.push(shape(pay));
+    }
+    return out;
+  };
+  return go(docNodes).join(',');
+}
+
+function* ids(nodes: readonly any[]): Generator<any> {
+  for (const n of nodes) {
+    yield n;
+    yield* ids(n.children);
+  }
+}
+
+const N = Number(process.env.N ?? 3000);
+let diffs = 0, shown = 0, regress = 0, improve = 0;
+const mode = process.env.MODE ?? 'insert';
+for (let t = 0; t < N; t++) {
+  const D = genDoc();
+  const P = genDoc();
+  const bd = BP.parse(D), md = MP.parse(D);
+  const bp = BP.parse(P).children, mp = MP.parse(P).children;
+  const bn = [...ids(bd.children)], mn = [...ids(md.children)];
+  if (bn.length === 0) continue;
+  const i = Math.floor(rnd() * bn.length);
+  let rb: any, rm: any, desc: string;
+  if (mode === 'insert') {
+    const pos = pick(['before', 'after'] as const);
+    const fb = pick([undefined, '\t', '  ']);
+    rb = B.insertSubtrees(bd, bn[i].id, bp, pos, fb);
+    rm = M.insertSubtrees(md, mn[i].id, mp, pos, fb);
+    desc = `insert ${pos} node#${i} fb=${JSON.stringify(fb)}`;
+  } else if (mode === 'indent') {
+    rb = B.indent(bd, bn[i].id);
+    rm = M.indent(md, mn[i].id);
+    desc = `indent node#${i}`;
+  } else {
+    const j = Math.floor(rnd() * (bn.length + 1));
+    const parentB = j === bn.length ? 'root' : bn[j].id;
+    const parentM = j === bn.length ? 'root' : mn[j].id;
+    const cnt = j === bn.length ? bd.children.length : bn[j].children.length;
+    const idx = Math.floor(rnd() * (cnt + 1));
+    rb = B.moveSubtreesTo(bd, [[bn[i].id]], { parentId: parentB, index: idx });
+    rm = M.moveSubtreesTo(md, [[mn[i].id]], { parentId: parentM, index: idx });
+    desc = `move node#${i} -> parent#${j} idx ${idx}`;
+    if (process.env.INT) {
+      const moved = bn[i];
+      // intended: remove moved, insert at parent/idx (idx relative to original children list)
+      const go = (nodes: readonly any[], isDest: boolean): string[] => {
+        const out: string[] = [];
+        nodes.forEach((n, x) => {
+          if (isDest && x === idx) out.push(shape([moved]));
+          if (n.id !== moved.id) out.push(`${k(n)}${(n.children.length || n.id === parentB) ? '(' + go(n.children, n.id === parentB).join(',') + ')' : ''}`);
+        });
+        if (isDest && idx === nodes.length) out.push(shape([moved]));
+        return out;
+      };
+      const want = go(bd.children, parentB === 'root').join(',').replace(/\(\)/g, '');
+      const sb2 = rb.ok ? shape(BP.parse(BE.encode(rb.value.doc)).children) : 'REJ';
+      const sm2 = rm.ok ? shape(MP.parse(BE.encode(rm.value.doc)).children) : 'REJ';
+      if (sm2 === want && sb2 !== want && sb2 !== 'REJ') regress++;
+      if (sm2 !== want && sb2 === want) improve++;
+      if (!(sm2 === want && sb2 !== want)) continue;
+    }
+  }
+  const sb = rb.ok ? shape(BP.parse(BE.encode(rb.value.doc)).children) : 'REJ:' + rb.reason;
+  const sm = rm.ok ? shape(MP.parse(BE.encode(rm.value.doc)).children) : 'REJ:' + rm.reason;
+  if (mode === 'insert' && process.env.INT) {
+    const want = intended(bd.children, bn[i].id, bp, (desc.split(' ')[1])!);
+    const okB = sb === want, okM = sm === want;
+    if (okM && !okB && !sb.startsWith('REJ')) regress++;
+    if (!okM && okB) improve++;
+    if (!(okM && !okB && !sb.startsWith('REJ'))) continue;
+  }
+  if (sb !== sm) {
+    diffs++;
+    if ((D + '\n' + P).split('\n').length <= Number(process.env.MAXL ?? 99) && shown++ < Number(process.env.SHOW ?? 5)) {
+      console.log('=== ' + desc);
+      console.log('DOC:\n' + JSON.stringify(D.split('\n')));
+      if (mode === 'insert') console.log('PAYLOAD:\n' + JSON.stringify(P.split('\n')));
+      console.log('main  ' + sm + '\nbranch' + sb);
+      console.log('main text  ' + JSON.stringify(rm.ok ? BE.encode(rm.value.doc).split('\n') : rm));
+      console.log('branch text' + JSON.stringify(rb.ok ? BE.encode(rb.value.doc).split('\n') : rb));
+    }
+  }
+}
+console.log('diffs', diffs, 'of', N, 'regress', regress, 'improve', improve);

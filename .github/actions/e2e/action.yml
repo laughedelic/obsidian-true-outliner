@@ -22,6 +22,12 @@ inputs:
   max-instances:
     description: How many Obsidian instances run at once within the group.
     required: true
+  codecov-token:
+    description: >
+      Codecov upload token for the group's test results. A composite action
+      cannot read secrets itself.
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -82,6 +88,19 @@ runs:
         PLATFORM: ${{ inputs.platform }}
         OBSIDIAN_VERSION: ${{ inputs.obsidian-version }}
         E2E_MAX_INSTANCES: ${{ inputs.max-instances }}
+
+    # Test Analytics: one upload per job, flagged by platform so the same
+    # test's desktop and mobile histories stay apart. The directory holds one
+    # file per worker (e2e/wdio.shared.mts).
+    - if: ${{ !cancelled() }}
+      uses: codecov/codecov-action@v7
+      with:
+        token: ${{ inputs.codecov-token }}
+        report_type: test_results
+        directory: .obsidian-cache/junit
+        flags: e2e-${{ inputs.platform }}
+        name: ${{ inputs.platform }}-${{ inputs.group || 'all' }}
+        fail_ci_if_error: false
 
     - if: failure()
       uses: actions/upload-artifact@v7
