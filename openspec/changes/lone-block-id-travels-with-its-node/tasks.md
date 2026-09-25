@@ -99,7 +99,7 @@
       depth. Add a test per "A dragged misplaced id lands as a line of the node above it" scenario
       in `tests/ops.test.ts` through `moveSubtreesTo`. Negative control: removing the exemption
       writes `- ^id` and fails the first scenario.
-- [ ] 6.5 Add Enter and Backspace handling on an `id` line to the keymap (D7), with a test per
+- [x] 6.5 Add Enter and Backspace handling on an `id` line to the keymap (D7), with a test per
       `outline-keyboard-grammar` scenario in `tests/grammar.test.ts`. Negative control: letting
       Enter inside the id split the line fails the refusal case.
 - [x] 6.6 Add `e2e/specs/` coverage beside `57-marker-surplus-space.e2e.ts` for the
