@@ -36,10 +36,12 @@
 
 - [x] 4.1 `npm run build`, `npm test`, `npm run lint`.
 - [x] 4.2 The new cases fail on `main` and pass on the branch.
-- [ ] 4.3 E2E sweep in CI on the pushed checkpoint.
+- [x] 4.3 E2E sweep in CI on the pushed checkpoint, and again on the rebased head.
 - [x] 4.4 Review round: the marker's change applied after the swap rather than before it (D4),
       the research note's outdent claim scoped to its sweep, the regex hoisted, and an
       unchanged subtree returned as it is.
-- [ ] 4.5 Manual check in Obsidian with **Indent using tabs** on: #154's case 1.
-- [ ] 4.6 Mark `decoration-follow-ups.md`'s entry closed, keeping its measurements; sync the
+- [x] 4.5 Manual check in Obsidian with **Indent using tabs** on: #154's case 1, a child
+      carried into a tab-indented list, the outdent back, and a group indent — each broken on
+      `main` and fixed here.
+- [x] 4.6 Mark `decoration-follow-ups.md`'s entry closed, keeping its measurements; sync the
       delta spec, archive the change, bump the version.
