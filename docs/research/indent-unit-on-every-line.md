@@ -107,4 +107,6 @@ in one.
   below its roots, by `reindentSubtreeVerbatim`'s design, in either direction: a two-space list
   pasted into a tab document lands as `\t  - b`, and a tab list pasted into a two-space one as
   `  \t- b`. Filed as
-  [#216](https://github.com/laughedelic/obsidian-true-outliner/issues/216).
+  [#216](https://github.com/laughedelic/obsidian-true-outliner/issues/216), and closed by writing
+  every level below a pasted root in the document's unit
+  ([`paste-indent-convergence.md`](paste-indent-convergence.md)).
