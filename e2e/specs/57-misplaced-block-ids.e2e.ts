@@ -183,3 +183,39 @@ describe('a misplaced block id', function () {
     expect(await menuRows()).toEqual(ROWS);
   });
 });
+
+describe('keys on an attached block id', function () {
+  const TABLE = 'Intro.\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n^t1\n\nOutro.\n';
+
+  beforeEach(async function () {
+    await h.createNote(NOTE, TABLE);
+    await h.openNote(NOTE);
+    await h.setOutlineMode(true);
+    await h.setBuffer(TABLE);
+    await browser.pause(150);
+  });
+
+  afterEach(async function () {
+    await h.dismissNotices();
+  });
+
+  it('refuses Enter inside the id and Backspace at its start, with the cue', async function () {
+    await h.setCursorSettled(6, 2);
+    await browser.keys(Key.Enter);
+    await browser.pause(100);
+    expect(await h.getBuffer()).toBe(TABLE);
+    await h.setCursorSettled(6, 0);
+    await browser.keys(Key.Backspace);
+    await browser.pause(100);
+    expect(await h.getBuffer()).toBe(TABLE);
+    expect((await h.noticeTexts()).length).toBeGreaterThan(0);
+  });
+
+  it('opens a line after the table from Enter at the end of its id', async function () {
+    await h.setCursorSettled(6, 3);
+    await browser.keys(Key.Enter);
+    await browser.waitUntil(async () => (await h.getBuffer()) !== TABLE, { timeout: 2000 });
+    expect(await h.getBuffer()).toBe('Intro.\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n^t1\n\n\n\nOutro.\n');
+    expect(await h.getCursor()).toEqual({ line: 8, ch: 0 });
+  });
+});
