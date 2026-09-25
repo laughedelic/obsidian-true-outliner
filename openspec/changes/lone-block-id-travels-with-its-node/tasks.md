@@ -66,13 +66,13 @@
 
 ## 5. Detection and corrections, in core
 
-- [ ] 5.1 Add `src/block-ids.ts` with `misplacedBlockIds(doc)`: each misplaced line with its line, id
+- [x] 5.1 Add `src/block-ids.ts` with `misplacedBlockIds(doc)`: each misplaced line with its line, id
       range, reading and corrections (D5), following `misplaced-block-ids`' table and the order of
       its corrections.
-- [ ] 5.2 Build each correction's edits and caret: attach (append ` ^id`, delete the id line and the
+- [x] 5.2 Build each correction's edits and caret: attach (append ` ^id`, delete the id line and the
       blank lines above it), remove, remove trailing whitespace, separate from the line below; omit a
       target that already carries an id.
-- [ ] 5.3 Add `tests/block-ids.test.ts` covering every research shape: which lines are misplaced,
+- [x] 5.3 Add `tests/block-ids.test.ts` covering every research shape: which lines are misplaced,
       their readings, their correction lists in order, and for each correction the text after its
       edit and that the re-parse attaches the id or leaves it misplaced for the stated reason.
       Negative control: offering the lead paragraph for a top-level list fails the "last node only"
