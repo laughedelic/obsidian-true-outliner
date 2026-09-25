@@ -1,0 +1,52 @@
+// Copy to tests/zz-indent-sweep.test.ts and run with
+//   OUT=<file> npx vitest run tests/zz-indent-sweep.test.ts
+// once per checkout; diff the two JSON files with compare.mjs.
+import { it } from 'vitest';
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { parse } from '../src/parse';
+import { encode } from '../src/encode';
+import { walkNodes, type OutlineNode } from '../src/model';
+import { indent, outdent } from '../src/ops';
+
+const SHAPES = [
+  '- top\n- foo\n  bar\n',
+  '- top\n- foo\n  bar\n  - kid\n    more\n',
+  '- top\n\t- sib\n- foo\n  bar\n  - kid\n    more\n',
+  '- top\n- foo\n\tbar\n',
+  '- top\n-  foo\n   bar\n',
+  '1. top\n2. foo\n   bar\n   - kid\n',
+  '- top\n\t- foo\n\t  bar\n\t  - kid\n',
+  '- top\n    - foo\n      bar\n',
+  '- top\n\t- a\n\t\t- foo\n\t\t  bar\n',
+  'Para.\n\n- foo\n  bar\n',
+  '- top\n- foo\n  ```\n  code\n\n  more\n  ```\n',
+  '- top\n- foo\n\n  > quote\n  > two\n',
+  '# H\n\n- top\n- foo\n  bar\n',
+];
+
+function shape(nodes: readonly OutlineNode[]): unknown {
+  return nodes.map((n) => [n.kind, n.lines.length, shape(n.children)]);
+}
+
+it('sweep', () => {
+  const docs = [
+    ...SHAPES,
+    ...readdirSync('tests/corpus').map((f) => readFileSync(`tests/corpus/${f}`, 'utf8')),
+  ];
+  const rows: Record<string, unknown> = {};
+  for (const [d, md] of docs.entries()) {
+    const doc = parse(md);
+    for (const node of walkNodes(doc)) {
+      for (const [name, op] of [['indent', indent], ['outdent', outdent]] as const) {
+        for (const unit of ['\t', '  ', '    ']) {
+          const r = op(doc, node.id, unit);
+          const key = `${d}|${node.id}|${name}|${JSON.stringify(unit)}`;
+          if (!r.ok) { rows[key] = { reject: r.rejection.reason }; continue; }
+          const text = encode(r.value.doc);
+          rows[key] = { text, shape: shape(parse(text).children) };
+        }
+      }
+    }
+  }
+  writeFileSync(process.env.OUT!, JSON.stringify(rows));
+});

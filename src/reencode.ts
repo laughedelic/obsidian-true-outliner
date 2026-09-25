@@ -125,6 +125,75 @@ export function shiftBelowMarker(node: OutlineNode, delta: number): OutlineNode 
   };
 }
 
+/**
+ * Move a line whose indentation OPENS with the node's own first-line
+ * indentation by swapping that prefix for the destination's, so the node's
+ * lines are indented in the characters its first line is. A column delta alone
+ * cannot say which characters to write: `shiftLine` makes up an indent in
+ * spaces, and a node indented with a tab came out with a tab on its first line
+ * and spaces on every line below it.
+ *
+ * `columnDelta` is the node's own content column moving — a marker run
+ * normalized on the way — and is applied after the swap, so a swapped line
+ * keeps the destination's prefix and a line that is not swapped takes the one
+ * combined shift it always has.
+ *
+ * The swap is taken only where it lands on the column the delta asks for. A
+ * tab AFTER the prefix re-expands from wherever the new prefix ends, so a swap
+ * between prefixes whose widths differ by less than a tab stop moves that line
+ * by some other amount. Nor is it taken where it would put a space in front
+ * of a tab that had none in front of it before — the arrangement `shiftLine`
+ * exists to avoid. There, and on a line that does not open with
+ * the prefix at all, `shiftLine` answers as it always has.
+ */
+function reprefixLine(
+  line: string,
+  from: string,
+  to: string,
+  delta: number,
+  columnDelta: number,
+  keepBlank: boolean,
+): string {
+  if (keepBlank && line.trim() === '') return line;
+  const ws = leadingWhitespace(line);
+  if (ws.startsWith(from)) {
+    const swapped = to + line.slice(from.length);
+    const lands = indentWidth(swapped) === Math.max(0, indentWidth(line) + delta);
+    if (lands && !addsTabAfterSpace(from, to, ws.slice(from.length))) {
+      return shiftLine(swapped, columnDelta, keepBlank);
+    }
+  }
+  return shiftLine(line, delta + columnDelta, keepBlank);
+}
+
+/**
+ * Whether writing `to` in place of `from`, ahead of the rest of a line's
+ * indentation, puts a space in front of a tab where there was none. Only the
+ * join can: the rest is carried over unchanged, and a pair inside `to` is the
+ * destination's own, written on the node's first line whatever its other
+ * lines take — refusing it there would leave those lines in a different
+ * indentation from the first.
+ */
+function addsTabAfterSpace(from: string, to: string, rest: string): boolean {
+  const meets = (prefix: string): boolean => prefix.endsWith(' ') && rest.startsWith('\t');
+  return meets(to) && !meets(from);
+}
+
+function reprefixSubtree(
+  node: OutlineNode,
+  from: string,
+  to: string,
+  delta: number,
+  columnDelta: number,
+): OutlineNode {
+  if (from === to && delta === 0 && columnDelta === 0) return node;
+  return {
+    ...node,
+    lines: node.lines.map((line) => reprefixLine(line, from, to, delta, columnDelta, isAtom(node))),
+    children: node.children.map((child) => reprefixSubtree(child, from, to, delta, columnDelta)),
+  };
+}
+
 export function shiftSubtree(node: OutlineNode, delta: number): OutlineNode {
   if (delta === 0) return node;
   return {
@@ -163,11 +232,11 @@ export function reencodeForDestination(
     // under it at the same relative depth.
     const normalized = node.kind === 'list-item' ? normalizeMarkerRun(first) : first;
     const columnDelta = normalized === first ? 0 : markerWidthOf(normalized) - markerWidthOf(first);
-    const shifted = shiftSubtree({ ...node, lines: [normalized, ...node.lines.slice(1)] }, delta + columnDelta);
+    const shifted = reprefixSubtree(node, leadingWhitespace(first), indentText, delta, columnDelta);
     return {
       ...shifted,
       lines: [
-        indentText + (shifted.lines[0] ?? '').slice(leadingWhitespace(shifted.lines[0] ?? '').length),
+        indentText + normalized.slice(leadingWhitespace(normalized).length),
         ...shifted.lines.slice(1),
       ],
     };

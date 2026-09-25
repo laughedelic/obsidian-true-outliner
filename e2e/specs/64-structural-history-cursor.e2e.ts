@@ -82,8 +82,8 @@ describe('structural-history-integration: redo cursor', function () {
   });
 
   // The exact indentation `indent` synthesizes for the shifted descendant
-  // depends on the vault's indent settings and on `shiftLine`'s numeric-delta
-  // path, neither of which this spec is about. So the Tab scenarios capture
+  // depends on the vault's indent settings, which this spec is not about.
+  // So the Tab scenarios capture
   // the post-Tab buffer and assert against THAT, rather than hardcoding an
   // indent unit — what's under test is only where the cursor ends up.
   const TAB_FIXTURE = '- alpha\n- beta\n\t- beta child\n- gamma\n';
