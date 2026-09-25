@@ -37,6 +37,7 @@ import {
   listAttachesTo,
   nativeContentKind,
   reorderReparents,
+  isLoneBlockIdNode,
 } from './rules';
 import {
   carryContentColumn,
@@ -2618,6 +2619,65 @@ function reencodeHeadingSubtree(node: OutlineNode, delta: number): OutlineNode {
 }
 
 /**
+ * A lone block id moved by itself (`misplaced-block-ids`): an id is not a node,
+ * so it goes under the line above the destination rather than at a depth —
+ * directly under a paragraph's or an item's text, as a line of it, and after a
+ * blank line under any other block, as its attached id. Undefined where no line
+ * can take it that way: the top of the note, a node that already carries an
+ * id, or a block inside a list item, where Obsidian names the item; the
+ * insertion then writes it as the paragraph it is.
+ */
+function dropLoneId(
+  doc: OutlineDoc,
+  afterRemoval: OutlineDoc,
+  root: OutlineNode,
+  destination: MoveDestination,
+  destSiblings: readonly OutlineNode[],
+  movedIds: ReadonlySet<number>,
+): OpResult<OpOutput> | undefined {
+  if (!isLoneBlockIdNode(root) || root.children.length > 0) return undefined;
+  const parentPath = destination.parentId === 'root' ? [] : findPath(afterRemoval, destination.parentId);
+  if (parentPath === undefined) return undefined;
+  const removedAbove = destSiblings
+    .slice(0, destination.index)
+    .filter((sibling) => movedIds.has(sibling.id)).length;
+  const index = destination.index - removedAbove;
+  const siblings = childrenAt(afterRemoval, parentPath);
+  const host =
+    index > 0
+      ? subtreeFinalNode(siblings[index - 1]!)
+      : parentPath.length > 0
+        ? nodeAt(afterRemoval, parentPath)
+        : undefined;
+  if (!host || host.blockId) return undefined;
+  const hostPath = findPath(afterRemoval, host.id)!;
+  const inItem = hostPath
+    .slice(0, -1)
+    .some((_, depth) => nodeAt(afterRemoval, hostPath.slice(0, depth + 1))!.kind === 'list-item');
+  const id = (root.lines[0] ?? '').trim();
+  const first = host.lines[0] ?? '';
+  let written: OutlineNode;
+  if (host.kind === 'paragraph' || host.kind === 'list-item') {
+    const pad =
+      host.kind === 'list-item'
+        ? leadingWhitespace(first) + ' '.repeat(markerWidthOf(first))
+        : leadingWhitespace(first);
+    written = { ...host, lines: [...host.lines, pad + id] };
+  } else {
+    if (inItem) return undefined;
+    written = { ...host, blockId: { gap: [''], line: leadingWhitespace(first) + id } };
+  }
+  const surgery = replaceNode(afterRemoval, hostPath, written);
+  return finalize(doc, keepDocumentTerminator(doc, surgery), host.id);
+}
+
+function replaceNode(doc: OutlineDoc, path: NodePath, node: OutlineNode): OutlineDoc {
+  return updateSiblings(doc, path.slice(0, -1), (nodes) =>
+    nodes.map((n, i) => (i === path[path.length - 1] ? node : n)),
+  );
+}
+
+/**
  * The shared re-encode step `insertSubtrees` and enforce.ts's own
  * no-surviving-anchor fallback (a paste replacing the only content in some
  * scope, D16) both need: given the destination scope's context (parent plus
@@ -2713,7 +2773,9 @@ export function reencodeBlocksForDestination(
       );
       continue;
     }
-    if (block.kind !== 'paragraph' && block.kind !== 'list-item') {
+    // A lone block id is a line, not a node: it keeps its kind wherever it
+    // lands, where a list item would be an empty bullet carrying the id.
+    if ((block.kind !== 'paragraph' && block.kind !== 'list-item') || isLoneBlockIdNode(block)) {
       written.push(reindentSubtree(block, indentText, unit));
       continue;
     }
@@ -2989,6 +3051,16 @@ export function moveSubtreesTo(
   // child, and the insertion is what writes it as the paragraph's sibling.
   const ordered = [...roots].sort((a, b) => destSiblings.indexOf(a) - destSiblings.indexOf(b));
   const movedIds = new Set(roots.map((root) => root.id));
+  if (roots.length === 1 && destination.level === undefined && isLoneBlockIdNode(roots[0]!)) {
+    const own = destSiblings.indexOf(roots[0]!);
+    const inPlace = own !== -1 && (destination.index === own || destination.index === own + 1);
+    const removed = inPlace ? undefined : removeGroups(doc, groups);
+    const dropped =
+      removed?.ok === true
+        ? dropLoneId(doc, removed.value.surgery, roots[0]!, destination, destSiblings, movedIds)
+        : undefined;
+    if (dropped) return dropped;
+  }
   const staying = destSiblings.filter((node) => !movedIds.has(node.id));
   const aboveCount = destSiblings
     .slice(0, destination.index)

@@ -92,7 +92,7 @@
       event is plugin-own; negative control: removing it from the list fails the test.
 - [x] 6.4 Register the command with a `checkCallback` over the caret's line, opening the menu at
       `coordsAtPos`.
-- [ ] 6.4a Exempt a lone-id paragraph from kind conversion and from the destination's depth in
+- [x] 6.4a Exempt a lone-id paragraph from kind conversion and from the destination's depth in
       `reencodeBlocksForDestination` and `moveSubtreesTo`, writing it under the line above the
       destination at that line's node's column, directly under text and after a blank line under
       any other block (D8); the drop preview draws it there, at one

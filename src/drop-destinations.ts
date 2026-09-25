@@ -23,7 +23,7 @@ import { isAtom, type NodeKind, type OutlineDoc, type OutlineNode } from './mode
 import { ownSpan } from './model';
 import { reencodeBlocksForDestination } from './ops';
 import { parse } from './parse';
-import { destinationHeadingLevel, reorderReparents } from './rules';
+import { destinationHeadingLevel, isLoneBlockIdNode, reorderReparents } from './rules';
 
 /** A place at a seam: a parent, a position among its children, and the depth a
  * node placed there takes. What a seam offers before any run is asked about. */
@@ -301,6 +301,9 @@ export function dropSeams(
   const siblings = home
     ? operandRoots.filter((root) => placeOf(doc, root.id)?.parentId === home.parentId).length
     : 0;
+  // A lone block id is a line, not a node: every depth at a seam writes it
+  // under the same line (`moveSubtreesTo`), so a seam offers it once.
+  const loneId = operandRoots.length === 1 && isLoneBlockIdNode(first) && first.children.length === 0;
   const out: DropSeam[] = [];
   for (const seam of seams(doc, {
     ...options,
@@ -332,7 +335,12 @@ export function dropSeams(
       const absorbs = absorbedSpan(doc, seam, written.firstLine, operandIds, all, placed.depth);
       candidates.push(absorbs ? { ...placed, ...written, absorbs } : { ...placed, ...written });
     }
-    out.push({ line: seam.line, aboveId: seam.aboveId, belowId: seam.belowId, candidates });
+    out.push({
+      line: seam.line,
+      aboveId: seam.aboveId,
+      belowId: seam.belowId,
+      candidates: loneId ? oneDepth(candidates, home) : candidates,
+    });
   }
   // The run's lower boundary. The seam walk merged it into the run's top,
   // which keeps the run's own place; without a dead seam of its own here the
@@ -351,6 +359,19 @@ export function dropSeams(
     }
   }
   return out;
+}
+
+/** One of a seam's candidates: the run's own place where the seam is its own,
+ * so a drop there stays the no-op it is, and the deepest otherwise. */
+function oneDepth(
+  candidates: readonly DropDestination[],
+  home: { readonly parentId: number | 'root'; readonly index: number } | undefined,
+): DropDestination[] {
+  const own = candidates.find(
+    (c) => home !== undefined && c.parentId === home.parentId && c.index === home.index,
+  );
+  const chosen = own ?? candidates[candidates.length - 1];
+  return chosen ? [chosen] : [];
 }
 
 /**
