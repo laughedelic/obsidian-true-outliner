@@ -142,11 +142,24 @@ function shiftIndent(line: string, delta: number): string {
  */
 export function shiftBelowMarker(node: OutlineNode, delta: number): OutlineNode {
   if (delta === 0) return node;
-  return {
-    ...node,
-    lines: node.lines.map((line, i) => (i === 0 ? line : shiftLine(line, delta, isAtom(node)))),
-    children: node.children.map((child) => shiftSubtree(child, delta)),
-  };
+  return withIdLine(
+    {
+      ...node,
+      lines: node.lines.map((line, i) => (i === 0 ? line : shiftLine(line, delta, isAtom(node)))),
+      children: node.children.map((child) => shiftSubtree(child, delta)),
+    },
+    (line) => shiftLine(line, delta, false),
+  );
+}
+
+/**
+ * A node with its attached block id's line rewritten by `rewrite`. The id is
+ * part of the node's own span, so every rewrite of the node's lines moves it
+ * too; the blank lines before it stay blank.
+ */
+export function withIdLine(node: OutlineNode, rewrite: (line: string) => string): OutlineNode {
+  if (!node.blockId) return node;
+  return { ...node, blockId: { ...node.blockId, line: rewrite(node.blockId.line) } };
 }
 
 /**
@@ -261,20 +274,26 @@ function reprefixSubtree(
   columnDelta: number,
 ): OutlineNode {
   if (from === to && delta === 0 && columnDelta === 0) return node;
-  return {
-    ...node,
-    lines: node.lines.map((line) => reprefixLine(line, from, to, delta, columnDelta, isAtom(node))),
-    children: node.children.map((child) => reprefixSubtree(child, from, to, delta, columnDelta)),
-  };
+  return withIdLine(
+    {
+      ...node,
+      lines: node.lines.map((line) => reprefixLine(line, from, to, delta, columnDelta, isAtom(node))),
+      children: node.children.map((child) => reprefixSubtree(child, from, to, delta, columnDelta)),
+    },
+    (line) => reprefixLine(line, from, to, delta, columnDelta, false),
+  );
 }
 
 export function shiftSubtree(node: OutlineNode, delta: number): OutlineNode {
   if (delta === 0) return node;
-  return {
-    ...node,
-    lines: node.lines.map((line) => shiftLine(line, delta, isAtom(node))),
-    children: node.children.map((child) => shiftSubtree(child, delta)),
-  };
+  return withIdLine(
+    {
+      ...node,
+      lines: node.lines.map((line) => shiftLine(line, delta, isAtom(node))),
+      children: node.children.map((child) => shiftSubtree(child, delta)),
+    },
+    (line) => shiftLine(line, delta, false),
+  );
 }
 
 /**
@@ -325,13 +344,18 @@ export function reencodeForDestination(
       i === 0 ? `${indentText}${marker} ${line.trimStart()}` : `${contPad}${line.trimStart()}`,
     );
     const childDelta = targetIndent + marker.length + 1 - childBaseCol(node);
-    return {
-      ...node,
-      kind: 'list-item',
-      listStyle: style,
-      lines,
-      children: node.children.map((child) => shiftSubtree(child, childDelta)),
-    };
+    // A paragraph's id always follows a blank line, which puts it at the
+    // item's content column, where an item's id after a blank line belongs.
+    return withIdLine(
+      {
+        ...node,
+        kind: 'list-item',
+        listStyle: style,
+        lines,
+        children: node.children.map((child) => shiftSubtree(child, childDelta)),
+      },
+      (line) => `${contPad}${line.trimStart()}`,
+    );
   }
 
   if (node.kind === 'list-item' && newKind === 'paragraph') {
@@ -347,6 +371,16 @@ export function reencodeForDestination(
       kind: 'paragraph',
       lines,
       children: node.children.map((child) => shiftSubtree(child, childDelta)),
+      // An item's id directly under it would be a line of the paragraph's
+      // text; a blank line keeps it the paragraph's attached id.
+      ...(node.blockId
+        ? {
+            blockId: {
+              gap: node.blockId.gap.length > 0 ? node.blockId.gap : [''],
+              line: `${indentText}${node.blockId.line.trimStart()}`,
+            },
+          }
+        : {}),
     };
     delete (result as { listStyle?: unknown }).listStyle;
     return result;
@@ -415,11 +449,24 @@ export function headingAsListItem(
   indentText: string,
   style: ListStyle = DEFAULT_LIST_STYLE,
 ): OutlineNode {
+  const marker = markerText(style);
+  // After a blank line an item's id sits at its content column; directly
+  // under the item it is a lazy line, short of that column.
+  const idIndent = (gap: readonly string[]): string =>
+    gap.length > 0 ? `${indentText}${' '.repeat(marker.length + 1)}` : indentText;
   const result: OutlineNode = {
     ...node,
     kind: 'list-item',
     listStyle: style,
-    lines: [`${indentText}${markerText(style)} ${headingContentLine(node)}`],
+    lines: [`${indentText}${marker} ${headingContentLine(node)}`],
+    ...(node.blockId
+      ? {
+          blockId: {
+            ...node.blockId,
+            line: `${idIndent(node.blockId.gap)}${node.blockId.line.trimStart()}`,
+          },
+        }
+      : {}),
   };
   delete (result as { level?: unknown }).level;
   delete (result as { setext?: unknown }).setext;
