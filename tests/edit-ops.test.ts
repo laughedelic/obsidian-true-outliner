@@ -1539,6 +1539,15 @@ describe('a pasted subtree is written in the document’s own unit (#216)', () =
     expect(encode(result.value.doc)).toBe('- e\n  - a\n    - b\n      - c\n');
   });
 
+  it('a tab step under a bullet reads as a tab, after a numbered item’s spaces', () => {
+    // Negative control: the first nested item alone, three spaces under `1.`,
+    // which writes the pasted levels in spaces in a note whose bullets nest
+    // with a tab.
+    expect(pasteAfter('1. one\n   - a\n- x\n\t- y\n', '\t- y', SPELLINGS['two spaces'])).toBe(
+      '1. one\n   - a\n- x\n\t- y\n\t- a\n\t\t- b\n\t\t\t- c\n\t\t- d\n',
+    );
+  });
+
   it('an indent reads the unit under a bullet, not the padding under a number', () => {
     // Negative control: the first nested item alone, `   - a` under `1.`,
     // reads as a three-space unit.

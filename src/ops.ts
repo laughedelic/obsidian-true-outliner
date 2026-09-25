@@ -811,8 +811,8 @@ function inferIndentUnit(doc: OutlineDoc, fallback = '  '): string {
     if (parent?.kind === 'list-item' && parent.listStyle?.type === 'bullet') {
       const parentWs = leadingWhitespace(parent.lines[0] ?? '');
       if (ws.slice(parentWs.length).includes('\t')) return '\t';
-      const step = indentWidth(ws) - indentWidth(parentWs);
-      if (step > 0) return spaces(step);
+      // A child sits past its parent's content column, so the step is positive.
+      return spaces(indentWidth(ws) - indentWidth(parentWs));
     }
   }
   return first ?? fallback;

@@ -32,7 +32,10 @@
 - [x] 3.5 In `tests/enforce.test.ts`, the caret-paste path for #216's cases 1 and 3, and the
       tab-vault case that pinned the clipboard's two spaces updated to the tab.
 - [x] 3.6 `e2e/specs/31-tab-indented-vault.e2e.ts`: a two-space list pasted into a tab list, and
-      a four-space list pasted at the root of a tab document, buffer and caret.
+      a four-space list pasted at the root of a tab document, buffer and caret; and a note with no
+      nested item, which takes the editor's unit, with **Indent using tabs** on and off.
+- [x] 3.7 A tab step under a bullet reads as a tab after a numbered item's spaces. Negative
+      control: the first nested item's whitespace alone.
 
 ## 4. Validate
 
