@@ -125,10 +125,12 @@ offered.
 The edits:
 
 - `Attach to` SHALL append one space and the id, as written, to the end of the target's last own
-  line, and delete the id's line together with the blank lines between it and the line above. The
-  caret SHALL land at the end of the appended id.
+  line, and take the id's line away as removing it does. The caret SHALL land at the end of the
+  appended id.
 - Removing the id SHALL delete its line together with the blank lines between it and the line
-  above, leaving the caret at the end of the line above.
+  above, leaving the caret at the end of the line above. When the id's paragraph has further lines
+  or children, those blank lines SHALL stay as their separator, and only the id's line goes; when
+  no line is above it, the blank lines after it go instead.
 - `Remove trailing whitespace` SHALL delete the whitespace after the id.
 - `Separate from the line below` SHALL insert an empty line after the id's line.
 
