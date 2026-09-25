@@ -26,7 +26,7 @@ env:
   node-version: "26"
   # Obsidian instances per e2e job. Beyond the runner's core count this stops
   # paying, and a group can never beat its longest single spec. Note that
-  # `waitBudget` in e2e/helpers.ts widens the harness timeouts off this value:
+  # `waitBudget` in e2e-tests/helpers.ts widens the harness timeouts off this value:
   # changing it needs repeated runs to confirm, not one green one.
   max-instances: "4"
 

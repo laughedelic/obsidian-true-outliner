@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import * as path from 'node:path';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const SPEC_DIR = path.join(root, 'e2e', 'specs');
+export const SPEC_DIR = path.join(root, 'e2e-tests', 'specs');
 
 /** Prefix -> check name. A two-digit key wins over its decade, which is how a
  * single spec is lifted into a group of its own. */

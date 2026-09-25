@@ -1,7 +1,7 @@
 /**
  * Pipeline smoke: Obsidian boots, plugin loads, buffer mirrors disk, the
  * platform mode matches what this wdio config asked for — a guard against
- * e2e/wdio.mobile-emulation.conf.mts silently running in desktop mode — and a
+ * e2e-tests/wdio.mobile-emulation.conf.mts silently running in desktop mode — and a
  * click on the phone viewport reaches the editor rather than the drawer over it.
  */
 

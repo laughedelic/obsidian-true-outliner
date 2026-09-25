@@ -21,7 +21,7 @@ import { pinBacklinksCapOff } from '../footer.js';
 
 const OUT = path.join(process.cwd(), '.obsidian-cache', 'footer-chrome');
 /** Committed, and diffed on every run — see the baseline test at the bottom. */
-const BASELINES = path.join(process.cwd(), 'e2e', 'baselines', 'footer');
+const BASELINES = path.join(process.cwd(), 'e2e-tests', 'baselines', 'footer');
 
 /** Every corpus fixture points here, so this note's footer is the corpus. */
 const HUB = 'Projects/Aurora Dashboard.md';

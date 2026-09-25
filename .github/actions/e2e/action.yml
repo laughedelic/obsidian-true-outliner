@@ -62,7 +62,7 @@ runs:
       shell: bash
 
     # Obsidian is an Electron app and needs a display even "headless" in CI.
-    # OBSIDIAN_VERSION is read by e2e/obsidian-target.mts, which also prints the
+    # OBSIDIAN_VERSION is read by e2e-tests/obsidian-target.mts, which also prints the
     # resolved target and fails fast if a pinned version is not in the cache.
     - run: |
         args=()

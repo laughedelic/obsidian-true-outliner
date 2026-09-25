@@ -1549,7 +1549,7 @@ undo-on-abandon rule, leaving no trace in the file.
 **Covered by**: `tests/split.test.ts` (the indented provisional position for each destination
 scope, and the re-parse of the materialized node including its siblings' attachment);
 `tests/undo-on-abandon.test.ts` (byte-identical abandonment of an indented position);
-`e2e/specs/30-keyboard-grammar.e2e.ts` (the live keypress-then-type sequence on a list item
+`e2e-tests/specs/30-keyboard-grammar.e2e.ts` (the live keypress-then-type sequence on a list item
 with a paragraph child).
 
 ### Requirement: Group forms of indent, outdent and reordering

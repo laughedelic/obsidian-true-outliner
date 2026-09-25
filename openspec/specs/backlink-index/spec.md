@@ -56,7 +56,7 @@ separately.
 - **WHEN** the target note contains a link to itself
 - **THEN** that link is not reported as a reference to the target
 
-**Covered by**: `e2e/specs/72-backlink-index.e2e.ts` ("classifies a plain link as a note
+**Covered by**: `e2e-tests/specs/72-backlink-index.e2e.ts` ("classifies a plain link as a note
 reference", "classifies a subpath link as an anchor reference", "classifies an alias link as a
 note reference, keeping the text as written", "distinguishes an embed from a link, and a
 property from both").
@@ -73,7 +73,7 @@ backlink structures.
 - **THEN** no call to an undocumented backlink API and no monkey-patch of an Obsidian internal
   appears in the index
 
-**Covered by**: `e2e/specs/72-backlink-index.e2e.ts` ("does not report a note as its own
+**Covered by**: `e2e-tests/specs/72-backlink-index.e2e.ts` ("does not report a note as its own
 backlink", "does not report links that resolve elsewhere") for the behaviour, and
 `eslint-plugin-obsidianmd` in CI for the API-surface half — a private-API reach is a lint
 failure rather than a test failure, which is the check that can actually see it.
@@ -107,9 +107,9 @@ reported for that target.
 - **WHEN** a note that references the target is renamed
 - **THEN** its references are reported under the new path and not under the old one
 
-**Covered by**: `e2e/specs/72-backlink-index.e2e.ts` ("picks up a newly added link without a
+**Covered by**: `e2e-tests/specs/72-backlink-index.e2e.ts` ("picks up a newly added link without a
 reload", "drops a reference when the link is removed", "evicts a deleted source note",
-"re-keys a renamed source note to its new path") and `e2e/specs/75-footer-behaviour.e2e.ts`
+"re-keys a renamed source note to its new path") and `e2e-tests/specs/75-footer-behaviour.e2e.ts`
 ("drops a source’s group when that source stops referencing" and "repaints a mounted footer when
 a source is renamed" — the index updating is not the same as the footer repainting, and the
 first of those was a real defect found on a green index test).
@@ -136,7 +136,7 @@ note's content changes, so a reference is never placed using a stale tree.
 
 **Covered by**: `tests/footer-model.test.ts` ("keeps a list under the paragraph that owns it" —
 the case where our tree and Obsidian's metadata disagree and the footer follows ours) and
-`e2e/specs/73-footer-render.e2e.ts` (rows rendered from the plugin's own parse of a real vault).
+`e2e-tests/specs/73-footer-render.e2e.ts` (rows rendered from the plugin's own parse of a real vault).
 
 ### Requirement: Answering for a target is bounded and interruptible
 
@@ -159,8 +159,8 @@ receiving the rest.
 - **THEN** each source's placed references become available independently, rather than only
   after all sources have been parsed
 
-**Covered by**: `e2e/specs/76-footer-cost.e2e.ts` (spike S5: index build and summaries against
+**Covered by**: `e2e-tests/specs/76-footer-cost.e2e.ts` (spike S5: index build and summaries against
 per-source placement, asserting the no-read half is far cheaper than the per-source half) and
-`e2e/specs/75-footer-behaviour.e2e.ts` ("paints counts before context, and never fabricates
+`e2e-tests/specs/75-footer-behaviour.e2e.ts` ("paints counts before context, and never fabricates
 rows while resolving").
 

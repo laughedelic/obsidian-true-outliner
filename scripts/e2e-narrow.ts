@@ -7,7 +7,7 @@
  *
  *   node scripts/e2e-narrow.ts <spec> [test-name-grep] [--mobile]
  *
- * `<spec>` is matched against `e2e/specs/*.e2e.ts` by substring on the
+ * `<spec>` is matched against `e2e-tests/specs/*.e2e.ts` by substring on the
  * filename (case-insensitive) — `77`, `footer-controls`, and
  * `77-footer-controls` all resolve to the same file — or it can be a real
  * path to a spec file. An ambiguous substring lists every match and exits
@@ -29,14 +29,14 @@ import * as path from 'node:path';
 import { binPath } from './bin-path.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const specDir = path.join(root, 'e2e', 'specs');
+const specDir = path.join(root, 'e2e-tests', 'specs');
 
 function usage() {
   console.error(
     [
       'Usage: node scripts/e2e-narrow.ts <spec> [test-name-grep] [--mobile]',
       '',
-      '  <spec>            substring of a filename in e2e/specs, or a path to one',
+      '  <spec>            substring of a filename in e2e-tests/specs, or a path to one',
       '  [test-name-grep]  mocha --mochaOpts.grep pattern (matches full test titles)',
       '  --mobile          run under wdio.mobile-emulation.conf.mts instead',
       '',
@@ -71,7 +71,7 @@ function resolveSpec(arg: string): string {
   const [only] = matches;
   if (matches.length === 1 && only !== undefined) return path.join(specDir, only);
   if (matches.length === 0) {
-    console.error(`[e2e:narrow] no spec matches ${JSON.stringify(arg)} in e2e/specs/`);
+    console.error(`[e2e:narrow] no spec matches ${JSON.stringify(arg)} in e2e-tests/specs/`);
     process.exit(1);
   }
   console.error(
@@ -104,7 +104,7 @@ if (drift('--snapshot') !== 0) process.exit(1);
 
 const wdioArgs = [
   'run',
-  mobile ? 'e2e/wdio.mobile-emulation.conf.mts' : 'e2e/wdio.conf.mts',
+  mobile ? 'e2e-tests/wdio.mobile-emulation.conf.mts' : 'e2e-tests/wdio.conf.mts',
   '--spec',
   specPath,
 ];

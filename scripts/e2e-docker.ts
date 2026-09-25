@@ -1,6 +1,6 @@
 /**
  * Runs the e2e suite inside a Linux container under Xvfb — see
- * `e2e/docker/README.md` for what this buys over running locally (nothing
+ * `e2e-tests/docker/README.md` for what this buys over running locally (nothing
  * pops up on the host, whatever OS the host is) and its limits.
  *
  *   node scripts/e2e-docker.ts [desktop|mobile] [--group <name>]
@@ -28,7 +28,7 @@ import * as path from 'node:path';
 import { specGroups } from './spec-groups.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const composeFile = path.join(root, 'e2e', 'docker', 'docker-compose.yml');
+const composeFile = path.join(root, 'e2e-tests', 'docker', 'docker-compose.yml');
 
 /**
  * A git WORKTREE's `.git` is a file pointing at an absolute host path
@@ -170,7 +170,7 @@ const status = run('docker', [
   ...userArgs(),
   ...gitVolumeAndEnvArgs(),
   'e2e',
-  'e2e/docker/start-xvfb-and-run.sh',
+  'e2e-tests/docker/start-xvfb-and-run.sh',
   ...innerCommand,
 ]);
 process.exit(status);

@@ -61,7 +61,7 @@ Docker Desktop/OrbStack Linux VM's CPU allocation with everything else on the ho
 `E2E_MAX_INSTANCES=N npm run test:e2e:docker`; `docker info` reports what the VM currently has to
 give.
 
-**No `xvfb-run`.** `e2e/docker/start-xvfb-and-run.sh` starts `Xvfb` itself and polls for its
+**No `xvfb-run`.** `e2e-tests/docker/start-xvfb-and-run.sh` starts `Xvfb` itself and polls for its
 socket file before exporting `DISPLAY` and `exec`ing whatever command it's given — see that
 script's header. The obvious choice, wrapping the whole invocation in `xvfb-run --auto-servernum`,
 hung indefinitely in this container: `Xvfb` came up but the wrapped `node` process never started,

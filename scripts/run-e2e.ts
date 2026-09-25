@@ -104,7 +104,7 @@ let suite = 1;
 try {
   suite = run(
     wdio,
-    ['run', mobile ? 'e2e/wdio.mobile-emulation.conf.mts' : 'e2e/wdio.conf.mts', ...specArgs],
+    ['run', mobile ? 'e2e-tests/wdio.mobile-emulation.conf.mts' : 'e2e-tests/wdio.conf.mts', ...specArgs],
     {
       ...(mobile ? { OBSIDIAN_E2E_MOBILE: '1' } : {}),
       // A run that includes specs contending for a machine-global resource goes

@@ -30,7 +30,7 @@ entries, however often it recomputes.
 - **THEN** the document text, the undo stack, and the resulting caret position are exactly what
   the caret movements themselves produced, with no additional transaction interposed
 
-**Covered by**: `e2e/specs/55-position-indicators.e2e.ts` ("renders no accent at all with outline mode off", "mutates nothing as the caret moves through the tree").
+**Covered by**: `e2e-tests/specs/55-position-indicators.e2e.ts` ("renders no accent at all with outline mode off", "mutates nothing as the caret moves through the tree").
 
 ### Requirement: The current node is the node containing the primary caret
 
@@ -59,7 +59,7 @@ its head.
 - **THEN** no current-node accent and no ancestor trail render for as long as that cover stands,
   and both return once the selection collapses
 
-**Covered by**: `tests/decorate.test.ts` (`computePositionTrail` → "current node" suite); `e2e/specs/55-position-indicators.e2e.ts` ("draws one trail for multiple cursors, from the primary range", "is suppressed while a whole-subtree cover is selected, and returns after").
+**Covered by**: `tests/decorate.test.ts` (`computePositionTrail` → "current node" suite); `e2e-tests/specs/55-position-indicators.e2e.ts` ("draws one trail for multiple cursors, from the primary range", "is suppressed while a whole-subtree cover is selected, and returns after").
 
 ### Requirement: The current node's marker renders an accent when enabled
 
@@ -97,7 +97,7 @@ render any accent.
 - **THEN** the accent renders on the node's first line, and no accent renders on any
   continuation or gap line
 
-**Covered by**: `e2e/specs/55-position-indicators.e2e.ts` ("accents the marker of the heading the caret is in, and no other", "accents a list item's NATIVE bullet, which the caret does not swap for raw text", "accents an ORDERED list item’s number, which is a different element", "accents only the node’s FIRST line, never a continuation or gap line", "turns off independently of the trail"); the native-marker findings themselves are `docs/research/experiment-position-indicators`’s findings 1 and 4.
+**Covered by**: `e2e-tests/specs/55-position-indicators.e2e.ts` ("accents the marker of the heading the caret is in, and no other", "accents a list item's NATIVE bullet, which the caret does not swap for raw text", "accents an ORDERED list item’s number, which is a different element", "accents only the node’s FIRST line, never a continuation or gap line", "turns off independently of the trail"); the native-marker findings themselves are `docs/research/experiment-position-indicators`’s findings 1 and 4.
 
 ### Requirement: Guides and markers are two independent three-state settings
 
@@ -211,7 +211,7 @@ its own.
 - **THEN** it renders at the same column, with the same continuity through blank gap lines, as it
   did unaccented
 
-**Covered by**: `tests/decorate.test.ts` ("'guides' style" suite); `e2e/specs/55-position-indicators.e2e.ts` ("accents an ancestor's guide but leaves a sibling subtree's alone", "accents the ancestor guide on gap lines too, with no break", "emits no accent for a top-level node — there is no ancestor").
+**Covered by**: `tests/decorate.test.ts` ("'guides' style" suite); `e2e-tests/specs/55-position-indicators.e2e.ts` ("accents an ancestor's guide but leaves a sibling subtree's alone", "accents the ancestor guide on gap lines too, with no break", "emits no accent for a top-level node — there is no ancestor").
 
 ### Requirement: The `lineage` states accent the route from the outline root to the current node
 
@@ -257,7 +257,7 @@ without drawing anything across the columns between them.
 - **THEN** neither an accented segment nor an accented marker renders anywhere inside that
   sibling subtree
 
-**Covered by**: `tests/decorate.test.ts` ("'path' style" suite, including "accents every ancestor's own marker, which is what replaced the elbows", "starts each segment exactly where the guides style starts its own", "skips a multi-line ancestor’s OWN rows, continuation lines included", and the arriving segment's stop); `e2e/specs/55-position-indicators.e2e.ts` ("runs a connected path from the root to the caret, and stops there", "accents every ancestor’s marker — the junction that replaced the elbows", "keeps the base guide continuous through a half-accented row").
+**Covered by**: `tests/decorate.test.ts` ("'path' style" suite, including "accents every ancestor's own marker, which is what replaced the elbows", "starts each segment exactly where the guides style starts its own", "skips a multi-line ancestor’s OWN rows, continuation lines included", and the arriving segment's stop); `e2e-tests/specs/55-position-indicators.e2e.ts` ("runs a connected path from the root to the caret, and stops there", "accents every ancestor’s marker — the junction that replaced the elbows", "keeps the base guide continuous through a half-accented row").
 
 ### Requirement: Trail rendering through list nesting uses the same columns as every other level
 
@@ -343,7 +343,7 @@ setting change.
   open in outline mode
 - **THEN** the next render reflects the new setting
 
-**Covered by**: `e2e/specs/55-position-indicators.e2e.ts` ("follows the caret with no reload and no edit", "applies a settings change live on a note of only widget-replaced atoms" — the byte-identical-output case `forceRedraw` exists for).
+**Covered by**: `e2e-tests/specs/55-position-indicators.e2e.ts` ("follows the caret with no reload and no edit", "applies a settings change live on a note of only widget-replaced atoms" — the byte-identical-output case `forceRedraw` exists for).
 
 ### Requirement: Indicator appearance is restylable without plugin settings
 
@@ -363,7 +363,7 @@ them without any plugin change and without any additional setting.
 - **THEN** the accent resolves from that theme's own variables in each case, with no plugin
   setting change
 
-**Covered by**: `e2e/specs/55-position-indicators.e2e.ts` ("lets a snippet retune the accent with no geometry change", "resolves the accent from the active theme, in light and in dark").
+**Covered by**: `e2e-tests/specs/55-position-indicators.e2e.ts` ("lets a snippet retune the accent with no geometry change", "resolves the accent from the active theme, in light and in dark").
 
 ### Requirement: Nested per-cell editors receive no position indicators
 
@@ -377,7 +377,7 @@ accent and no trail, regardless of what its own text would otherwise parse as.
 - **THEN** the cell's own nested editor renders no accented marker and no trail, while the outer
   note's own decorations stay active
 
-**Covered by**: `e2e/specs/55-position-indicators.e2e.ts` ("renders no indicators inside a nested per-cell table editor").
+**Covered by**: `e2e-tests/specs/55-position-indicators.e2e.ts` ("renders no indicators inside a nested per-cell table editor").
 
 ### Requirement: The trail accents the columns the zoomed view renders
 While a zoom scope is active, the position trail SHALL accent the guide columns and markers of
