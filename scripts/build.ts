@@ -1,6 +1,6 @@
 import esbuild, { type Plugin } from 'esbuild';
+import { builtinModules } from 'node:module';
 import process from 'node:process';
-import builtins from 'builtin-modules';
 import { installToVault, buildStamp, type BuildStamp } from './install-to-vault.ts';
 import { STYLES_DIR, stylesheetParts, writeStylesheet } from './styles.ts';
 
@@ -138,7 +138,9 @@ const context = await esbuild.context({
     '@lezer/common',
     '@lezer/highlight',
     '@lezer/lr',
-    ...builtins,
+    // Both spellings: an import can name a builtin with or without the `node:` scheme.
+    ...builtinModules,
+    ...builtinModules.map((name) => `node:${name}`),
   ],
   format: 'cjs',
   target: 'es2018',

@@ -47,6 +47,20 @@ jobs:
       - run: npm run typecheck:e2e
       - run: npm run typecheck:scripts
 
+  # The community directory scans every release: the manifest, the license,
+  # `npm ci && npm run build`, and its own ESLint and Stylelint rulesets over
+  # the source. Obsidian's action runs the same checks here, and `strict` fails
+  # the job on anything the directory would rate an error; warnings stay in the
+  # job summary.
+  directory-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: obsidianmd/obsidian-workflows@v1
+        with:
+          scanner-lint: true
+          strict: true
+
   unit-test:
     runs-on: ubuntu-latest
     steps:
