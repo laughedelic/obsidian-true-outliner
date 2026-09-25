@@ -18,6 +18,7 @@ mark's title state (`docs/research/lone-block-id`):
 | a lone block id that does not attach, indented to a list item's content column | that list item |
 | a lone block id followed, after only blank lines, by another lone block id | nothing: the next id names the same block |
 | a lone block id with no content line above it in the document | nothing |
+| a lone block id outside every list item, with a block directly under it | nothing: it names only its own line |
 | a line that would be a lone block id but for trailing whitespace | not an id |
 | a paragraph whose first line would be a lone block id and which has further lines | not an id: the line below joins it |
 
@@ -36,6 +37,12 @@ misplaced, and no other line is.
 #### Scenario: The first of two consecutive ids is misplaced, the second is not
 - **WHEN** a paragraph is followed by `^y1` and `^y2`, each after a blank line
 - **THEN** `^y1` is misplaced with the reading that it names nothing, and `^y2` is not marked
+
+#### Scenario: An id with a list directly under it is misplaced
+- **WHEN** `Lead.`, a blank line, `^id3` and `- a` directly under the id are in outline mode
+- **THEN** `^id3` is misplaced, its reading is that it names only its own line, and
+  `Separate from the line below` makes the note `Lead.`, blank, `^id3`, blank, `- a`, with the id
+  attached to `Lead.`
 
 #### Scenario: An attached id is never misplaced
 - **WHEN** a table is followed by a blank line and `^t1`
@@ -109,7 +116,7 @@ Each misplaced shape SHALL offer these corrections, in this order, followed by r
   the node whose own lines end right above the id is a list item other than that item.
 - **Names nothing.** Removing the id only.
 - **Trailing whitespace.** `Remove trailing whitespace`.
-- **The line below joins it.** `Separate from the line below`.
+- **The line below joins it**, and **a block directly under it**. `Separate from the line below`.
 
 A row's label SHALL name its target by the start of the target's text. A target that already
 carries a block id of its own — attached, or inline at the end of its last line — SHALL NOT be
@@ -148,22 +155,32 @@ same reason, and the mark follows the re-parse.
 - **WHEN** `Remove trailing whitespace` is chosen for `^t4` with trailing spaces after a table
 - **THEN** the line reads `^t4`, the id attaches to the table, and nothing is marked
 
-### Requirement: A dragged misplaced id lands as an id
-A misplaced id's paragraph moved to a new place — dragged by its warning glyph, or pasted — SHALL
-land as a lone block id line, never re-encoded into the destination scope's kind. It SHALL be
-written at the destination's column: a list item's content column where it lands among that item's
-children, the scope's own column otherwise. Where it lands decides the rest, by the ordinary
-parse: directly after a node's own lines it attaches to that node and is no longer marked;
-anywhere else it stays misplaced, with the reading its new position has.
+### Requirement: A dragged misplaced id lands as a line of the node above it
+An id is not a node and has no depth of its own, so a misplaced id's paragraph moved to a new
+place — dragged by its warning glyph, or pasted — SHALL land as a line, never re-encoded into the
+destination scope's kind and never at a depth the destination offers. It SHALL be written directly
+under the last line above the destination, with no blank line between, at the column of that
+line's node: a list item's content column, the node's own column otherwise. Below it, the seam
+SHALL take the blank line a block directly under an attached id needs (`structural-operations`).
 
-#### Scenario: Dropping an id between a lead paragraph and its list attaches it to the paragraph
+The ordinary parse then decides what it is: under a paragraph's or an item's text it is a line of
+that text and names the node as an inline id does; under a heading, table, quote, callout, fence,
+rule or html block it attaches to that node; with no line above it — the top of the note — it
+stays a misplaced id naming nothing.
+
+#### Scenario: Dropping an id between a lead paragraph and its list makes it a line of the paragraph
 - **WHEN** `^id`, misplaced after `Lead.` and its item `- a`, is dragged by its glyph to the seam
   between `Lead.` and `- a`
-- **THEN** the note reads `Lead.`, a blank line, `^id`, `- a`; `^id` is attached to `Lead.`, and
+- **THEN** the note reads `Lead.`, `^id`, `- a`, with no blank line; `^id` is a line of `Lead.`, and
+  nothing is marked
+
+#### Scenario: Dropping an id under a heading attaches it, with a blank line below
+- **WHEN** a misplaced `^id` is dragged to the seam between `## H` and its first child `- a`
+- **THEN** the note reads `## H`, `^id`, a blank line, `- a`; `^id` is attached to the heading, and
   nothing is marked
 
 #### Scenario: Dropping an id where nothing is above it keeps it marked
-- **WHEN** the same `^id` is dragged to the top of the note
+- **WHEN** a misplaced `^id` is dragged to the top of the note, above `Lead.`
 - **THEN** the note begins `^id`, a blank line, `Lead.`; `^id` is a paragraph of its own and is
   marked with the reading that it names nothing
 

@@ -19,6 +19,11 @@ document with it:
 - A split SHALL leave the id attached to the node that keeps the original's first line.
 - A merge SHALL keep the id of whichever of the two nodes carried one, and SHALL be rejected with
   `merge-not-expressible` when both did.
+- Where an operation puts a node directly under an attached id, the seam SHALL hold a blank line
+  when the id's node is not a list item, since a block directly under the id detaches it; below
+  a list item's id, the seam SHALL be the one below a paragraph line of the item, since text
+  directly under the id joins it. The same holds for a node's first child directly under its
+  own id.
 
 The closure guarantee holds with ids included: every accepted result re-parses to a tree whose
 attached ids are the ones the operation's result states.
@@ -33,6 +38,11 @@ attached ids are the ones the operation's result states.
 - **WHEN** the same table is moved to the end of the note as a drag moves it
 - **THEN** the result reads `Intro.`, a blank line, `Outro.`, a blank line, the table, a blank
   line and `^t1`, and `^t1` is still attached to the table
+
+#### Scenario: A node moved under an attached id is separated from it
+- **WHEN** `## H` has `^h3` attached directly under it, and a list item `- x` moves to become the
+  heading's first child
+- **THEN** a blank line separates `^h3` from `- x`, and `^h3` is still attached to the heading
 
 #### Scenario: Deleting a node deletes its id
 - **WHEN** a callout with `^c1` attached is deleted

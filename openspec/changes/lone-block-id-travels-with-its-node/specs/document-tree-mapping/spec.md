@@ -30,8 +30,9 @@ The parser SHALL attach a lone block id to the node whose own lines end immediat
 blank lines between skipped, when that node has no children before the id and one of these holds:
 
 - the node is a paragraph, heading, table, quote, callout, fenced code block, thematic break or
-  HTML block with no list item among its ancestors, and the id line is indented less than four
-  columns;
+  HTML block with no list item among its ancestors, the id line is indented less than four
+  columns, and a blank line or the end of the document follows the id — or, for a quote or a
+  callout, the id follows its last line with no blank line between, whatever follows the id;
 - the node is a list item, the id line follows one or more blank lines, and it is indented to at
   least the item's content column and less than four columns past it;
 - the node is a list item, the id line follows its last own line with no blank line between, and
@@ -71,6 +72,18 @@ and it is not one of the node's children and not a node of its own.
 #### Scenario: An id directly under the last item attaches to that item
 - **WHEN** `- a`, `- b` are followed by `^l3` with no blank line between
 - **THEN** `^l3` belongs to `b`
+
+#### Scenario: An id with a block directly under it does not attach outside a list
+- **WHEN** `Lead.` is followed by a blank line, `^id3` and `- a` directly under the id
+- **THEN** `^id3` is a paragraph node of its own
+
+#### Scenario: An id under an item attaches whatever follows it
+- **WHEN** `- a` is followed by a blank line, `  ^f9` and `  - c` directly under the id
+- **THEN** `^f9` belongs to `a`, and `c` is `a`'s child
+
+#### Scenario: An id directly under a paragraph is a line of the paragraph
+- **WHEN** `Lead.` is followed directly by `^id1` and then `- a`
+- **THEN** the paragraph's lines are `Lead.` and `^id1`, and `- a` is its child
 
 #### Scenario: An id after a list does not attach
 - **WHEN** `- a`, `- b` are followed by a blank line and `^l1` at column 0

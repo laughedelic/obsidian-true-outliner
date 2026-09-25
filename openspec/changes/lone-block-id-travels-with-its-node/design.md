@@ -64,8 +64,11 @@ attached just before it, given that node, the open list stack and the id's inden
 does, the previous node's `trailingGap` becomes `blockId.gap`, the id's line becomes
 `blockId.line`, and the id block's own gap becomes the node's `trailingGap`.
 
-The consecutive-id rule needs the block after the id: `attach` is handed a look-ahead that says
-whether the next block is another lone id.
+Two parts of the rule need the block after the id: the consecutive-id rule, and the rule that an
+id outside a list attaches only when a blank line or the end of the document follows it
+(`docs/research/lone-block-id`, "What may follow the id"). `attach` is handed a look-ahead that
+says whether the next block is another lone id, and whether the id block is closed by a gap or by
+the end of the document.
 
 The rule attaches only where the previous node has no children yet, which is the same as "the id
 follows the node's own lines" at attach time: an id after a node's children finds a child as the
@@ -96,10 +99,11 @@ node's own span. The paths that rewrite a node's lines each handle it once:
 - `splitNode` leaves `blockId` on the node that keeps the first line.
 - `mergeNodes` keeps whichever `blockId` exists, and rejects with `merge-not-expressible` when both
   do.
-- The seam below a node with an id is the seam below a one-line paragraph: a line of text directly
-  under the id joins it (`docs/research/lone-block-id`, `^t5`). `tailAsWritten` returns a paragraph
-  tail for such a node, and `normalizeBoundaries`' list-item first-child rule reads the same
-  tail, so both seam rules follow without new cases.
+- Outside a list item, any block directly under an attached id detaches it, so
+  `needsBlankBetween` asks for a blank line below every such node, and `normalizeBoundaries`
+  gives such a node with children a blank line before its first child, as it already does for a
+  list item whose first child its text would swallow. Below a list item's id, only text joins the
+  id (`^g6`, `^g7`), so the seam is the one below a paragraph line.
 
 ### D5. Detection and corrections are a pure core module
 
@@ -138,15 +142,28 @@ constructed so their result re-parses with the id attached; the unit tests asser
 - **Styles.** A new part under `styles/` for the mark and the glyph, using `--text-warning` and the
   highlight background the surplus mark uses.
 
-### D8. A moved misplaced id keeps its kind
+### D8. A moved misplaced id lands as a line of the node above it
 
 `reencodeBlocksForDestination`, the step a drag (`moveSubtreesTo`) and a paste share, converts a
-paragraph arriving in a list scope into a list item. A paragraph that is a lone block id is exempt:
-it keeps its kind and takes the destination's column, so a dropped id is an id line and the
-re-parse attaches it, or keeps it misplaced, by D2's rule. Without the exemption a drop between a
-lead paragraph and its list writes `- ^id`, an empty item carrying the id, which names neither and
-is not marked either (measured on `main` at 42130da). Indent and outdent of a misplaced id are not
-exempt: they are paragraph operations the user asked for by name.
+paragraph arriving in a list scope into a list item. Measured on `main` at 42130da, a drop of a
+misplaced id between a lead paragraph and its list writes `- ^id`: an empty item carrying the id,
+which names neither and is not marked either.
+
+A lone-id paragraph is exempt from that conversion, and from the destination's depth: an id is not
+a node, so what a drop chooses for it is the line it goes under. It is written directly under the
+last line above the destination, with no blank line between, at that line's node's column — a
+list item's content column, the node's own column otherwise. The re-parse decides the rest: under
+a paragraph's or an item's text it becomes a line of that text, which Obsidian reads as the
+node's id (`^id1`); under any other block it attaches (D2), and D4's seam rule puts a blank line
+below it when a block follows. Only at the top of the note, with no line above, does it stay a
+misplaced paragraph.
+
+A drop with a blank line above the id would read as the drop of any paragraph, but it attaches to
+nothing where a block follows directly (`^id3`), and adds a blank line between a paragraph and
+the id that the paragraph's own text does not need.
+
+Indent and outdent of a misplaced id are not exempt: they are paragraph operations the user asked
+for by name.
 
 ### D7. Keys on an attached id's line
 
