@@ -74,6 +74,48 @@ same day with the same probe:
 So no id, inline or lone, names a block INSIDE a list item: every one names the item. The only
 list-item content an id can single out is a nested item.
 
+### What may follow the id
+
+Every shape above has a blank line or the end of the note after the id. Measured 25 September 2026
+with the same probe, on the same Obsidian, a block directly under the id changes the reading:
+
+| Shape | Names |
+| --- | --- |
+| `Lead.`, blank, `^id3`, `- a` directly under | only the `^id3` line: it is a section of its own |
+| `Lead.`, blank, `^f1`, then directly under it a heading, a quote, a rule, a fence, an ordered list, an html block | only the id line, in every case |
+| `Lead.`, blank, `^f15`, a table directly under | nothing: the id is the table's header row |
+| table, blank, `^f6`, `- a` directly under | only the id line |
+| table, `^f7` directly under, `- a` directly under | only the id line |
+| `## H`, blank, `^f11`, `- a` directly under | only the id line |
+| `## H`, `^f12` directly under, `- a` directly under | only the id line |
+| callout, `^g9` directly under, `- a` directly under | the callout, the id line included |
+| `Lead.`, blank, `^id4`, blank, `- a` | `Lead.` |
+| `## H`, blank, `^g11` at the end of the note, no final newline | the heading |
+| `Lead.`, `^id1` directly under, `- a` directly under | `Lead.` and the id line: one paragraph |
+| `Lead.`, `^id2` directly under, blank, `- a` | `Lead.` and the id line |
+| `Lead one`, `lead two`, `^id5` directly under | the paragraph, all three lines |
+| `- z`, `- a`, blank, `  ^f8`, `- b` directly under | item `a` |
+| `- a`, blank, `  ^f9`, `  - c` directly under | item `a`, `c` included |
+| `- a`, `^f10`, `- b` directly under | item `a` |
+| `- a`, blank, `  ^g1`, `  > q` directly under | item `a`, the quote included |
+| `- a`, `^g2`, `> q` directly under | item `a`, the quote included |
+| `- a`, `^g3`, `## H` directly under | item `a` |
+| `- a`, blank, `  ^g4`, `## H` directly under | item `a` |
+| `- a`, `^g5`, `1. b` directly under | item `a` |
+| `- a`, blank, `  ^g6`, `Text.` directly under | nothing: the two lines are one paragraph |
+| `- a`, `^g7`, `  more` directly under | nothing, the same way |
+
+Three findings:
+
+- **Outside a list, a lone id attaches to the block above only when a blank line or the end of the
+  note follows it.** A block of any kind directly under the id leaves the id a one-line section
+  naming only itself. The exception is an id directly under a quote or callout, which is a lazy
+  line of the quote and names it whatever follows.
+- **Inside a list item the follower does not matter**, except text that joins the id's line: the
+  next item, a nested item, a quote or a heading directly under the id leave it naming the item.
+- **An id directly under a paragraph's last line is a line of that paragraph**, and names the
+  paragraph the way an inline ` ^id` does, whatever follows.
+
 ## What an embed shows
 
 Each shape embedded from a note of its own, `![[Embed target#^id]]`, read from the rendered embed.
@@ -155,6 +197,11 @@ the removal and re-encoded insertion a paste also uses. Measured on `main` at c6
 the table in `Intro.`, blank, a table, blank, `^t1`, blank, `Outro.` to the top of the note gives
 the table, `Intro.`, `^t1`, `Outro.` — the id now follows `Intro.` — and dragging it to the end
 leaves `^t1` under `Intro.` the same way. A drag separates the id as a move does.
+
+A misplaced id dragged by its paragraph is re-encoded like any paragraph arriving in a scope.
+Measured on `main` at 42130da: in `Lead.`, `- a`, blank, `^id`, blank, `After.`, dragging `^id`
+to the seam between `Lead.` and `- a` makes it `Lead.`'s first child in that scope's kind, `- ^id`
+— an empty item carrying the id, which names neither `Lead.` nor the list.
 
 ## Two groups
 
