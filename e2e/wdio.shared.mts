@@ -93,8 +93,7 @@ export const JUNIT_REPORT_DIR = path.join(process.cwd(), '.obsidian-cache', 'jun
  * format strips every non-alphanumeric character and prefixes the classname
  * with the capabilities, which carry the Obsidian version — a new release
  * would then start every test's history over. Codecov tells desktop from
- * mobile by the upload's flag instead. `scripts/codecov-backfill.mjs` builds
- * the same names from old job logs, so a change here is a change there. */
+ * mobile by the upload's flag instead. */
 export const reporters: NonNullable<WebdriverIO.Config['reporters']> = [
   'obsidian',
   ['json', { outputDir: JSON_REPORT_DIR }],
