@@ -1205,6 +1205,13 @@ describe('a paste on the blank line under a node lands in it', () => {
     expect(encode(empty.after)).toBe('- a\n\t- b\n\t\t- c\n');
     expect(empty.cursor).toEqual({ line: 2, ch: 5 });
 
+    // The blank lines below the caret become the run's trailing gap.
+    const above = pasteThroughBothGates('\n\n', pos(0, 0), pos(0, 0), '- a\n  - b\n', '\t');
+    expect(above.kind).toBe('rewrite');
+    if (above.kind !== 'rewrite') return;
+    expect(encode(above.after)).toBe('- a\n\t- b\n\n');
+    expect(above.cursor).toEqual({ line: 1, ch: 4 });
+
     const spaces = pasteThroughBothGates('', pos(0, 0), pos(0, 0), '- a\n\t- b\n', '    ');
     expect(spaces.kind).toBe('rewrite');
     if (spaces.kind !== 'rewrite') return;

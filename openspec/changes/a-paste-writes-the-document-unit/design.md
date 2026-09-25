@@ -96,8 +96,10 @@ D1 moves nested items relative to lines that D2 keeps in place. A line that is t
 because it sits four or more columns into its container opens a block once the item above it
 moves left. Examples are a lazy `> q3`, or a continuation that starts with `|` or a number. The
 review round's fuzzer found such shapes one at a time. `reindentSubtree` states the rule once,
-against the parse. It reads the converged block back on its own, re-rooted at column zero, and
-compares the tree with the block's own. Where they differ, the block is written as `main` wrote
+against the parse. It reads the converged block back on its own and compares the result with the
+tree it was written as. The root's indentation is cut back to what lies past its last tab stop,
+so the root opens a block as it does in place and every later tab reaches the stop it reaches
+there. Where they differ, the block is written as `main` wrote
 it, through `reindentSubtreeVerbatim`: its characters past its root's prefix are kept. The cost
 is one parse of each pasted block.
 
@@ -108,8 +110,11 @@ marker shifted them, in spaces. The paste path now takes only the node's own lin
 lays out the children with `layChildren`. A converted node's content column has changed, so no
 child's offset from it is worth keeping. Under a paragraph, the children take the paragraph's
 indentation, which is where `chooseIndent` puts a paragraph's list. Under an item, they are laid
-out as under any item. The result is read back against the conversion as `main` writes it, as in
-D7. Indent and outdent keep calling the conversion branches directly, which is #215's to change,
+out as under any item. The result is read back as in D7, against the tree it was
+written as, and the conversion's own lines stand where it would not parse that way. Comparing
+against `main`'s conversion instead threw the laid-out block away exactly where `main`'s was
+wrong: a paragraph a column or two in whose list sits flush left keeps that list at column zero,
+a sibling of the new item. Indent and outdent keep calling the conversion branches directly, which is #215's to change,
 because an indent's children are the document's own and a unit could move them.
 
 ### D9. A note with no node gives its body to the first paste
@@ -128,8 +133,9 @@ leading blank lines as preamble, where a paste stays Obsidian's.
 - **A document indented two ways** converges on the unit `inferIndentUnit` reads, for a paste
   from inside it as well. The differential finds two such shapes, and each is written in one
   unit after the paste.
-- **D7 compares a block read on its own**, not in place. The fuzzer's three residual cases are
-  payloads three levels deep in mixed units that read the same on their own and differ in
-  place (`docs/research/paste-indent-convergence.md`).
+- **D7 compares a block read on its own**, not in place. The fuzzer's residual cases, 7 in
+  20 000 pastes, are payloads several levels deep in mixed units, mostly with a nested item whose
+  marker is followed by a tab. They read as written on their own, and in place a destination
+  line after them reaches the re-laid item (`docs/research/paste-indent-convergence.md`).
 - **D15's scenario** stays true: a tab subtree pasted into a tab document keeps its tabs at every
   level, because the document's unit is a tab.

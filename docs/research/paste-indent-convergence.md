@@ -65,8 +65,9 @@ that was text only because it sat four or more columns into its container, such 
 `> q3` under a deep item or a continuation that starts with `|` or a number, opens a block once
 the item above it moves left. The review round's fuzzer found these shapes one at a time, so
 the rule is stated once, against the parse: each converged block is read back on its own,
-re-rooted at column zero, and compared with the block as it arrived. Where the two trees
-differ, the block is written as `main` writes it: its own characters past its root's prefix.
+with its root's indentation cut back to what lies past its last tab stop, and compared with
+the tree it was written as. Where the two differ, the block is written as `main` writes it: its
+own characters past its root's prefix.
 
 ## The unit, read under a bullet
 
@@ -150,17 +151,28 @@ destination. Over 20 000 cases each:
 
 | | `main` keeps the tree and this change does not | the reverse |
 | --- | --- | --- |
-| `insertSubtrees`, every shape | 4 | 272 |
-| `insertSubtrees`, no tab marker runs or headings | 3 | 217 |
-| `moveSubtreesTo` | 0 | 59 |
+| `insertSubtrees`, every shape | 7 | 1 641 |
+| `insertSubtrees`, no tab marker runs or headings | 3 | 1 748 |
+| `moveSubtreesTo` | 0 | 134 |
 | `indent` | 0 | 0 |
 
 Before the read-back and the two rules above it, the first row was 351 against about 170.
-Writing a converted block's children in the unit (below) took the right-hand column from 148,
-80 and 27 to the figures shown, and the left from 2 and 1 to 4 and 3. Each residual row is a
-payload several levels deep in mixed tabs and spaces, with lazy lines. Read back on its own, it
-parses to the same tree either way. What differs is the destination's own next line, a
-continuation the pasted run's last item now reaches.
+
+The right-hand column is large because `main` loses a common conversion. A paragraph written a
+column or two in, whose list sits flush left (`  cont1` / `- t1`), converts to an item and keeps
+its list at column zero, where it is a sibling of the new item and no longer its child. Writing a
+converted block's children in the unit (below) keeps it, and so does the read-back's
+comparison. That comparison is made against the tree the block was written as, not against what
+`main` writes: an earlier version compared with `main`'s conversion and so threw away the
+laid-out version exactly where `main`'s was wrong. The read-back also strips only whole tab stops
+from the root's indentation. Stripping all of it moved the tab stops of an item marked `-⏵`, and
+cost two moves.
+
+Each residual row is a payload several levels deep in mixed tabs and spaces with lazy lines. Most
+involve a nested item whose marker is followed by a tab, whose content column depends on where
+its tab stop falls, and a destination line after the run that the re-laid item now reaches.
+Normalizing every nested marker run would remove them, and it would also rewrite the bytes of
+every such item on a paste that is otherwise unchanged.
 
 ## A converted block's children
 
@@ -175,7 +187,8 @@ lays out its children as `layChildren` lays out any item's. A converted node's c
 has changed, so a child's offset from it describes nothing. Under a paragraph, the children
 take the paragraph's own indentation, which is where `chooseIndent` puts a paragraph's list.
 Under an item, a list item goes one unit past the item and anything else goes to its content
-column. The read-back applies here too, compared with the conversion as `main` writes it.
+column. The read-back applies here too. Where the laid-out block would not parse as written, the
+conversion's own lines stand.
 Indent and outdent convert through the same branches, and they are unchanged here:
 [#215](https://github.com/laughedelic/obsidian-true-outliner/issues/215) stays open for them.
 

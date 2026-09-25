@@ -26,7 +26,7 @@ import { forEachNodeWithLine, nodeAtLine, nodeStartLine } from './locate';
 import { subtreeCoverOf, type Cover } from './escalate';
 import { posBefore, type LinePos } from './line-pos';
 import { encode, encodeLines } from './encode';
-import { parse, indentWidth, kindAsWritten, parseListMarker, tailAsWritten } from './parse';
+import { parse, indentWidth, kindAsWritten, parseListMarker, tailAsWritten, TAB_WIDTH } from './parse';
 import type { Edit, OpResult } from './result';
 import { accept, diffLines, reject } from './result';
 import {
@@ -2401,9 +2401,10 @@ function layChildren(
  * offset worth keeping, since the node they hung from has changed its content
  * column: under a paragraph they take the paragraph's own indentation, where
  * `chooseIndent` puts a paragraph's list, and under a list item they are laid
- * out as `layChildren` lays any item's. The block's converted lines are read
- * back as `reindentSubtree` does, and the conversion's own children are kept
- * where the two trees differ.
+ * out as `layChildren` lays any item's. The result is read back as
+ * `reindentSubtree` reads it, and the conversion's own children are kept where
+ * it would not parse as the tree it was written as — which also keeps a
+ * conversion the parse reads as intended where the laid-out one is not.
  */
 function convertInUnit(
   node: OutlineNode,
@@ -2414,19 +2415,20 @@ function convertInUnit(
 ): OutlineNode {
   const converted = reencodeForDestination(node, kind, indentText, style);
   const head = reencodeForDestination({ ...node, children: [] }, kind, indentText, style);
+  // A paragraph's children are list items, so a paragraph converted to an
+  // item hands `layChildren` only items; what reaches `offsetIndent` is a
+  // converted item's child under the paragraph it became.
   const laid: OutlineNode = {
     ...head,
-    children: layChildren(head, node.children, indentText, unit, () =>
-      head.kind === 'list-item' ? reachContentColumn(indentText, head) : indentText,
-    ),
+    children: layChildren(head, node.children, indentText, unit, () => indentText),
   };
-  return treeShape(laid) === treeShape(converted) ? laid : converted;
+  return readsAsWritten(laid) ? laid : converted;
 }
 
 /**
- * `reindentSubtreeInUnit`, unless the lines it writes read as a different tree
- * from the block's own; then the block's own characters past its root's prefix,
- * as `reindentSubtreeVerbatim` carries them.
+ * `reindentSubtreeInUnit`, unless the lines it writes would parse as a
+ * different tree from the one they were written as; then the block's own
+ * characters past its root's prefix, as `reindentSubtreeVerbatim` carries them.
  *
  * Laying nested items out afresh moves them relative to lines that kept their
  * offset — a continuation, a lazy line — and a line that was text only because
@@ -2437,20 +2439,24 @@ function convertInUnit(
  */
 function reindentSubtree(node: OutlineNode, indentText: string, unit: string): OutlineNode {
   const converged = reindentSubtreeInUnit(node, indentText, unit);
-  return treeShape(converged) === treeShape(node)
-    ? converged
-    : reindentSubtreeVerbatim(node, indentText);
+  return readsAsWritten(converged) ? converged : reindentSubtreeVerbatim(node, indentText);
 }
 
-/** The tree a subtree's lines read as on their own, re-rooted at column zero:
- * each node's kind and line count, and its children's. */
-function treeShape(node: OutlineNode): string {
+/** Whether a subtree's lines, read on their own, parse as the tree the subtree
+ * says they are: each node's kind and line count, and its children's. The
+ * root's indentation is replaced by the part of it past its last tab stop, so
+ * the root opens a block as it does in place and every tab after it expands to
+ * the stop it reaches there. */
+function readsAsWritten(node: OutlineNode): boolean {
   const lines = encodeLines({ preamble: [], children: [{ ...node, trailingGap: [] }] });
   const prefix = leadingWhitespace(lines[0] ?? '');
-  const text = lines.map((line) => (line.startsWith(prefix) ? line.slice(prefix.length) : line));
+  const kept = ' '.repeat(indentWidth(prefix) % TAB_WIDTH);
+  const text = lines.map((line) =>
+    line.startsWith(prefix) ? kept + line.slice(prefix.length) : line,
+  );
   const shape = (nodes: readonly OutlineNode[]): string =>
     nodes.map((n) => `${n.kind}${n.lines.length}(${shape(n.children)})`).join(',');
-  return shape(parse(text.join('\n')).children);
+  return shape(parse(text.join('\n')).children) === shape([node]);
 }
 
 /**

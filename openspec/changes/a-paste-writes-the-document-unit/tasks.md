@@ -49,6 +49,11 @@
 - [x] 5.3 e2e: a two-space list into an empty note, and after a paragraph, with **Indent using
       tabs** on.
 - [x] 5.4 Re-run the fuzzer and the sweep; record both in the research note.
+- [x] 5.5 Coverage round: the read-back compares with the tree a block was written as, not with
+      `main`'s conversion, and strips only whole tab stops from the root. Tests: a paragraph
+      whose list sits left of it keeps that list, a converted block the laid-out lines cannot
+      express keeps the conversion's, and an empty note's blank lines below the caret become the
+      run's gap. Negative control: `reencodeForDestination` alone.
 
 ## 4. Validate
 

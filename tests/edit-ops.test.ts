@@ -1548,6 +1548,24 @@ describe('a pasted subtree is written in the document’s own unit (#216)', () =
     );
   });
 
+  it('a paragraph whose list sits left of it keeps that list when it converts', () => {
+    // Negative control: the conversion alone moves `- t1` by the marker's
+    // width from the paragraph's two columns, which leaves it at column four
+    // under `\t- cont1`, short of the content column, a sibling of `cont1`.
+    expect(pasteAfter('- top\n\t- sib\n', '\t- sib', '  cont1\n- t1\n  - t2\n')).toBe(
+      '- top\n\t- sib\n\t- cont1\n\t\t- t1\n\t\t\t- t2\n',
+    );
+  });
+
+  it('a converted block the laid-out lines cannot express keeps the conversion’s own', () => {
+    // A quote under an item cannot hang from a paragraph at any column, so the
+    // laid-out block reads as two nodes where it was written as one; the
+    // conversion's own lines stand.
+    expect(pasteAfter('Some text.\n', 'Some text.', '* t2\n  > q3\n', '\t')).toBe(
+      'Some text.\n\nt2\n> q3\n',
+    );
+  });
+
   it('a moved run that held the document’s only nested items keeps the document’s unit', () => {
     // Negative control: the unit read after the removal, from a document the
     // run has left with no nested item, which answers with the editor’s tab.
