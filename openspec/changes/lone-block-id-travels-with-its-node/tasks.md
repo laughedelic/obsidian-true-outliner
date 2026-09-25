@@ -80,17 +80,17 @@
 
 ## 6. Outline mode marks, menu and command
 
-- [ ] 6.1 Add the mark view plugin (`to-decor-misplaced-id`, titled with the reading) and the
+- [x] 6.1 Add the mark view plugin (`to-decor-misplaced-id`, titled with the reading) and the
       `misplaced` fact the marker builder turns into the warning glyph with `data-misplaced`, drawn
       at every `markerVisibility` (D6). Add `styles/` part for both.
-- [ ] 6.2 Add the capture-phase press handler for the mark, opening Obsidian's `Menu` with the
+- [x] 6.2 Add the capture-phase press handler for the mark, opening Obsidian's `Menu` with the
       reading row, the corrections and the removal row at release; turn `MarkPress.zooms` in
       `zoom-click.ts` into what a release in place does, so a glyph carrying `data-misplaced` opens
       the same menu and a press that moves still drags (D6).
-- [ ] 6.3 Dispatch a correction as one transaction with `userEvent` `input.structure.block-id`, and
+- [x] 6.3 Dispatch a correction as one transaction with `userEvent` `input.structure.block-id`, and
       add that value to `classify.ts`'s plugin-own list. Verify with a classify test that the
       event is plugin-own; negative control: removing it from the list fails the test.
-- [ ] 6.4 Register the command with a `checkCallback` over the caret's line, opening the menu at
+- [x] 6.4 Register the command with a `checkCallback` over the caret's line, opening the menu at
       `coordsAtPos`.
 - [ ] 6.4a Exempt a lone-id paragraph from kind conversion and from the destination's depth in
       `reencodeBlocksForDestination` and `moveSubtreesTo`, writing it under the line above the
@@ -102,7 +102,7 @@
 - [ ] 6.5 Add Enter and Backspace handling on an `id` line to the keymap (D7), with a test per
       `outline-keyboard-grammar` scenario in `tests/grammar.test.ts`. Negative control: letting
       Enter inside the id split the line fails the refusal case.
-- [ ] 6.6 Add `e2e/specs/` coverage beside `57-marker-surplus-space.e2e.ts` for the
+- [x] 6.6 Add `e2e/specs/` coverage beside `57-marker-surplus-space.e2e.ts` for the
       `misplaced-block-ids`, `outline-decorations` and `outline-zoom` scenarios: the mark and the
       glyph appear together and only in outline mode, a press on either opens the menu with the
       rows in order, a correction applies and undoes as one step, the command opens the menu at the
