@@ -262,6 +262,30 @@ children — and every line-geometry walker and every "gap after this subtree" h
 learn it. The alternative is to leave these ids as the paragraphs they parse as today and mark
 them in outline mode, with corrections that move the id to a place in the first group.
 
+## What implementation measured
+
+With `lone-block-id-travels-with-its-node` applied, 25 September 2026, Obsidian 1.13.7:
+
+- **A link follows the table.** In `Intro.`, blank, a table, blank, `^t1`, blank, `Outro.`, the move
+  command on the table writes the table, blank, `^t1`, blank, `Intro.`, and
+  `CachedMetadata.blocks.t1` starts on the table's first line; `openLinkText('Note#^t1')` puts the
+  caret on the table. On `main` at 42130da the same move writes `^t1` under `Intro.`
+  (`e2e/specs/57-misplaced-block-ids.e2e.ts`, "a link to an attached block id").
+- **A tight seam gains a line.** A node ending in an attached id, landing on a seam with no blank
+  line, takes one below its id: Obsidian reads an id with a block directly under it as naming
+  only its own line (`^f1`, `^f7`). Moving it back leaves that line with the node it passed, so a
+  round trip returns the same tree with one more blank line (`tests/ops.test.ts`, "returns a run
+  that absorbs nothing").
+- **The separator changes an outdent's line count.** Outdenting `- A`, blank, `  ^a`, `  - a`
+  writes `A`, blank, `^a`, blank, `- a`. Narrowed as one region, the change carried the caret four
+  lines down, to the start of `  - A`; `editsToChanges` now pairs each line with its re-indented
+  self and inserts the blank line on its own (`tests/plugin.test.ts`).
+- **A dropped id lands under the line above it.** Dragged by its glyph to the seam between
+  `Lead.` and its list, `^id` is written as `Lead.`'s second line, which Obsidian reads as naming
+  `Lead.` (`^id1`); on `main` the same drop wrote `- ^id`.
+- **Obsidian's table editor pads the cells** of a table the caret enters in Live Preview: `| a |`
+  becomes `| a   |`. Not ours, and not a change to which block an id names.
+
 ## Controlling what an embed shows
 
 `Plugin.registerMarkdownPostProcessor` runs over the content of an embed, in reading view and in
