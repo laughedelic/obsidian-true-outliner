@@ -110,7 +110,7 @@
       `npm run test:e2e:narrow -- <spec>` desktop and `--mobile`. A press on the glyph that moves
       drags the paragraph. Negative control: resolving a glyph's release as a zoom fails the
       no-zoom case.
-- [ ] 6.7 Move a table with an attached id through the move command in the editor and follow
+- [x] 6.7 Move a table with an attached id through the move command in the editor and follow
       `[[Note#^t1]]` afterwards, in an e2e case that asserts the link still lands on the table.
       Negative control: running it on `main` fails.
 
