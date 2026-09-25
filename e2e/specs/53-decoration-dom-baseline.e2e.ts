@@ -135,19 +135,20 @@ describe('outline decorations: the DOM baseline', function () {
     await h.dismissNotices();
   });
 
+  // Every budget in this file is declared on its case: wdio's wrapper reads it
+  // once, before the body runs, so a `this.timeout()` inside the body cannot
+  // raise it (docs/research/e2e-ci-budgets).
   it('every fixture, at the defaults, with the caret on its first line', async function () {
-    this.timeout(120_000);
     for (const fixture of ALL_DECORATION_FIXTURES) {
       await open(fixture, 0);
       await check(fixture.label);
     }
-  });
+  }).timeout(120_000);
 
   // One case per fixture: nine renders each, which is what fits inside a
   // case's budget, and a failure names the fixture.
   for (const [label, caret] of Object.entries(VARIED)) {
     it(`${label}, under every indicator setting, with the caret on line ${caret}`, async function () {
-      this.timeout(120_000);
       const fixture = ALL_DECORATION_FIXTURES.find((f) => f.label === label)!;
       for (const markers of MARKER_STATES) {
         for (const guides of GUIDE_STATES) {
@@ -157,11 +158,10 @@ describe('outline decorations: the DOM baseline', function () {
         }
       }
       await indicators('current', 'full');
-    });
+    }).timeout(120_000);
   }
 
   it('a folded heading, with the caret on it', async function () {
-    this.timeout(60_000);
     await indicators('current', 'full');
     const fixture = ALL_DECORATION_FIXTURES.find((f) => f.label === 'heading-then-list')!;
     await open(fixture, 0);
@@ -172,5 +172,5 @@ describe('outline decorations: the DOM baseline', function () {
     await browser.pause(300);
     await check('heading-then-list--folded');
     await clearFolds();
-  });
+  }).timeout(60_000);
 });

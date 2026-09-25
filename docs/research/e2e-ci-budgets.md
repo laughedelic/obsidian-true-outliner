@@ -89,10 +89,15 @@ runs sat well inside it:
 Neither case measures wall-clock. The 62 case asserts in-app medians and 95th percentiles per
 verdict, collected by the plugin's own timers; its wall-clock is five rounds of keystrokes,
 each a WebDriver round trip, and the default budget fits a case that makes a handful of them.
-It now sets `this.timeout(h.waitBudget(180_000))` on itself, which touches nothing it asserts.
-A negative control confirmed the mechanism: with the same call at 1000 ms the case failed with
-mocha's timeout error and passed again once restored, so the call is honoured inside wdio's
-wrapped `it`.
+It asks for `h.waitBudget(180_000)`, which touches nothing it asserts.
+
+That budget was first set with `this.timeout()` from inside the case body, and the control run
+at the time did not show that it had no effect. With the same call at 1000 ms the case failed
+with mocha's timeout error and passed again once restored, and that was read as "the call is
+honoured inside wdio's wrapped `it`". What the control showed is that a LOWERED budget is
+honoured there, because mocha's own timer fires first. A raised one is not, so the case ran
+with 60 s whatever it asked for. The next section has the measurement, and where the budget has
+to be declared instead.
 
 The 74 case had a second problem. Mocha abandons a case that outruns its budget, but it cannot
 stop it: the loop kept switching themes and opening notes while the next two cases ran, and
@@ -101,6 +106,80 @@ an overlapping ordinal on the other, in three of the six branch runs read. Widen
 would have made that rarer, not impossible. The loop is now eight cases, one per fixture and
 theme, at 2.1–2.5 s each locally: an abandoned one can do at most one screenshot's worth of
 work underneath its successor, and the report names which fixture was slow.
+
+## A budget raised from inside a case never reaches wdio's timer
+
+Measured 2026-09-24 on Linux under Xvfb with Obsidian v1.13.7 (installer v1.5.8),
+`@wdio/utils` and `@wdio/mocha-framework` 9.31.9, and mocha 10.8.2. That is the copy
+`@wdio/mocha-framework` depends on and resolves from its own `node_modules`. The mocha 12 at the
+root of ours is not the one the harness runs. Reported as #172.
+
+`@wdio/mocha-framework` wraps each BDD function (`it`, `specify`, `before`, `beforeEach`,
+`after`, `afterEach`) on `pre-require`. Every case and hook then runs inside `executeAsync`
+(`@wdio/utils`, `build/index.js`). `executeAsync` reads the runnable's `_timeout` once, on entry,
+subtracts a 3 ms buffer, and races the body against a timer of that length. A `this.timeout()`
+call inside the body resets mocha's timer but not wdio's. When wdio's timer fires, the case
+fails with a bare `Error: Timeout` from `listOnTimeout`, not mocha's `Timeout of Nms exceeded`.
+
+Two probes, both in `prototypes/e2e-case-budget/`. The first runs in the real harness
+(`timeout-probe.e2e.ts.txt`, desktop config, `mochaOpts.timeout` 60 000):
+
+| Case | Result |
+| --- | --- |
+| `this.timeout(180_000)` in the body, then a 70 s pause | failed after 60.1 s with `Error: Timeout` |
+| the same pause, with `it(...).timeout(180_000)` on the declaration | passed, in about 70 s |
+
+The second runs the same mocha in Node through wdio's own wrapper, at a smaller scale: a 1000 ms
+default, 1500 ms bodies, and raises to 4000 ms (`case-budget-probe.mjs`):
+
+| Case | Result | After | Error |
+| --- | --- | --- | --- |
+| A. in-body raise, no wdio wrapper | passed | 1503 ms | |
+| B. in-body raise | failed | 1001 ms | `Timeout` |
+| B′. the next case, watching for B's body | failed | 802 ms | B's body finished 501 ms into this case |
+| C. in-body lower to 300 ms | failed | 302 ms | `Timeout of 300ms exceeded…` |
+| D. declared on the case | passed | 1500 ms | |
+| E. set in the `describe` body, before the case | passed | 1502 ms | |
+| E′. set in the `describe` body, after the case | failed | 1005 ms | `Timeout` |
+| F. in-body raise in a `before` hook | failed | 998 ms | `Timeout` |
+| G. set in the `describe` body, before a `before` hook | passed | | |
+
+What the rows show:
+
+- A: mocha on its own honours a raise from inside the body. The cap comes from wdio.
+- B and B′: the capped case fails at the default, and its body goes on running into the next
+  case. This is the same bleed as #172's failing run and the `74` loop above.
+- C: a lowered budget fails with mocha's own message at the lowered time. This reproduces the
+  old negative control, and it is why that control could not tell the two directions apart.
+- D and E: a budget that is on the runnable before the wrapper reads it is honoured. That means
+  declaring it on the `Test` that `it` returns (wdio's wrapper passes it through unchanged), or
+  setting it in the `describe` body ahead of the case.
+- E′: mocha 10 copies a suite's budget onto a case only when the case is declared, so a
+  `describe`-level call reaches nothing declared before it. Under the root's mocha 12 the same
+  row passes, because 12 also passes the budget on to cases already declared
+  (mochajs/mocha#5422). A probe that imports the root `mocha` measures 12 and passes E′, so this
+  one resolves mocha the way `@wdio/mocha-framework` does.
+- F and G: hooks run through the same `executeAsync`, so an in-body raise in a hook is capped the
+  same way. A hook takes its budget from the `describe` body instead, set ahead of the hook: mocha
+  copies it when the hook is declared, and `before()` returns nothing to chain `.timeout()` on.
+
+The wrapper has one more trap for anyone who tries a per-case budget as an argument.
+`wrapTestFunction` reads a trailing number passed to `it` as a retry count, so
+`it(title, fn, 180_000)` would request 180 000 retries, not a budget.
+
+So every budget set from inside a body ran as 60 s. There were four: `62`'s stress case, and
+three in `53` asking for 120 000, 120 000 and 60 000 ms, where the second covers the four cases
+its loop declares. The change that closes #172, `an-e2e-budget-is-declared-on-its-case`, declares
+each of them on its case. It also adds `tests/e2e-case-budgets.test.ts`, which accepts a
+`this.timeout(n)` only as a statement of a `describe` body itself, ahead of anything declared
+there, and refuses a `this.test.timeout(n)` everywhere.
+
+On CI this shows up rarely. We read the logs of 26 failed e2e jobs from 2026-09-10 to
+2026-09-24, and one was this cap: `62`'s stress case on `mobile (clipboard)` in run 34674419905
+(`chore/decoration-line-inputs` at `94e9fa7`). It failed 71 s after its worker's cache-ready line,
+and every case after it passed. #172's run 35483175772 is not among the 26, because a re-run
+passed. That run's next case failed on keystrokes left over from the stress case. None of the
+other 25 failures was a timeout of either kind; they were assertions and helper errors.
 
 ## A fourth case, found on the way: a tap the mobile job does not deliver
 
