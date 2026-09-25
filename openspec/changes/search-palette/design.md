@@ -126,9 +126,10 @@ The rename reaches `lineage-row.ts`'s own class strings and the footer's e2e sel
 distinct `to-backlinks-*` names across 11 e2e files, of which the shared ones move. That is the
 price of the isolation, paid once, in the change that creates the second surface.
 
-Appearance is the footer's too: the rows read `backlinksSegmentIcons` and `backlinksSeparator`
-rather than declaring a second pair, the way `lineage-row.ts` already has the trail read them.
-One choice governs every surface that draws a lineage, which is the point of the extraction.
+Appearance is the footer's too: the rows read `backlinksSegmentIcons`, `backlinksSeparator` and
+the editor's `headingMarkerStyle` rather than declaring a second set, the way `lineage-row.ts`
+already has the trail read them. One choice governs every surface that draws a lineage, which is
+the point of the extraction.
 
 Alternative: leave the footer alone and keep the prototype's copy. Rejected: a marker or a
 segment rule fixed in one would silently diverge in the other, which is the defect class
