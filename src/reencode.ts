@@ -206,7 +206,7 @@ export function rewriteOwnLine(
   to: string,
   unit: string,
   columnDelta: number,
-  carry: (line: string) => string = (unmoved) => unmoved,
+  carry: (line: string) => string,
 ): string {
   const ws = leadingWhitespace(line);
   if (!ws.startsWith(from)) return carry(line);
