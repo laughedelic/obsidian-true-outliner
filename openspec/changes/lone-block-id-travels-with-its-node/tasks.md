@@ -35,11 +35,11 @@
       `src/plugin/decorate.ts` and `src/plugin/fold-model.ts` with `lineRole` or `ownSpan` (D3).
       Verify with `grep -n "lines.length" src` showing no remaining gap classification, and
       `npm test` passing.
-- [ ] 3.2 Add caret tests in `tests/caret.test.ts` for the `content-space-caret` scenarios: ArrowDown
+- [x] 3.2 Add caret tests in `tests/caret.test.ts` for the `content-space-caret` scenarios: ArrowDown
       from a table's last row lands on its id, a placement on the id's gap line resolves as a gap,
       typing on the id keeps it attached. Negative control: `lineRole` answering `gap` for the id
       line fails the first.
-- [ ] 3.3 Add a decorate test in `tests/decorate.test.ts`: the id line is drawn as a continuation
+- [x] 3.3 Add a decorate test in `tests/decorate.test.ts`: the id line is drawn as a continuation
       line of its node at the node's depth, and its gap lines as gap rows. Negative control:
       drawing the id line as a gap row fails it.
 
@@ -50,8 +50,9 @@
       `unwrapListItem`, to the content column for a list item and the node's column otherwise (D4).
 - [ ] 4.2 `splitNode` keeps `blockId` on the first half; `mergeNodes` keeps the one that exists and
       rejects with `merge-not-expressible` when both carry one (D4).
-- [ ] 4.3 `tailAsWritten` returns a paragraph tail for a node with an id, so `needsBlankBetween` and
-      `normalizeBoundaries` separate the id from a paragraph or html block below it (D4).
+- [ ] 4.3 `needsBlankBetween` asks for a blank line below a non-list-item node with an attached id,
+      and treats a list item's id as a paragraph line; `normalizeBoundaries` gives a non-list-item
+      node with an id a blank line before its first child (D4).
 - [ ] 4.4 Add a test per `structural-operations` scenario in `tests/ops.test.ts`: the issue's move
       case with its encoding stated in full, the same table moved by `moveSubtreesTo` as a drag
       moves it, delete, the block selection's cover end, indent into a
@@ -59,7 +60,7 @@
       indent case with the id detached.
 - [ ] 4.5 Run the closure, group-oracle and operation property suites over the generators from 2.3
       and fix every counterexample at its root. Verify `npm test` passes; negative control:
-      removing 4.3 produces a counterexample with text joined onto an id.
+      removing 4.3 produces a counterexample with a block joined onto an id or detaching it.
 - [ ] 4.6 Re-run `docs/research/prototypes/lone-block-id-probe/ops-probe.ts.txt` and record in the
       research note that move, delete and copy keep the id in every first-group shape.
 
@@ -91,10 +92,12 @@
       event is plugin-own; negative control: removing it from the list fails the test.
 - [ ] 6.4 Register the command with a `checkCallback` over the caret's line, opening the menu at
       `coordsAtPos`.
-- [ ] 6.4a Exempt a lone-id paragraph from kind conversion in `reencodeBlocksForDestination` (D8),
-      with a test per "A dragged misplaced id lands as an id" scenario in `tests/ops.test.ts`
-      through `moveSubtreesTo`. Negative control: removing the exemption writes `- ^id` and fails
-      the first scenario.
+- [ ] 6.4a Exempt a lone-id paragraph from kind conversion and from the destination's depth in
+      `reencodeBlocksForDestination` and `moveSubtreesTo`, writing it directly under the line above
+      the destination at that line's node's column (D8); the drop preview draws it there, at one
+      depth. Add a test per "A dragged misplaced id lands as a line of the node above it" scenario
+      in `tests/ops.test.ts` through `moveSubtreesTo`. Negative control: removing the exemption
+      writes `- ^id` and fails the first scenario.
 - [ ] 6.5 Add Enter and Backspace handling on an `id` line to the keymap (D7), with a test per
       `outline-keyboard-grammar` scenario in `tests/grammar.test.ts`. Negative control: letting
       Enter inside the id split the line fails the refusal case.

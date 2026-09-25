@@ -18,7 +18,9 @@ misplaced, with a correction one press away (`docs/research/lone-block-id`, "Two
 
 - The parser attaches a lone id to the node whose own lines end right above it, blank lines
   skipped, wherever Obsidian names that same node: a paragraph, heading, table, quote, callout,
-  fence, rule or html block outside a list item; a list item, with the id indented to its content
+  fence, rule or html block outside a list item, when a blank line or the note's end follows the
+  id (a block directly under it leaves Obsidian naming only the id's own line, except under a
+  quote); a list item, with the id indented to its content
   column directly after its own lines; a list item with the id directly under it and no blank
   line. The id and the blank lines before it become part of that node's own span, the way an
   inline ` ^id` is part of its line.
@@ -33,7 +35,11 @@ misplaced, with a correction one press away (`docs/research/lone-block-id`, "Two
 - Corrections write an inline id: `Attach to “Lead.”` appends ` ^id` to the lead paragraph's last
   line; `Attach to “c”` appends it to the last node above the id. Ids Obsidian ignores — the first
   of two in a row, one with nothing above it, an id line with trailing spaces or with text directly
-  under it — are marked with the correction that makes them work, or with removing them.
+  under it, one with a block directly under it outside a list — are marked with the correction
+  that makes them work, or with removing them.
+- A misplaced id dragged or pasted elsewhere lands as a line, written directly under the line
+  above the drop: under a paragraph it becomes a line of the paragraph, under another block it
+  attaches to that block. It is never re-encoded as a list item.
 
 ## Non-goals
 
