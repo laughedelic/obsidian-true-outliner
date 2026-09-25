@@ -1716,7 +1716,23 @@ describe('moveSubtreesTo', () => {
           index: i < j ? i : i + 1,
         });
         if (!back.ok) return KNOWN_MOVE_REASONS.has(back.rejection.reason);
-        return encode(back.value.doc) === before;
+        const returned = encode(back.value.doc);
+        if (returned === before) return true;
+        // An attached id outside a list item needs a blank line below it,
+        // which a tight seam did not have. Whichever node of the scope ends in
+        // one — the run, the node it landed under, or the one that took its
+        // place — the move writes that line, the trip back leaves it with a
+        // node the run passed, and it is the only difference the trip may make.
+        const endsInId = (node: OutlineNode): boolean => {
+          let final = node;
+          while (final.children.length > 0) final = final.children[final.children.length - 1]!;
+          return final.blockId !== undefined && final.kind !== 'list-item';
+        };
+        if (!siblings.some(endsInId)) return false;
+        const lines = returned.split('\n');
+        return lines.some(
+          (line, k) => line === '' && [...lines.slice(0, k), ...lines.slice(k + 1)].join('\n') === before,
+        );
       }),
       { numRuns: 400 },
     );
