@@ -139,6 +139,7 @@ area/ci:
           - .github/release.yml
           - .github/dependabot.yml
           - scripts/sync-labels.mjs
+          - scripts/check-landed.mjs
 
 area/agents:
   - changed-files:
