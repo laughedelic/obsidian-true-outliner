@@ -42,9 +42,12 @@ in front of a tab vanishes into the stop the moment the prefix narrows. The swap
 it would put a space in front of a tab that had none there before, and `shiftLine` writes
 `\t    bar`.
 
-The swap can create that pair in two places only, since everything after the prefix is carried
-over as it was: inside the destination string, and where the destination string meets the rest
-of the line. The second is judged against what stood there before, so a prefix that ended in a
+The swap can create that pair in one place only. Everything after the prefix is carried over as
+it was, and a pair inside the destination string is written on the node's first line whatever
+the other lines take — refusing it on those lines is what leaves a node in two indentations, the
+shape this change removes: `- a` / `  b` into ` \t` would come back ` \t- a` / `      b`. So
+only the join, where the destination string meets the rest of the line, is judged, against what
+stood there before, so a prefix that ended in a
 tab and meets another tab is a new pair once the destination ends in a space — ` \t` / ` \t\t  b`
 swapped to four spaces would write `    \t  b`. A check over the whole line's indentation
 misses that, because the line already held a pair elsewhere; the review round on the pull

@@ -125,8 +125,6 @@ export function shiftBelowMarker(node: OutlineNode, delta: number): OutlineNode 
   };
 }
 
-const TAB_AFTER_SPACE = / \t/;
-
 /**
  * Move a line whose indentation OPENS with the node's own first-line
  * indentation by swapping that prefix for the destination's, so the node's
@@ -170,12 +168,13 @@ function reprefixLine(
 
 /**
  * Whether writing `to` in place of `from`, ahead of the rest of a line's
- * indentation, puts a space in front of a tab where there was none: inside
- * `to` itself, or where `to` meets the rest. A pair already inside the rest
- * is carried over unchanged and is not counted.
+ * indentation, puts a space in front of a tab where there was none. Only the
+ * join can: the rest is carried over unchanged, and a pair inside `to` is the
+ * destination's own, written on the node's first line whatever its other
+ * lines take — refusing it there would leave those lines in a different
+ * indentation from the first.
  */
 function addsTabAfterSpace(from: string, to: string, rest: string): boolean {
-  if (TAB_AFTER_SPACE.test(to) && !TAB_AFTER_SPACE.test(from)) return true;
   const meets = (prefix: string): boolean => prefix.endsWith(' ') && rest.startsWith('\t');
   return meets(to) && !meets(from);
 }

@@ -15,7 +15,9 @@ The substitution SHALL NOT move any line to a different column than a shift by t
 would. Where the destination prefix followed by the rest of a line's indentation does not reach
 that column — a tab after the prefix re-expands from where the new prefix ends — or where it would
 put a space in front of a tab that had none in front of it before, the line SHALL be
-shifted by the width delta instead.
+shifted by the width delta instead. A space in front of a tab INSIDE the destination's indentation
+string is not such a pair: the first line is written with that string whatever the other lines
+take, and the other lines SHALL take it too.
 
 #### Scenario: A tab unit reaches the continuation line
 - **WHEN** `- foo` / `  bar` is indented under `- top` with a tab as the destination's

@@ -200,6 +200,15 @@ describe('the prefix swap never puts a space in front of a tab that had none', (
     expect(out.lines).toEqual(['    - a', ' \t\t  b']);
   });
 
+  it('a pair inside the destination string is the first line’s too, so the other lines take it', () => {
+    // Refusing ` \t` on the continuation would write `      b`: the node's own
+    // lines in two indentations again.
+    const node = parse('- a\n  b\n').children[0]!;
+    expect(reencodeForDestination(node, undefined, ' \t').lines).toEqual([' \t- a', ' \t  b']);
+    const moved = parse(' \t - a\n \t   b\n').children[0]!;
+    expect(reencodeForDestination(moved, undefined, '  \t').lines).toEqual(['  \t- a', '  \t  b']);
+  });
+
   it('a pair the rest of the line already carried is kept as it was', () => {
     const node = parse('- a\n  \t  b\n').children[0]!;
     const out = reencodeForDestination(node, undefined, '\t');

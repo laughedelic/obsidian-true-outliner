@@ -455,7 +455,7 @@ describe('an indent writes its unit on every line the node owns (#154)', () => {
   });
 
   it('a normalized marker run under a tab unit still writes the tab on the node’s lines', () => {
-    const text = indentWith('- top\n\t- sib\n-  foo\n   bar\n   - kid\n', '-  foo', '  ');
+    const text = indentWith('- top\n\t- sib\n-  foo\n   bar\n   - kid\n', '-  foo', '\t');
     expect(text).toBe('- top\n\t- sib\n\t- foo\n\t  bar\n\t  - kid\n');
   });
 
