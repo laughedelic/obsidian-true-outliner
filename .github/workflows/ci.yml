@@ -54,6 +54,9 @@ jobs:
   # job summary.
   directory-scan:
     runs-on: ubuntu-latest
+    # It runs a third-party action and the repository's own build scripts.
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
       - uses: obsidianmd/obsidian-workflows@v1
