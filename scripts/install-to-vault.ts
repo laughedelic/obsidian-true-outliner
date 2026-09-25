@@ -95,7 +95,7 @@ export function buildStamp({ dev = true }: { dev?: boolean } = {}): BuildStamp {
     .map((l) => l.slice(3))
     .map((f) => (f.includes(' -> ') ? f.slice(f.indexOf(' -> ') + 4) : f)) // renames
     .map((f) => f.replace(/^"|"$/g, '')) // git quotes paths with odd characters
-    .filter((f) => /^(src|tests|e2e)\//.test(f))
+    .filter((f) => /^(src|tests|e2e-tests)\//.test(f))
     .map((f) => {
       let mtime = 0;
       try {
