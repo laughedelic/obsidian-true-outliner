@@ -116,8 +116,8 @@
 
 ## 7. Land
 
-- [ ] 7.1 Update `docs/research/lone-block-id.md` with what implementation measured, and hand the
+- [x] 7.1 Update `docs/research/lone-block-id.md` with what implementation measured, and hand the
       manual-test steps to the user with drawn examples.
-- [ ] 7.2 Run `npm run lint`, `npm test` and `npm run build`, and push a checkpoint for the CI e2e
+- [x] 7.2 Run `npm run lint`, `npm test` and `npm run build`, and push a checkpoint for the CI e2e
       sweep.
-- [ ] 7.3 Run `openspec validate lone-block-id-travels-with-its-node --strict`.
+- [x] 7.3 Run `openspec validate lone-block-id-travels-with-its-node --strict`.
