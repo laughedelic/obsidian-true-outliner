@@ -12,7 +12,7 @@
  * update" as a version comparison, so a rebuilt branch needs a strictly
  * greater version or the phone never sees it.
  *
- * Usage: node scripts/beta-version.mjs <branch> <run-number>
+ * Usage: node scripts/beta-version.ts <branch> <run-number>
  * Prints `slug=` and `version=` lines for $GITHUB_OUTPUT.
  */
 import { readFileSync } from 'node:fs';
@@ -24,15 +24,15 @@ import { fileURLToPath } from 'node:url';
  * `claude-mobile-testing-2`. Collapsing runs and trimming the ends keeps the
  * result a valid identifier rather than one with empty dot-separated parts.
  */
-export const slugify = (name) =>
+export const slugify = (name: string): string =>
   name
     .replace(/[^0-9A-Za-z]+/g, '-')
     .replace(/^-+|-+$/g, '') || 'branch';
 
 /** The next patch above the released version — the ceiling a branch sits under. */
-export const nextPatch = (version) => {
-  const [major, minor, patch] = version.split('-')[0].split('.').map(Number);
-  if ([major, minor, patch].some((part) => !Number.isInteger(part))) {
+export const nextPatch = (version: string): string => {
+  const [major, minor, patch] = (version.split('-')[0] ?? '').split('.').map(Number);
+  if (patch === undefined || [major, minor, patch].some((part) => !Number.isInteger(part))) {
     throw new Error(`manifest.json version is not a semver core: ${version}`);
   }
   return `${major}.${minor}.${patch + 1}`;
@@ -49,7 +49,7 @@ export const BETA_TAG = /^\d+\.\d+\.\d+-beta-(?<slug>.+)\.\d+$/;
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [branch, runNumber] = process.argv.slice(2);
   if (!branch || !runNumber) {
-    console.error('usage: node scripts/beta-version.mjs <branch> <run-number>');
+    console.error('usage: node scripts/beta-version.ts <branch> <run-number>');
     process.exit(1);
   }
   const { version } = JSON.parse(readFileSync('manifest.json', 'utf8'));

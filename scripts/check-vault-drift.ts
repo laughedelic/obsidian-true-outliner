@@ -13,8 +13,8 @@
  *
  * Usage (see the `test:e2e` scripts):
  *
- *     node scripts/check-vault-drift.mjs --snapshot   # before the suite
- *     node scripts/check-vault-drift.mjs              # after
+ *     node scripts/check-vault-drift.ts --snapshot   # before the suite
+ *     node scripts/check-vault-drift.ts              # after
  *
  * The snapshot records each pre-existing dirty path's CONTENT, not just its name.
  * Names alone could not honor the safety claim: if the suite then edited such a
@@ -44,7 +44,20 @@ import * as path from 'node:path';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SNAPSHOT = path.join(root, 'node_modules/.cache/vault-drift-baseline.json');
 
-const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf-8' });
+const git = (...args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf-8' });
+
+interface DirtyEntry {
+  path: string;
+  code: string;
+  untracked: boolean;
+}
+
+/** A path that was already dirty before the run, as the snapshot records it. */
+interface BaselineEntry {
+  path: string;
+  content: string | null;
+  deleted: boolean;
+}
 
 /**
  * Paths under test-vault that differ from HEAD right now, each tagged with
@@ -63,7 +76,7 @@ const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf-8
  * directory is mistaken for pre-existing work and left behind. Listing files
  * individually is what lets the baseline tell a draft from run output.
  */
-function dirtyEntries() {
+function dirtyEntries(): DirtyEntry[] {
   // `-z` is not optional. Without it git C-QUOTES any non-ASCII path, and this
   // vault has tracked fixtures that trigger it — `Notes/Reading – …`, `People/
   // Tomás Rivera.md`. Stripping the surrounding quotes leaves the escapes
@@ -73,10 +86,10 @@ function dirtyEntries() {
   // bytes verbatim, NUL-delimited.
   const out = git('status', '--porcelain', '-z', '--untracked-files=all', '--', 'test-vault');
   const fields = out.split('\0');
-  const entries = [];
+  const entries: DirtyEntry[] = [];
   for (let i = 0; i < fields.length; i++) {
     const field = fields[i];
-    if (field.length < 4) continue; // trailing empty field
+    if (field === undefined || field.length < 4) continue; // trailing empty field
     const code = field.slice(0, 2);
     entries.push({ path: field.slice(3), code, untracked: code === '??' });
     // A rename or copy emits its ORIGINAL path as a separate following field.
@@ -90,14 +103,14 @@ function dirtyEntries() {
   return entries;
 }
 
-function dirtyPaths() {
+function dirtyPaths(): string[] {
   return dirtyEntries().map((e) => e.path);
 }
 
 if (process.argv.includes('--snapshot')) {
   mkdirSync(path.dirname(SNAPSHOT), { recursive: true });
-  const baseline = dirtyEntries().map((e) => {
-    let content = null;
+  const baseline = dirtyEntries().map((e): BaselineEntry => {
+    let content: string | null = null;
     try {
       content = readFileSync(path.join(root, e.path), 'utf-8');
     } catch {
@@ -125,7 +138,7 @@ if (!existsSync(SNAPSHOT)) {
   process.exit(0);
 }
 
-const baseline = JSON.parse(readFileSync(SNAPSHOT, 'utf-8'));
+const baseline: BaselineEntry[] = JSON.parse(readFileSync(SNAPSHOT, 'utf-8'));
 const before = new Set(baseline.map((e) => e.path));
 rmSync(SNAPSHOT, { force: true }); // consumed: never valid for a later run
 

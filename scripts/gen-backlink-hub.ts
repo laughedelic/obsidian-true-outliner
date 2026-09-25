@@ -1,7 +1,7 @@
 /**
  * Generates the hub-scale backlink fixture: many notes all referencing one target.
  *
- *   node scripts/gen-backlink-hub.mjs [--notes 120] [--refs 400]
+ *   node scripts/gen-backlink-hub.ts [--notes 120] [--refs 400]
  *
  * The small diagnostic fixtures in `test-vault/Backlinks/` are tracked, because each
  * isolates one structural case and reviewing a diff of them is meaningful. This one is
@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = path.join(root, 'test-vault', 'Backlinks', 'Hub');
 
-const arg = (name, fallback) => {
+const arg = (name: string, fallback: number): number => {
   const i = process.argv.indexOf(`--${name}`);
   return i === -1 ? fallback : Number(process.argv[i + 1]);
 };
@@ -34,7 +34,7 @@ const TARGET = 'Aurora Dashboard';
  * machines, or "the same fixture every time" (docs/research/decoration-experiments-plan,
  * ground rule 2) is a claim rather than a fact. Mulberry32 with a fixed seed.
  */
-function rng(seed) {
+function rng(seed: number): () => number {
   return () => {
     seed = (seed + 0x6d2b79f5) | 0;
     let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
@@ -44,7 +44,7 @@ function rng(seed) {
 }
 
 const rand = rng(20260828);
-const pick = (xs) => xs[Math.floor(rand() * xs.length)];
+const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rand() * xs.length)] as T;
 
 const OPENERS = [
   'Long day. The list actually shrank for once.',
@@ -84,7 +84,7 @@ for (let i = 0; i < noteCount; i++) {
   const name = `2025-${month}-${day} (${i + 1}).md`;
 
   const lines = [pick(OPENERS), ''];
-  for (let r = 0; r < perNote[i]; r++) {
+  for (let r = 0; r < (perNote[i] ?? 0); r++) {
     // Vary depth so the projection has chains of different lengths to squash.
     const depth = r % 4;
     lines.push('- work');

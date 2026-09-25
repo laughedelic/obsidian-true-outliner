@@ -123,8 +123,8 @@ area/testing:
           - e2e/docker/**
           - e2e/fixtures/**
           - e2e/baselines/**
-          - scripts/run-e2e.mjs
-          - scripts/spec-groups.mjs
+          - scripts/run-e2e.ts
+          - scripts/spec-groups.ts
           - .github/actions/e2e/**
           - vitest.config.ts
           - codecov.yml
@@ -138,8 +138,8 @@ area/ci:
           - .github/labeler.yml
           - .github/release.yml
           - .github/dependabot.yml
-          - scripts/sync-labels.mjs
-          - scripts/check-landed.mjs
+          - scripts/sync-labels.ts
+          - scripts/check-landed.ts
 
 area/agents:
   - changed-files:

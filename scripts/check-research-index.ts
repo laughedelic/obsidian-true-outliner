@@ -22,17 +22,20 @@ const ROW = /^\|\s*\[([^\]]+)\]\(([^)]+)\)\s*\|/;
 
 const rows = readFileSync(path.join(dir, 'index.md'), 'utf8')
   .split('\n')
-  .map((line, i) => ({ line, number: i + 1, match: ROW.exec(line) }))
-  .filter((r) => r.match)
-  .map((r) => ({ number: r.number, text: r.match[1], target: r.match[2] }));
+  .flatMap((line, i) => {
+    const match = ROW.exec(line);
+    if (!match) return [];
+    const [, text = '', target = ''] = match;
+    return [{ number: i + 1, text, target }];
+  });
 
 const notes = readdirSync(dir)
   .filter((f) => f.endsWith('.md') && !NOT_NOTES.has(f))
   .sort();
 
-const problems = [];
+const problems: string[] = [];
 
-const seen = new Map();
+const seen = new Map<string, number>();
 for (const row of rows) {
   const first = seen.get(row.target);
   if (first === undefined) seen.set(row.target, row.number);

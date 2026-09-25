@@ -27,7 +27,7 @@ jobs:
       - run: npm ci
         shell: bash
   
-      - run: npm run build:plugin
+      - run: npm run build
         shell: bash
   
       # Obsidian expects main.js and manifest.json, plus styles.css if the plugin has one

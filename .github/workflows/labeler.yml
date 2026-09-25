@@ -44,7 +44,7 @@ jobs:
           # The whole conventional-commit prefix, so that a title merely starting
           # with one of these words is not read as carrying it. A title with no
           # prefix names no kind, and the release notes file it under Other, which
-          # reads as the reminder it is. `scripts/check-landed.mjs` reads the
+          # reads as the reminder it is. `scripts/check-landed.ts` reads the
           # title the same way to decide whether a release is owed.
           kind=""
           if [[ "$TITLE" =~ ^([a-z]+)(\([^\)]*\))?!?:[[:space:]] ]]; then

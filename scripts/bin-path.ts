@@ -20,7 +20,7 @@ import * as path from 'node:path';
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 /** Absolute path to `<name>`, from the nearest install that carries it. */
-export function binPath(name) {
+export function binPath(name: string): string {
   const exe = process.platform === 'win32' ? `${name}.cmd` : name;
   for (let dir = here; ; dir = path.dirname(dir)) {
     const candidate = path.join(dir, 'node_modules', '.bin', exe);

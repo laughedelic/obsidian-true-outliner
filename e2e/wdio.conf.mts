@@ -73,7 +73,7 @@ export const config: WebdriverIO.Config = {
       'wdio:obsidianOptions': {
         installerVersion: 'earliest',
         plugins: [
-          root, // manifest.json + main.js (run `npm run build:plugin` first)
+          root, // manifest.json + main.js (run `npm run build` first)
           // Conflicting-plugin stub for the coexistence warning test; starts
           // disabled, enabled by shell.e2e.ts.
           { path: path.join(e2eDir, 'fixtures/obsidian-outliner-stub'), enabled: false },

@@ -1,8 +1,8 @@
-import esbuild from 'esbuild';
+import esbuild, { type Plugin } from 'esbuild';
 import process from 'node:process';
 import builtins from 'builtin-modules';
-import { installToVault, buildStamp } from './scripts/install-to-vault.mjs';
-import { STYLES_DIR, stylesheetParts, writeStylesheet } from './scripts/styles.mjs';
+import { installToVault, buildStamp, type BuildStamp } from './install-to-vault.ts';
+import { STYLES_DIR, stylesheetParts, writeStylesheet } from './styles.ts';
 
 const production = process.argv[2] === 'production';
 
@@ -11,7 +11,7 @@ const production = process.argv[2] === 'production';
  * `--dev` argument, not opt-out via a release flag.
  *
  * Opt-out was wrong: nothing set the release flag, so a plain
- * `npm run build:plugin` — which is what the release pipeline ultimately runs,
+ * `npm run build` — which is what the release pipeline ultimately runs,
  * through an external reusable workflow this repo does not control — produced a
  * distributable bundle with the dev status bar and a mutable keymap probe in
  * it. A default that ships debug UI unless someone remembers a variable is a
@@ -37,9 +37,9 @@ const devBuild = !production || process.argv.includes('--dev');
  */
 /** The stamp baked into the current build, handed to the install hook so both
  * report the same one. */
-let currentStamp;
+let currentStamp: BuildStamp | undefined;
 
-const stampPlugin = {
+const stampPlugin: Plugin = {
   name: 'build-stamp',
   setup(build) {
     build.onResolve({ filter: /^virtual:build-stamp$/ }, () => ({
@@ -69,13 +69,13 @@ const stampPlugin = {
  * plugin re-enables itself. Before this, `npm run dev` only rewrote main.js at
  * the repo ROOT, which the vault reached through a symlink — so no
  * vault-visible file ever changed and nothing could reload (measurement in
- * scripts/install-to-vault.mjs).
+ * scripts/install-to-vault.ts).
  *
  * A failed build deliberately installs nothing: leaving the last good build in
  * place beats shipping a half-written bundle into the running app, and esbuild
  * has already printed the error.
  */
-const installPlugin = {
+const installPlugin: Plugin = {
   name: 'install-to-vault',
   setup(build) {
     build.onEnd((result) => {
@@ -84,7 +84,7 @@ const installPlugin = {
         return;
       }
       try {
-        installToVault({ stamp: currentStamp });
+        installToVault(currentStamp === undefined ? {} : { stamp: currentStamp });
       } catch (err) {
         // A watch session must survive a transient install problem — the next
         // save retries. A ONE-SHOT build must not: `vault:install` delegates
@@ -92,7 +92,7 @@ const installPlugin = {
         // unwritable vault exit 0 having installed nothing, which is precisely
         // the "did my build reach the app?" confusion this tooling exists to
         // remove.
-        console.error('[install-to-vault] install failed:', err.message);
+        console.error('[install-to-vault] install failed:', err instanceof Error ? err.message : err);
         if (production) {
           process.exitCode = 1;
           throw err;
@@ -104,7 +104,7 @@ const installPlugin = {
 
 /**
  * Assembles the root `styles.css` from the parts under `styles/` on every
- * build (scripts/styles.mjs). The parts are not in the module graph — nothing
+ * build (scripts/styles.ts). The parts are not in the module graph — nothing
  * imports them — so the stamp plugin's load declares them as watch files and
  * their directory as a watch dir; a saved, added or removed part then triggers
  * a rebuild the same way a saved source file does.
@@ -112,7 +112,7 @@ const installPlugin = {
  * load result carrying only `watchFiles` ends the callback chain with the
  * module still unloaded.
  */
-const stylesPlugin = {
+const stylesPlugin: Plugin = {
   name: 'styles',
   setup(build) {
     build.onStart(() => {

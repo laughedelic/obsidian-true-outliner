@@ -1,5 +1,5 @@
 # Runs the e2e suite headlessly on Linux, under Xvfb, so the Obsidian window
-# that `scripts/run-e2e.mjs` pops on a real display never appears at all — see
+# that `scripts/run-e2e.ts` pops on a real display never appears at all — see
 # `e2e/docker/README.md` for how to invoke this and why.
 #
 # `node:26-bookworm` (not `-slim`) rather than a from-scratch Debian install:
@@ -43,7 +43,7 @@ WORKDIR /workspace
 # has Linux binaries on a macOS/Windows host — see e2e/docker/README.md.
 COPY package.json package-lock.json .npmrc ./
 
-# scripts/e2e-docker.mjs runs the container as the invoking host UID/GID (not
+# scripts/e2e-docker.ts runs the container as the invoking host UID/GID (not
 # root) so files it writes into the bind-mounted repo — and the object
 # store obsidian-launcher downloads into — stay owned by that user rather
 # than root, and so git doesn't reject the bind-mounted worktree as an

@@ -19,26 +19,49 @@
  * whole operation and names the worktrees. Untracked files are left alone — a
  * rebase cannot touch them.
  *
- *     node scripts/stack-park.mjs park [stack-number]
+ *     node scripts/stack-park.ts park [stack-number]
  *     gh stack sync
- *     node scripts/stack-park.mjs unpark
+ *     node scripts/stack-park.ts unpark
  */
 
 import { existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, type ExecFileSyncOptions } from 'node:child_process';
 import * as path from 'node:path';
 
-const git = (args, opts = {}) =>
+const git = (args: string[], opts: Pick<ExecFileSyncOptions, 'stdio'> = {}): string =>
   execFileSync('git', args, { encoding: 'utf8', ...opts }).trim();
 
 /** For calls whose failure this file reports itself, so git's own does not print. */
-const gitQuiet = (args) => git(args, { stdio: ['ignore', 'pipe', 'pipe'] });
+const gitQuiet = (args: string[]): string => git(args, { stdio: ['ignore', 'pipe', 'pipe'] });
 
 const commonDir = path.resolve(git(['rev-parse', '--path-format=absolute', '--git-common-dir']));
 const STACK_FILE = path.join(commonDir, 'gh-stack');
 const PARK_FILE = path.join(commonDir, 'stack-park.json');
 
-const die = (message) => {
+/** A stack as `gh stack` records it in the common git dir. */
+interface Stack {
+  number: number;
+  branches?: { branch: string }[];
+  trunk?: { branch?: string };
+}
+
+interface Worktree {
+  dir: string;
+  branch: string;
+}
+
+/** A worktree detached by `park`, with the commit it was on. */
+interface Parked extends Worktree {
+  head: string;
+}
+
+/** The worktree `park` ran from, which may itself be on a detached HEAD. */
+interface Driver {
+  dir: string;
+  branch?: string;
+}
+
+const die = (message: string): never => {
   console.error(message);
   process.exit(1);
 };
@@ -51,9 +74,9 @@ const die = (message) => {
  * the trunk it does not, which is the usual place to drive a restack from, so
  * a lone stack is taken as meant and anything else asks for a number.
  */
-function chooseStack(wanted) {
+function chooseStack(wanted: string | undefined): Stack {
   if (!existsSync(STACK_FILE)) die(`No stack recorded (${STACK_FILE} does not exist).`);
-  const stacks = JSON.parse(readFileSync(STACK_FILE, 'utf8')).stacks ?? [];
+  const stacks: Stack[] = JSON.parse(readFileSync(STACK_FILE, 'utf8')).stacks ?? [];
   const numbers = stacks.map((s) => s.number).join(', ');
 
   if (stacks.length === 0) die('No stack recorded.');
@@ -64,8 +87,10 @@ function chooseStack(wanted) {
 
   const current = git(['branch', '--show-current']);
   const owning = stacks.filter((s) => (s.branches ?? []).some((b) => b.branch === current));
-  if (owning.length === 1) return owning[0];
-  if (stacks.length === 1) return stacks[0];
+  const [owner] = owning;
+  if (owning.length === 1 && owner) return owner;
+  const [only] = stacks;
+  if (stacks.length === 1 && only) return only;
   return die(
     `On ${current || 'a detached HEAD'}, which does not name one of the ${stacks.length} ` +
       `recorded stacks.\nPass the one to park: ${numbers}`,
@@ -73,16 +98,16 @@ function chooseStack(wanted) {
 }
 
 /** Trunk and layers alike — the trunk is held hostage the same way. */
-function branchesOf(stack) {
+function branchesOf(stack: Stack): Set<string> {
   const names = new Set((stack.branches ?? []).map((b) => b.branch));
   if (stack.trunk?.branch) names.add(stack.trunk.branch);
   return names;
 }
 
 /** `{ dir, branch }` for every worktree with a branch checked out. */
-function worktrees() {
-  const found = [];
-  let dir = null;
+function worktrees(): Worktree[] {
+  const found: Worktree[] = [];
+  let dir = '';
   for (const line of git(['worktree', 'list', '--porcelain']).split('\n')) {
     if (line.startsWith('worktree ')) dir = line.slice('worktree '.length);
     else if (line.startsWith('branch ')) {
@@ -92,10 +117,10 @@ function worktrees() {
   return found;
 }
 
-const isDirty = (dir) =>
+const isDirty = (dir: string): boolean =>
   git(['-C', dir, 'status', '--porcelain', '--untracked-files=no']) !== '';
 
-const refuseDirty = (dirty, when) =>
+const refuseDirty = (dirty: Worktree[], when: string): never =>
   die(
     `Uncommitted changes in ${dirty.length} worktree(s) ${when}:\n` +
       dirty.map((w) => `  ${w.branch}  ${w.dir}`).join('\n') +
@@ -103,7 +128,7 @@ const refuseDirty = (dirty, when) =>
       'they were not written against.',
   );
 
-function park(wanted) {
+function park(wanted: string | undefined): void {
   if (existsSync(PARK_FILE)) die('Already parked. Run `unpark` before parking again.');
 
   const stack = chooseStack(wanted);
@@ -129,8 +154,8 @@ function park(wanted) {
   // The driver's own branch is part of that record because a restack walks the
   // stack by checking each layer out here and leaves this worktree on the last
   // one it touched — which is otherwise a layer some parked worktree wants back.
-  const driver = worktrees().find((w) => path.resolve(w.dir) === here) ?? { dir: here };
-  const record = holding.map((w) => ({ ...w, head: git(['-C', w.dir, 'rev-parse', 'HEAD']) }));
+  const driver: Driver = worktrees().find((w) => path.resolve(w.dir) === here) ?? { dir: here };
+  const record = holding.map((w): Parked => ({ ...w, head: git(['-C', w.dir, 'rev-parse', 'HEAD']) }));
   writeFileSync(PARK_FILE, JSON.stringify({ stack: stack.number, parked: record, driver }, null, 2));
 
   for (const w of holding) {
@@ -144,9 +169,9 @@ function park(wanted) {
   console.log(`\n${holding.length} branch(es) of stack ${stack.number} free. Restack, then \`unpark\`.`);
 }
 
-function unpark() {
+function unpark(): void {
   if (!existsSync(PARK_FILE)) die('Nothing parked.');
-  const { parked, driver } = JSON.parse(readFileSync(PARK_FILE, 'utf8'));
+  const { parked, driver }: { parked: Parked[]; driver: Driver } = JSON.parse(readFileSync(PARK_FILE, 'utf8'));
 
   const gone = parked.filter((w) => !existsSync(w.dir));
   const live = parked.filter((w) => existsSync(w.dir));
@@ -163,7 +188,7 @@ function unpark() {
   // Re-checked here, not trusted from park time: a session can edit a parked
   // worktree while the restack runs, and a checkout carries changes that still
   // apply — the silent version of exactly what the pre-park check refuses.
-  const dirty = live.filter((w) => isDirty(w.dir));
+  const dirty: Worktree[] = live.filter((w) => isDirty(w.dir));
   if (driverHolds && isDirty(driver.dir)) dirty.push({ branch: '(here)', dir: driver.dir });
   if (dirty.length > 0) refuseDirty(dirty, 'to restore');
 
@@ -183,7 +208,7 @@ function unpark() {
 
   if (driverHolds) git(['-C', driver.dir, 'checkout', '--detach', '--quiet']);
 
-  const missing = [];
+  const missing: Parked[] = [];
   for (const w of live) {
     try {
       gitQuiet(['-C', w.dir, 'checkout', w.branch, '--quiet']);
@@ -215,4 +240,4 @@ function unpark() {
 const [command, argument] = process.argv.slice(2);
 if (command === 'park') park(argument);
 else if (command === 'unpark') unpark();
-else die('Usage: node scripts/stack-park.mjs park [stack-number] | unpark');
+else die('Usage: node scripts/stack-park.ts park [stack-number] | unpark');

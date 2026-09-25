@@ -210,7 +210,7 @@ export async function setIndentUsingTabs(useTab: boolean): Promise<void> {
  *
  * It is not only a guide switch: with it off Obsidian stops emitting the
  * `.cm-indent` spans that quantise a list line's leading whitespace, so it
- * changes list LAYOUT as well as decoration. `check-vault-drift.mjs` covers the
+ * changes list LAYOUT as well as decoration. `check-vault-drift.ts` covers the
  * config file, but a spec that turns it off should still turn it back on.
  */
 export async function setIndentGuides(show: boolean): Promise<void> {

@@ -3,7 +3,7 @@
  * OpenSpec change archived, finished and synced, and the version bumped
  * when it ships behaviour. CLAUDE.md, "Change lifecycle", step 5.
  *
- *   node scripts/check-landed.mjs <base> "<pull request title>"
+ *   node scripts/check-landed.ts <base> "<pull request title>"
  *
  * It needs the OpenSpec CLI on the path, which reads the change and the specs.
  *
@@ -24,23 +24,23 @@ import { execFileSync } from 'node:child_process';
 
 const [base, title] = process.argv.slice(2);
 if (!base || title === undefined) {
-  console.error('usage: node scripts/check-landed.mjs <base> "<pull request title>"');
+  console.error('usage: node scripts/check-landed.ts <base> "<pull request title>"');
   process.exit(2);
 }
 
-const git = (...args) => execFileSync('git', args, { encoding: 'utf8' });
-const lines = (out) => out.split('\n').filter(Boolean);
+const git = (...args: string[]): string => execFileSync('git', args, { encoding: 'utf8' });
+const lines = (out: string): string[] => out.split('\n').filter(Boolean);
 
 /** The paths the pull request changes, all of them or only those of one status. */
-const diff = (filter) => lines(git('diff', '--name-only', '--no-renames', ...(filter ? [`--diff-filter=${filter}`] : []), `${base}...HEAD`));
+const diff = (filter?: string): string[] => lines(git('diff', '--name-only', '--no-renames', ...(filter ? [`--diff-filter=${filter}`] : []), `${base}...HEAD`));
 const touched = new Set(diff());
 const added = diff('A');
 
-const problems = [];
+const problems: string[] = [];
 
 // The same reading of the title as `.github/workflows/labeler.yml`, which
 // derives the `kind/` label from it; the two change together.
-const KINDS = {
+const KINDS: Record<string, string> = {
   feat: 'feature',
   fix: 'bug',
   chore: 'chore', docs: 'chore', refactor: 'chore', test: 'chore', ci: 'chore',
@@ -56,18 +56,27 @@ if (kind === undefined) {
  * The OpenSpec CLI's own reading of the tree. `validate` exits non-zero when
  * anything fails, which here is data rather than an error.
  */
-const openspec = (...args) => {
+const openspec = <T>(...args: string[]): T => {
   const env = { ...process.env, OPENSPEC_TELEMETRY: '0' };
-  let out;
+  let out: string;
   try {
     out = execFileSync('openspec', [...args, '--json'], { encoding: 'utf8', env, stdio: ['ignore', 'pipe', 'inherit'] });
   } catch (e) {
-    if (typeof e.stdout !== 'string' || e.stdout === '') throw e;
-    out = e.stdout;
+    const stdout = (e as { stdout?: unknown }).stdout;
+    if (typeof stdout !== 'string' || stdout === '') throw e;
+    out = stdout;
   }
-  return JSON.parse(out);
+  return JSON.parse(out) as T;
 };
-const onBase = (p) => {
+
+/** One entry of `openspec validate --json`. */
+interface Validated {
+  id: string;
+  valid: boolean;
+  issues: { level: string; path: string; message: string }[];
+}
+
+const onBase = (p: string): boolean => {
   try {
     execFileSync('git', ['cat-file', '-e', `${base}:${p}`], { stdio: 'ignore' });
     return true;
@@ -76,7 +85,7 @@ const onBase = (p) => {
   }
 };
 
-const inFlight = new Set(openspec('list').changes.map((c) => c.name));
+const inFlight = new Set(openspec<{ changes: { name: string }[] }>('list').changes.map((c) => c.name));
 
 // A change `openspec list` still reports is one in flight. Only a change this
 // pull request opens is its to archive: one already on the base belongs to
@@ -85,15 +94,16 @@ for (const name of inFlight) {
   if (!onBase(`openspec/changes/${name}`)) problems.push(`openspec/changes/${name} is not archived`);
 }
 
-const archived = new Set(added.map((f) => /^openspec\/changes\/archive\/([^/]+)\//.exec(f)?.[1]).filter(Boolean));
+const archived = new Set(added.flatMap((f) => /^openspec\/changes\/archive\/([^/]+)\//.exec(f)?.[1] ?? []));
 
 // A change on the base that this pull request takes away has to reappear in
 // the archive under its own name, the way `openspec archive` files it: one
 // deleted instead never reaches the main specs.
 const removed = new Set(
-  diff('D')
-    .map((f) => /^openspec\/changes\/([^/]+)\//.exec(f)?.[1])
-    .filter((c) => c && c !== 'archive'),
+  diff('D').flatMap((f) => {
+    const change = /^openspec\/changes\/([^/]+)\//.exec(f)?.[1];
+    return change && change !== 'archive' ? [change] : [];
+  }),
 );
 for (const name of removed) {
   const filed = [...archived].some((a) => /^\d{4}-\d{2}-\d{2}-(.+)$/.exec(a)?.[1] === name);
@@ -102,7 +112,7 @@ for (const name of removed) {
 
 // `openspec validate --archived` holds every archived change to a finished
 // task list, and earlier ones are not this pull request's to finish.
-for (const item of openspec('validate', '--archived').items) {
+for (const item of openspec<{ items: Validated[] }>('validate', '--archived').items) {
   if (archived.has(item.id) && !item.valid) {
     for (const issue of item.issues) problems.push(`${item.id}: ${issue.path}: ${issue.message}`);
   }
@@ -119,7 +129,7 @@ for (const f of added) {
 }
 
 // A sync writes the main specs, so they are checked as they will merge.
-for (const item of openspec('validate', '--specs', '--strict').items) {
+for (const item of openspec<{ items: Validated[] }>('validate', '--specs', '--strict').items) {
   if (!item.valid) {
     for (const issue of item.issues.filter((i) => i.level !== 'INFO')) {
       problems.push(`openspec/specs/${item.id}: ${issue.path}: ${issue.message}`);
@@ -127,10 +137,10 @@ for (const item of openspec('validate', '--specs', '--strict').items) {
   }
 }
 
-const read = (rev, file) => JSON.parse(git('show', `${rev}:${file}`));
-const parse = (v) => {
+const read = (rev: string, file: string) => JSON.parse(git('show', `${rev}:${file}`));
+const parse = (v: string): [number, number, number] | null => {
   const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(v);
-  return m && m.slice(1).map(Number);
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
 };
 
 // The version the merge produces: the pull request's own when it edits the

@@ -18,7 +18,7 @@ carries both its plan and its implementation.
 without explicit permission. We grant that permission here: rename the branch to the change's
 type and slug — `git branch -m fix/<slug>` — and push that name. The `SessionStart` hook repeats
 the grant on such a branch, and a `PreToolUse` hook refuses a push or a PR that would put a
-`claude/*` name on the remote (`scripts/agent-conventions.mjs`). Once a PR exists the name is
+`claude/*` name on the remote (`scripts/agent-conventions.ts`). Once a PR exists the name is
 fixed: a rename then is GitHub's, from the PR header or a `gh api` call in the primary checkout,
 so the PR follows it — never a git-level push-and-delete, which leaves the PR behind. The cloud
 session cannot do either: its proxy refuses branch deletes and renames
@@ -86,7 +86,7 @@ Planning and implementation share one PR, in this order:
    branch, before merging. Then squash-merge; CI releases from `main` when `manifest.json` moves.
    The `Landed` check holds a ready PR to this: no change it opened left unarchived, each one it
    archived finished and synced, and a `feat` or `fix` that touches `src/` or `styles/` carrying a
-   minor or patch bump (`scripts/check-landed.mjs`).
+   minor or patch bump (`scripts/check-landed.ts`).
 
 `npm version <patch|minor>` rewrites `manifest.json` and `versions.json` and deliberately creates
 no tag: the release is cut from the squashed merge commit, which no local tag can name.
@@ -94,7 +94,7 @@ no tag: the release is cut from the squashed merge commit, which no local tag ca
 ## E2E testing
 
 CI is the source of truth for full-suite validation — its matrix runs every group, desktop and
-mobile (`.github/workflows/ci.yml`, groups from `scripts/spec-groups.mjs`). A pushed checkpoint
+mobile (`.github/workflows/ci.yml`, groups from `scripts/spec-groups.ts`). A pushed checkpoint
 already runs that sweep; the local loop does not need to reprove it.
 
 **Iterate in narrow mode, one spec file at a time:**
@@ -118,7 +118,7 @@ Every run overwrites `.obsidian-cache/e2e-summary.json` with what failed:
 jq '.failures' .obsidian-cache/e2e-summary.json
 ```
 
-Narrow mode and `run-e2e.mjs` both launch the real desktop app, so an Obsidian window pops on
+Narrow mode and `run-e2e.ts` both launch the real desktop app, so an Obsidian window pops on
 macOS and Windows. `npm run test:e2e:docker [-- --group <name> | <spec> [grep]]` runs the same
 specs headlessly in a Linux container instead (`e2e/docker/`), one container per invocation.
 A cloud session needs its VM provisioned before any of this runs:
@@ -172,6 +172,10 @@ A cloud session needs its VM provisioned before any of this runs:
 - **A feature's CSS goes in its own part under `styles/`**, taking the next filename prefix; the
   root `styles.css` is a build output, so a new feature edits no shared file. Rules the editor and
   the footer share stay in `10-editor.css`, as its comments say.
+- **A tooling script is TypeScript under `scripts/`**, run by Node's own type stripping
+  (`node scripts/<name>.ts`) and checked by `npm run typecheck:scripts`. It lives there because the
+  community directory's release scan skips `scripts/`, where a `.ts` file at the root would be
+  linted as plugin source.
 
 ## Agent files
 
@@ -188,7 +192,7 @@ so adding a tool means editing that script and nothing else. It installs only in
 environment and reports what is missing everywhere else; a cloud environment's own half of the
 provisioning is [`docs/cloud-sessions.md`](docs/cloud-sessions.md).
 
-`scripts/agent-conventions.mjs` is the other hook script: the branch-name grant at session start,
+`scripts/agent-conventions.ts` is the other hook script: the branch-name grant at session start,
 the refusal of a push or PR on a `claude/*` head, and the PR-footer check. Copilot reads neither,
 and whether its coding agent can rename its own `copilot/*` branch is unmeasured; such a branch is
 renamed at landing, from the PR header.

@@ -6,7 +6,7 @@
  * The manifest is copied VERBATIM — it used to be written with a stamped version
  * and description, which Obsidian then cached at plugin-scan time and never
  * re-read on reload, so the stamp froze while the code changed. The stamp lives in
- * main.js now (see esbuild.config.mjs's `virtual:build-stamp`), where it cannot
+ * main.js now (see scripts/build.ts's `virtual:build-stamp`), where it cannot
  * disagree with the bundle it describes.
  *
  * Copies rather than symlinks, deliberately. `vault:install` used to
@@ -25,7 +25,7 @@
  * ~150KB write per build — is irrelevant next to a reload loop you can trust.
  *
  * Exported as a function so esbuild's watch mode can call it on every
- * successful rebuild (see esbuild.config.mjs), which is what makes editing a
+ * successful rebuild (see scripts/build.ts), which is what makes editing a
  * source file reach the running app with no manual command at all.
  */
 
@@ -38,7 +38,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PLUGIN_DIR = path.join(root, 'test-vault/.obsidian/plugins/true-outliner');
 const realManifestPath = path.join(root, 'manifest.json');
 
-const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf-8' }).trim();
+const git = (...args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf-8' }).trim();
 // NOT trimmed: `git status --porcelain` encodes status in the first two
 // COLUMNS, so a leading space is significant. Trimming ate it on the first
 // line only, shifting that one filename by a character ("src/x" -> "rc/x")
@@ -46,8 +46,26 @@ const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf-8
 // stamp — the exact "looks fine, quietly wrong" failure this stamp exists to
 // catch, found by checking the output against `git status` rather than
 // assuming.
-const gitRaw = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf-8' });
-const pad = (n) => String(n).padStart(2, '0');
+const gitRaw = (...args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf-8' });
+const pad = (n: number): string => String(n).padStart(2, '0');
+
+/** What a dev build bakes into main.js as `BUILD_STAMP` (src/plugin/virtual-build-stamp.d.ts). */
+export interface DevStamp {
+  dev: true;
+  buildId: string;
+  subject: string;
+  changedSummary: string;
+  clock: string;
+  versionSuffix: string;
+}
+
+/**
+ * A release build's stamp names only the kind of build. The community directory
+ * rebuilds each release from its source and compares the result with the
+ * published main.js, and a clock or a working-tree state in the bundle would make
+ * every rebuild differ from it.
+ */
+export type BuildStamp = DevStamp | { dev: false };
 
 /**
  * The build stamp. Carries a TIMESTAMP, not just `git describe`-style commit
@@ -56,9 +74,11 @@ const pad = (n) => String(n).padStart(2, '0');
  * iteration loop — every build reads `<sha>-dirty` and looks identical while
  * the code underneath changes completely. The timestamp is the only component
  * guaranteed to differ between any two builds, so it is what makes "did my
- * rebuild actually reach the app?" answerable at a glance.
+ * rebuild actually reach the app?" answerable at a glance. A release build
+ * (`dev: false`) carries none of it: see `BuildStamp`.
  */
-export function buildStamp({ dev = true } = {}) {
+export function buildStamp({ dev = true }: { dev?: boolean } = {}): BuildStamp {
+  if (!dev) return { dev: false };
   const shortSha = git('rev-parse', '--short', 'HEAD');
   const subject = git('log', '-1', '--format=%s');
   const porcelain = gitRaw('status', '--porcelain');
@@ -103,11 +123,14 @@ export function buildStamp({ dev = true } = {}) {
   const clock = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}.${ms}`;
   const buildId = `${shortSha}${dirty ? '-dirty' : ''}`;
 
-  return { dev, buildId, subject, changedSummary, clock, versionSuffix: `${buildId}.${date}-${time}` };
+  return { dev: true, buildId, subject, changedSummary, clock, versionSuffix: `${buildId}.${date}-${time}` };
 }
 
-export function installToVault({ quiet = false, stamp = buildStamp() } = {}) {
-  // `stamp` is passed in by esbuild.config.mjs so the value BAKED into main.js
+export function installToVault({
+  quiet = false,
+  stamp = buildStamp(),
+}: { quiet?: boolean; stamp?: BuildStamp } = {}): BuildStamp {
+  // `stamp` is passed in by scripts/build.ts so the value BAKED into main.js
   // and the value reported here are the same one. Generating a second stamp at
   // install time made the logged clock always differ from the bundle's, and a
   // save arriving mid-build could even change `changedSummary` — recreating the
@@ -132,7 +155,7 @@ export function installToVault({ quiet = false, stamp = buildStamp() } = {}) {
     copyFileSync(path.join(root, name), dest);
   }
   // Copied VERBATIM — the build stamp is no longer written here. It is baked
-  // into main.js as a compile-time constant instead (esbuild.config.mjs's
+  // into main.js as a compile-time constant instead (scripts/build.ts's
   // `virtual:build-stamp`), for a reason found the hard way: Obsidian caches
   // manifest.json at plugin-scan time and does NOT re-read it on reload, so a
   // stamp living in the manifest froze at whatever was on disk when the app
@@ -143,7 +166,11 @@ export function installToVault({ quiet = false, stamp = buildStamp() } = {}) {
   writeFileSync(outManifest, JSON.stringify(manifest, null, 2) + '\n');
 
   if (!quiet) {
-    console.log(`[install-to-vault] ${stamp.buildId} built ${stamp.clock} · changed: ${stamp.changedSummary}`);
+    console.log(
+      stamp.dev
+        ? `[install-to-vault] ${stamp.buildId} built ${stamp.clock} · changed: ${stamp.changedSummary}`
+        : '[install-to-vault] installed a release build, which carries no build stamp',
+    );
   }
   return stamp;
 }
@@ -159,17 +186,17 @@ export function installToVault({ quiet = false, stamp = buildStamp() } = {}) {
  * installed is worse than none, so an unreadable bundle reports "unknown"
  * instead of inventing a value.
  */
-function stampFromBundle() {
+function stampFromBundle(): BuildStamp | undefined {
   try {
     const bundle = readFileSync(path.join(root, 'main.js'), 'utf-8');
     const match = /BUILD_STAMP = (\{[\s\S]*?\});/.exec(bundle);
-    return match ? JSON.parse(match[1]) : undefined;
+    return match?.[1] ? (JSON.parse(match[1]) as BuildStamp) : undefined;
   } catch {
     return undefined;
   }
 }
 
-// Also runnable directly (`node scripts/install-to-vault.mjs`) — copies whatever
+// Also runnable directly (`node scripts/install-to-vault.ts`) — copies whatever
 // main.js is already there, so the stamp must come from that file.
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const baked = stampFromBundle();

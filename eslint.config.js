@@ -82,5 +82,5 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
-  { ignores: ['node_modules/**', 'eslint.config.js', 'esbuild.config.mjs', 'main.js'] },
+  { ignores: ['node_modules/**', 'eslint.config.js', 'main.js'] },
 );
