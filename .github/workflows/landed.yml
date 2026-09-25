@@ -30,6 +30,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
       # Pinned so that a CLI release changing what `validate` reports shows up
       # as a diff here rather than as a red check on an unrelated pull request.

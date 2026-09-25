@@ -31,11 +31,10 @@ if (!base || title === undefined) {
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8' });
 const lines = (out) => out.split('\n').filter(Boolean);
 
-/** Paths the pull request leaves in place — added or modified, never deleted. */
-const kept = lines(git('diff', '--name-only', '--no-renames', '--diff-filter=d', `${base}...HEAD`));
-/** Every path the pull request touches, deletions included. */
-const touched = new Set(lines(git('diff', '--name-only', '--no-renames', `${base}...HEAD`)));
-const added = lines(git('diff', '--name-only', '--no-renames', '--diff-filter=A', `${base}...HEAD`));
+/** The paths the pull request changes, all of them or only those of one status. */
+const diff = (filter) => lines(git('diff', '--name-only', '--no-renames', ...(filter ? [`--diff-filter=${filter}`] : []), `${base}...HEAD`));
+const touched = new Set(diff());
+const added = diff('A');
 
 const problems = [];
 
@@ -77,17 +76,32 @@ const onBase = (p) => {
   }
 };
 
+const inFlight = new Set(openspec('list').changes.map((c) => c.name));
+
 // A change `openspec list` still reports is one in flight. Only a change this
 // pull request opens is its to archive: one already on the base belongs to
 // whichever pull request opened it, even when this one edits its text.
-for (const { name } of openspec('list').changes) {
+for (const name of inFlight) {
   if (!onBase(`openspec/changes/${name}`)) problems.push(`openspec/changes/${name} is not archived`);
 }
 
-// What this pull request archives: `openspec validate --archived` holds every
-// archived change to a finished task list, and earlier ones are not this pull
-// request's to finish.
 const archived = new Set(added.map((f) => /^openspec\/changes\/archive\/([^/]+)\//.exec(f)?.[1]).filter(Boolean));
+
+// A change on the base that this pull request takes away has to reappear in
+// the archive under its own name, the way `openspec archive` files it: one
+// deleted instead never reaches the main specs.
+const removed = new Set(
+  diff('D')
+    .map((f) => /^openspec\/changes\/([^/]+)\//.exec(f)?.[1])
+    .filter((c) => c && c !== 'archive'),
+);
+for (const name of removed) {
+  const filed = [...archived].some((a) => a.replace(/^\d{4}-\d{2}-\d{2}-/, '') === name);
+  if (!inFlight.has(name) && !filed) problems.push(`openspec/changes/${name} is removed without being archived`);
+}
+
+// `openspec validate --archived` holds every archived change to a finished
+// task list, and earlier ones are not this pull request's to finish.
 for (const item of openspec('validate', '--archived').items) {
   if (archived.has(item.id) && !item.valid) {
     for (const issue of item.issues) problems.push(`${item.id}: ${issue.path}: ${issue.message}`);
@@ -129,7 +143,7 @@ const after = manifest.version;
 const [was, now] = [parse(before), parse(after)];
 if (!was || !now) problems.push(`a version is not major.minor.patch: ${before} -> ${after}`);
 
-const ships = kept.filter((f) => /^(src|styles)\//.test(f));
+const ships = [...touched].filter((f) => /^(src|styles)\//.test(f));
 const bumped = was && now && (now[0] - was[0] || now[1] - was[1] || now[2] - was[2]) > 0;
 const minor = was && now && (now[0] > was[0] || (now[0] === was[0] && now[1] > was[1]));
 if (editsManifest && !bumped) {
