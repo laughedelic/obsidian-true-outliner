@@ -1,6 +1,6 @@
 # Headless e2e (Docker + Xvfb)
 
-`scripts/run-e2e.mjs` and `scripts/e2e-narrow.mjs` both launch a real Obsidian window on
+`scripts/run-e2e.ts` and `scripts/e2e-narrow.ts` both launch a real Obsidian window on
 macOS/Windows. CI runs the same suite headlessly on Linux under Xvfb instead
 (`.github/workflows/ci.yml`, `ubuntu-latest`) — this reproduces that locally in a container, so a
 run — narrow, grouped, or full — never has to pop a window on the host, whatever OS it runs.
@@ -14,12 +14,12 @@ npm run test:e2e:docker -- 77-footer-controls "renders it"     # one spec, one t
 npm run test:e2e:docker:mobile -- --group smoke                # mobile-emulation config
 ```
 
-A bare positional argument (not `--group`'s own value) runs `scripts/e2e-narrow.mjs` inside the
-container instead of `scripts/run-e2e.mjs`, the same way it would locally.
+A bare positional argument (not `--group`'s own value) runs `scripts/e2e-narrow.ts` inside the
+container instead of `scripts/run-e2e.ts`, the same way it would locally.
 
-Both npm scripts wrap `scripts/e2e-docker.mjs`, which drives `docker compose`
+Both npm scripts wrap `scripts/e2e-docker.ts`, which drives `docker compose`
 (`docker-compose.yml` in this directory) — don't invoke `docker compose` directly, the script also
-validates `--group` against `scripts/spec-groups.mjs` and works out the worktree git-dir and
+validates `--group` against `scripts/spec-groups.ts` and works out the worktree git-dir and
 host-UID handling described below.
 
 The image is rebuilt on every invocation (`docker compose run --build`) — Docker's own per-layer
@@ -48,14 +48,14 @@ one inside the container, the same way CI already does on `ubuntu-latest`.
 
 **One container per invocation**, covering however many specs are in scope — the whole suite by
 default, one group with `--group`, or one spec (optionally one test) in narrow mode. Never one
-container per spec file: `scripts/run-e2e.mjs`/`scripts/e2e-narrow.mjs` inside the container
+container per spec file: `scripts/run-e2e.ts`/`scripts/e2e-narrow.ts` inside the container
 already dispatch every spec in scope through a single wdio run, so batching multiple files per
 container invocation is inherited from those scripts rather than reimplemented here. This
 deliberately does not fan out multiple containers to run several groups in parallel the way CI's
 matrix does — CI already gives full-suite, parallel-across-groups coverage (see AGENTS.md's "E2E
 testing" section), so this path's job is a headless run, not a faster one.
 
-`E2E_MAX_INSTANCES` defaults to **2** for the container (`scripts/e2e-docker.mjs`), lower than
+`E2E_MAX_INSTANCES` defaults to **2** for the container (`scripts/e2e-docker.ts`), lower than
 CI's `max-instances: 4`: a CI runner is dedicated to the job, while this container shares the
 Docker Desktop/OrbStack Linux VM's CPU allocation with everything else on the host. Override with
 `E2E_MAX_INSTANCES=N npm run test:e2e:docker`; `docker info` reports what the VM currently has to
@@ -68,7 +68,7 @@ hung indefinitely in this container: `Xvfb` came up but the wrapped `node` proce
 because the `wait`/`SIGUSR1` handshake `xvfb-run`'s own shell script uses for readiness never
 completed.
 
-**Runs as the invoking host UID/GID**, not the image's default root — `scripts/e2e-docker.mjs`
+**Runs as the invoking host UID/GID**, not the image's default root — `scripts/e2e-docker.ts`
 passes `-u $(uid):$(gid)` (a no-op on Windows, which has no POSIX UID/GID). On Docker
 Desktop/OrbStack's VM this mostly doesn't matter, but on a native Linux host, root-owned output
 from a root-run container writing into a bind-mounted, user-owned repo is a real, sticky problem:
@@ -108,10 +108,10 @@ step — see above.
 A git **worktree**'s `.git` is a file pointing at an absolute host path
 (`<main checkout>/.git/worktrees/<name>`) — bind-mounting the worktree alone gives the container
 that pointer with nothing at the far end, and anything that shells out to git (the build stamp in
-`esbuild.config.mjs`, `git status`/`checkout` in `scripts/check-vault-drift.mjs`) fails with "not
+`scripts/build.ts`, `git status`/`checkout` in `scripts/check-vault-drift.ts`) fails with "not
 a git repository".
 
-`scripts/e2e-docker.mjs` handles this automatically: it mounts the real git-common-dir read-only at
+`scripts/e2e-docker.ts` handles this automatically: it mounts the real git-common-dir read-only at
 an arbitrary container path, mounts the worktree's own gitdir (nested under it) read-write on top —
 cleanup's `git checkout` needs to write `index.lock` there — and points
 `GIT_COMMON_DIR`/`GIT_DIR`/`GIT_WORK_TREE` at them directly, bypassing `.git`-file resolution.

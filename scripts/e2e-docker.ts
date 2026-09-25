@@ -3,14 +3,14 @@
  * `e2e/docker/README.md` for what this buys over running locally (nothing
  * pops up on the host, whatever OS the host is) and its limits.
  *
- *   node scripts/e2e-docker.mjs [desktop|mobile] [--group <name>]
- *   node scripts/e2e-docker.mjs [desktop|mobile] <spec> [test-name-grep]
+ *   node scripts/e2e-docker.ts [desktop|mobile] [--group <name>]
+ *   node scripts/e2e-docker.ts [desktop|mobile] <spec> [test-name-grep]
  *
  * One container per invocation, however many spec files that covers — every
  * spec (the default), one CI-style group with `--group`, or one spec (and
- * optionally one test) via `scripts/e2e-narrow.mjs` when a bare positional
+ * optionally one test) via `scripts/e2e-narrow.ts` when a bare positional
  * argument follows the platform. Not one container per spec file:
- * `scripts/run-e2e.mjs`/`scripts/e2e-narrow.mjs` inside the container
+ * `scripts/run-e2e.ts`/`scripts/e2e-narrow.ts` inside the container
  * already dispatch every spec in scope through a single wdio invocation, so
  * batching is inherited, not reimplemented here.
  *
@@ -25,7 +25,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { specGroups } from './spec-groups.mjs';
+import { specGroups } from './spec-groups.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const composeFile = path.join(root, 'e2e', 'docker', 'docker-compose.yml');
@@ -34,8 +34,8 @@ const composeFile = path.join(root, 'e2e', 'docker', 'docker-compose.yml');
  * A git WORKTREE's `.git` is a file pointing at an absolute host path
  * (`<main checkout>/.git/worktrees/<name>`) — bind-mounting the worktree
  * alone gives the container that pointer with nothing at the far end, so
- * every git-invoking step (the build stamp in esbuild.config.mjs, and
- * `git status`/`checkout` in scripts/check-vault-drift.mjs) fails with "not
+ * every git-invoking step (the build stamp in scripts/build.ts, and
+ * `git status`/`checkout` in scripts/check-vault-drift.ts) fails with "not
  * a git repository".
  *
  * Bind-mounting the real git dir at the SAME absolute path — the more
@@ -128,7 +128,7 @@ if (groupIndex !== -1) {
   }
 }
 // A bare positional (not --group's own value) selects narrow mode — one
-// spec, optionally one test — mirroring scripts/e2e-narrow.mjs's own CLI.
+// spec, optionally one test — mirroring scripts/e2e-narrow.ts's own CLI.
 const positional = rest.filter((a, i) => {
   if (a.startsWith('--')) return false;
   if (groupIndex !== -1 && i === groupIndex + 1) return false; // --group's own value
@@ -143,17 +143,17 @@ const [narrowSpec, narrowGrep] = group === undefined ? positional : [];
 // cores; `docker info` reports what the VM currently has.
 const maxInstances = process.env.E2E_MAX_INSTANCES ?? '2';
 
-const run = (cmd, args) => spawnSync(cmd, args, { cwd: root, stdio: 'inherit' }).status ?? 1;
+const run = (cmd: string, args: string[]): number => spawnSync(cmd, args, { cwd: root, stdio: 'inherit' }).status ?? 1;
 
 const innerCommand = narrowSpec
   ? [
       'node',
-      'scripts/e2e-narrow.mjs',
+      'scripts/e2e-narrow.ts',
       narrowSpec,
       ...(narrowGrep ? [narrowGrep] : []),
       ...(platform === 'mobile' ? ['--mobile'] : []),
     ]
-  : ['node', 'scripts/run-e2e.mjs', platform, ...(group !== undefined ? ['--group', group] : [])];
+  : ['node', 'scripts/run-e2e.ts', platform, ...(group !== undefined ? ['--group', group] : [])];
 
 const status = run('docker', [
   'compose',

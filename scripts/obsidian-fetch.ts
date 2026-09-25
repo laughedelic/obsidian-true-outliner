@@ -14,7 +14,7 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import * as path from 'node:path';
-import { binPath } from './bin-path.mjs';
+import { binPath } from './bin-path.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const cacheDir = process.env.OBSIDIAN_CACHE ? path.resolve(process.env.OBSIDIAN_CACHE) : path.join(root, '.obsidian-cache');

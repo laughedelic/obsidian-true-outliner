@@ -1,7 +1,7 @@
 #!/bin/sh
 # Starts a virtual X server, exports DISPLAY, and execs the given command
-# against it — e.g. `node scripts/run-e2e.mjs desktop` or
-# `node scripts/e2e-narrow.mjs <spec>`.
+# against it — e.g. `node scripts/run-e2e.ts desktop` or
+# `node scripts/e2e-narrow.ts <spec>`.
 #
 # Not `xvfb-run`: its readiness handshake (wait for a SIGUSR1 from Xvfb) can
 # hang indefinitely in a container, with Xvfb up but the wrapped command
@@ -11,7 +11,7 @@
 # no-op — it only acts when DISPLAY is unset.
 set -e
 
-# Running as non-root (see scripts/e2e-docker.mjs's userArgs), Xvfb prints
+# Running as non-root (see scripts/e2e-docker.ts's userArgs), Xvfb prints
 # "_XSERVTransmkdir: ERROR: euid != 0, directory /tmp/.X11-unix will not be
 # created" but still creates it and the socket below via a fallback path —
 # harmless, not a real failure; the readiness poll below is what actually

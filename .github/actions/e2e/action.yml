@@ -12,12 +12,12 @@ inputs:
     required: true
   group:
     description: >
-      Spec group to run — one of `node scripts/run-e2e.mjs --list-groups`.
+      Spec group to run — one of `node scripts/run-e2e.ts --list-groups`.
       Empty runs every spec.
     required: false
     default: ""
   platform:
-    description: desktop | mobile, validated by scripts/run-e2e.mjs.
+    description: desktop | mobile, validated by scripts/run-e2e.ts.
     required: true
   max-instances:
     description: How many Obsidian instances run at once within the group.
@@ -58,7 +58,7 @@ runs:
         restore-keys: |
           obsidian-cache-${{ runner.os }}-${{ inputs.obsidian-version }}-
 
-    - run: npm run build:plugin
+    - run: npm run build
       shell: bash
 
     # Obsidian is an Electron app and needs a display even "headless" in CI.
@@ -71,7 +71,7 @@ runs:
         # `shell: bash` runs under `-e`, which would skip the timing line on a
         # failing suite — the run we most want the number for.
         set +e
-        xvfb-run --auto-servernum node scripts/run-e2e.mjs "$PLATFORM" "${args[@]}"
+        xvfb-run --auto-servernum node scripts/run-e2e.ts "$PLATFORM" "${args[@]}"
         status=$?
         set -e
         # Header included every time: each job writes its own summary, so a

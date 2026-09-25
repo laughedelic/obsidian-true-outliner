@@ -26,11 +26,26 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dryRun = process.argv.includes('--dry-run');
 const checkOnly = process.argv.includes('--check');
 
-const read = (rel) => yaml.load(readFileSync(path.join(root, rel), 'utf8'));
-const declared = read('.github/labels.yml');
+/** A label as `.github/labels.yml` declares it. */
+interface Label {
+  name: string;
+  color: string;
+  description?: string;
+  aliases?: string[];
+}
+
+/** A label as the GitHub API returns it. */
+interface RepoLabel {
+  name: string;
+  color: string;
+  description: string | null;
+}
+
+const read = (rel: string): unknown => yaml.load(readFileSync(path.join(root, rel), 'utf8'));
+const declared = read('.github/labels.yml') as Label[];
 const declaredNames = new Set(declared.map((l) => l.name));
 
-const applied = Object.keys(read('.github/labeler.yml'));
+const applied = Object.keys(read('.github/labeler.yml') as Record<string, unknown>);
 const undeclared = applied.filter((name) => !declaredNames.has(name));
 if (undeclared.length > 0) {
   console.error(`.github/labeler.yml applies labels .github/labels.yml does not declare: ${undeclared.join(', ')}`);
@@ -49,7 +64,7 @@ const repo = process.env.GITHUB_REPOSITORY ?? 'laughedelic/obsidian-true-outline
  * header both reach GitHub the same way, and neither is read by this file. `gh`
  * is on the runner image and in `scripts/agent-setup.sh`.
  */
-const api = (method, urlPath, body) =>
+const api = (method: string, urlPath: string, body?: unknown): Promise<unknown> =>
   new Promise((resolve, reject) => {
     const args = ['api', '-X', method, urlPath];
     if (body !== undefined) args.push('--input', '-');
@@ -57,19 +72,19 @@ const api = (method, urlPath, body) =>
       if (err) return reject(new Error(`gh api -X ${method} ${urlPath}: ${stderr || err.message}`));
       resolve(stdout.trim() === '' ? null : JSON.parse(stdout));
     });
-    if (body !== undefined) child.stdin.end(JSON.stringify(body));
+    if (body !== undefined) child.stdin?.end(JSON.stringify(body));
   });
 
-const existing = [];
+const existing: RepoLabel[] = [];
 for (let page = 1; ; page++) {
-  const batch = await api('GET', `repos/${repo}/labels?per_page=100&page=${page}`);
+  const batch = (await api('GET', `repos/${repo}/labels?per_page=100&page=${page}`)) as RepoLabel[];
   existing.push(...batch);
   if (batch.length < 100) break;
 }
 const byName = new Map(existing.map((l) => [l.name, l]));
 
-const plan = [];
-const keep = new Set();
+const plan: { verb: string; name: string; run: () => Promise<unknown> }[] = [];
+const keep = new Set<string>();
 
 for (const want of declared) {
   const from = (want.aliases ?? []).find((a) => byName.has(a) && !byName.has(want.name));

@@ -55,7 +55,7 @@ jobs:
       - name: Derive the beta version
         id: version
         shell: bash
-        run: node scripts/beta-version.mjs "$GITHUB_REF_NAME" "$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+        run: node scripts/beta-version.ts "$GITHUB_REF_NAME" "$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
 
       # Written into the built manifest only. Committing it would move
       # manifest.json, which is what triggers a real release from main.
@@ -65,7 +65,7 @@ jobs:
           jq --arg v "${{ steps.version.outputs.version }}" '.version = $v' manifest.json > manifest.tmp
           mv manifest.tmp manifest.json
 
-      - run: npm run build:plugin
+      - run: npm run build
         shell: bash
 
       - name: Publish the prerelease
@@ -89,7 +89,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          node scripts/beta-cleanup.mjs \
+          node scripts/beta-cleanup.ts \
             --keep "${{ steps.version.outputs.version }}" \
             --slug "${{ steps.version.outputs.slug }}"
 
@@ -110,4 +110,4 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node scripts/beta-cleanup.mjs --orphans
+        run: node scripts/beta-cleanup.ts --orphans

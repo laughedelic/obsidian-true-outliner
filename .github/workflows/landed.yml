@@ -2,7 +2,7 @@ name: Landed
 
 # A pull request marked ready has been landed on its branch: its OpenSpec change
 # archived with the delta specs synced, and the version bumped when it ships
-# behaviour. `scripts/check-landed.mjs` says what each of those reads.
+# behaviour. `scripts/check-landed.ts` says what each of those reads.
 #
 # Its own workflow rather than a job in CI, because it has to run on events CI
 # ignores: `ready_for_review` is the moment it starts to apply, and `edited`
@@ -39,4 +39,4 @@ jobs:
       - env:
           BASE: ${{ github.event.pull_request.base.sha }}
           TITLE: ${{ github.event.pull_request.title }}
-        run: node scripts/check-landed.mjs "$BASE" "$TITLE"
+        run: node scripts/check-landed.ts "$BASE" "$TITLE"

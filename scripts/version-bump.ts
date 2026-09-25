@@ -1,6 +1,11 @@
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 
+// Set by npm for its `version` lifecycle script, which is how this runs.
 const targetVersion = process.env.npm_package_version;
+if (!targetVersion) {
+  console.error('version-bump: npm_package_version is unset; run it through `npm version <patch|minor>`');
+  process.exit(1);
+}
 
 // read minAppVersion from manifest.json and bump version to target version
 const manifest = JSON.parse(readFileSync('manifest.json', 'utf8'));

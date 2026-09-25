@@ -14,28 +14,33 @@
  * hand-cut release candidate are both out of reach.
  */
 import { execFileSync } from 'node:child_process';
-import { BETA_TAG, slugify } from './beta-version.mjs';
+import { BETA_TAG, slugify } from './beta-version.ts';
 
-const run = (file, args) => execFileSync(file, args, { encoding: 'utf8' });
+const run = (file: string, args: string[]): string => execFileSync(file, args, { encoding: 'utf8' });
 
-const flag = (name) => {
+const flag = (name: string): string | undefined => {
   const at = process.argv.indexOf(`--${name}`);
   return at === -1 ? undefined : process.argv[at + 1];
 };
 
 /** Every prerelease tag of the beta shape, paired with the branch slug in it. */
-const betaReleases = () =>
-  JSON.parse(run('gh', ['release', 'list', '--limit', '200', '--json', 'tagName,isPrerelease']))
+const betaReleases = (): { tag: string; slug: string }[] =>
+  (JSON.parse(run('gh', ['release', 'list', '--limit', '200', '--json', 'tagName,isPrerelease'])) as {
+    tagName: string;
+    isPrerelease: boolean;
+  }[])
     .filter((release) => release.isPrerelease)
-    .map((release) => ({ tag: release.tagName, slug: BETA_TAG.exec(release.tagName)?.groups.slug }))
-    .filter((release) => release.slug !== undefined);
+    .flatMap((release) => {
+      const slug = BETA_TAG.exec(release.tagName)?.groups?.slug;
+      return slug === undefined ? [] : [{ tag: release.tagName, slug }];
+    });
 
 const liveSlugs = () =>
   new Set(
     run('git', ['ls-remote', '--heads', 'origin'])
       .split('\n')
       .filter(Boolean)
-      .map((line) => slugify(line.split('refs/heads/')[1])),
+      .map((line) => slugify(line.split('refs/heads/')[1] ?? '')),
   );
 
 const doomed = process.argv.includes('--orphans')
@@ -47,7 +52,7 @@ const doomed = process.argv.includes('--orphans')
       const slug = flag('slug');
       const keep = flag('keep');
       if (!slug || !keep) {
-        console.error('usage: beta-cleanup.mjs --orphans | --slug <slug> --keep <version>');
+        console.error('usage: beta-cleanup.ts --orphans | --slug <slug> --keep <version>');
         process.exit(1);
       }
       return betaReleases().filter((release) => release.slug === slug && release.tag !== keep);

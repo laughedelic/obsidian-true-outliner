@@ -9,10 +9,10 @@
  * supported dev platform today, so this is mostly for future contributors — but
  * it also buys a real `finally`, which the shell version did not have.
  *
- *   node scripts/run-e2e.mjs [desktop|mobile] [--group <name>]
- *   node scripts/run-e2e.mjs --list-groups          # JSON, for the CI matrix
+ *   node scripts/run-e2e.ts [desktop|mobile] [--group <name>]
+ *   node scripts/run-e2e.ts --list-groups          # JSON, for the CI matrix
  *
- * `--group` restricts the run to one group of specs (see `./spec-groups.mjs`);
+ * `--group` restricts the run to one group of specs (see `./spec-groups.ts`);
  * without it every spec runs. `--list-groups` prints the names as JSON, which
  * is how the CI matrix is built.
  */
@@ -20,8 +20,8 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import * as path from 'node:path';
-import { binPath } from './bin-path.mjs';
-import { EXCLUSIVE_GROUPS, specGroups } from './spec-groups.mjs';
+import { binPath } from './bin-path.ts';
+import { EXCLUSIVE_GROUPS, specGroups } from './spec-groups.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -43,10 +43,10 @@ const group = argv[argv.indexOf('--group') + 1];
 
 // Resolved here rather than handed to wdio as a glob, so an unknown group
 // fails instead of running zero specs and reporting success.
-const specArgs = [];
+const specArgs: string[] = [];
 if (argv.includes('--group')) {
   const groups = specGroups();
-  const specs = groups[group];
+  const specs = group === undefined ? undefined : groups[group];
   if (!specs) {
     console.error(
       `[e2e] unknown group ${JSON.stringify(group)}. Known groups: ${Object.keys(groups).join(', ')}`,
@@ -73,16 +73,16 @@ if (!process.env.CI && specCount > 2) {
  * group itself, and true for the whole suite, which contains it.
  */
 const runsExclusiveSpecs = argv.includes('--group')
-  ? EXCLUSIVE_GROUPS.has(group)
+  ? group !== undefined && EXCLUSIVE_GROUPS.has(group)
   : Object.keys(specGroups()).some((g) => EXCLUSIVE_GROUPS.has(g));
 // Resolved before the build, so a missing install fails loudly and changes nothing.
 const wdio = binPath('wdio');
 
 /** Exit status of a step, with output passed straight through. */
-const run = (cmd, args, env) =>
+const run = (cmd: string, args: string[], env: NodeJS.ProcessEnv = {}): number =>
   spawnSync(cmd, args, { cwd: root, stdio: 'inherit', env: { ...process.env, ...env } }).status ?? 1;
 
-const build = run(process.execPath, ['esbuild.config.mjs', 'production', '--dev']);
+const build = run(process.execPath, ['scripts/build.ts', 'production', '--dev']);
 if (build !== 0) process.exit(build);
 
 // The hub fixture is generated, not tracked: several hundred near-identical
@@ -94,10 +94,10 @@ if (build !== 0) process.exit(build);
 //
 // Before the drift snapshot, so the generated files are part of the baseline
 // rather than showing up as changes the run has to explain.
-const hub = run(process.execPath, ['scripts/gen-backlink-hub.mjs']);
+const hub = run(process.execPath, ['scripts/gen-backlink-hub.ts']);
 if (hub !== 0) process.exit(hub);
 
-const drift = (...args) => run(process.execPath, ['scripts/check-vault-drift.mjs', ...args]);
+const drift = (...args: string[]): number => run(process.execPath, ['scripts/check-vault-drift.ts', ...args]);
 if (drift('--snapshot') !== 0) process.exit(1);
 
 let suite = 1;

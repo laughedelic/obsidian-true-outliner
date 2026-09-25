@@ -20,7 +20,7 @@ export const SPEC_DIR = path.join(root, 'e2e', 'specs');
 
 /** Prefix -> check name. A two-digit key wins over its decade, which is how a
  * single spec is lifted into a group of its own. */
-const LABELS = {
+const LABELS: Record<string, string> = {
   0: 'smoke',
   1: 'outline-mode',
   2: 'structural-commands',
@@ -90,16 +90,17 @@ export const EXCLUSIVE_GROUPS = new Set(['clipboard']);
  * Every spec as `{ [groupName]: absolutePath[] }`, ordered by prefix. A spec
  * not starting with two digits lands in `ungrouped`, so it still runs.
  */
-export function specGroups() {
-  const groups = new Map();
+export function specGroups(): Record<string, string[]> {
+  const groups = new Map<string, string[]>();
   for (const file of readdirSync(SPEC_DIR).sort()) {
     if (!file.endsWith('.e2e.ts')) continue;
     const prefix = /^(\d\d)-/.exec(file)?.[1];
-    const decade = prefix?.[0];
+    const decade = prefix?.charAt(0);
     const name =
-      prefix === undefined ? 'ungrouped' : (LABELS[prefix] ?? LABELS[decade] ?? `${decade}x`);
-    if (!groups.has(name)) groups.set(name, []);
-    groups.get(name).push(path.join(SPEC_DIR, file));
+      prefix === undefined || decade === undefined
+        ? 'ungrouped'
+        : (LABELS[prefix] ?? LABELS[decade] ?? `${decade}x`);
+    groups.set(name, [...(groups.get(name) ?? []), path.join(SPEC_DIR, file)]);
   }
   return Object.fromEntries(groups);
 }

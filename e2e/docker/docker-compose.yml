@@ -1,5 +1,5 @@
 # See e2e/docker/README.md. Invoke via `npm run test:e2e:docker[:mobile]`
-# (scripts/e2e-docker.mjs), not `docker compose` directly — the script also
+# (scripts/e2e-docker.ts), not `docker compose` directly — the script also
 # forwards --group and picks a sensible E2E_MAX_INSTANCES default.
 services:
   e2e:
@@ -32,7 +32,7 @@ services:
     environment:
       - E2E_MAX_INSTANCES
       - OBSIDIAN_VERSION
-      # Not OBSIDIAN_E2E_MOBILE: run-e2e.mjs (inside the container) sets it
+      # Not OBSIDIAN_E2E_MOBILE: run-e2e.ts (inside the container) sets it
       # itself for a mobile run. Passing it through here as well would leak
       # a stray host value into a desktop run and silently change which
       # tests helpers.ts's IS_MOBILE_RUN skips.
