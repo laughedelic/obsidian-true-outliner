@@ -155,8 +155,9 @@ paragraph arriving in a list scope into a list item. Measured on `main` at 42130
 misplaced id between a lead paragraph and its list writes `- ^id`: an empty item carrying the id,
 which names neither and is not marked either.
 
-A lone-id paragraph is exempt from that conversion, and from the destination's depth: an id is not
-a node, so what a drop chooses for it is the line it goes under, at that line's node's column — a
+A lone-id paragraph is exempt from that conversion wherever it arrives, a paste included. A drag
+(`moveSubtreesTo`) also sets it free of the destination's depth: an id is not a node, so what a
+drop chooses for it is the line it goes under, at that line's node's column — a
 list item's content column, the node's own column otherwise. Under a paragraph's or an item's text
 it follows the line directly and becomes a line of that text, which Obsidian reads as the node's
 id (`^id1`). Under any other block it follows one blank line and attaches (D2): the directly-under

@@ -158,9 +158,10 @@ same reason, and the mark follows the re-parse.
 - **THEN** the line reads `^t4`, the id attaches to the table, and nothing is marked
 
 ### Requirement: A dragged misplaced id lands as a line of the node above it
-An id is not a node and has no depth of its own, so a misplaced id's paragraph moved to a new
-place — dragged by its warning glyph, or pasted — SHALL land as a line, never re-encoded into the
-destination scope's kind and never at a depth the destination offers. It SHALL be written under
+An id is not a node and has no depth of its own, so a misplaced id's paragraph dragged to a new
+place by its warning glyph SHALL land as a line, never re-encoded into the destination scope's kind
+and never at a depth the destination offers. A lone id pasted as a block SHALL keep its kind
+wherever it lands. It SHALL be written under
 the last line above the destination, at the column of that line's node: a list item's content
 column, the node's own column otherwise. Under a paragraph's or a list item's text it SHALL follow
 that line directly, and under any other block after one blank line, the form a table's or a

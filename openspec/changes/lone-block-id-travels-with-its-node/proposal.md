@@ -37,9 +37,10 @@ misplaced, with a correction one press away (`docs/research/lone-block-id`, "Two
   of two in a row, one with nothing above it, an id line with trailing spaces or with text directly
   under it, one with a block directly under it outside a list — are marked with the correction
   that makes them work, or with removing them.
-- A misplaced id dragged or pasted elsewhere lands as a line, written directly under the line
-  above the drop: under a paragraph it becomes a line of the paragraph, under another block it
-  attaches to that block. It is never re-encoded as a list item.
+- A misplaced id dragged elsewhere lands as a line under the line above the drop: directly under a
+  paragraph's or an item's text it becomes a line of that text, and after a blank line under
+  another block it attaches to that block. Dragged or pasted, it is never re-encoded as a list
+  item.
 
 ## Non-goals
 
