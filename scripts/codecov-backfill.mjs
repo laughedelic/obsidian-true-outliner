@@ -4,15 +4,21 @@
  * it and uploads what it writes.
  *
  *   node scripts/codecov-backfill.mjs collect <out-dir> [--limit <runs>]
+ *   node scripts/codecov-backfill.mjs upload <out-dir>
  *   node scripts/codecov-backfill.mjs parse <job-log>   # JUnit on stdout, to check a log by hand
  *
  * `collect` walks the CI workflow's runs, newest first, and downloads each
  * attempt's log archive: one request per attempt rather than one per job, since
  * the token's rate limit would not cover 26 jobs a run. Each e2e job's log
  * becomes `<out-dir>/<run>-<attempt>/<job>/junit.xml`, and `<out-dir>/manifest.tsv`
- * lists what to upload it as — commit, branch, pull request, flag. A run whose
- * logs have expired is skipped, and so is a job that already uploaded its own
- * results, so the two sources never count one run twice.
+ * lists what to upload it as — commit, branch, pull request, flag. Only runs
+ * from the last `RETENTION_DAYS` are read, since Codecov keeps test results no
+ * longer than that. A run whose logs have expired is skipped, and so is a job
+ * that already uploaded its own results, so the two sources never count one run
+ * twice.
+ *
+ * `upload` sends each manifest row with `codecovcli upload-process`, which has
+ * to be on the path (`pip install codecov-cli`), with CODECOV_TOKEN set.
  *
  * The names follow the `junit` reporter's options in `e2e/wdio.shared.mts`:
  * the testsuite is the innermost describe title, the classname every describe
@@ -23,13 +29,15 @@
  * Unit tests are not rebuilt: vitest's CI output names only the failing tests,
  * so a log records no passes to count flakiness against.
  *
- * Needs GITHUB_TOKEN and GITHUB_REPOSITORY, and `unzip` on the path.
+ * `collect` needs GITHUB_TOKEN and GITHUB_REPOSITORY, and `unzip` on the path.
+ * Locally, `GITHUB_TOKEN=$(gh auth token)` will do.
  */
 
 import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+const RETENTION_DAYS = 60;
 const E2E_JOB = /^(desktop|mobile) \((.+)\)$/;
 /** The forward upload's step, as its log prints it: such a job has its own results. */
 const ALREADY_UPLOADED = /report_type: test_results/;
@@ -232,8 +240,11 @@ async function collect(outDir, limit) {
   fs.mkdirSync(outDir, { recursive: true });
   const manifest = [];
   let seen = 0;
+  const since = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
   for await (const run of ciRuns()) {
     if (seen >= limit) break;
+    // Newest first, so the first run past the window ends the walk.
+    if (Date.parse(run.created_at) < since) break;
     if (run.status !== 'completed' || !['success', 'failure'].includes(run.conclusion)) continue;
     seen++;
     for (let attempt = 1; attempt <= run.run_attempt; attempt++) {
@@ -285,6 +296,45 @@ async function collect(outDir, limit) {
   console.log(`[backfill] ${manifest.length} job results from ${seen} runs in ${outDir}/manifest.tsv`);
 }
 
+// ---- Uploading -----------------------------------------------------------
+
+function upload(outDir) {
+  const repo = process.env.GITHUB_REPOSITORY;
+  const rows = fs
+    .readFileSync(path.join(outDir, 'manifest.tsv'), 'utf-8')
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => line.split('\t'));
+  let failed = 0;
+  for (const [i, [sha, branch, pr, flag, name, build, url, file]] of rows.entries()) {
+    const args = [
+      'upload-process',
+      '--report-type', 'test_results',
+      '--token', process.env.CODECOV_TOKEN,
+      '--git-service', 'github',
+      '--slug', repo,
+      '--sha', sha,
+      '--branch', branch,
+      ...(pr === '-' ? [] : ['--pr', pr]),
+      '--flag', flag,
+      '--name', name,
+      '--build', build,
+      '--build-url', url,
+      '--file', file,
+      '--disable-search',
+    ];
+    try {
+      execFileSync('codecovcli', args, { stdio: 'inherit' });
+      console.log(`[backfill] ${i + 1}/${rows.length} ${sha.slice(0, 7)} ${name}`);
+    } catch {
+      failed++;
+      console.log(`[backfill] ${i + 1}/${rows.length} ${sha.slice(0, 7)} ${name}: upload failed`);
+    }
+  }
+  console.log(`[backfill] uploaded ${rows.length - failed} of ${rows.length}`);
+  if (failed > 0) process.exitCode = 1;
+}
+
 // ---- Entry point ----------------------------------------------------------
 
 const [command, ...args] = process.argv.slice(2);
@@ -300,6 +350,13 @@ if (command === 'parse') {
     process.exit(2);
   }
   await collect(outDir, limit);
+} else if (command === 'upload') {
+  const [outDir] = args;
+  if (!outDir || !process.env.CODECOV_TOKEN || !process.env.GITHUB_REPOSITORY) {
+    console.error('usage: CODECOV_TOKEN=… GITHUB_REPOSITORY=owner/repo node scripts/codecov-backfill.mjs upload <out-dir>');
+    process.exit(2);
+  }
+  upload(outDir);
 } else if (command !== undefined) {
   console.error(`[backfill] unknown command ${JSON.stringify(command)}`);
   process.exit(2);
