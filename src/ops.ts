@@ -53,6 +53,7 @@ import {
   rewriteOwnLine,
   shiftBelowMarker,
   shiftSubtree,
+  withIdLine,
 } from './reencode';
 
 export interface OpOutput {
@@ -1802,7 +1803,7 @@ export function unwrapListItem(doc: OutlineDoc, nodeId: number): OpResult<OpOutp
   if (!path) return reject('node-not-found');
   const node = nodeAt(doc, path)!;
   if (node.children.length > 0) return reject('would-orphan-children');
-  if (!itemContentIsEmpty(node)) return reject('cannot-unwrap');
+  if (!itemContentIsEmpty(node) || node.blockId) return reject('cannot-unwrap');
 
   // Captured before the surgery: everything above this line is untouched, so
   // the blank line that replaces the item sits exactly where the item was.
@@ -2374,7 +2375,10 @@ function rewriteSubtree(
           ? carryContentColumn(line, indentText + line.slice(from.length))
           : rewriteOwnLine(line, from, indentText, unit, columnDelta, carry),
       );
-  const written: OutlineNode = { ...node, lines };
+  // An attached id is one of the node's own lines, never an atom's content.
+  const written = withIdLine({ ...node, lines }, (line) =>
+    rewriteOwnLine(line, from, indentText, unit, columnDelta, carry),
+  );
   const children = layChildren(written, node.children, indentText, unit, carry, (child) =>
     leadingWhitespace(
       rewriteOwnLine(child.lines[0] ?? '', from, indentText, unit, columnDelta, carry),
@@ -2518,11 +2522,15 @@ function reindentSubtreeVerbatim(node: OutlineNode, indentText: string): Outline
     const swapped = indentText + line.slice(topWs.length);
     return atom ? swapped : carryContentColumn(line, swapped);
   };
-  const recur = (n: OutlineNode): OutlineNode => ({
-    ...n,
-    lines: n.lines.map((line) => swapLine(line, isAtom(n))),
-    children: n.children.map(recur),
-  });
+  const recur = (n: OutlineNode): OutlineNode =>
+    withIdLine(
+      {
+        ...n,
+        lines: n.lines.map((line) => swapLine(line, isAtom(n))),
+        children: n.children.map(recur),
+      },
+      (line) => swapLine(line, false),
+    );
   return recur(root);
 }
 

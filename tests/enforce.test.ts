@@ -3,14 +3,14 @@ import fc from 'fast-check';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
 import { applyEdits } from '../src/result';
-import { ownSpan, treesEqual, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
+import { idLineIndex, ownSpan, treesEqual, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
 import { computeVerdict, computeVerdictForRanges, type EditFact, type Verdict } from '../src/enforce';
 import {
   coveredSubtreeRoots,
   escalateRange,
   subtreeCoverOf,
 } from '../src/escalate';
-import { nodeAtLine } from '../src/locate';
+import { nodeAtLine, nodeStartLine } from '../src/locate';
 import { classify, type TransactionClass, type TransactionFacts } from '../src/classify';
 import { arbTree } from './generators';
 import { rangesEqual } from '../src/line-pos';
@@ -921,13 +921,22 @@ describe('computeVerdict: deletion of a mixed-depth forest cover (selection-as-s
         // the end takes it and the deletion puts it back on the node that now
         // ends the document (#160). A note that ended in a newline still does,
         // unless the deletion left no node at all.
-        const expected =
-          survivors.length > 0 &&
-          lines[lines.length - 1] === '' &&
-          survivors[survivors.length - 1] !== ''
-            ? [...survivors, ''].join('\n')
-            : survivors.join('\n');
-        return applyVerdict(text, verdict) === expected;
+        const terminate = (kept: string[]): string =>
+          kept.length > 0 && lines[lines.length - 1] === '' && kept[kept.length - 1] !== ''
+            ? [...kept, ''].join('\n')
+            : kept.join('\n');
+        const applied = applyVerdict(text, verdict);
+        if (applied === terminate(survivors)) return true;
+        // One more exception: a list item's attached id right above the span.
+        // Text directly under an id joins it, so the deletion keeps one blank
+        // line of the span as the id's separator.
+        const above = nodeAtLine(d, lo.line - 1);
+        const aboveId = above ? idLineIndex(above) : undefined;
+        const idAbove =
+          above?.kind === 'list-item' &&
+          aboveId !== undefined &&
+          nodeStartLine(d, above.id) + aboveId === lo.line - 1;
+        return idAbove && applied === terminate([...survivors.slice(0, lo.line), '', ...survivors.slice(lo.line)]);
       }),
       { numRuns: 400 },
     );
