@@ -138,6 +138,16 @@ constructed so their result re-parses with the id attached; the unit tests asser
 - **Styles.** A new part under `styles/` for the mark and the glyph, using `--text-warning` and the
   highlight background the surplus mark uses.
 
+### D8. A moved misplaced id keeps its kind
+
+`reencodeBlocksForDestination`, the step a drag (`moveSubtreesTo`) and a paste share, converts a
+paragraph arriving in a list scope into a list item. A paragraph that is a lone block id is exempt:
+it keeps its kind and takes the destination's column, so a dropped id is an id line and the
+re-parse attaches it, or keeps it misplaced, by D2's rule. Without the exemption a drop between a
+lead paragraph and its list writes `- ^id`, an empty item carrying the id, which names neither and
+is not marked either (measured on `main` at 42130da). Indent and outdent of a misplaced id are not
+exempt: they are paragraph operations the user asked for by name.
+
 ### D7. Keys on an attached id's line
 
 The keymap resolves the caret's `lineRole`. On an `id` line, Enter at the end calls the same path
