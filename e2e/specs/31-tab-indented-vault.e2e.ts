@@ -119,6 +119,20 @@ describe('a tab-indented vault: every line a node owns takes the tab', function 
     expect(await h.getCursor()).toEqual({ line: 3, ch: 5 });
   });
 
+  it('a two-space list pasted into an empty note lands in tabs', async function () {
+    await outlineNote('', 0, 0);
+    await h.pasteText('- a\n  - b\n    - c\n');
+    expect(await h.getBuffer()).toBe('- a\n\t- b\n\t\t- c\n');
+    expect(await h.getCursor()).toEqual({ line: 2, ch: 5 });
+  });
+
+  it('a two-space list pasted after a paragraph becomes a paragraph with a tab list', async function () {
+    await outlineNote('Some text.\n', 0, 10);
+    await h.pasteText('- a\n  - b\n    - c\n');
+    expect(await h.getBuffer()).toBe('Some text.\n\na\n- b\n\t- c\n');
+    expect(await h.getCursor()).toEqual({ line: 4, ch: 4 });
+  });
+
   it('a tab list pasted into a note with no nested item lands in spaces with tabs off', async function () {
     await h.setIndentUsingTabs(false);
     try {

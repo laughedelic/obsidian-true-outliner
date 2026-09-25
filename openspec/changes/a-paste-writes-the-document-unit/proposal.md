@@ -43,13 +43,19 @@ and why, and a 1 774-row differential against `main`.
   a two-space document as three.
 - `moveSubtreesTo` reads the unit from the document before the removal, so a run that held the
   document's only nested items keeps the document's unit.
+- A block whose kind converts on the way writes its children in the same unit. A list pasted
+  after a paragraph becomes a paragraph with a list in the document's unit, and a paragraph
+  with a list pasted into a list becomes an item whose list is laid out as any item's.
+- A note with no node yet gives a paste jurisdiction over its blank lines past any frontmatter,
+  so the first paste into an empty note, or below a template's frontmatter, converges too.
 
 ## Non-Goals
 
-- **A conversion's children.** A paragraph pasted into a list converts through
-  `reencodeForDestination`, whose conversion branches move the children by a width delta in
-  spaces. That is [#215](https://github.com/laughedelic/obsidian-true-outliner/issues/215), shared
-  with indent.
+- **Indent and outdent's conversions.** They convert through the same branches of
+  `reencodeForDestination`, which this change leaves as they are; that is
+  [#215](https://github.com/laughedelic/obsidian-true-outliner/issues/215).
+- **Blank lines above the first node of a note that has nodes.** They are preamble, and a paste
+  there stays Obsidian's.
 - **A document already indented two ways.** The unit is one answer per document, the one an
   indent there takes.
 - **The caret.** Where a paste leaves the caret is `caret-placement-policy`'s, and unchanged.
@@ -58,7 +64,8 @@ and why, and a 1 774-row differential against `main`.
 
 - Affected specs: `structural-operations` (the requirement "Subtree insertion at a boundary"
   replaces its verbatim clause with the document's unit).
-- Affected code: `src/ops.ts` (`reindentSubtreeInUnit` in place of `reindentSubtreeVerbatim`,
+- Affected code: `src/ops.ts` (`reindentSubtree`, `reindentSubtreeInUnit`, `convertInUnit`,
   `reencodeIntoListScope`, `inferIndentUnit`, `moveSubtreesTo`), `src/reencode.ts`
-  (`rewriteOwnLine`, `reprefixAtomLines`), `tests/edit-ops.test.ts`, `tests/enforce.test.ts`,
+  (`rewriteOwnLine`, `reprefixAtomLines`), `src/locate.ts` (`isEmptyBodyLine`),
+  `src/classify.ts` and `src/enforce.ts` (the empty-body paste), `tests/edit-ops.test.ts`, `tests/enforce.test.ts`,
   `e2e/specs/31-tab-indented-vault.e2e.ts`.

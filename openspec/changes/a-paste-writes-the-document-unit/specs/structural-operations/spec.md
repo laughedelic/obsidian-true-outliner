@@ -30,6 +30,14 @@ A block whose lines, so written and read back on their own, parse as a different
 from the block's own SHALL instead keep its own characters past its root's prefix,
 re-rooted at the destination depth.
 
+When a block's kind converts for its destination, its own lines SHALL be converted as
+before, and its children SHALL be written in the document's unit: under a paragraph at the
+paragraph's own indentation, and under a list item as any list item's children are.
+
+A paste into a note that holds no node SHALL be written as the root's children through the
+same re-encode, on any blank line past the note's frontmatter. The frontmatter SHALL NOT be
+touched.
+
 The document's unit SHALL be read from the step between a bullet item and its first
 indented child where the document has one. The step under a numbered item is also the
 width its child needs to reach the content column, so it is not evidence of the unit.
@@ -97,6 +105,20 @@ blank to parse, so the separation a reader sees there is this one.
 - **WHEN** a payload's converged lines would turn a lazy line into a quote or a table
 - **THEN** the payload is written with its own characters past its root's prefix, and its tree
   is unchanged
+
+#### Scenario: A list pasted after a paragraph converts with its list in the unit
+- **WHEN** a list in any spelling is pasted at the end of a paragraph in a tab-indented vault
+- **THEN** its root becomes a paragraph, its list follows at the paragraph's indentation, and
+  every nested level below that is written with tabs
+
+#### Scenario: The first paste into an empty note converges
+- **WHEN** a two-space list is pasted into an empty note in a tab-indented vault
+- **THEN** it lands with tabs at every nested level
+
+#### Scenario: A paste below a template's frontmatter leaves the frontmatter alone
+- **WHEN** a list is pasted on the blank line below the frontmatter of a note with no node
+- **THEN** the list is written below the frontmatter in the vault's unit, and the frontmatter's
+  lines are unchanged
 
 #### Scenario: A move keeps the document's unit
 - **WHEN** a run holding the document's only nested list items is moved under another item

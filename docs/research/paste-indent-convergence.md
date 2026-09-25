@@ -150,23 +150,52 @@ destination. Over 20 000 cases each:
 
 | | `main` keeps the tree and this change does not | the reverse |
 | --- | --- | --- |
-| `insertSubtrees`, every shape | 2 | 148 |
-| `insertSubtrees`, no tab marker runs or headings | 1 | 80 |
-| `moveSubtreesTo` | 0 | 27 |
+| `insertSubtrees`, every shape | 4 | 272 |
+| `insertSubtrees`, no tab marker runs or headings | 3 | 217 |
+| `moveSubtreesTo` | 0 | 59 |
 | `indent` | 0 | 0 |
 
-Before the read-back and the two rules above it, the first row was 351 against about 170. Each
-of the three residual rows is a payload three levels deep in mixed tabs and spaces. Read back
-on its own, it parses to the same tree either way, and it differs only in the context it lands
-in.
+Before the read-back and the two rules above it, the first row was 351 against about 170.
+Writing a converted block's children in the unit (below) took the right-hand column from 148,
+80 and 27 to the figures shown, and the left from 2 and 1 to 4 and 3. Each residual row is a
+payload several levels deep in mixed tabs and spaces, with lazy lines. Read back on its own, it
+parses to the same tree either way. What differs is the destination's own next line, a
+continuation the pasted run's last item now reaches.
+
+## A converted block's children
+
+A list pasted where only a paragraph can stand converts its root to a paragraph, and a paragraph
+with a list pasted into a list converts its root to an item. The conversion goes through
+`reencodeForDestination`, whose conversion branches move the children by the column the marker
+shifted them, in spaces. After a paragraph in a tab vault, a tab clipboard landed as `a` /
+`  - b` / `⏵  - c`, and a clipboard in any other unit landed in that unit.
+
+The paste path now writes the converted block's own lines through `reencodeForDestination`, and
+lays out its children as `layChildren` lays out any item's. A converted node's content column
+has changed, so a child's offset from it describes nothing. Under a paragraph, the children
+take the paragraph's own indentation, which is where `chooseIndent` puts a paragraph's list.
+Under an item, a list item goes one unit past the item and anything else goes to its content
+column. The read-back applies here too, compared with the conversion as `main` writes it.
+Indent and outdent convert through the same branches, and they are unchanged here:
+[#215](https://github.com/laughedelic/obsidian-true-outliner/issues/215) stays open for them.
+
+## An empty note
+
+Every line of a note with no node parses into the preamble, and the preamble is outside the
+outline's jurisdiction. So a paste into an empty note, or below a template's frontmatter, went
+to Obsidian untouched and kept the clipboard's indentation, the one place a first paste could
+not converge. `isEmptyBodyLine` (`src/locate.ts`) gives a note with no node jurisdiction over
+its blank lines past the frontmatter. A structural paste there writes the payload as the root's
+children through the same re-encode. Blank lines above the caret stay above it, and those below
+it become the run's trailing gap. The frontmatter stays out of reach, and plain text still goes
+to Obsidian.
 
 ## What this does not reach
 
-- **A conversion's children.** A paragraph pasted into a list, or a list item into a paragraph
-  scope, converts through `reencodeForDestination`, whose conversion branches still move the
-  children by a width delta in spaces. That is
-  [#215](https://github.com/laughedelic/obsidian-true-outliner/issues/215), for indent and paste
-  alike.
+- **Indent and outdent's conversions** keep moving a converted node's children by a width in
+  spaces ([#215](https://github.com/laughedelic/obsidian-true-outliner/issues/215)).
+- **Blank lines above a note's first node**, when the note has nodes, are still preamble, and a
+  paste there goes to Obsidian.
 - **A document indented two ways.** The unit is one answer per document. A paste into a document
   whose lists already disagree converges on whichever unit `inferIndentUnit` reads, as an indent
   there does.

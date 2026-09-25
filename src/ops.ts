@@ -2350,29 +2350,77 @@ function rewriteSubtree(
           : rewriteOwnLine(line, from, indentText, unit, columnDelta),
       );
   const written: OutlineNode = { ...node, lines };
-  const children: OutlineNode[] = [];
+  const children = layChildren(written, node.children, indentText, unit, (child) =>
+    leadingWhitespace(rewriteOwnLine(child.lines[0] ?? '', from, indentText, unit, columnDelta)),
+  );
+  return { ...written, children };
+}
+
+/**
+ * `children` rewritten under `parent`, already written at `indentText`: a list
+ * item under a list item one unit past it, padded to its content column, and
+ * every other child where `offsetIndent` puts it.
+ */
+function layChildren(
+  parent: OutlineNode,
+  children: readonly OutlineNode[],
+  indentText: string,
+  unit: string,
+  offsetIndent: (child: OutlineNode) => string,
+): OutlineNode[] {
+  const laid: OutlineNode[] = [];
   let lastItem: OutlineNode | undefined;
-  for (const child of node.children) {
+  for (const child of children) {
     let childIndent: string;
-    if (node.kind === 'list-item' && child.kind === 'list-item') {
-      childIndent = reachContentColumn(indentText + unit, written);
+    if (parent.kind === 'list-item' && child.kind === 'list-item') {
+      childIndent = reachContentColumn(indentText + unit, parent);
     } else {
-      childIndent = leadingWhitespace(
-        rewriteOwnLine(child.lines[0] ?? '', from, indentText, unit, columnDelta),
-      );
+      childIndent = offsetIndent(child);
       // The list items before it were laid out afresh, so an offset kept from
       // the parent can now reach the last one's content column, which the
       // parse reads as that item's child. The parent's own content column is
       // under the parent and short of every item beside it.
       if (lastItem && indentWidth(childIndent) >= childBaseCol(lastItem)) {
-        childIndent = reachContentColumn(indentText, written);
+        childIndent = reachContentColumn(indentText, parent);
       }
     }
     const rewritten = rewriteSubtree(child, childIndent, unit);
     if (rewritten.kind === 'list-item') lastItem = rewritten;
-    children.push(rewritten);
+    laid.push(rewritten);
   }
-  return { ...written, children };
+  return laid;
+}
+
+/**
+ * A block converted to `kind` for its destination, with its children written
+ * in the document's unit rather than moved by the column the conversion
+ * shifted them: a list item pasted where only a paragraph can stand, or a
+ * paragraph with a list where only a list item can.
+ *
+ * The block's own lines are `reencodeForDestination`'s. Its children have no
+ * offset worth keeping, since the node they hung from has changed its content
+ * column: under a paragraph they take the paragraph's own indentation, where
+ * `chooseIndent` puts a paragraph's list, and under a list item they are laid
+ * out as `layChildren` lays any item's. The block's converted lines are read
+ * back as `reindentSubtree` does, and the conversion's own children are kept
+ * where the two trees differ.
+ */
+function convertInUnit(
+  node: OutlineNode,
+  kind: 'paragraph' | 'list-item',
+  indentText: string,
+  unit: string,
+  style?: ListStyle,
+): OutlineNode {
+  const converted = reencodeForDestination(node, kind, indentText, style);
+  const head = reencodeForDestination({ ...node, children: [] }, kind, indentText, style);
+  const laid: OutlineNode = {
+    ...head,
+    children: layChildren(head, node.children, indentText, unit, () =>
+      head.kind === 'list-item' ? reachContentColumn(indentText, head) : indentText,
+    ),
+  };
+  return treeShape(laid) === treeShape(converted) ? laid : converted;
 }
 
 /**
@@ -2628,7 +2676,7 @@ export function reencodeBlocksForDestination(
     written.push(
       forced === undefined || forced === block.kind
         ? reindentSubtree(block, indentText, unit)
-        : reencodeForDestination(block, forced, indentText, listStyle),
+        : convertInUnit(block, forced, indentText, unit, listStyle),
     );
   }
   return accept(written);

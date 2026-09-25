@@ -37,6 +37,19 @@
 - [x] 3.7 A tab step under a bullet reads as a tab after a numbered item's spaces. Negative
       control: the first nested item's whitespace alone.
 
+## 5. Conversions and an empty note
+
+- [x] 5.1 `convertInUnit`: a converted block's children laid out by `layChildren` and read back
+      against the conversion (D8). Tests: a list in five spellings after a paragraph, and a
+      paragraph with a list into a tab list. Negative control: `reencodeForDestination` alone.
+- [x] 5.2 `isEmptyBodyLine` and the empty-body paste in `classify.ts` and `enforce.ts` (D9).
+      Tests: an empty note with a tab and with a space unit, below frontmatter, inside
+      frontmatter (passes), and plain text (passes). Negative control: the preamble out of
+      jurisdiction.
+- [x] 5.3 e2e: a two-space list into an empty note, and after a paragraph, with **Indent using
+      tabs** on.
+- [x] 5.4 Re-run the fuzzer and the sweep; record both in the research note.
+
 ## 4. Validate
 
 - [x] 4.1 `npm run build`, `npm test`, `npm run lint`, `npm run build:e2e`.

@@ -16,7 +16,7 @@ records what each wrote and the differential behind the decisions below.
   protected.
 - **Goal.** No verdict and no parsed tree changes. The change is to characters, and to columns
   only where a level's column was the clipboard's rather than the document's.
-- **Non-goal.** A conversion's children (#215), recorded in the proposal's Non-Goals.
+- **Non-goal.** Indent and outdent's conversions (#215), recorded in the proposal's Non-Goals.
 
 ## Decisions
 
@@ -100,6 +100,28 @@ against the parse. It reads the converged block back on its own, re-rooted at co
 compares the tree with the block's own. Where they differ, the block is written as `main` wrote
 it, through `reindentSubtreeVerbatim`: its characters past its root's prefix are kept. The cost
 is one parse of each pasted block.
+
+### D8. A converted block's children are laid out, not moved
+
+`reencodeForDestination`'s conversion branches move a converted node's children by the column its
+marker shifted them, in spaces. The paste path now takes only the node's own lines from it, and
+lays out the children with `layChildren`. A converted node's content column has changed, so no
+child's offset from it is worth keeping. Under a paragraph, the children take the paragraph's
+indentation, which is where `chooseIndent` puts a paragraph's list. Under an item, they are laid
+out as under any item. The result is read back against the conversion as `main` writes it, as in
+D7. Indent and outdent keep calling the conversion branches directly, which is #215's to change,
+because an indent's children are the document's own and a unit could move them.
+
+### D9. A note with no node gives its body to the first paste
+
+A note with no node is all preamble, which is outside the outline, so a paste into it went to
+Obsidian untouched. `isEmptyBodyLine` gives jurisdiction over such a note's blank lines past any
+frontmatter, and only while the note has no node. A structural paste there is written as the
+root's children through `reencodeBlocksForDestination`, so the first paste converges like every
+later one. The blank lines above the caret stay above it, and those below it become the run's
+trailing gap, which is where Obsidian's own paste leaves them. The frontmatter is never touched,
+and plain text, which opens no block, still goes to Obsidian. A note that has nodes keeps its
+leading blank lines as preamble, where a paste stays Obsidian's.
 
 ## Risks / Trade-offs
 

@@ -981,6 +981,7 @@ function pasteThroughBothGates(
   from: { line: number; ch: number },
   to: { line: number; ch: number },
   payload: string,
+  fallbackIndentUnit?: string,
 ): Verdict {
   const doc = parse(md);
   const facts: TransactionFacts = {
@@ -999,7 +1000,7 @@ function pasteThroughBothGates(
     cursorBefore: from,
   };
   const edit: EditFact = { from, to, insert: payload, cursorBefore: from };
-  return computeVerdict(classify(facts, doc), doc, edit);
+  return computeVerdict(classify(facts, doc), doc, edit, fallbackIndentUnit);
 }
 
 /** The pasted subtree's own shape, relative to its root — so results landing at
@@ -1193,6 +1194,35 @@ describe('a paste on the blank line under a node lands in it', () => {
     expect(intoSpaces.kind).toBe('rewrite');
     if (intoSpaces.kind !== 'rewrite') return;
     expect(encode(intoSpaces.after)).toBe('- top\n  - sib\n  - a\n    - b\n      - c\n');
+  });
+
+  it('a paste into a note with no node starts the outline in the editor’s unit', () => {
+    // Negative control: the note is all preamble, which the paste path passed
+    // to Obsidian, so the clipboard's two spaces landed as they were.
+    const empty = pasteThroughBothGates('', pos(0, 0), pos(0, 0), '- a\n  - b\n    - c\n', '\t');
+    expect(empty.kind).toBe('rewrite');
+    if (empty.kind !== 'rewrite') return;
+    expect(encode(empty.after)).toBe('- a\n\t- b\n\t\t- c\n');
+    expect(empty.cursor).toEqual({ line: 2, ch: 5 });
+
+    const spaces = pasteThroughBothGates('', pos(0, 0), pos(0, 0), '- a\n\t- b\n', '    ');
+    expect(spaces.kind).toBe('rewrite');
+    if (spaces.kind !== 'rewrite') return;
+    expect(encode(spaces.after)).toBe('- a\n    - b\n');
+  });
+
+  it('a paste below a template’s frontmatter lands under it, and the frontmatter stays out of reach', () => {
+    const body = pasteThroughBothGates('---\na: 1\n---\n\n', pos(4, 0), pos(4, 0), '- a\n  - b\n', '\t');
+    expect(body.kind).toBe('rewrite');
+    if (body.kind !== 'rewrite') return;
+    expect(encode(body.after)).toBe('---\na: 1\n---\n\n- a\n\t- b\n');
+
+    // Inside the frontmatter the paste is Obsidian's, as it always was.
+    expect(pasteThroughBothGates('---\na: 1\n---\n', pos(1, 0), pos(1, 0), '- a\n  - b\n', '\t')).toEqual({
+      kind: 'pass',
+    });
+    // So is plain text, which opens no block structure to converge.
+    expect(pasteThroughBothGates('', pos(0, 0), pos(0, 0), 'plain words', '\t')).toEqual({ kind: 'pass' });
   });
 
   it('a gap the payload lands PAST is left alone', () => {

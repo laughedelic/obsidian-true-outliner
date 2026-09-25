@@ -73,6 +73,26 @@ export function documentLineCount(doc: OutlineDoc): number {
   return total;
 }
 
+/**
+ * Whether `line` is a blank line of a note that holds no node yet, past any
+ * frontmatter: the body an empty note or a template's frontmatter leaves for
+ * its first node. Every such line parses into the preamble, which is outside
+ * the outline, so this is the one place a paste can start the outline from
+ * nothing. The frontmatter itself stays out of reach.
+ */
+export function isEmptyBodyLine(doc: OutlineDoc, line: number): boolean {
+  if (doc.children.length > 0) return false;
+  if (line < frontmatterLength(doc.preamble)) return false;
+  // An empty note has one editor line and no preamble line at all.
+  return (doc.preamble[line] ?? '').trim() === '';
+}
+
+function frontmatterLength(preamble: readonly string[]): number {
+  if (!/^---[ \t]*$/.test(preamble[0] ?? '')) return 0;
+  const close = preamble.findIndex((line, i) => i > 0 && /^(---|\.\.\.)[ \t]*$/.test(line));
+  return close + 1;
+}
+
 export function nodeAtLine(doc: OutlineDoc, line: number): OutlineNode | undefined {
   if (line < doc.preamble.length) return undefined;
   let found: OutlineNode | undefined;

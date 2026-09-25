@@ -13,7 +13,7 @@
  */
 
 import type { OutlineDoc } from './model';
-import { nodeAtLine, nodeStartLine } from './locate';
+import { isEmptyBodyLine, nodeAtLine, nodeStartLine } from './locate';
 import { parse } from './parse';
 import { isContentStartCh, surplusMarkerSpace } from './ops';
 import { coveredSubtreeRoots } from './escalate';
@@ -286,7 +286,9 @@ function isMultiBlockInsertion(
   const replaces =
     span.fromCh !== undefined && span.toCh !== undefined && span.fromCh !== span.toCh;
   if (replaces && facts.emptySelectionBefore) return false;
-  if (!nodeAtLine(doc, span.fromLine)) return false; // preamble: out of jurisdiction
+  // The preamble is out of jurisdiction, apart from the empty body of a note
+  // with no node yet, where a paste starts the outline.
+  if (!nodeAtLine(doc, span.fromLine) && !isEmptyBodyLine(doc, span.fromLine)) return false;
   return isStructuralBlockSequence(parse(span.insertedText).children);
 }
 

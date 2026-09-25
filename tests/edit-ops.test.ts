@@ -1530,6 +1530,24 @@ describe('a pasted subtree is written in the document’s own unit (#216)', () =
     );
   });
 
+  it('a list converted to a paragraph writes its list in the document’s unit', () => {
+    // Negative control: the conversion moves the children by the marker's
+    // width in spaces, `  - b` / `\t  - c`, whatever the clipboard used.
+    for (const [name, payload] of Object.entries(SPELLINGS)) {
+      expect(pasteAfter('Some text.\n', 'Some text.', payload, '\t'), name).toBe(
+        'Some text.\n\na\n- b\n\t- c\n- d\n',
+      );
+    }
+  });
+
+  it('a paragraph converted to a list item writes its list in the document’s unit', () => {
+    // Negative control: the paragraph's list moved to the new item's content
+    // column in spaces, `      - x`, under a tab-indented item.
+    expect(pasteAfter('- top\n\t- sib\n', '\t- sib', 'Para.\n- x\n  - y\n')).toBe(
+      '- top\n\t- sib\n\t- Para.\n\t\t- x\n\t\t\t- y\n',
+    );
+  });
+
   it('a moved run that held the document’s only nested items keeps the document’s unit', () => {
     // Negative control: the unit read after the removal, from a document the
     // run has left with no nested item, which answers with the editor’s tab.

@@ -13,7 +13,7 @@
 
 import type { OutlineDoc, OutlineNode } from './model';
 import { childrenAt, findPath, nodeAt } from './model';
-import { forEachNodeWithLine, nodeAtLine, nodeStartLine } from './locate';
+import { forEachNodeWithLine, isEmptyBodyLine, nodeAtLine, nodeStartLine } from './locate';
 import { childBaseCol } from './reencode';
 import { TAB_WIDTH } from './parse';
 import { coveredForestOf } from './escalate';
@@ -600,15 +600,51 @@ function withGapCollapsed(doc: OutlineDoc, id: number): OutlineDoc {
   return { ...doc, children: doc.children.map(map) };
 }
 
+/**
+ * A paste into a note with no node yet: the payload becomes the root's
+ * children, re-encoded like any other insertion, so a clipboard's indentation
+ * converges on the vault's unit from the first paste. The blank lines above
+ * the caret stay above it, and those below it become the run's trailing gap,
+ * which is where Obsidian's own paste leaves them.
+ */
+function pasteIntoEmptyBody(
+  doc: OutlineDoc,
+  line: number,
+  parsedBlocks: readonly OutlineNode[],
+  fallbackIndentUnit: string | undefined,
+): Verdict {
+  const written = reencodeBlocksForDestination(doc, 'root', [], [], parsedBlocks, fallbackIndentUnit);
+  if (!written.ok) return vetoFrom(written);
+  const blocks = written.value;
+  const below = doc.preamble.slice(line + 1);
+  const run = below.length > 0 ? [...blocks.slice(0, -1), setFinalGap(blocks.at(-1)!, below)] : blocks;
+  const surgery: OutlineDoc = { preamble: doc.preamble.slice(0, line), children: run };
+  const inserted = finalize(doc, surgery, run[0]!.id);
+  if (!inserted.ok) return vetoFrom(inserted);
+  const runEnd = endOfInsertedRun(inserted.value.doc, inserted.value.anchor, payloadNodeCount(parsedBlocks));
+  const { caret } = planCaret({ kind: 'exact' }, { before: doc, after: inserted.value.doc, anchor: runEnd });
+  return {
+    kind: 'rewrite',
+    edits: inserted.value.edits,
+    cursor: caret,
+    userEvent: 'input.paste.structural',
+    after: inserted.value.doc,
+  };
+}
+
 function computePasteVerdict(
   doc: OutlineDoc,
   edit: EditFact,
   fallbackIndentUnit: string | undefined,
 ): Verdict {
   const node = nodeAtLine(doc, edit.from.line);
-  if (!node) return PASS;
   const parsedBlocks = parse(edit.insert).children;
   if (!isStructuralBlockSequence(parsedBlocks)) return PASS;
+  if (!node) {
+    return isEmptyBodyLine(doc, edit.from.line)
+      ? pasteIntoEmptyBody(doc, edit.from.line, parsedBlocks, fallbackIndentUnit)
+      : PASS;
+  }
 
   if (isEmptyAnchor(node)) {
     const verdict = deleteAndSplice(doc, [node.id], parsedBlocks, fallbackIndentUnit);
