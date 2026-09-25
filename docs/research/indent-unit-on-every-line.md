@@ -99,6 +99,11 @@ in one.
 - **A conversion.** A paragraph indented into a list item, or a list item outdented into a
   paragraph, writes its own lines with `indentText` already; its CHILDREN still move by a width
   delta, because the conversion changes the column they hang from by the marker's width and no
-  prefix of theirs names that.
+  prefix of theirs names that. Filed as
+  [#215](https://github.com/laughedelic/obsidian-true-outliner/issues/215).
 - **Renumbering.** `shiftBelowMarker` moves a subtree when a marker widens from `9.` to `10.` by
   one column, which is a space whatever the unit.
+- **A paste from outside the vault.** A pasted subtree keeps the clipboard's own indentation below
+  its roots, by `reindentSubtreeVerbatim`'s design, so a two-space list pasted into a tab vault
+  lands as `\t  - b`. Filed as
+  [#216](https://github.com/laughedelic/obsidian-true-outliner/issues/216).

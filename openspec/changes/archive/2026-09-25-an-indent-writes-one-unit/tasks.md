@@ -29,6 +29,9 @@
 - [x] 3.8 In `tests/reencode.test.ts`, the invariant over every pairing of first-line shape,
       continuation shape and destination: same column and text as the combined shift, and the
       same characters where the line does not open with the node's prefix.
+- [x] 3.9 `e2e/specs/31-tab-indented-vault.e2e.ts`: the manual cases with **Indent using tabs**
+      on — a continuation, a child carried into a tab list, the outdent back, a group indent, a
+      normalized marker run, and one undo — the four indents failing on `main`.
 - [x] 3.5 Update the `tests/plugin.test.ts` minimal-change case that pinned the spaces, and the
       e2e comment that named `shiftLine` as the source of its descendant's indentation.
 
