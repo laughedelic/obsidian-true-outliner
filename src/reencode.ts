@@ -182,13 +182,19 @@ function addsTabAfterSpace(from: string, to: string, rest: string): boolean {
 /**
  * A line a node owns below its first, carried to a node whose indentation went
  * from `from` to `to` in a document indented with `unit`: its offset from the
- * node's own indentation survives, and its characters are the destination's.
+ * node's indentation survives, in the destination's characters.
  *
- * What follows the prefix is kept where it lands on the offset's column and is
- * spaces, or tabs in a tab document; a space unit gets that offset in spaces
- * instead, because a tab there is the clipboard's unit and not the document's.
- * A line narrower than the node's own indentation is a lazy continuation,
- * which a paragraph keeps at any column, and is carried as it was.
+ * What follows the prefix is kept where it is spaces, or tabs in a tab
+ * document, and no space ends up in front of a tab; otherwise the offset is
+ * written in spaces, because a tab there is the clipboard's unit and not the
+ * document's. The offset is the one the source line had, not the one its tab
+ * reaches after the new prefix: a tab re-expands from wherever the prefix
+ * ends, and a child written one tab past its item's indentation would fall
+ * short of the item's content column once the prefix is narrower than a stop.
+ *
+ * A line that does not open with the node's own indentation is carried as it
+ * was. A paragraph continues at any column, and a line the source wrote in a
+ * different unit from its node says nothing about where it belongs.
  *
  * An atom's lines are content, and go through `reprefixLine` instead.
  */
@@ -200,17 +206,14 @@ export function rewriteOwnLine(
   columnDelta: number,
 ): string {
   const ws = leadingWhitespace(line);
-  const offset = indentWidth(line) - indentWidth(from);
-  if (offset < 0) return line;
-  if (ws.startsWith(from)) {
-    const rest = ws.slice(from.length);
-    const swapped = to + line.slice(from.length);
-    const lands = indentWidth(swapped) - indentWidth(to) === offset;
-    if (lands && (unit === '\t' || !rest.includes('\t')) && !addsTabAfterSpace(from, to, rest)) {
-      return shiftLine(swapped, columnDelta, false);
-    }
+  if (!ws.startsWith(from)) return line;
+  const rest = ws.slice(from.length);
+  const swapped = to + line.slice(from.length);
+  if ((unit === '\t' || !rest.includes('\t')) && !addsTabAfterSpace(from, to, rest)) {
+    return shiftLine(swapped, columnDelta, false);
   }
-  return to + ' '.repeat(Math.max(0, offset + columnDelta)) + line.slice(ws.length);
+  const offset = indentWidth(line) - indentWidth(from) + columnDelta;
+  return to + ' '.repeat(Math.max(0, offset)) + line.slice(ws.length);
 }
 
 /** `reprefixLine` for one atom's lines, whose whitespace is content: a line

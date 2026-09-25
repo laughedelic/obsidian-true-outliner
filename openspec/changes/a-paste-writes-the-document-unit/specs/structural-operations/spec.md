@@ -19,9 +19,16 @@ A node's own lines below its first, and a child that is not a list item, SHALL k
 their offset from the node's indentation, written after its new indentation: the
 characters the payload wrote past the node's indentation are kept where they are
 spaces, or tabs in a tab document, and land on the same column; otherwise the offset
-is written in spaces. An atom's lines are content and SHALL move as a unit by its first
+is written in spaces. A line that does not open with its node's indentation SHALL be
+carried as it was. A child that is not a list item SHALL be written at its parent's
+content column wherever its offset would reach the content column of the list item
+before it. An atom's lines are content and SHALL move as a unit by its first
 line's prefix, keeping the tabs inside it. A child list of a paragraph SHALL keep its
 offset from the paragraph, since it attaches by adjacency at any column.
+
+A block whose lines, so written and read back on their own, parse as a different tree
+from the block's own SHALL instead keep its own characters past its root's prefix,
+re-rooted at the destination depth.
 
 The document's unit SHALL be read from the step between a bullet item and its first
 indented child where the document has one. The step under a numbered item is also the
@@ -79,6 +86,17 @@ blank to parse, so the separation a reader sees there is this one.
   two-space document
 - **THEN** the fence opens at the offset it had from its item, in spaces, and no tab inside the
   code is converted
+
+#### Scenario: A block after a nested item stays its parent's child
+- **WHEN** `- Step 1` / `    - detail` / a fenced block at four columns is pasted under a
+  two-space list item
+- **THEN** the fence is written at `Step 1`'s content column and remains its child, not
+  `detail`'s
+
+#### Scenario: A block that would read as another tree keeps its own
+- **WHEN** a payload's converged lines would turn a lazy line into a quote or a table
+- **THEN** the payload is written with its own characters past its root's prefix, and its tree
+  is unchanged
 
 #### Scenario: A move keeps the document's unit
 - **WHEN** a run holding the document's only nested list items is moved under another item

@@ -1,6 +1,7 @@
 // Copy to tests/zz-paste-sweep.test.ts and run with
 //   OUT=<file> npx vitest run tests/zz-paste-sweep.test.ts
-// once per checkout; diff the two JSON files with compare.mjs.
+// once per checkout; diff the two JSON files with compare.mjs. Rows are keyed by walk
+// order rather than node id, since ids depend on how many parses ran before.
 import { it } from 'vitest';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { parse } from '../src/parse';
@@ -80,16 +81,16 @@ it('sweep', () => {
   for (const [d, md] of docs.entries()) {
     const doc = parse(md);
     const nodes = [...walkNodes(doc)];
-    for (const node of nodes) {
+    for (const [n, node] of nodes.entries()) {
       for (const unit of ['\t', '  ', '    ']) {
         // A copy of the node's own subtree, pasted back after it.
         const payload = parse(subtreeText(node)).children;
-        record(`self|${d}|${node.id}|${JSON.stringify(unit)}`, insertSubtrees(doc, node.id, payload, 'after', unit));
+        record(`self|${d}|${n}|${JSON.stringify(unit)}`, insertSubtrees(doc, node.id, payload, 'after', unit));
         // The node moved to be the first child of every list item outside it.
-        for (const target of nodes) {
+        for (const [t, target] of nodes.entries()) {
           if (target.kind !== 'list-item' || isWithin(node, target.id)) continue;
           record(
-            `move|${d}|${node.id}|${target.id}|${JSON.stringify(unit)}`,
+            `move|${d}|${n}|${t}|${JSON.stringify(unit)}`,
             moveSubtreesTo(doc, [[node.id]], { parentId: target.id, index: 0 }, unit),
           );
         }

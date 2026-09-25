@@ -45,14 +45,28 @@ Two kinds of line keep their offset instead of taking a unit:
   marker's width past the item, not a unit past it. The offset is kept after the new
   indentation, which gives #154's `⏵··bar` shape in a tab document. The clipboard's characters
   after the prefix are kept where they are spaces, or tabs going into a tab document, and land
-  on the same column. A space unit gets the offset in spaces. A line narrower than its node's
-  indentation is a lazy continuation, and it is carried as it was.
+  on the same column. A space unit gets the offset in spaces. A line that does not open with its
+  node's indentation, such as a lazy continuation or one written in another unit, is carried as
+  it was, as `main` carries it. A child that is not a list item is written at its parent's
+  content column instead of at its offset whenever the offset would reach the content column of
+  the re-laid item before it: that item has moved, and the parse would read the child as the
+  item's own.
 - **An atom's lines.** Whitespace inside a code block, a quote or a table is content. An atom
   moves as a unit by its first line's prefix through `reprefixLine`, the guarded swap #203 added
   for indent. So a Go snippet's tabs stay tabs.
 
 A paragraph's child list also keeps its offset. It attaches by adjacency at any column
 (`listAttachesTo`), and the destination rule for it is the paragraph's own indentation.
+
+## A block that would read as another tree keeps its own characters
+
+Laying nested items out afresh moves them relative to every line that keeps its offset. A line
+that was text only because it sat four or more columns into its container, such as a lazy
+`> q3` under a deep item or a continuation that starts with `|` or a number, opens a block once
+the item above it moves left. The review round's fuzzer found these shapes one at a time, so
+the rule is stated once, against the parse: each converged block is read back on its own,
+re-rooted at column zero, and compared with the block as it arrived. Where the two trees
+differ, the block is written as `main` writes it: its own characters past its root's prefix.
 
 ## The unit, read under a bullet
 
@@ -124,6 +138,27 @@ The move rows are the same convergence, reached through a move:
   described above,
 - a move keeps the document's unit,
 - an indent reads the unit under a bullet.
+
+### Against random documents
+
+The review round's fuzzer (`prototypes/paste-indent-convergence/fuzz.ts.txt`) generates random
+documents and payloads in tabs, one to four spaces and mixed units. Its markers are `-`, `*`,
+`1.`, `10.`, `100.` and `2)`, with runs of one to three spaces or a tab. Its lines include
+continuation and lazy lines, with fences, quotes and tables as children. It compares the tree
+each result re-parses to with the tree intended, the payload's own shape spliced in at the
+destination. Over 20 000 cases each:
+
+| | `main` keeps the tree and this change does not | the reverse |
+| --- | --- | --- |
+| `insertSubtrees`, every shape | 2 | 148 |
+| `insertSubtrees`, no tab marker runs or headings | 1 | 80 |
+| `moveSubtreesTo` | 0 | 27 |
+| `indent` | 0 | 0 |
+
+Before the read-back and the two rules above it, the first row was 351 against about 170. Each
+of the three residual rows is a payload three levels deep in mixed tabs and spaces. Read back
+on its own, it parses to the same tree either way, and it differs only in the context it lands
+in.
 
 ## What this does not reach
 

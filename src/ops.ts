@@ -2350,16 +2350,89 @@ function rewriteSubtree(
           : rewriteOwnLine(line, from, indentText, unit, columnDelta),
       );
   const written: OutlineNode = { ...node, lines };
-  const children = node.children.map((child) => {
-    const childIndent =
-      node.kind === 'list-item' && child.kind === 'list-item'
-        ? reachContentColumn(indentText + unit, written)
-        : leadingWhitespace(
-            rewriteOwnLine(child.lines[0] ?? '', from, indentText, unit, columnDelta),
-          );
-    return rewriteSubtree(child, childIndent, unit);
-  });
+  const children: OutlineNode[] = [];
+  let lastItem: OutlineNode | undefined;
+  for (const child of node.children) {
+    let childIndent: string;
+    if (node.kind === 'list-item' && child.kind === 'list-item') {
+      childIndent = reachContentColumn(indentText + unit, written);
+    } else {
+      childIndent = leadingWhitespace(
+        rewriteOwnLine(child.lines[0] ?? '', from, indentText, unit, columnDelta),
+      );
+      // The list items before it were laid out afresh, so an offset kept from
+      // the parent can now reach the last one's content column, which the
+      // parse reads as that item's child. The parent's own content column is
+      // under the parent and short of every item beside it.
+      if (lastItem && indentWidth(childIndent) >= childBaseCol(lastItem)) {
+        childIndent = reachContentColumn(indentText, written);
+      }
+    }
+    const rewritten = rewriteSubtree(child, childIndent, unit);
+    if (rewritten.kind === 'list-item') lastItem = rewritten;
+    children.push(rewritten);
+  }
   return { ...written, children };
+}
+
+/**
+ * `reindentSubtreeInUnit`, unless the lines it writes read as a different tree
+ * from the block's own; then the block's own characters past its root's prefix,
+ * as `reindentSubtreeVerbatim` carries them.
+ *
+ * Laying nested items out afresh moves them relative to lines that kept their
+ * offset — a continuation, a lazy line — and a line that was text only because
+ * it sat four columns into its container can start a quote, a table or a list
+ * once the item above it moves left. The parse is the only complete statement
+ * of which lines those are, so the block is read back and compared rather than
+ * guarded shape by shape.
+ */
+function reindentSubtree(node: OutlineNode, indentText: string, unit: string): OutlineNode {
+  const converged = reindentSubtreeInUnit(node, indentText, unit);
+  return treeShape(converged) === treeShape(node)
+    ? converged
+    : reindentSubtreeVerbatim(node, indentText);
+}
+
+/** The tree a subtree's lines read as on their own, re-rooted at column zero:
+ * each node's kind and line count, and its children's. */
+function treeShape(node: OutlineNode): string {
+  const lines = encodeLines({ preamble: [], children: [{ ...node, trailingGap: [] }] });
+  const prefix = leadingWhitespace(lines[0] ?? '');
+  const text = lines.map((line) => (line.startsWith(prefix) ? line.slice(prefix.length) : line));
+  const shape = (nodes: readonly OutlineNode[]): string =>
+    nodes.map((n) => `${n.kind}${n.lines.length}(${shape(n.children)})`).join(',');
+  return shape(parse(text.join('\n')).children);
+}
+
+/**
+ * The block's own characters past its root's prefix, re-rooted at
+ * `indentText`: the re-indent a paste made before the document's unit was
+ * written, kept for the block whose converged lines would read differently.
+ * The root's marker run is normalized, and its lines and children move by the
+ * change, before the prefix swap.
+ */
+function reindentSubtreeVerbatim(node: OutlineNode, indentText: string): OutlineNode {
+  const first = node.lines[0] ?? '';
+  const normalizedFirst = node.kind === 'list-item' ? normalizeMarkerRun(first) : first;
+  const columnDelta =
+    normalizedFirst === first ? 0 : markerWidthOf(normalizedFirst) - markerWidthOf(first);
+  const root = shiftBelowMarker(
+    { ...node, lines: [normalizedFirst, ...node.lines.slice(1)] },
+    columnDelta,
+  );
+  const topWs = leadingWhitespace(root.lines[0] ?? '');
+  const swapLine = (line: string): string => {
+    if (line.trim() === '') return line;
+    const ws = leadingWhitespace(line);
+    return ws.startsWith(topWs) ? indentText + line.slice(topWs.length) : line;
+  };
+  const recur = (n: OutlineNode): OutlineNode => ({
+    ...n,
+    lines: n.lines.map(swapLine),
+    children: n.children.map(recur),
+  });
+  return recur(root);
 }
 
 /**
@@ -2537,7 +2610,7 @@ export function reencodeBlocksForDestination(
       continue;
     }
     if (block.kind !== 'paragraph' && block.kind !== 'list-item') {
-      written.push(reindentSubtreeInUnit(block, indentText, unit));
+      written.push(reindentSubtree(block, indentText, unit));
       continue;
     }
     // Each block lands after the ones written before it, so the attachment
@@ -2554,7 +2627,7 @@ export function reencodeBlocksForDestination(
     if (forced === 'paragraph' && isTaskItem(block)) return reject('insertion-not-expressible');
     written.push(
       forced === undefined || forced === block.kind
-        ? reindentSubtreeInUnit(block, indentText, unit)
+        ? reindentSubtree(block, indentText, unit)
         : reencodeForDestination(block, forced, indentText, listStyle),
     );
   }

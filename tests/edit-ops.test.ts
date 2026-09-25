@@ -1467,9 +1467,9 @@ describe('a pasted subtree is written in the document’s own unit (#216)', () =
     );
   });
 
-  it('a continuation keeps its offset from its own item, after the new indentation', () => {
+  it('a continuation keeps its offset from its own item, in the document’s characters', () => {
     // Negative control: a continuation carried verbatim past the old prefix
-    // keeps the clipboard's tab in a space document.
+    // keeps the clipboard's tab in a space document, `  \tx`.
     expect(pasteAfter('- top\n\t- sib\n', '\t- sib', '- a\n  x\n  - b\n    y\n')).toBe(
       '- top\n\t- sib\n\t- a\n\t  x\n\t\t- b\n\t\t  y\n',
     );
@@ -1478,9 +1478,45 @@ describe('a pasted subtree is written in the document’s own unit (#216)', () =
     );
   });
 
+  it('a block after a nested item stays its parent’s child', () => {
+    // Negative control: the fence keeps its four-column offset from `Step 1`
+    // while `detail` moves two columns left, so the fence reaches `detail`'s
+    // content column and the parse reads it as `detail`'s child.
+    expect(
+      pasteAfter('- top\n  - sib\n', '  - sib', '- Step 1\n    - detail\n    ```\n    code\n    ```\n'),
+    ).toBe('- top\n  - sib\n  - Step 1\n    - detail\n    ```\n    code\n    ```\n');
+  });
+
+  it('a line written in another unit from its node is carried as it was', () => {
+    // Negative control, with the read-back below also off: the tab
+    // continuation spelled as its two-column offset from the paragraph, which
+    // sits two columns in, lands at column two, where `>` opens a quote and
+    // ends the paragraph.
+    const doc = parse('para0\n');
+    const payload = parse('-\tt0\n  cont1\n\t> q1\n\n10.  t1\n').children;
+    const result = insertSubtrees(doc, byLine(doc, 'para0').id, payload, 'after');
+    if (!result.ok) throw new Error(result.rejection.reason);
+    expect(encode(result.value.doc)).toContain('cont1\n\t> q1\n');
+  });
+
+  it('a block whose converged lines would read as another tree keeps its own', () => {
+    // Negative control: the nested items laid out afresh two columns left of
+    // where the payload wrote them, which turns a lazy `> q3` into a quote.
+    const payload = '- t0\n    2)  t1\n       10.  t2\n           > q3\n        | a | b |\n        | - | - |\n';
+    const doc = parse('para0\n');
+    const result = insertSubtrees(doc, byLine(doc, 'para0').id, parse(payload).children, 'before');
+    if (!result.ok) throw new Error(result.rejection.reason);
+    const shape = (nodes: readonly OutlineNode[]): string =>
+      nodes.map((n) => `${n.kind}(${shape(n.children)})`).join(',');
+    expect(shape(parse(encode(result.value.doc)).children)).toBe(
+      `${shape(parse(payload).children)},paragraph()`,
+    );
+  });
+
   it('whitespace inside a fenced block is content, and keeps its tabs', () => {
-    // The fence keeps its offset from the item, one tab stop, in spaces; the
-    // line whose tab would follow a space keeps it and moves by the same width.
+    // The fence keeps its offset from the item, one tab stop, in spaces; a
+    // line whose tab would follow a space keeps it, at the column the fence's
+    // move gives it.
     expect(
       pasteAfter('- top\n  - sib\n', '  - sib', '- a\n\t```\n\tfunc() {\n\t\treturn\n\t}\n\t```\n'),
     ).toBe('- top\n  - sib\n  - a\n      ```\n      func() {\n\t\t  return\n      }\n      ```\n');

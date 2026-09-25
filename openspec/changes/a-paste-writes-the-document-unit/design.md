@@ -38,9 +38,17 @@ move it. So `rewriteOwnLine` keeps the line's offset from its node's old indenta
 it after the node's new indentation. The characters after the prefix are kept where they land on
 the same column and are spaces, or tabs going into a tab document, and are never kept where the
 join would put a space in front of a tab (#203's D3). Anything else gets the offset in spaces,
-which is #154's `⏵··bar` in a tab document. A line narrower than its node's indentation is a
-lazy continuation. It is carried as it was, since a paragraph continues at any column and moving
-it gains nothing.
+which is #154's `⏵··bar` in a tab document. A line that does not open with its node's
+indentation, a lazy continuation or one the source wrote in another unit, is carried as it was,
+as `main` carries it. A paragraph continues at any column. Spelling such a line's offset in
+spaces moved a `\t> q1` continuation two columns in, where it opened a quote.
+
+A child that is not a list item keeps its offset only while the offset stays short of the
+content column of the re-laid list item before it. Past that column, the parse reads it as that
+item's child. So it is written at its parent's content column, which is under the parent and
+short of every item beside it. The review round found this with a four-space payload in a
+two-space document, `- Step 1` / `    - detail` / `    ````, where the fence moved under
+`detail`.
 
 A paragraph's child list uses the same rule. It attaches by adjacency at any column, and
 `chooseIndent` gives it the paragraph's own indentation, so its offset from the paragraph is the
@@ -82,10 +90,24 @@ in spaces: `⏵- ## H` / `⏵  - b`. It is the same insertion step and the same 
 indentation now comes from D1's rule. For a two-space document the bytes are unchanged, since
 `- ` is two columns wide.
 
+### D7. A block that would read as another tree keeps its own characters
+
+D1 moves nested items relative to lines that D2 keeps in place. A line that is text only
+because it sits four or more columns into its container opens a block once the item above it
+moves left. Examples are a lazy `> q3`, or a continuation that starts with `|` or a number. The
+review round's fuzzer found such shapes one at a time. `reindentSubtree` states the rule once,
+against the parse. It reads the converged block back on its own, re-rooted at column zero, and
+compares the tree with the block's own. Where they differ, the block is written as `main` wrote
+it, through `reindentSubtreeVerbatim`: its characters past its root's prefix are kept. The cost
+is one parse of each pasted block.
+
 ## Risks / Trade-offs
 
 - **A document indented two ways** converges on the unit `inferIndentUnit` reads, for a paste
   from inside it as well. The differential finds two such shapes, and each is written in one
   unit after the paste.
+- **D7 compares a block read on its own**, not in place. The fuzzer's three residual cases are
+  payloads three levels deep in mixed units that read the same on their own and differ in
+  place (`docs/research/paste-indent-convergence.md`).
 - **D15's scenario** stays true: a tab subtree pasted into a tab document keeps its tabs at every
   level, because the document's unit is a tab.
