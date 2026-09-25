@@ -152,6 +152,10 @@ const PLUGIN_OWN_USER_EVENTS: readonly string[] = [
   // and must short-circuit the verdict layer like every other structural
   // dispatch — removing lines would otherwise read as boundary-crossing.
   'input.structure.abandon',
+  // A correction of a misplaced block id (`misplaced-block-ids`): built so its
+  // result re-parses as stated, and by shape a whole-line removal that would
+  // read as boundary-crossing.
+  'input.structure.block-id',
   'move.structure',
   // node-edit-enforcement rewrites (design.md D7a): these carry the SAME
   // short-circuit grammar dispatches already rely on — a rewritten

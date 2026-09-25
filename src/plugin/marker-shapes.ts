@@ -28,7 +28,12 @@ export interface HeadingMarkerStyle {
  */
 export type MarkSubject =
   | { readonly kind: 'heading'; readonly level: number; readonly style: HeadingMarkerStyle }
-  | { readonly kind: Exclude<NodeKind, 'heading'> };
+  | {
+      readonly kind: Exclude<NodeKind, 'heading'>;
+      /** A paragraph holding a misplaced block id (`misplaced-block-ids`),
+       * drawn as a warning in place of its kind's mark. */
+      readonly misplaced?: true;
+    };
 
 /** One SVG element: its tag, its attributes, and, for a group, what it holds. */
 export interface Shape {
@@ -62,8 +67,12 @@ export function nodeMark(node: { readonly kind: NodeKind; readonly level?: numbe
 }
 
 /** The subject for a node's mark, drawn in `style` if it is a heading. */
-export function markSubject(node: NodeMark, style: HeadingMarkerStyle): MarkSubject {
-  return node.kind === 'heading' ? { kind: 'heading', level: node.level, style } : { kind: node.kind };
+export function markSubject(
+  node: NodeMark & { readonly misplaced?: boolean },
+  style: HeadingMarkerStyle,
+): MarkSubject {
+  if (node.kind === 'heading') return { kind: 'heading', level: node.level, style };
+  return node.misplaced === true ? { kind: node.kind, misplaced: true } : { kind: node.kind };
 }
 
 /**
@@ -71,11 +80,19 @@ export function markSubject(node: NodeMark, style: HeadingMarkerStyle): MarkSubj
  * the same key draw the same mark and state the same attributes.
  */
 export function markKey(subject: MarkSubject): string {
-  if (subject.kind !== 'heading') return subject.kind;
+  if (subject.kind !== 'heading') return subject.misplaced ? `${subject.kind}:misplaced` : subject.kind;
   return `heading:${subject.level}:${subject.style.glyph}:${subject.style.level}`;
 }
 
 export function markerShapes(subject: MarkSubject): readonly Shape[] {
+  if (subject.kind !== 'heading' && subject.misplaced) {
+    // A warning triangle with an exclamation mark.
+    return [
+      { tag: 'polygon', attrs: { ...STROKE, points: '8,2 14.5,13.5 1.5,13.5', 'stroke-linejoin': 'round' } },
+      line(8, 6, 8, 9.5),
+      line(8, 11.5, 8, 11.6),
+    ];
+  }
   switch (subject.kind) {
     case 'heading':
       return headingShapes(subject.level, subject.style);

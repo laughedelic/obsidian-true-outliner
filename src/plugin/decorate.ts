@@ -29,6 +29,7 @@
 
 import type { OutlineDoc, OutlineNode } from '../model';
 import { blockIdSpan, idLineIndex, isAtom, lastPlaceIndex, ownSpan } from '../model';
+import { misplacedBlockIds } from '../block-ids';
 import { nodeAtLine } from '../locate';
 import { parse } from '../parse';
 import { ownIndentCh } from '../own-indent';
@@ -60,6 +61,12 @@ interface LineDecorationFields {
    * for callers that need to identify it, not consumed by decorations.ts.
    */
   readonly hasNativeMarker: boolean;
+  /**
+   * True on the first line of a paragraph that holds a misplaced block id
+   * (`misplaced-block-ids`): its marker is a warning, drawn whatever
+   * `markerVisibility` says.
+   */
+  readonly misplaced?: boolean;
   /**
    * True for atom nodes (code/table/quote/callout/html/hr). `padding-left`
    * only shifts an element's own *content*, never its own border/background
@@ -132,6 +139,7 @@ interface LineDecorationFields {
 export function decorate(doc: OutlineDoc): LineDecorationFact[] {
   const facts: LineDecorationFact[] = [];
   let current = doc.preamble.length;
+  const misplaced = new Set(misplacedBlockIds(doc).map((m) => m.line));
 
   const walk = (
     node: OutlineNode,
@@ -154,6 +162,7 @@ export function decorate(doc: OutlineDoc): LineDecorationFact[] {
         isListItem,
         supplementalDepth: isListItem ? rootDepth! : 0,
         ...nodeMark(node),
+        ...(i === 0 && misplaced.has(current) ? { misplaced: true } : {}),
         hasChildren: node.children.length > 0,
         indentCh: ownIndentCh(node, node.lines[i]!, underListItem),
       });

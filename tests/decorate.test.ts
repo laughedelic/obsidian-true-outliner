@@ -115,6 +115,12 @@ describe('decorate: indentation depth', () => {
     expect(guides.get(7)?.isGapLine).toBe(true);
   });
 
+  it('flags the first line of a paragraph holding a misplaced block id, and no other', () => {
+    const facts = decorate(parse('- a\n- b\n\n^l1\n\nAfter.\n'));
+    expect(facts.filter((f) => f.misplaced).map((f) => f.lineNumber)).toEqual([3]);
+    expect(decorate(parse('Prose.\n\n^p3\n')).some((f) => f.misplaced)).toBe(false);
+  });
+
   it('produces no facts for an empty document or preamble-only document', () => {
     expect(decorate(parse(''))).toEqual([]);
     expect(decorate(parse('---\nt: 1\n---\n'))).toEqual([]);
