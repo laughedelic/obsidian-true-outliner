@@ -32,4 +32,13 @@ export const RESEARCH_SHAPES: Record<string, string> = {
   'list, blank, id': 'Before.\n\n- a\n- b\n\n^l1\n\nAfter.\n',
   'list under a lead paragraph, blank, id': 'Lead.\n- a\n- b\n  - nested c\n\n^l2\n\nAfter.\n',
   'list whose last item has a child, blank, id': '- a\n- b\n  - c\n\n^l4\n\nAfter.\n',
+  'paragraph, id directly under, list directly under': 'Lead.\n^id1\n- a\n- b\n\nAfter.\n',
+  'paragraph, blank, id, list directly under': 'Lead.\n\n^id3\n- a\n- b\n\nAfter.\n',
+  'paragraph, blank, id, heading directly under': 'Lead.\n\n^f1\n## H\n',
+  'table, id directly under, list directly under': '| a | b |\n| --- | --- |\n| 1 | 2 |\n^f7\n- a\n',
+  'heading, id directly under, list directly under': '## H\n^f12\n- a\n',
+  'callout, id directly under, list directly under': '> [!note] T\n> body\n^g9\n- a\n',
+  'item, blank, indented id, nested item directly under': '- a\n\n  ^f9\n  - c\n',
+  'item, lazy id, heading directly under': '- a\n^g3\n## H\n',
+  'heading, blank, id, end of note': '## H\n\n^g11',
 };

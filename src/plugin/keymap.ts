@@ -56,10 +56,11 @@ import { coveredForestOf } from "../escalate";
 import {
   contentBoundaryCh,
   resolvePlacement,
-  nodeContentEnd,
   nodeContentStart,
+  nodeLastPlace,
   planHorizontal,
 } from "../caret";
+import { lastPlaceIndex, placeLineText } from "../model";
 import type { LinePos } from "../line-pos";
 import { nodeAtLine, nodeStartLine } from "../locate";
 import { linePosToOffset, offsetToLinePos, toLineRange } from "./cm-pos";
@@ -252,7 +253,7 @@ function notAnOutlineGesture(
   if (nodeAtLine(outlineDoc, doc.lineAt(range.head).number - 1) !== node) return false;
 
   const first = nodeStartLine(outlineDoc, node.id);
-  const last = first + node.lines.length - 1;
+  const last = first + lastPlaceIndex(node);
   if (last >= doc.lines) return false; // defensive: stale parse against the live doc
   const from = doc.line(first + 1).from;
   const to = doc.line(last + 1).to;
@@ -878,7 +879,7 @@ function makeVerticalHandler(forward: boolean) {
         // boundary rather than leaving the caret on its gap.
         dispatchAt(
           forward
-            ? nodeContentEnd(outlineDoc, node)
+            ? nodeLastPlace(outlineDoc, node)
             : nodeContentStart(outlineDoc, node),
         );
         return true;
@@ -889,7 +890,9 @@ function makeVerticalHandler(forward: boolean) {
       node = nextNode;
 
       const lineIndex = line - nodeStartLine(outlineDoc, node.id);
-      if (lineIndex >= node.lines.length) continue; // still a gap (a run of several blank lines)
+      // Still a gap (a run of several blank lines, or the ones before an
+      // attached block id, whose own line is content).
+      if (placeLineText(node, lineIndex) === undefined) continue;
 
       // Real content found, on a line `moveVertically` never itself
       // pointed at -- resolve its column via real rendered coordinates,

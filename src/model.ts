@@ -127,6 +127,29 @@ export function lineRole(node: OutlineNode, index: number): LineRole {
   return 'gap';
 }
 
+/** The index of an attached block id's line in its node's own span. */
+export function idLineIndex(node: OutlineNode): number | undefined {
+  return node.blockId ? node.lines.length + node.blockId.gap.length : undefined;
+}
+
+/** The index of the node's last line the caret may stand on: its attached
+ * id's line where it has one, its last content line otherwise. */
+export function lastPlaceIndex(node: OutlineNode): number {
+  return idLineIndex(node) ?? node.lines.length - 1;
+}
+
+/**
+ * The text of a line of the node's own span the caret may stand on — a
+ * content line or an attached id's line — or `undefined` for a blank line
+ * before the id or in the trailing gap.
+ */
+export function placeLineText(node: OutlineNode, index: number): string | undefined {
+  const role = lineRole(node, index);
+  if (role === 'content') return node.lines[index];
+  if (role === 'id') return node.blockId!.line;
+  return undefined;
+}
+
 /** Path from the root to a node: indices into successive `children` arrays. */
 export type NodePath = readonly number[];
 
