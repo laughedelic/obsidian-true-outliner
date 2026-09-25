@@ -26,9 +26,9 @@ without this feature.
 - **WHEN** outline mode is toggled on for the open note
 - **THEN** the footer appears without reopening the file
 
-**Covered by**: `e2e/specs/75-footer-behaviour.e2e.ts` ("renders in outline mode, and not
+**Covered by**: `e2e-tests/specs/75-footer-behaviour.e2e.ts` ("renders in outline mode, and not
 off-mode or in reading view", "leaves a note with no outline mode alone entirely") and
-`e2e/specs/70-footer-enforcement.e2e.ts` ("mounts exactly one widget in outline mode, and none
+`e2e-tests/specs/70-footer-enforcement.e2e.ts` ("mounts exactly one widget in outline mode, and none
 off-mode"). The reading-view half needed the question restating: Obsidian keeps the source
 view's DOM alive but hidden, so what is asserted is that the reading renderer produces none of
 its own and that nothing of it is on screen.
@@ -71,11 +71,11 @@ change what the footer renders and nothing else.
   further results
 - **THEN** the note's text, positions, caret, selection and undo stack are unchanged throughout
 
-**Covered by**: `e2e/specs/70-footer-enforcement.e2e.ts` ("leaves the document byte-identical
+**Covered by**: `e2e-tests/specs/70-footer-enforcement.e2e.ts` ("leaves the document byte-identical
 after mounting and unmounting", "does not change caret placement, selection escalation, or
 structural ops", "does not move the caret when the footer is clicked", "changes nothing in the
 document under filtering, search, sort, caps or load more") and
-`e2e/specs/75-footer-behaviour.e2e.ts` ("leaves the note's bytes and undo stack untouched while
+`e2e-tests/specs/75-footer-behaviour.e2e.ts` ("leaves the note's bytes and undo stack untouched while
 being read" — the undo half asserted after a real edit, so there is something on the stack to
 lose).
 
@@ -100,7 +100,7 @@ drawn through the footer, and the footer's own left edge SHALL NOT follow that l
 - **WHEN** the last line above the footer is a nested list item, so it carries an ancestor guide
 - **THEN** no guide is drawn through the footer
 
-**Covered by**: `e2e/specs/73-footer-render.e2e.ts` ("is the last thing in the content, with no
+**Covered by**: `e2e-tests/specs/73-footer-render.e2e.ts` ("is the last thing in the content, with no
 line of its own below it", "takes no chrome from the line it is anchored to").
 
 ### Requirement: The footer carries a single header control row
@@ -124,7 +124,7 @@ collapsed, and how deeply descendants are shown — SHALL NOT be presented as co
 - **THEN** a second row appears carrying the filter controls, and the header row is otherwise
   unchanged
 
-**Covered by**: `e2e/specs/77-footer-controls.e2e.ts` ("keeps the header to one row until the
+**Covered by**: `e2e-tests/specs/77-footer-controls.e2e.ts` ("keeps the header to one row until the
 filter affordance is used", "reveals a row carrying the search field and one facet per axis").
 
 ### Requirement: References are grouped by source note
@@ -158,11 +158,11 @@ appear in their source note's document order regardless of either.
 - **WHEN** the rendered body is bounded by a cap
 - **THEN** the stated reference and note totals still describe the whole filtered result set
 
-**Covered by**: `e2e/specs/73-footer-render.e2e.ts` ("renders groups and rows for a referenced
-note"), `e2e/specs/72-backlink-index.e2e.ts` ("reports totals that match the per-source
-counts"), `e2e/specs/75-footer-behaviour.e2e.ts` ("drops a source’s group when that source
-stops referencing"), `e2e/specs/77-footer-controls.e2e.ts` ("opens the sort control and
-reorders by it") and `e2e/specs/78-footer-caps.e2e.ts` ("reports the true totals whatever the
+**Covered by**: `e2e-tests/specs/73-footer-render.e2e.ts` ("renders groups and rows for a referenced
+note"), `e2e-tests/specs/72-backlink-index.e2e.ts` ("reports totals that match the per-source
+counts"), `e2e-tests/specs/75-footer-behaviour.e2e.ts` ("drops a source’s group when that source
+stops referencing"), `e2e-tests/specs/77-footer-controls.e2e.ts` ("opens the sort control and
+reorders by it") and `e2e-tests/specs/78-footer-caps.e2e.ts` ("reports the true totals whatever the
 cap admits").
 
 ### Requirement: A reference renders in its lineage, with the outline's own notation
@@ -212,9 +212,9 @@ No mark SHALL be drawn between two elements — they are separated by space alon
 - **THEN** each is preceded by its own kind's marker — the first in the row's marker position,
   the other two inline — and no separator glyph is drawn between them
 
-**Covered by**: `e2e/specs/75-footer-behaviour.e2e.ts` ("collapses an unbranching chain to one
+**Covered by**: `e2e-tests/specs/75-footer-behaviour.e2e.ts` ("collapses an unbranching chain to one
 lineage row above its reference", "renders a shared ancestor once, with both references below
-it") and `e2e/specs/74-footer-chrome-pass.e2e.ts` ("names every ancestor on a lineage row, the
+it") and `e2e-tests/specs/74-footer-chrome-pass.e2e.ts` ("names every ancestor on a lineage row, the
 first in the gutter", "draws every footer mark at one size, on its column", "says a row’s kind
 once, in its marker", "draws every row through the editor’s own class-and-property contract").
 
@@ -301,7 +301,7 @@ only the cell the reference sits in.
 - **WHEN** a reference sits in one line of a fenced code block
 - **THEN** the row shows only that line
 
-**Covered by**: `e2e/specs/74-footer-chrome-pass.e2e.ts` ("never puts a block-level element in
+**Covered by**: `e2e-tests/specs/74-footer-chrome-pass.e2e.ts` ("never puts a block-level element in
 a row", "gives every kind the treatment its own rule promises", "gives every single-line row
 the same height", "makes every row a whole number of text lines tall", "matches the committed
 structural baseline for every fixture") and `tests/footer-model.test.ts` for the per-kind
@@ -376,7 +376,7 @@ tree. It SHALL be visually distinguishable from a reference that does have a pos
   indentation
 
 **Covered by**: `tests/footer-model.test.ts` ("renders a frontmatter reference as a property
-row with no lineage") and `e2e/specs/74-footer-chrome-pass.e2e.ts` (the property row in the
+row with no lineage") and `e2e-tests/specs/74-footer-chrome-pass.e2e.ts` (the property row in the
 per-kind matrix and the structural baseline).
 
 ### Requirement: An embed reference is distinguishable from a link
@@ -390,8 +390,8 @@ mention.
 - **WHEN** a source note embeds the target
 - **THEN** the reference renders in tree context and is marked as an embed
 
-**Covered by**: `e2e/specs/72-backlink-index.e2e.ts` ("distinguishes an embed from a link, and
-a property from both") for the classification, and `e2e/specs/75-footer-behaviour.e2e.ts`
+**Covered by**: `e2e-tests/specs/72-backlink-index.e2e.ts` ("distinguishes an embed from a link, and
+a property from both") for the classification, and `e2e-tests/specs/75-footer-behaviour.e2e.ts`
 ("marks an embed reference as one, and leaves a plain reference unmarked") for the rendering.
 The second was written by this audit: the classification was covered and nothing asserted that
 it reached the row, so a tag applied to every row or to none would have passed.
@@ -417,7 +417,7 @@ about settings. Choosing its default is `backlinks-controls`' work, informed by 
 - **WHEN** a source note's rows fit within the threshold
 - **THEN** the group shows no fade and offers no control
 
-**Covered by**: `e2e/specs/75-footer-behaviour.e2e.ts` ("offers a cap control on a group too
+**Covered by**: `e2e-tests/specs/75-footer-behaviour.e2e.ts` ("offers a cap control on a group too
 long to fit, and honours it" — the control appears only on a body that overflows, using it
 reveals what was hidden, and it survives being used, which is what the `truncatable` set exists
 for). Written by this audit, which found this requirement with no test at all. It runs on
@@ -454,8 +454,8 @@ NOT display placeholder content standing in for structure that is not yet known.
 - **WHEN** a group has not yet resolved
 - **THEN** it shows that it is resolving and shows no rows standing in for references
 
-**Covered by**: `e2e/specs/75-footer-behaviour.e2e.ts` ("paints counts before context, and
-never fabricates rows while resolving") and `e2e/specs/76-footer-cost.e2e.ts` ("measures first
+**Covered by**: `e2e-tests/specs/75-footer-behaviour.e2e.ts` ("paints counts before context, and
+never fabricates rows while resolving") and `e2e-tests/specs/76-footer-cost.e2e.ts` ("measures first
 paint — mount to header on screen"). Note S5's correction to D11: at the measured cost the
 header and the bodies arrive in the same frame, so what this requirement buys is the guarantee
 that a count is never shown without the rows behind it — a correctness property, not a speed
@@ -478,7 +478,7 @@ in a new pane.
 - **WHEN** an element of a lineage line is clicked
 - **THEN** the source note opens with that ancestor revealed
 
-**Covered by**: `e2e/specs/75-footer-behaviour.e2e.ts` ("opens a reference at its own node, not
+**Covered by**: `e2e-tests/specs/75-footer-behaviour.e2e.ts` ("opens a reference at its own node, not
 at the top of its note", "opens a lineage segment at THAT ancestor, not at the chain’s first",
 "opens a new pane on Mod-click, leaving the current one alone", "follows a link inside a
 mention to the link’s own target"). Asserted on `Backlinks/Deep chain.md`, the one fixture
@@ -495,8 +495,8 @@ position the populated header would occupy, rather than rendering nothing at all
 - **WHEN** a note that nothing links to is open in outline mode
 - **THEN** one line reports that there are no linked references, and no groups render
 
-**Covered by**: `e2e/specs/73-footer-render.e2e.ts` ("shows one header line, counted, for a
-note nothing links to") and `e2e/specs/75-footer-behaviour.e2e.ts` ("shows no footer chrome for
+**Covered by**: `e2e-tests/specs/73-footer-render.e2e.ts` ("shows one header line, counted, for a
+note nothing links to") and `e2e-tests/specs/75-footer-behaviour.e2e.ts` ("shows no footer chrome for
 a note nothing links to, beyond its own header").
 
 ### Requirement: The footer survives an active zoom scope
@@ -784,7 +784,7 @@ comes to be listening for a footer it is no longer part of.
 - **WHEN** the reader folds a subtree, unfolds it, and then chooses a value from a facet's menu
 - **THEN** the filter narrows and the menu stays open
 
-**Covered by**: `e2e/specs/77-footer-controls.e2e.ts` ("closes an open popover on a press the
+**Covered by**: `e2e-tests/specs/77-footer-controls.e2e.ts` ("closes an open popover on a press the
 editor takes for itself").
 
 ### Requirement: A search term's matches are marked in the rows

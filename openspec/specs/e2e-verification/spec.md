@@ -24,7 +24,7 @@ plugin bundle, the vitest suite, or the plugin typecheck.
 #### Scenario: Harness excluded from bundle and unit tests
 
 - **WHEN** `npm run build`, `npm test`, and `npm run typecheck` execute
-- **THEN** none of them compile, bundle, or run any file under `e2e/`
+- **THEN** none of them compile, bundle, or run any file under `e2e-tests/`
 
 ### Requirement: Outline mode e2e verification
 

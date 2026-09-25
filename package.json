@@ -22,7 +22,7 @@
     "test:e2e:narrow": "node scripts/e2e-narrow.ts",
     "test:e2e:docker": "node scripts/e2e-docker.ts desktop",
     "test:e2e:docker:mobile": "node scripts/e2e-docker.ts mobile",
-    "typecheck:e2e": "tsc --noEmit -p e2e",
+    "typecheck:e2e": "tsc --noEmit -p e2e-tests",
     "typecheck:scripts": "tsc --noEmit -p scripts",
     "version": "node scripts/version-bump.ts && git add manifest.json versions.json"
   },

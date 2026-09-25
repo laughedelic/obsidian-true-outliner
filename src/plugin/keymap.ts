@@ -306,7 +306,7 @@ function notAnOutlineGesture(
  * CREATED the place: either handler's own dispatch is a selection that LEAVES
  * the position, which is the abandon gesture, so the place is removed before any
  * cover is visible (measured, and pinned in
- * `e2e/specs/30-keyboard-grammar.e2e.ts`). Without any record — after a redo, or
+ * `e2e-tests/specs/30-keyboard-grammar.e2e.ts`). Without any record — after a redo, or
  * once a document change has dropped it — there is no provenance to read.
  *
  * `a-carried-place-keeps-its-record` narrowed that from "the one state where the

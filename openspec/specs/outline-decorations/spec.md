@@ -53,8 +53,8 @@ surface must draw what it was given, not what the node looked like somewhere els
 - **THEN** the node reports having no children, and its depth is measured within the tree it was
   given rather than inherited from the tree it came from
 
-**Covered by**: `e2e/specs/51-guides-gradient.e2e.ts` ("draws no guides with outline mode
-off"), `e2e/specs/52-block-markers-icons.e2e.ts` ("draws no markers with outline mode off").
+**Covered by**: `e2e-tests/specs/51-guides-gradient.e2e.ts` ("draws no guides with outline mode
+off"), `e2e-tests/specs/52-block-markers-icons.e2e.ts` ("draws no markers with outline mode off").
 
 ### Requirement: One indentation grid for every kind
 
@@ -214,7 +214,7 @@ already decided by the time this layer runs.
 - **WHEN** one note with outline mode on and one without are open at the same time
 - **THEN** the note without it renders its lists exactly as stock Obsidian does
 
-**Covered by**: `e2e/specs/56-list-grid.e2e.ts`; `e2e/specs/56-source-indent.e2e.ts` ("starts
+**Covered by**: `e2e-tests/specs/56-list-grid.e2e.ts`; `e2e-tests/specs/56-source-indent.e2e.ts` ("starts
 every kind written under an item on the item's child column", "gives an indented fence the
 internal padding an unindented one has", "keeps a fence's interior indentation at the width of its
 own spaces", "starts a widget-rendered callout child on the same column", "keeps a line indented
@@ -401,8 +401,8 @@ AND regardless of whether the line is currently rendered as plain text or as an 
 **Covered by**: `tests/decorate.test.ts` and `tests/project.test.ts` (the re-based facts come from
 decorating the zoom root's subtree as a document, so they are covered by the same detached-tree
 guarantee `tests/projection-decorate.test.ts` already pins);
-`e2e/specs/50-decorations.e2e.ts` and `e2e/specs/56-list-grid.e2e.ts` for the unzoomed grid;
-`e2e/specs/80-outline-zoom.e2e.ts` for re-basing in a live instance, including the list-item
+`e2e-tests/specs/50-decorations.e2e.ts` and `e2e-tests/specs/56-list-grid.e2e.ts` for the unzoomed grid;
+`e2e-tests/specs/80-outline-zoom.e2e.ts` for re-basing in a live instance, including the list-item
 root's retained within-list indentation.
 
 ### Requirement: A list item's hanging indent is stated, not measured
@@ -440,7 +440,7 @@ contributions SHALL be added to that native base, never replace it.
 - **THEN** a depth-1 list item under a depth-0 heading still renders to the right of the
   heading, not to its left
 
-**Covered by**: `e2e/specs/51-guides-gradient.e2e.ts` ("margin-based lines compose with
+**Covered by**: `e2e-tests/specs/51-guides-gradient.e2e.ts` ("margin-based lines compose with
 Obsidian's own native base margin instead of replacing it (readable-line-width / community
 themes)").
 
@@ -663,7 +663,7 @@ reserves for the marker, MAY be clipped.
 - **WHEN** a table wider than its line is scrolled to its far edge
 - **THEN** no part of the table renders in the column its marker occupies
 
-**Covered by**: `e2e/specs/51-guides-gradient.e2e.ts` ("blockquote: native colored bar
+**Covered by**: `e2e-tests/specs/51-guides-gradient.e2e.ts` ("blockquote: native colored bar
 (::before) and our guide (::after) coexist, neither clobbers the other", "wide-table
 fixture: guide renders AND the table keeps its own real horizontal scroll (not the whole
 document)", "a table that fits its line scrolls on neither axis, and its native edit chrome keeps
@@ -942,12 +942,12 @@ value, so a surface that resizes its own marks keeps their centres on the column
 - **THEN** it lays out against the editor's gutter so both surfaces' text begins on one column,
   and every one of its marks' visible centres still coincides with its own depth's column
 
-**Covered by**: `e2e/specs/57-marker-gap.e2e.ts` ("starts all four qualifying marks' text on
+**Covered by**: `e2e-tests/specs/57-marker-gap.e2e.ts` ("starts all four qualifying marks' text on
 one column"; "leaves the widest layer-sized mark exactly the stated gap from its text" — the
 widest is MEASURED rather than named, so the assertion follows a theme that resizes one;
 "gives a font-drawn mark the floor rather than the stated gap"; "keeps every mark clear of its
 own text by at least one space's advance"; "pushes only its own text right when an ordered
-number is too wide"), `e2e/specs/74-footer-chrome-pass.e2e.ts` ("lays the section's own chrome
+number is too wide"), `e2e-tests/specs/74-footer-chrome-pass.e2e.ts` ("lays the section's own chrome
 out on the same gutter as its rows"; "keeps every ordinal clear of its own text, however wide
 the number").
 
@@ -1000,7 +1000,7 @@ behaviour.
 - **WHEN** the pointer rests on a marker
 - **THEN** the marker shows the accent, as the node in play does elsewhere
 
-**Covered by**: `e2e/specs/52-block-markers-icons.e2e.ts` ("blockquote: native colored bar
+**Covered by**: `e2e-tests/specs/52-block-markers-icons.e2e.ts` ("blockquote: native colored bar
 and the marker widget coexist (DOM widget, not a pseudo-element — no clobber by
 construction)", "marker size is fixed (rem), NOT font-size-dependent — identical
 width/height on a heading vs. a paragraph line", "no !important/specificity or
@@ -1009,7 +1009,7 @@ unclipped", "code fence and blockquote markers align horizontally with a same-de
 paragraph's (native padding/text-indent compensation)", "heading marker vertical offset
 from the line's own center is small and doesn't grow with heading level (H1 vs H3)",
 "native fold chevron glyph sits between the marker and an ancestor's guide line, clear of
-both"); `e2e/specs/80-outline-zoom.e2e.ts` for the marks as controls.
+both"); `e2e-tests/specs/80-outline-zoom.e2e.ts` for the marks as controls.
 
 ### Requirement: Markers and guides share one column definition
 
@@ -1215,7 +1215,7 @@ even though its outline-mode gate resolves to the same file as the real top-leve
 - **THEN** the cell's own nested editor renders with no added padding/margin and no marker,
   regardless of what the cell's raw text would otherwise parse as
 
-**Covered by**: `e2e/specs/53-decoration-contracts.e2e.ts` ("a nested per-cell table
+**Covered by**: `e2e-tests/specs/53-decoration-contracts.e2e.ts` ("a nested per-cell table
 editor carries no decoration state at all (isNestedEditor gate)" — opens a cell for
 editing and asserts, via computed styles, zero padding/margin/marker on the nested
 editor's own line while the outer note's decorations stay active). The requirement was
@@ -1245,7 +1245,7 @@ stack.
 - **THEN** neither that note nor the open document is modified, and the open document's
   positions, caret, selection, and undo stack are unchanged
 
-**Covered by**: `e2e/specs/53-decoration-contracts.e2e.ts` ("a decoration recompute
+**Covered by**: `e2e-tests/specs/53-decoration-contracts.e2e.ts` ("a decoration recompute
 mutates nothing: buffer, cursor, and undo stack all unchanged" — after a known real edit,
 a double mode toggle leaves buffer and cursor byte-identical, and a single undo reverts
 that edit, proving no change-bearing transaction was interposed); `tests/decorate.test.ts`
@@ -1324,10 +1324,10 @@ line's node is not an atom.
 - **THEN** the line's own indentation and marker render once, from the line's declarative
   decoration, and the nested widget receives no patch of its own — no doubled shift
 
-**Covered by**: `e2e/specs/50-decorations.e2e.ts` ("widget-replaced atoms (table, callout,
-hr, html) get margin-left too"), `e2e/specs/52-block-markers-icons.e2e.ts`
+**Covered by**: `e2e-tests/specs/50-decorations.e2e.ts` ("widget-replaced atoms (table, callout,
+hr, html) get margin-left too"), `e2e-tests/specs/52-block-markers-icons.e2e.ts`
 ("widget-replaced atom kinds (table/callout/html/hr) each get exactly one marker child"),
-plus `e2e/specs/54-widget-rendered-lines.e2e.ts`, which covers each placement an embed can
+plus `e2e-tests/specs/54-widget-rendered-lines.e2e.ts`, which covers each placement an embed can
 occupy (whole-paragraph line, one line of a multi-line node, list-item line, inline among
 text) with the cursor parked away from them, and separately covers the cursor-on state for
 the whole-paragraph case — where Obsidian renders the source line and the embed block at
@@ -1578,24 +1578,24 @@ preamble and end-of-document edges, and that a non-blank line is never treated a
 provisional, and that the probe lands at the CARET's column rather than the line's end; plus
 the bisected-node fact: every line of the outline the position stands for, and the childless
 node whose `hasChildren` the materialized node must not change, as a negative control);
-`e2e/specs/50-decorations.e2e.ts` (Enter's position measured as a caret column against the
+`e2e-tests/specs/50-decorations.e2e.ts` (Enter's position measured as a caret column against the
 column the same text occupies once typed, since its contribution is `padding-left` alone;
 Shift+Enter's measured as the line's own box and `margin-left`, which is the whole of what
 this layer contributes there — see the bound above for why the caret is not asserted on that
 one; and a bisected item's second line measured against its own pre-keypress column);
-`e2e/specs/52-block-markers-icons.e2e.ts` (the paragraph marker on Enter's position, its
+`e2e-tests/specs/52-block-markers-icons.e2e.ts` (the paragraph marker on Enter's position, its
 absence on a continuation position, the `markerVisibility` setting governing it, the
 childless-heading neighbour that must not gain one, and the absent marker on a bisected node's
-displaced line); `e2e/specs/53-decoration-contracts.e2e.ts` (buffer, cursor, and undo stack
+displaced line); `e2e-tests/specs/53-decoration-contracts.e2e.ts` (buffer, cursor, and undo stack
 unchanged by the rendering); and, for the guide extension, `tests/decorate.test.ts` (a position
 past a subtree's last content line, the blank rows between the two, and the same document
-without the position as the negative control) plus `e2e/specs/51-guides-gradient.e2e.ts` (the
+without the position as the negative control) plus `e2e-tests/specs/51-guides-gradient.e2e.ts` (the
 gradient present on the position's row and absent once the caret leaves); and, for WHICH guides
 the extension carries, `tests/decorate.test.ts` (the paragraph-parent shape and its heading-parent
 control, the continuation case, the blank rows between, and a differential property over the
 generated corpus — the position's row and the blank rows above it carry what they carry once a
 character is typed, the only allowed difference being a childless parent's depth, asserted by
-mechanism) plus `e2e/specs/51-guides-gradient.e2e.ts` (the paragraph-parent shape driven through
+mechanism) plus `e2e-tests/specs/51-guides-gradient.e2e.ts` (the paragraph-parent shape driven through
 real keys, its row's gradient layer count against the same row once typed).
 
 ### Requirement: Indentation guides re-base with the zoom scope

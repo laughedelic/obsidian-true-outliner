@@ -103,7 +103,7 @@ already runs that sweep; the local loop does not need to reprove it.
 npm run test:e2e:narrow -- <spec> [test-name-grep]
 ```
 
-`<spec>` matches a filename in `e2e/specs/` by substring (an ambiguous one lists every match
+`<spec>` matches a filename in `e2e-tests/specs/` by substring (an ambiguous one lists every match
 instead of guessing), the grep becomes `--mochaOpts.grep`, and `--mobile` runs the
 mobile-emulation config. It builds the plugin and snapshots vault drift exactly as a full run
 does — launching Obsidian once instead of once per spec file is the whole speedup, so there is
@@ -120,7 +120,7 @@ jq '.failures' .obsidian-cache/e2e-summary.json
 
 Narrow mode and `run-e2e.ts` both launch the real desktop app, so an Obsidian window pops on
 macOS and Windows. `npm run test:e2e:docker [-- --group <name> | <spec> [grep]]` runs the same
-specs headlessly in a Linux container instead (`e2e/docker/`), one container per invocation.
+specs headlessly in a Linux container instead (`e2e-tests/docker/`), one container per invocation.
 A cloud session needs its VM provisioned before any of this runs:
 [`docs/cloud-sessions.md`](docs/cloud-sessions.md).
 
@@ -167,8 +167,8 @@ A cloud session needs its VM provisioned before any of this runs:
   that says what a change does, and that pair's row in `WRITERS`. Everything else derives from
   `settings.ts`'s list of slices, which changes when a feature area is added, not when a setting
   is.
-- **A feature's e2e helpers live beside its specs**, imported by name — `e2e/footer.ts`,
-  `e2e/folding.ts`. `e2e/helpers.ts` keeps only what every spec reaches for.
+- **A feature's e2e helpers live beside its specs**, imported by name — `e2e-tests/footer.ts`,
+  `e2e-tests/folding.ts`. `e2e-tests/helpers.ts` keeps only what every spec reaches for.
 - **A feature's CSS goes in its own part under `styles/`**, taking the next filename prefix; the
   root `styles.css` is a build output, so a new feature edits no shared file. Rules the editor and
   the footer share stay in `10-editor.css`, as its comments say.

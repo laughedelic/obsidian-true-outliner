@@ -1,6 +1,6 @@
 # Runs the e2e suite headlessly on Linux, under Xvfb, so the Obsidian window
 # that `scripts/run-e2e.ts` pops on a real display never appears at all — see
-# `e2e/docker/README.md` for how to invoke this and why.
+# `e2e-tests/docker/README.md` for how to invoke this and why.
 #
 # `node:26-bookworm` (not `-slim`) rather than a from-scratch Debian install:
 # CI already proves this shape works (`.github/workflows/ci.yml` runs
@@ -40,7 +40,7 @@ WORKDIR /workspace
 # Dependencies are baked into the image at build time (Linux binaries for
 # esbuild, Electron, etc). The compose file mounts a volume over
 # node_modules at runtime instead of the host's node_modules, which never
-# has Linux binaries on a macOS/Windows host — see e2e/docker/README.md.
+# has Linux binaries on a macOS/Windows host — see e2e-tests/docker/README.md.
 COPY package.json package-lock.json .npmrc ./
 
 # scripts/e2e-docker.ts runs the container as the invoking host UID/GID (not

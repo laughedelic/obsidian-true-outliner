@@ -62,7 +62,7 @@ runs:
       shell: bash
 
     # Obsidian is an Electron app and needs a display even "headless" in CI.
-    # OBSIDIAN_VERSION is read by e2e/obsidian-target.mts, which also prints the
+    # OBSIDIAN_VERSION is read by e2e-tests/obsidian-target.mts, which also prints the
     # resolved target and fails fast if a pinned version is not in the cache.
     - run: |
         args=()
@@ -91,7 +91,7 @@ runs:
 
     # Test Analytics: one upload per job, flagged by platform so the same
     # test's desktop and mobile histories stay apart. The directory holds one
-    # file per worker (e2e/wdio.shared.mts).
+    # file per worker (e2e-tests/wdio.shared.mts).
     - if: ${{ !cancelled() }}
       uses: codecov/codecov-action@v7
       with:

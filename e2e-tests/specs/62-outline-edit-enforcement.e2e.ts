@@ -330,7 +330,7 @@ describe('node-edit-enforcement: Phase C evidence', function () {
 
   // ---- 4.7 Marker-transparent cursor placement (superseded by
   // content-space-caret's general addressable-position rule; see
-  // e2e/specs/65-content-space-caret.e2e.ts for that capability's own
+  // e2e-tests/specs/65-content-space-caret.e2e.ts for that capability's own
   // suite — these regression guards stay here too since node-edit-
   // enforcement's own scenarios named them) ---------------------------------
 
@@ -390,7 +390,7 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     // `Editor.setSelection` dispatches with no `userEvent` (classified
     // `programmatic`), outside content-space-caret's resolver jurisdiction
     // by design (D2) — a real click or keypress landing on this same gap
-    // line WOULD be redirected (see e2e/specs/65-content-space-caret.e2e.ts
+    // line WOULD be redirected (see e2e-tests/specs/65-content-space-caret.e2e.ts
     // D1, and the vertical/Home tests below).
     await outlineNote('First.\n\nSecond.\n');
     await h.setSelection({ line: 1, ch: 0 }, { line: 1, ch: 0 });

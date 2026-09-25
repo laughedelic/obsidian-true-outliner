@@ -13,7 +13,7 @@ import * as path from 'node:path';
 export const PLUGIN_ID = 'true-outliner';
 
 /**
- * True when running under e2e/wdio.mobile-emulation.conf.mts (set by
+ * True when running under e2e-tests/wdio.mobile-emulation.conf.mts (set by
  * `test:e2e:mobile`; same env var 00-smoke's platform check uses). Tests
  * that drive REAL MOUSE DRAGS must skip themselves on this run: Chrome's
  * mobile emulation translates W3C pointer sequences to touch semantics,

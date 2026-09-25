@@ -10,7 +10,7 @@
  *
  * The whole gesture runs in ONE driving call. A held button is released when
  * `performActions` returns, so a drag split across calls is not a drag at all
- * after its first leg — which is why `e2e/dragging.ts` records as it goes and
+ * after its first leg — which is why `e2e-tests/dragging.ts` records as it goes and
  * these assertions read the recording.
  */
 
