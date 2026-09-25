@@ -74,13 +74,13 @@
 
 - [x] 4.1 `npm run build`, `npm test`, `npm run lint`, `npm run build:e2e`.
 - [x] 4.2 The new cases fail on `main` and pass on the branch.
-- [ ] 4.3 E2E sweep in CI on the pushed checkpoint.
+- [x] 4.3 E2E sweep in CI on the pushed checkpoint.
 - [x] 4.4 Review round: a block after a re-laid nested item written at its parent's content
       column (D2), a line outside its node's indentation carried as it was (D2), a spelled
       offset taken from the source line, and a converged block read back and kept as it arrived
       where its tree differs (D7). Each with a test that fails with its fix off, and the
       fuzzer committed beside the probe (`fuzz.ts.txt`).
-- [ ] 4.5 Manual check in Obsidian with **Indent using tabs** on and off: #216's cases 1 to 6,
+- [x] 4.5 Manual check in Obsidian with **Indent using tabs** on and off: #216's cases 1 to 6,
       and a copy pasted back within the note unchanged.
-- [ ] 4.6 Sync the delta spec, archive the change, bump the version.
+- [x] 4.6 Sync the delta spec, archive the change, bump the version.
 - [x] 4.7 `openspec validate a-paste-writes-the-document-unit --strict`.
