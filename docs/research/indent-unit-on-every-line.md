@@ -103,7 +103,8 @@ in one.
   [#215](https://github.com/laughedelic/obsidian-true-outliner/issues/215).
 - **Renumbering.** `shiftBelowMarker` moves a subtree when a marker widens from `9.` to `10.` by
   one column, which is a space whatever the unit.
-- **A paste from outside the vault.** A pasted subtree keeps the clipboard's own indentation below
-  its roots, by `reindentSubtreeVerbatim`'s design, so a two-space list pasted into a tab vault
-  lands as `\t  - b`. Filed as
+- **A paste from outside the document.** A pasted subtree keeps the clipboard's own indentation
+  below its roots, by `reindentSubtreeVerbatim`'s design, in either direction: a two-space list
+  pasted into a tab document lands as `\t  - b`, and a tab list pasted into a two-space one as
+  `  \t- b`. Filed as
   [#216](https://github.com/laughedelic/obsidian-true-outliner/issues/216).
