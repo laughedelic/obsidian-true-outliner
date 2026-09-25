@@ -1,5 +1,5 @@
 import fc from 'fast-check';
-import type { OutlineDoc, OutlineNode } from '../src/model';
+import type { BlockIdLines, OutlineDoc, OutlineNode } from '../src/model';
 import { makeNode } from '../src/model';
 
 /** Adversarial markdown text: fragments that stress the segmenter. */
@@ -15,6 +15,7 @@ export const arbMarkdownText: fc.Arbitrary<string> = fc
       fc.constantFrom('---', '***', '___', '- - -', '===', '=='),
       fc.constantFrom('| a | b |', '|---|---|', '| 1 | 2 |'),
       fc.constantFrom('<div>', '</div>', '<!-- comment -->'),
+      fc.constantFrom('^id1', '  ^id2', '^t-3', '^id4   ', '    ^id5'),
       fc.constantFrom('', '', '', ' ', '\t'),
     ),
     { maxLength: 40 },
@@ -37,6 +38,30 @@ const arbText: fc.Arbitrary<string> = fc
   .stringMatching(/^[a-zA-Z0-9][a-zA-Z0-9 .,!?'-]{0,29}$/)
   .filter((s) => s.trim().length > 0 && !/^\d+[.)]([ \t]|$)/.test(s.trim()));
 
+const arbIdName: fc.Arbitrary<string> = fc.stringMatching(/^[a-z0-9][a-z0-9-]{0,5}$/);
+
+/**
+ * An optional block id for a node, in the positions `docs/research/
+ * lone-block-id` measured Obsidian attaching one: after blank lines at
+ * `column`, or — where the kind allows it — directly under the node. A
+ * paragraph has no "directly under": that line would be its own continuation.
+ */
+function arbBlockId(column: number, directlyUnder: boolean): fc.Arbitrary<BlockIdLines | undefined> {
+  const gaps: string[][] = directlyUnder ? [[''], ['', ''], []] : [[''], ['', '']];
+  return fc.option(
+    fc.tuple(arbIdName, fc.constantFrom(...gaps)).map(([name, gap]) => ({
+      gap,
+      line: `${' '.repeat(column)}^${name}`,
+    })),
+    { nil: undefined, freq: 3 },
+  );
+}
+
+/** `node` with `blockId` when there is one, and without the key when not. */
+function withBlockId(node: OutlineNode, blockId: BlockIdLines | undefined): OutlineNode {
+  return blockId ? { ...node, blockId } : node;
+}
+
 /**
  * Generates trees that are *valid by construction* for the encode→parse
  * direction: every node's lines are well-formed for its kind and depth
@@ -55,24 +80,36 @@ export function arbTree(): fc.Arbitrary<OutlineDoc> {
             ), { maxLength: 3 })
           : fc.constant([] as OutlineNode[]),
         arbGap,
+        arbBlockId(indent + 2, false),
+        fc.option(arbIdName, { nil: undefined, freq: 6 }),
       )
-      .map(([text, children, gap]) =>
-        makeNode({
+      .map(([text, children, gap, blockId, lazyId]) => {
+        const item = makeNode({
           kind: 'list-item',
           listStyle: { type: 'bullet', marker: '-' },
           lines: [`${' '.repeat(indent)}- ${text}`],
           trailingGap: children.length > 0 ? [] : gap.filter((g) => g === ''),
           children,
-        }),
-      );
+        });
+        if (blockId) return withBlockId(item, blockId);
+        // Obsidian's lazy continuation: an id directly under a leaf item,
+        // short of its content column, names that item.
+        if (lazyId !== undefined && children.length === 0) {
+          return withBlockId(item, { gap: [], line: `${' '.repeat(indent)}^${lazyId}` });
+        }
+        return item;
+      });
 
   const codeAtom = (indent: number): fc.Arbitrary<OutlineNode> =>
-    arbText.map((text) =>
-      makeNode({
-        kind: 'code',
-        lines: [`${' '.repeat(indent)}\`\`\``, `${' '.repeat(indent)}${text}`, `${' '.repeat(indent)}\`\`\``],
-        trailingGap: [''],
-      }),
+    fc.tuple(arbText, indent === 0 ? arbBlockId(0, true) : fc.constant(undefined)).map(([text, blockId]) =>
+      withBlockId(
+        makeNode({
+          kind: 'code',
+          lines: [`${' '.repeat(indent)}\`\`\``, `${' '.repeat(indent)}${text}`, `${' '.repeat(indent)}\`\`\``],
+          trailingGap: [''],
+        }),
+        blockId,
+      ),
     );
 
   // A quote/callout and a table are RUNS of like-opening lines. They belong in
@@ -80,32 +117,42 @@ export function arbTree(): fc.Arbitrary<OutlineDoc> {
   // which is a node lost — and a generator emitting only paragraphs, list items
   // and code can never place two of them side by side to show it.
   const quoteAtom = (indent: number): fc.Arbitrary<OutlineNode> =>
-    fc.tuple(arbText, fc.boolean()).map(([text, callout]) =>
-      makeNode({
-        kind: callout ? 'callout' : 'quote',
-        lines: [`${' '.repeat(indent)}> ${callout ? `[!note] ${text}` : text}`],
-        trailingGap: [''],
-      }),
+    fc.tuple(arbText, fc.boolean(), indent === 0 ? arbBlockId(0, true) : fc.constant(undefined)).map(
+      ([text, callout, blockId]) =>
+        withBlockId(
+          makeNode({
+            kind: callout ? 'callout' : 'quote',
+            lines: [`${' '.repeat(indent)}> ${callout ? `[!note] ${text}` : text}`],
+            trailingGap: [''],
+          }),
+          blockId,
+        ),
     );
 
   const tableAtom = (indent: number): fc.Arbitrary<OutlineNode> =>
-    arbText.map((text) =>
-      makeNode({
-        kind: 'table',
-        lines: [`${' '.repeat(indent)}| ${text} | b |`, `${' '.repeat(indent)}| --- | --- |`],
-        trailingGap: [''],
-      }),
+    fc.tuple(arbText, indent === 0 ? arbBlockId(0, true) : fc.constant(undefined)).map(([text, blockId]) =>
+      withBlockId(
+        makeNode({
+          kind: 'table',
+          lines: [`${' '.repeat(indent)}| ${text} | b |`, `${' '.repeat(indent)}| --- | --- |`],
+          trailingGap: [''],
+        }),
+        blockId,
+      ),
     );
 
   const paragraph: fc.Arbitrary<OutlineNode> = fc
-    .tuple(arbText, fc.array(listItem(0, 2), { maxLength: 3 }))
-    .map(([text, items]) =>
-      makeNode({
-        kind: 'paragraph',
-        lines: [text],
-        trailingGap: [''],
-        children: items,
-      }),
+    .tuple(arbText, fc.array(listItem(0, 2), { maxLength: 3 }), arbBlockId(0, false))
+    .map(([text, items, blockId]) =>
+      withBlockId(
+        makeNode({
+          kind: 'paragraph',
+          lines: [text],
+          trailingGap: [''],
+          children: items,
+        }),
+        blockId,
+      ),
     );
 
   const sectionContent: fc.Arbitrary<OutlineNode[]> = fc
@@ -130,15 +177,19 @@ export function arbTree(): fc.Arbitrary<OutlineDoc> {
         depth > 0
           ? fc.array(heading(Math.min(level + 1, 6), depth - 1), { maxLength: 2 })
           : fc.constant([] as OutlineNode[]),
+        arbBlockId(0, true),
       )
-      .map(([text, content, subs]) =>
-        makeNode({
-          kind: 'heading',
-          level,
-          lines: [`${'#'.repeat(level)} ${text}`],
-          trailingGap: [''],
-          children: [...content, ...subs],
-        }),
+      .map(([text, content, subs, blockId]) =>
+        withBlockId(
+          makeNode({
+            kind: 'heading',
+            level,
+            lines: [`${'#'.repeat(level)} ${text}`],
+            trailingGap: [''],
+            children: [...content, ...subs],
+          }),
+          blockId,
+        ),
       );
 
   return fc
