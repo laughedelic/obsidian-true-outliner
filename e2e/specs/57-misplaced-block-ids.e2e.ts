@@ -153,6 +153,26 @@ describe('a misplaced block id', function () {
     expect(await zoomed()).toBe(false);
   });
 
+  it('lands a dropped id as a line of the paragraph above it', async function () {
+    if (h.IS_MOBILE_RUN) this.skip();
+    const md = 'Lead.\n- a\n\n^id\n\nAfter.\n';
+    await h.setBuffer(md);
+    await browser.pause(150);
+    const glyph = await markPoint(GLYPH);
+    const lead = await h.getLineRect(0);
+    const item = await h.getLineRect(1);
+    const seam = (lead.top + lead.height + item.top) / 2;
+    await dragFrom(glyph, [
+      { x: glyph.x, y: glyph.y - 20 },
+      { x: glyph.x, y: seam },
+    ]);
+    await browser.waitUntil(async () => (await h.getBuffer()) === 'Lead.\n^id\n- a\n\nAfter.\n', {
+      timeout: 2000,
+      timeoutMsg: `the drop wrote ${JSON.stringify(await h.getBuffer())}`,
+    });
+    expect(await h.getLineChildRects(1, MARK)).toHaveLength(0);
+  });
+
   it('opens the menu at the caret from the command, only on a misplaced line', async function () {
     await h.setCursorSettled(0, 2);
     expect(await h.commandAvailable('correct-misplaced-block-id')).toBe(false);

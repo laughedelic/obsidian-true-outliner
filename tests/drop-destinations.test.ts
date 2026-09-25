@@ -719,3 +719,21 @@ describe('resolveDestination', () => {
     expect(resolveDestination(seams, geometry, { x: 0, y: bottom.line * 20 })).toBeUndefined();
   });
 });
+
+describe('dropSeams for a lone block id', () => {
+  it('offers one place per seam, and every release writes the id as a line, never an item', () => {
+    const doc = parse('Lead.\n- a\n- b\n  - c\n\n^id\n\nAfter.\n');
+    const id = [...walkNodes(doc)].find((node) => node.lines[0] === '^id')!;
+    const offered = dropSeams(doc, [id]);
+    expect(offered.every((seam) => seam.candidates.length <= 1)).toBe(true);
+    for (const seam of offered) {
+      for (const candidate of seam.candidates) {
+        const result = moveSubtreesTo(doc, [[id.id]], candidate);
+        expect(result.ok).toBe(true);
+        const text = result.ok ? encode(result.value.doc) : '';
+        expect(text).toContain('^id');
+        expect(text).not.toMatch(/[-*+] \^id/);
+      }
+    }
+  });
+});

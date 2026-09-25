@@ -1777,3 +1777,47 @@ describe('an attached block id travels with its node', () => {
     ]);
   });
 });
+
+describe('a dragged misplaced id lands as a line of the node above it', () => {
+  const first = (doc: OutlineDoc, line: string): OutlineNode =>
+    [...walkNodes(doc)].find((node) => node.lines[0] === line)!;
+  const drop = (md: string, parent: string, index: number): string => {
+    const doc = parse(md);
+    const id = [...walkNodes(doc)].find((node) => node.lines[0]?.trim().startsWith('^'))!;
+    const parentId = parent === 'root' ? 'root' : first(doc, parent).id;
+    const result = moveSubtreesTo(doc, [[id.id]], { parentId, index });
+    if (!result.ok) throw new Error(result.rejection.reason);
+    return encode(result.value.doc);
+  };
+
+  it('makes an id dropped between a lead paragraph and its list a line of the paragraph', () => {
+    expect(drop('Lead.\n- a\n\n^id\n\nAfter.\n', 'Lead.', 0)).toBe('Lead.\n^id\n- a\n\nAfter.\n');
+  });
+
+  it('attaches an id dropped under a heading after a blank line, with a blank line below', () => {
+    const out = drop('## H\n- a\n\n^id\n', '## H', 0);
+    expect(out).toBe('## H\n\n^id\n\n- a\n');
+    expect(parse(out).children[0]!.blockId?.line).toBe('^id');
+  });
+
+  it('keeps an id dropped at the top of the note a paragraph of its own', () => {
+    const out = drop('Lead.\n- a\n\n^id\n', 'root', 0);
+    expect(out).toBe('^id\n\nLead.\n- a\n');
+    expect(parse(out).children[0]!.lines).toEqual(['^id']);
+  });
+
+  it('never writes a dropped id as a list item', () => {
+    const out = drop('- a\n- b\n\n^l1\n\nAfter.\n', 'root', 1);
+    expect(out).toBe('- a\n  ^l1\n- b\n\nAfter.\n');
+    expect(out).not.toContain('- ^l1');
+  });
+
+  it('leaves an id dropped where it already was untouched', () => {
+    const md = '- a\n- b\n\n^l1\n\nAfter.\n';
+    const doc = parse(md);
+    const id = first(doc, '^l1');
+    const at = doc.children.indexOf(id);
+    const result = moveSubtreesTo(doc, [[id.id]], { parentId: 'root', index: at });
+    expect(result.ok && encode(result.value.doc)).toBe(md);
+  });
+});
