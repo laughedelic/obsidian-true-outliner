@@ -74,6 +74,13 @@ describe('classify: order precedence and each class reachable', () => {
     }
   });
 
+  it('a block id correction is plugin-own, whatever lines it rewrites', () => {
+    // Attaching an id rewrites its target's line and removes the id's own:
+    // by shape, a boundary-crossing edit.
+    const correction = facts({ userEvent: 'input.structure.block-id', changedLineSpans: [span(0, 3)] });
+    expect(classify(correction, doc)).toBe('plugin-own');
+  });
+
   it('unrelated userEvent, no changes → selection-only (default-permit catch-all)', () => {
     expect(classify(facts({ userEvent: 'select.pointer' }), doc)).toBe('selection-only');
     expect(classify(facts({ userEvent: 'totally.unknown.origin' }), doc)).toBe('selection-only');
