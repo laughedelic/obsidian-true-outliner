@@ -55,6 +55,10 @@
       express keeps the conversion's, and an empty note's blank lines below the caret become the
       run's gap. Negative control: `reencodeForDestination` alone.
 
+- [x] 5.6 A line outside its node's indentation moves with the block by the root's prefix swap
+      (`carryWithRoot`). Test: a lazy `> q4` under a tab-marked item pasted nine columns in.
+      Negative control: the line kept where it stood.
+
 ## 4. Validate
 
 - [x] 4.1 `npm run build`, `npm test`, `npm run lint`, `npm run build:e2e`.

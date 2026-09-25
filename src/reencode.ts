@@ -192,9 +192,11 @@ function addsTabAfterSpace(from: string, to: string, rest: string): boolean {
  * ends, and a child written one tab past its item's indentation would fall
  * short of the item's content column once the prefix is narrower than a stop.
  *
- * A line that does not open with the node's own indentation is carried as it
- * was. A paragraph continues at any column, and a line the source wrote in a
- * different unit from its node says nothing about where it belongs.
+ * A line that does not open with the node's own indentation goes to `carry`,
+ * which moves it with the block it belongs to, as a paste always has. A line
+ * the source wrote in a different unit from its node says nothing about where
+ * it belongs, and spelling its offset in spaces moved a tab continuation to
+ * where `>` opens a quote.
  *
  * An atom's lines are content, and go through `reprefixLine` instead.
  */
@@ -204,9 +206,10 @@ export function rewriteOwnLine(
   to: string,
   unit: string,
   columnDelta: number,
+  carry: (line: string) => string = (unmoved) => unmoved,
 ): string {
   const ws = leadingWhitespace(line);
-  if (!ws.startsWith(from)) return line;
+  if (!ws.startsWith(from)) return carry(line);
   const rest = ws.slice(from.length);
   const swapped = to + line.slice(from.length);
   if ((unit === '\t' || !rest.includes('\t')) && !addsTabAfterSpace(from, to, rest)) {

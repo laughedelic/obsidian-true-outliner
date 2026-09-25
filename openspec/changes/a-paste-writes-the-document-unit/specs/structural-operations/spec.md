@@ -19,8 +19,9 @@ A node's own lines below its first, and a child that is not a list item, SHALL k
 their offset from the node's indentation, written after its new indentation: the
 characters the payload wrote past the node's indentation are kept where they are
 spaces, or tabs in a tab document, and land on the same column; otherwise the offset
-is written in spaces. A line that does not open with its node's indentation SHALL be
-carried as it was. A child that is not a list item SHALL be written at its parent's
+is written in spaces. A line that does not open with its node's indentation SHALL move
+with the block by the swap of the block root's own prefix, and SHALL be carried as it was
+where it does not open with that either. A child that is not a list item SHALL be written at its parent's
 content column wherever its offset would reach the content column of the list item
 before it. An atom's lines are content and SHALL move as a unit by its first
 line's prefix, keeping the tabs inside it. A child list of a paragraph SHALL keep its

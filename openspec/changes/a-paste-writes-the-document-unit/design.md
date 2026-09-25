@@ -39,8 +39,10 @@ it after the node's new indentation. The characters after the prefix are kept wh
 the same column and are spaces, or tabs going into a tab document, and are never kept where the
 join would put a space in front of a tab (#203's D3). Anything else gets the offset in spaces,
 which is #154's `⏵··bar` in a tab document. A line that does not open with its node's
-indentation, a lazy continuation or one the source wrote in another unit, is carried as it was,
-as `main` carries it. A paragraph continues at any column. Spelling such a line's offset in
+indentation, a lazy continuation or one the source wrote in another unit, moves with the block
+by the root's prefix swap, as `main` moves it, and is kept as it was where it does not open with
+that either. Keeping it where it stood while the block moved right left a lazy `> q4` one column
+into its item, where it opens a quote. A paragraph continues at any column. Spelling such a line's offset in
 spaces moved a `\t> q1` continuation two columns in, where it opened a quote.
 
 A child that is not a list item keeps its offset only while the offset stays short of the
@@ -133,9 +135,10 @@ leading blank lines as preamble, where a paste stays Obsidian's.
 - **A document indented two ways** converges on the unit `inferIndentUnit` reads, for a paste
   from inside it as well. The differential finds two such shapes, and each is written in one
   unit after the paste.
-- **D7 compares a block read on its own**, not in place. The fuzzer's residual cases, 7 in
-  20 000 pastes, are payloads several levels deep in mixed units, mostly with a nested item whose
-  marker is followed by a tab. They read as written on their own, and in place a destination
-  line after them reaches the re-laid item (`docs/research/paste-indent-convergence.md`).
+- **D7 compares a block read on its own**, not in place, and before the run is renumbered. The
+  fuzzer's six residual cases in 20 000 pastes are those two gaps. Five are a renumbering that
+  shifts a nested item marked `-⏵` onto another tab stop, which `main` does with no paste
+  involved. One is a destination line after the run reaching the re-laid last item
+  (`docs/research/paste-indent-convergence.md`).
 - **D15's scenario** stays true: a tab subtree pasted into a tab document keeps its tabs at every
   level, because the document's unit is a tab.

@@ -32,8 +32,9 @@ and why, and a 1 774-row differential against `main`.
   is what an indent writes there.
 - A node's own lines below its first, and a child that is not a list item, keep their offset
   from the node, after its new indentation. They keep the clipboard's characters where those are
-  spaces, or tabs going into a tab document. Otherwise the offset is written in spaces. A lazy
-  continuation is carried as it was.
+  spaces, or tabs going into a tab document. Otherwise the offset is written in spaces. A line
+  that does not open with its node's indentation moves with the block by the root's prefix swap,
+  as `main` moves it.
 - An atom's lines move as a unit by its first line's prefix through #203's guarded swap, so
   whitespace inside code is not converted.
 - A heading converted into a list writes its section's levels in the same unit, not at the

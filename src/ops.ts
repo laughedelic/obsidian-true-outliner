@@ -2332,13 +2332,30 @@ export function reindentSubtreeInUnit(
   const normalized = node.kind === 'list-item' ? normalizeMarkerRun(first) : first;
   const columnDelta = normalized === first ? 0 : markerWidthOf(normalized) - markerWidthOf(first);
   const root = { ...node, lines: [normalized, ...node.lines.slice(1)] };
-  return rewriteSubtree(root, indentText, unit, columnDelta);
+  return rewriteSubtree(root, indentText, unit, carryWithRoot(first, indentText), columnDelta);
+}
+
+/**
+ * How a line that does not open with its own node's indentation moves: with
+ * the block, by the swap of the block root's own prefix for its new one that
+ * `reindentSubtreeVerbatim` makes, and as it was where it does not open with
+ * that either. Keeping such a line where it stood while the block moved right
+ * left a lazy `> q` one column into its item instead of eight, where it opens a
+ * quote.
+ */
+function carryWithRoot(rootFirstLine: string, indentText: string): (line: string) => string {
+  const rootFrom = leadingWhitespace(rootFirstLine);
+  return (line) =>
+    leadingWhitespace(line).startsWith(rootFrom) && line.trim() !== ''
+      ? indentText + line.slice(rootFrom.length)
+      : line;
 }
 
 function rewriteSubtree(
   node: OutlineNode,
   indentText: string,
   unit: string,
+  carry: (line: string) => string,
   columnDelta = 0,
 ): OutlineNode {
   const from = leadingWhitespace(node.lines[0] ?? '');
@@ -2347,11 +2364,13 @@ function rewriteSubtree(
     : node.lines.map((line, i) =>
         i === 0
           ? indentText + line.slice(from.length)
-          : rewriteOwnLine(line, from, indentText, unit, columnDelta),
+          : rewriteOwnLine(line, from, indentText, unit, columnDelta, carry),
       );
   const written: OutlineNode = { ...node, lines };
-  const children = layChildren(written, node.children, indentText, unit, (child) =>
-    leadingWhitespace(rewriteOwnLine(child.lines[0] ?? '', from, indentText, unit, columnDelta)),
+  const children = layChildren(written, node.children, indentText, unit, carry, (child) =>
+    leadingWhitespace(
+      rewriteOwnLine(child.lines[0] ?? '', from, indentText, unit, columnDelta, carry),
+    ),
   );
   return { ...written, children };
 }
@@ -2366,6 +2385,7 @@ function layChildren(
   children: readonly OutlineNode[],
   indentText: string,
   unit: string,
+  carry: (line: string) => string,
   offsetIndent: (child: OutlineNode) => string,
 ): OutlineNode[] {
   const laid: OutlineNode[] = [];
@@ -2384,7 +2404,7 @@ function layChildren(
         childIndent = reachContentColumn(indentText, parent);
       }
     }
-    const rewritten = rewriteSubtree(child, childIndent, unit);
+    const rewritten = rewriteSubtree(child, childIndent, unit, carry);
     if (rewritten.kind === 'list-item') lastItem = rewritten;
     laid.push(rewritten);
   }
@@ -2420,7 +2440,14 @@ function convertInUnit(
   // converted item's child under the paragraph it became.
   const laid: OutlineNode = {
     ...head,
-    children: layChildren(head, node.children, indentText, unit, () => indentText),
+    children: layChildren(
+      head,
+      node.children,
+      indentText,
+      unit,
+      carryWithRoot(node.lines[0] ?? '', indentText),
+      () => indentText,
+    ),
   };
   return readsAsWritten(laid) ? laid : converted;
 }

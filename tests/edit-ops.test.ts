@@ -1499,6 +1499,17 @@ describe('a pasted subtree is written in the document’s own unit (#216)', () =
     expect(encode(result.value.doc)).toContain('cont1\n\t> q1\n');
   });
 
+  it('a line outside its node’s indentation moves with the block it belongs to', () => {
+    // Negative control: the line kept where it stood while the block moved
+    // nine columns right, so `> q4` sits one column into `t1` instead of
+    // eight, and opens a quote.
+    const payload = '-\tt1\n\t\t1.\tt3\n\t\t   cont4\n\t\t\t> q4\n';
+    const shape = (nodes: readonly OutlineNode[]): string =>
+      nodes.map((n) => `${n.kind}(${shape(n.children)})`).join(',');
+    const text = pasteAfter('         2) t4\n', '         2) t4', payload);
+    expect(shape(parse(text).children)).toBe(`list-item(),${shape(parse(payload).children)}`);
+  });
+
   it('a block whose converged lines would read as another tree keeps its own', () => {
     // Negative control: the nested items laid out afresh two columns left of
     // where the payload wrote them, which turns a lazy `> q3` into a quote.

@@ -151,8 +151,8 @@ destination. Over 20 000 cases each:
 
 | | `main` keeps the tree and this change does not | the reverse |
 | --- | --- | --- |
-| `insertSubtrees`, every shape | 7 | 1 641 |
-| `insertSubtrees`, no tab marker runs or headings | 3 | 1 748 |
+| `insertSubtrees`, every shape | 6 | 1 641 |
+| `insertSubtrees`, no tab marker runs or headings | 1 | 1 747 |
 | `moveSubtreesTo` | 0 | 134 |
 | `indent` | 0 | 0 |
 
@@ -168,11 +168,26 @@ laid-out version exactly where `main`'s was wrong. The read-back also strips onl
 from the root's indentation. Stripping all of it moved the tab stops of an item marked `-⏵`, and
 cost two moves.
 
-Each residual row is a payload several levels deep in mixed tabs and spaces with lazy lines. Most
-involve a nested item whose marker is followed by a tab, whose content column depends on where
-its tab stop falls, and a destination line after the run that the re-laid item now reaches.
-Normalizing every nested marker run would remove them, and it would also rewrite the bytes of
-every such item on a paste that is otherwise unchanged.
+Reduced to their smallest reproductions, the six residual rows fall into two kinds:
+
+- **Five are renumbering.** The pasted root is an ordered item whose number the run's
+  renumbering widens or narrows after the re-encode, and before the read-back could see it:
+  `2)` pasted after `100.` becomes `101)`. `shiftBelowMarker` moves the subtree by the width
+  change, in spaces, and a nested item marked `-⏵` or `1.⏵` sits on a different tab stop
+  afterwards. Its content column jumps by up to three columns, and a child re-parents. The
+  re-encode's own output reads as written. The same shift changes the tree on `main` with no
+  paste involved: in `8. a` / `9. b` / `   -⏵c` / `       1. d`, where `1. d` is `c`'s sibling,
+  inserting an item after `8. a` renumbers `9.` to `10.`, and `1. d` becomes `c`'s child.
+  `main` avoids these five pastes only because its verbatim columns happen to sit on the same
+  side of a tab stop.
+- **One is the destination's own next line.** A converted paragraph's list item lands at column
+  zero, `2)   t3`, directly above a continuation the destination wrote at column six
+  (`      cont9`, the tail of `    -  t8`). That continuation now reaches the pasted item's content
+  column and becomes its child. `main` wrote the item at a tab and three spaces, past it.
+
+A sixth kind, a line outside its node's indentation kept where it stood while the block moved
+right, turned a lazy `> q4` into a quote. It is fixed: such a line moves with the block's root
+prefix, as `main` moves it (`carryWithRoot`).
 
 ## A converted block's children
 
