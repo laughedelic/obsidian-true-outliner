@@ -1828,7 +1828,11 @@ The two differ wherever an operation has moved a node's column. `hr`, `quote`, `
 and an ATX heading open a block only within three columns of the left margin — `HR_RE`,
 `QUOTE_RE`, `CALLOUT_RE`, `HTML_OPEN_RE` and `ATX_RE` are all written `^ {0,3}` — and a setext
 heading carries that anchor on its UNDERLINE rather than on its first line. `code` and `table`
-have no such limit. Normalization runs on the TREE and encoding runs after it, so a node a
+have no such limit. The margin is the one the parser measures from: column 0 outside every list
+item, and inside one the content column of the innermost item holding the node, so a node's
+children are judged at their parent's content column when the parent is a list item and at the
+parent's own margin otherwise. A heading and an HTML block are judged at column 0 wherever they
+sit, as the parser reads them. Normalization runs on the TREE and encoding runs after it, so a node a
 re-encode has pushed past that margin is separated as the kind it was and read back as the kind
 its new column makes it. Measured, a `quote` needs no separator before a paragraph and the
 paragraph it becomes at column 4 does: the two nodes come back as one, and the payload the
@@ -1889,6 +1893,12 @@ table leaves a list item or a paragraph carrying a wikilink alias to be read as 
 - **WHEN** the same payload lands in a scope whose content sits at column 0
 - **THEN** the quote is still a quote, no separator is added, and the encoding is byte-identical
   to what the rules produced before this requirement
+
+#### Scenario: An atom at a list item's child column keeps its kind across the seam
+- **WHEN** a payload of `## H` over `---` is pasted after `  - two` below `- one`, so the rule is
+  written at column 4, the converted item's child column
+- **THEN** a blank line stands between `  - ## H` and the rule, and the rule re-parses as an `hr`,
+  a child of that item
 
 ### Requirement: A run moves to a named destination as one operation
 

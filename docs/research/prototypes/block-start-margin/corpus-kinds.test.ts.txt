@@ -1,0 +1,21 @@
+import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+import { test } from 'vitest';
+import { parse } from '../src/parse';
+import { walkNodes } from '../src/model';
+
+function files(dir: string): string[] {
+  return readdirSync(dir).flatMap((f) => {
+    const p = join(dir, f);
+    if (f.startsWith('.')) return [];
+    return statSync(p).isDirectory() ? files(p) : p.endsWith('.md') ? [p] : [];
+  });
+}
+test('corpus', () => {
+  const out: Record<string, string[]> = {};
+  for (const f of [...files('tests/corpus'), ...files('test-vault')]) {
+    const md = readFileSync(f, 'utf8');
+    out[f] = [...walkNodes(parse(md))].map((n) => `${n.kind}:${JSON.stringify(n.lines[0])}:${n.children.length}`);
+  }
+  writeFileSync(process.env.PROBE_OUT!, JSON.stringify(out));
+});

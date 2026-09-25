@@ -1,0 +1,20 @@
+import { readFileSync } from 'fs';
+const cm = JSON.parse(readFileSync('commonmark.json')), mn = JSON.parse(readFileSync('main.json')), br = JSON.parse(readFileSync('branch.json'));
+// normalise: commonmark 'code' & 'paragraph' & 'continuation' are "not the opener"; we have no code kind.
+const norm = (k, c) => (k === 'code' ? 'paragraph' : k);
+const agree = (ours, cmk) => ours === norm(cmk) || (cmk === 'continuation' && ours === 'continuation') || (cmk === 'code' && (ours === 'paragraph' || ours === 'continuation'));
+const rows = cm.map((c, i) => ({ ...c, main: mn[i].ours, branch: br[i].ours }));
+const byC = {};
+for (const r of rows) {
+  const k = r.container === 'root' ? 'root' : 'in an item';
+  byC[k] ??= { n: 0, main: 0, branch: 0 };
+  byC[k].n++; if (agree(r.main, r.commonmark)) byC[k].main++; if (agree(r.branch, r.commonmark)) byC[k].branch++;
+}
+console.log(byC);
+const changed = rows.filter((r) => r.main !== r.branch);
+console.log('changed', changed.length, 'of', rows.length);
+const regress = changed.filter((r) => agree(r.main, r.commonmark) && !agree(r.branch, r.commonmark));
+console.log('regressions', regress.length); for (const r of regress.slice(0, 20)) console.log(JSON.stringify(r.md), r.commonmark, r.main, r.branch);
+const still = rows.filter((r) => !agree(r.branch, r.commonmark));
+const g = {}; for (const r of still) { const k = `${r.container==='root'?'root':'item'} blank=${r.blank} off=${r.off>=4?'4+':'0-3'} cm=${r.commonmark} ours=${r.branch}`; g[k]=(g[k]||0)+1 } console.log(g);
+const fixedTab = {}; for (const r of changed) { const k=`${r.kind} ${r.main}->${r.branch} (cm ${r.commonmark})`; fixedTab[k]=(fixedTab[k]||0)+1 } console.log(fixedTab);

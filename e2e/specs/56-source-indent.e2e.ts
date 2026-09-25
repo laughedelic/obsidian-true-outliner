@@ -48,6 +48,23 @@ const TABBED = ['- alpha', '', '\tchild paragraph', '', '\t```js', '\tfenced', '
   '\n',
 );
 
+/** A quote written under an item with a tab: four columns in, and two past the
+ * item's content column, which is where CommonMark measures a block start from
+ * (`block-start-margin-from-the-item`, issue #136). */
+const TAB_QUOTE = ['- alpha', '', '\t> quote child', ''].join('\n');
+
+/** The kind line `i`'s block marker was built for. */
+async function markerKind(i: number): Promise<string | null> {
+  return browser.executeObsidian(({ app, obsidian }, line) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+    const cm = (view.editor as any).cm;
+    const pos = cm.state.doc.line(line + 1).from;
+    const { node } = cm.domAtPos(pos);
+    const el = (node instanceof HTMLElement ? node : node.parentElement)?.closest('.cm-line');
+    return el?.querySelector('.to-decor-marker-icon')?.getAttribute('data-kind') ?? null;
+  }, i);
+}
+
 /** A paragraph whose second line is indented deeper than the node it belongs
  * to: two characters of the node's own indentation, four of its own. */
 const DEEPER = ['- alpha', '', '  first line', '      second deeper', ''].join('\n');
@@ -166,6 +183,17 @@ describe('source indentation: one column per tree level', function () {
     for (const i of [4, 5, 7]) {
       expect(await boxColumn(i)).toBeCloseTo(column, 1);
     }
+  });
+
+  it('marks a tab-indented quote under an item as a quote, on the item’s child column', async function () {
+    // Negative control: measuring `QUOTE_RE` from column 0 parses the line as
+    // a paragraph, whose marker says so.
+    await openOutlined('SourceIndent/spaced.md', SPACED);
+    const spaced = await textColumn(13, '  > quote child');
+    expect(await markerKind(13)).toBe('quote');
+    await openOutlined('SourceIndent/tabquote.md', TAB_QUOTE);
+    expect(await markerKind(2)).toBe('quote');
+    expect(await textColumn(2, '\t> quote child')).toBeCloseTo(spaced, 1);
   });
 
   it('gives an indented fence the internal padding an unindented one has', async function () {

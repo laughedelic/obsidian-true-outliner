@@ -2533,6 +2533,13 @@ derived, so the enclosing item's column is not yet known where the regexes are u
 same ordering `list-marker-content-column` had to work around, and the same one Q35 runs into
 from the other side.
 
+*(2026-09-24.)* Change `block-start-margin-from-the-item` (#210) takes the fix for a quote, a
+callout and a rule: `segment` keeps the content columns of the list items open at each line and
+measures those three from the innermost. A heading and an HTML block stay measured from column
+0 — a heading opens a section, and the HTML pattern is wider than CommonMark's HTML block starts
+— so the fourth row above stays a paragraph, and #136 stays open on it. The HTML half is #213.
+The measurements are in `block-start-margin`.
+
 Two neighbouring findings from the same pass, both Obsidian's rather than ours, recorded so the
 next reader does not re-diagnose them:
 

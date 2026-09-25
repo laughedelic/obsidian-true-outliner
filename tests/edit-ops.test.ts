@@ -1325,3 +1325,46 @@ describe('a seam is judged on the kind the re-parse will see', () => {
     );
   });
 });
+
+describe('a seam inside a list item is judged at the item’s content column', () => {
+  const insertAfter = (md: string, anchorLine: string, payload: string) => {
+    const doc = parse(md);
+    const result = insertSubtrees(doc, byLine(doc, anchorLine).id, parse(payload).children, 'after');
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.rejection.reason);
+    return result.value.doc;
+  };
+
+  it('kindAsWritten measures a quote, a callout and a rule from the margin, and a heading or an HTML block from column 0', () => {
+    const at = (kind: OutlineNode['kind'], line: string, margin: number): string =>
+      kindAsWritten(makeNode({ kind, lines: [line] }), margin);
+    expect(at('quote', '       > q', 4)).toBe('quote');
+    expect(at('quote', '        > q', 4)).toBe('paragraph');
+    expect(at('callout', '\t\t> [!note] c', 6)).toBe('callout');
+    expect(at('hr', '      ***', 4)).toBe('hr');
+    expect(at('hr', '        - - -', 4)).toBe('list-item');
+    expect(at('html', '    <div>', 4)).toBe('paragraph');
+    expect(at('heading', '    ## H', 4)).toBe('paragraph');
+    const setext = makeNode({ kind: 'heading', setext: true, lines: ['    Title', '    ==='] });
+    expect(kindAsWritten(setext, 4)).toBe('paragraph');
+  });
+
+  it("#158 case 1: a rule pasted under a converted heading's item arrives as a rule", () => {
+    // Negative control: measuring `HR_RE` from column 0 in `segment` reads the
+    // rule at column 4 back as a paragraph, which is what `main` did.
+    const doc = insertAfter('- one\n  - two\n', '  - two', '## H\n---\n');
+    expect(encode(doc)).toBe('- one\n  - two\n  - ## H\n\n    ---\n');
+    const heading = byLine(doc, '  - ## H');
+    expect(heading.children.map((n) => [n.kind, n.lines[0]])).toEqual([['hr', '    ---']]);
+  });
+
+  it('a rule spelled with a marker stays a rule below a converted item, separated from it', () => {
+    // Negative control: `kindAsWritten` without the margin reads `    * * *`
+    // as the list item it would be at the root and writes it flush; the parse
+    // still reads a rule, so the separator is what the first-child rule asks
+    // of a rule and the node count cannot show the difference.
+    const doc = insertAfter('- one\n  - two\n', '  - two', '## H\n* * *\n');
+    expect(encode(doc)).toBe('- one\n  - two\n  - ## H\n\n    * * *\n');
+    expect(byLine(doc, '    * * *').kind).toBe('hr');
+  });
+});
