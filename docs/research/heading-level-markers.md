@@ -5,8 +5,8 @@ the levels apart was parked twice — in Experiment 5's own follow-ups
 ([experiment-5-block-markers.md](experiment-5-block-markers.md), "Per-level heading markers")
 and again under "Layer configurability" in
 [decoration-follow-ups.md](decoration-follow-ups.md) — both times on scope, never on a
-technical objection, and the roadmap carries it as part of "Marker configurability"
-([#157](https://github.com/laughedelic/obsidian-true-outliner/issues/157)).
+technical objection, and the roadmap carried it as part of "Marker configurability"
+([#222](https://github.com/laughedelic/obsidian-true-outliner/issues/222)).
 
 This note records the design pass that settled the mark: the constraints any candidate had to
 meet, what three review rounds tried and why each rejected candidate lost, and the six styles
@@ -196,6 +196,6 @@ move, and neither does `57-marker-gap.e2e.ts`.
 - **Font-drawn digits** remain the best-looking option and the one we rejected. They would become
   worth revisiting only if the ink stopped being part of the gap derivation.
 - **Configuring the other kinds' marks** (an off switch for the marker layer, per-kind icons, a
-  uniform bullet set) stays with [#157](https://github.com/laughedelic/obsidian-true-outliner/issues/157).
+  uniform bullet set) stays with [#222](https://github.com/laughedelic/obsidian-true-outliner/issues/222).
   These two settings are the first per-kind style axis. They should not become a template until
   a second kind needs one.

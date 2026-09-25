@@ -830,8 +830,8 @@ indentation underneath:
   The per-level heading markers idea (H1–H6, validated in the wild by obsidian-lapel) is
   **taken by the `heading-level-markers` change**: the mark, the two setting axes and why a
   text label was rejected are in [heading-level-markers.md](heading-level-markers.md). The
-  rest of this item is the roadmap's "Marker configurability"
-  ([#157](https://github.com/laughedelic/obsidian-true-outliner/issues/157)).
+  rest of this item is "Marker configurability"
+  ([#222](https://github.com/laughedelic/obsidian-true-outliner/issues/222)).
 - **A simpler, consistent bullet-style marker set as an opt-in** — one uniform mark for
   every kind, closer to a traditional outliner's look. (Experiment 5b's uniform dot lost
   the head-to-head as the *default*, but as an opt-in preset under the 5a mechanism it's
