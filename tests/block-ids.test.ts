@@ -119,6 +119,41 @@ describe('a lone block id belongs to the node it names', () => {
     expect(nodes(joined).find((n) => n.lines[0] === '^t5')?.lines).toEqual(['^t5', 'More text.']);
   });
 
+  it('leaves an id outside a list unattached when a block follows it directly', () => {
+    for (const [shape, id] of [
+      ['paragraph, blank, id, list directly under', '^id3'],
+      ['paragraph, blank, id, heading directly under', '^f1'],
+      ['table, id directly under, list directly under', '^f7'],
+      ['heading, id directly under, list directly under', '^f12'],
+    ] as const) {
+      const { node, attached } = holder(parse(RESEARCH_SHAPES[shape]!), id);
+      expect(attached, shape).toBe(false);
+      expect(node.lines, shape).toEqual([id]);
+    }
+    expect(holder(parse(RESEARCH_SHAPES['heading, blank, id, end of note']!), '^g11').attached).toBe(true);
+  });
+
+  it('attaches an id with a block directly under it when the id is a lazy line of a quote or an item', () => {
+    for (const [shape, id, first] of [
+      ['callout, id directly under, list directly under', '^g9', '> [!note] T'],
+      ['item, blank, indented id, nested item directly under', '^f9', '- a'],
+      ['item, lazy id, heading directly under', '^g3', '- a'],
+    ] as const) {
+      const { node, attached } = holder(parse(RESEARCH_SHAPES[shape]!), id);
+      expect(attached, shape).toBe(true);
+      expect(node.lines[0], shape).toBe(first);
+    }
+    const nested = holder(parse(RESEARCH_SHAPES['item, blank, indented id, nested item directly under']!), '^f9');
+    expect(nested.node.children.map((c) => c.lines)).toEqual([['  - c']]);
+  });
+
+  it('keeps an id directly under a paragraph as a line of the paragraph', () => {
+    const lead = parse(RESEARCH_SHAPES['paragraph, id directly under, list directly under']!).children[0]!;
+    expect(lead.lines).toEqual(['Lead.', '^id1']);
+    expect(lead.blockId).toBeUndefined();
+    expect(lead.children.map((c) => c.lines[0])).toEqual(['- a', '- b']);
+  });
+
   it('round-trips every shape byte-identically', () => {
     for (const [shape, md] of Object.entries(RESEARCH_SHAPES)) {
       expect(encode(parse(md)), shape).toBe(md);

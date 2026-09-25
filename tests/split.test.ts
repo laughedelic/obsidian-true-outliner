@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
-import { treesEqual, walkNodes, type OutlineDoc } from '../src/model';
+import { ownSpan, treesEqual, walkNodes, type OutlineDoc } from '../src/model';
 import { mergeNodes, splitNode } from '../src/ops';
 import { nodeAtLine } from '../src/locate';
 import { applyEdits } from '../src/result';
@@ -572,7 +572,7 @@ describe('splitNode', () => {
         const findStart = (list: readonly (typeof node)[]): boolean => {
           for (const candidate of list) {
             if (candidate === node) return true;
-            start += candidate.lines.length + candidate.trailingGap.length;
+            start += ownSpan(candidate);
             if (findStart(candidate.children)) return true;
           }
           return false;

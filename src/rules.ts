@@ -48,7 +48,11 @@ export interface BlockIdHost {
  * the shapes where Obsidian names that same node (`docs/research/
  * lone-block-id`, "Two groups"):
  *
- * - a block outside every list item, the id indented less than four columns;
+ * - a block outside every list item, the id indented less than four columns
+ *   and followed by a blank line or the end of the note — a block directly
+ *   under it leaves the id naming only its own line. A quote or callout
+ *   with the id directly under is the exception: the id is a lazy line of
+ *   the quote, whatever follows;
  * - a list item, the id after a blank line at the item's content column;
  * - a list item, the id directly under it and short of its content column —
  *   Obsidian's lazy continuation.
@@ -59,18 +63,18 @@ export interface BlockIdHost {
  */
 export function blockIdAttaches(
   host: BlockIdHost | undefined,
-  idIndent: number,
-  nextIsLoneId: boolean,
+  id: { readonly indent: number; readonly closed: boolean; readonly nextIsLoneId: boolean },
 ): boolean {
-  if (!host || nextIsLoneId || isLoneBlockIdNode(host.node)) return false;
+  if (!host || id.nextIsLoneId || isLoneBlockIdNode(host.node)) return false;
   const { node } = host;
+  const afterBlank = node.trailingGap.length > 0;
   if (node.kind === 'list-item') {
-    const afterBlank = node.trailingGap.length > 0;
     return afterBlank
-      ? idIndent >= host.contentCol && idIndent < host.contentCol + 4
-      : idIndent < host.contentCol;
+      ? id.indent >= host.contentCol && id.indent < host.contentCol + 4
+      : id.indent < host.contentCol;
   }
-  return !host.inListItem && idIndent < 4;
+  if (host.inListItem || id.indent >= 4) return false;
+  return id.closed || (!afterBlank && (node.kind === 'quote' || node.kind === 'callout'));
 }
 
 /**

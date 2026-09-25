@@ -3,7 +3,7 @@ import fc from 'fast-check';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
 import { applyEdits } from '../src/result';
-import { treesEqual, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
+import { ownSpan, treesEqual, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
 import { computeVerdict, computeVerdictForRanges, type EditFact, type Verdict } from '../src/enforce';
 import {
   coveredSubtreeRoots,
@@ -569,7 +569,7 @@ describe('computeVerdictForRanges: multi-range structural deletion (D2/D3)', () 
     // the deleted subtrees' own lines gone — no more, no less (which is
     // exactly "no orphaned nodes, no leftover gap lines" would show up as).
     const subtreeLineCount = (node: OutlineNode): number =>
-      node.lines.length + node.trailingGap.length + node.children.reduce((sum, c) => sum + subtreeLineCount(c), 0);
+      ownSpan(node) + node.children.reduce((sum, c) => sum + subtreeLineCount(c), 0);
     /** The node whose own gap ends a subtree — where a terminator would sit. */
     const deepestLast = (node: OutlineNode): OutlineNode => {
       const last = node.children[node.children.length - 1];

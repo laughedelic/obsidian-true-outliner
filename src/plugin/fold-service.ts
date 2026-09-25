@@ -29,6 +29,7 @@
 
 import { foldService } from '@codemirror/language';
 import { Prec, type EditorState, type Extension } from '@codemirror/state';
+import { lastPlaceIndex } from '../model';
 import { parsedDoc } from './parsed-doc';
 import { isOutlineMode } from './outline-state';
 import { nestedEditorField } from './nested-editor';
@@ -150,7 +151,7 @@ export function foldedChrome(state: EditorState): FoldedChrome[] {
     if (!entry || entry.node.children.length === 0) continue;
     out.push({
       markerLine: entry.startLine,
-      textLine: entry.startLine + entry.node.lines.length - 1,
+      textLine: entry.startLine + lastPlaceIndex(entry.node),
       hidden: hiddenDescendantCount(entry.node),
     });
   }
