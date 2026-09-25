@@ -52,6 +52,7 @@ import { EditorView } from '@codemirror/view';
 import { undoDepth } from '@codemirror/commands';
 import { itemContentIsEmpty } from '../ops';
 import { nodeAtLine, nodeStartLine } from '../locate';
+import { placeLineText } from '../model';
 import {
   nextNodeInOrder,
   nodeContentEnd,
@@ -236,7 +237,8 @@ function emptyPlaceAt(state: EditorState): { line: number; kind: 'gap' | 'node' 
   const node = nodeAtLine(outlineDoc, line);
   if (!node) return null;
   const lineIndex = line - nodeStartLine(outlineDoc, node.id);
-  if (lineIndex >= node.lines.length) return { line, kind: 'gap' };
+  // An attached block id's line is the node's own, not a gap.
+  if (placeLineText(node, lineIndex) === undefined) return { line, kind: 'gap' };
   if (node.kind === 'list-item' && itemContentIsEmpty(node)) return { line, kind: 'node' };
   if (node.kind === 'heading' && headingTitleIsEmpty(node.lines)) return { line, kind: 'node' };
   return null;

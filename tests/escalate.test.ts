@@ -9,6 +9,7 @@ import {
   forestCoverOf,
 } from '../src/escalate';
 import { nodeAtLine } from '../src/locate';
+import { lastPlaceIndex, ownSpan } from '../src/model';
 import { arbTree } from './generators';
 import { rangesEqual, type LinePos, type LineRange } from '../src/line-pos';
 
@@ -410,8 +411,8 @@ describe('escalateRange: downward closure and contiguity (selection-as-subtree-s
     const out: { node: ReturnType<typeof nodeAtLine>; start: number; ownEnd: number; depth: number }[] = [];
     let line = doc.preamble.length;
     const walk = (node: NonNullable<ReturnType<typeof nodeAtLine>>, depth: number): void => {
-      out.push({ node, start: line, ownEnd: line + node.lines.length - 1, depth });
-      line += node.lines.length + node.trailingGap.length;
+      out.push({ node, start: line, ownEnd: line + lastPlaceIndex(node), depth });
+      line += ownSpan(node);
       node.children.forEach((child) => walk(child, depth + 1));
     };
     doc.children.forEach((child) => walk(child, 0));

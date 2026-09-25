@@ -15,7 +15,7 @@
  */
 
 import type { OutlineDoc, OutlineNode } from '../model';
-import { ownSpan } from '../model';
+import { idLineIndex, lastPlaceIndex, ownSpan } from '../model';
 
 /** A node paired with the line geometry the fold layer needs from it. */
 export interface FoldEntry {
@@ -74,7 +74,7 @@ export function hiddenDescendantCount(node: OutlineNode): number {
 export function foldLines(node: OutlineNode, startLine: number): FoldLines | null {
   if (!isFoldable(node)) return null;
   return {
-    headLine: startLine + node.lines.length - 1,
+    headLine: startLine + lastPlaceIndex(node),
     lastLine: lastContentLine(node, startLine),
   };
 }
@@ -88,7 +88,7 @@ export function foldLines(node: OutlineNode, startLine: number): FoldLines | nul
  */
 function lastContentLine(node: OutlineNode, startLine: number): number {
   const last = node.children[node.children.length - 1];
-  if (!last) return startLine + node.lines.length - 1;
+  if (!last) return startLine + (idLineIndex(node) ?? node.lines.length - 1);
   let line = startLine + ownSpan(node);
   for (let i = 0; i < node.children.length - 1; i++) line += subtreeSpan(node.children[i]!);
   return lastContentLine(last, line);

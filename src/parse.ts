@@ -559,7 +559,8 @@ export function parse(md: string): OutlineDoc {
       inListItem: host.inListItem === true,
       contentCol: host.contentCol ?? 0,
     };
-    if (!blockIdAttaches(hostView, block.indent, nextIsLoneId)) return false;
+    const closed = next === undefined || block.gap.length > 0;
+    if (!blockIdAttaches(hostView, { indent: block.indent, closed, nextIsLoneId })) return false;
     host!.node = {
       ...host!.node,
       blockId: { gap: host!.node.trailingGap, line },

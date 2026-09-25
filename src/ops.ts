@@ -389,10 +389,14 @@ function scopeSeparation(
 function needsBlankBetween(prev: OutlineNode, next: OutlineNode, margin: number): boolean {
   const { node: final, margin: finalMargin } = subtreeFinalWithMargin(prev, margin);
   if (final.trailingGap.length > 0) return false;
+  if (final.blockId && final.kind !== 'list-item') return true;
   // Above the seam, the block the leaf's last line lands in; below it, the
   // block the next node's first line opens. For a demoted `html` block those
-  // are different blocks of the same node.
-  const leaf = tailAsWritten(final, finalMargin);
+  // are different blocks of the same node. An item's attached id is a line of
+  // its own text, and takes what a paragraph line would.
+  const leaf = final.blockId
+    ? { kind: 'paragraph' as const, lines: [final.blockId.line] }
+    : tailAsWritten(final, finalMargin);
   const leafKind = leaf.kind;
   const nextKind = kindAsWritten(next, margin);
   if (leafKind === 'paragraph') {
@@ -478,9 +482,10 @@ function normalizeBoundaries(doc: OutlineDoc): OutlineDoc {
       const firstChild = fixed.children[0];
       if (
         firstChild &&
-        fixed.kind === 'list-item' &&
         fixed.trailingGap.length === 0 &&
-        swallowedAsContinuation(kindAsWritten(firstChild, inner))
+        (fixed.kind === 'list-item'
+          ? swallowedAsContinuation(kindAsWritten(firstChild, inner))
+          : fixed.blockId !== undefined)
       ) {
         fixed = { ...fixed, trailingGap: [''] };
       }

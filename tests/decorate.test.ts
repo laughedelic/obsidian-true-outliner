@@ -102,6 +102,19 @@ describe('decorate: indentation depth', () => {
     expect(facts[1]!.depth).toBe(0);
   });
 
+  it('draws an attached block id as a continuation line of its node, and the blank before it as a gap', () => {
+    const md = '# H\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n^t1\n\nOutro.\n';
+    const facts = decorate(parse(md));
+    const byLine = new Map(facts.map((f) => [f.lineNumber, f]));
+    expect([...byLine.keys()]).toEqual([0, 2, 3, 4, 6, 8]);
+    expect(byLine.get(6)).toMatchObject({ depth: 1, kind: 'table', isFirstLine: false, isAtom: false });
+    const guides = new Map(computeLineGuides(parse(md)).map((g) => [g.lineNumber, g]));
+    expect(guides.get(5)?.isGapLine).toBe(true);
+    expect(guides.get(6)?.isGapLine).toBe(false);
+    expect(guides.get(6)?.guideDepths).toEqual(guides.get(4)?.guideDepths);
+    expect(guides.get(7)?.isGapLine).toBe(true);
+  });
+
   it('produces no facts for an empty document or preamble-only document', () => {
     expect(decorate(parse(''))).toEqual([]);
     expect(decorate(parse('---\nt: 1\n---\n'))).toEqual([]);
