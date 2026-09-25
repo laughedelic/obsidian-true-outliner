@@ -226,7 +226,23 @@ describe('5.5 a move conserves the tree', () => {
         // re-encode step, a run landing under an atom re-parses as part of it —
         // one table swallowing another — and the count drops.
         if (!result.ok) return KNOWN_REASONS.has(result.rejection.reason);
-        return [...walkNodes(result.value.doc)].length === before;
+        // A node carrying an id that lands inside a list item gives the id up:
+        // Obsidian names the item there, and the id re-parses as a paragraph of
+        // its own, marked as misplaced. That is the one way the count may grow.
+        const after = [...walkNodes(result.value.doc)];
+        const ids = (nodes: readonly OutlineNode[]): string[] =>
+          nodes.flatMap((node) => (node.blockId ? [node.blockId.line.trim()] : []));
+        const kept = ids(after);
+        const detached = ids(all).filter((id) => {
+          const at = kept.indexOf(id);
+          if (at === -1) return true;
+          kept.splice(at, 1);
+          return false;
+        });
+        const asParagraphs = detached.every((id) =>
+          after.some((node) => node.kind === 'paragraph' && node.lines.length === 1 && node.lines[0]!.trim() === id),
+        );
+        return asParagraphs && after.length === before + detached.length;
       }),
       { numRuns: 400 },
     );

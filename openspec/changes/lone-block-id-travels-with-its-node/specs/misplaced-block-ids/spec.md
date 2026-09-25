@@ -158,14 +158,17 @@ same reason, and the mark follows the re-parse.
 ### Requirement: A dragged misplaced id lands as a line of the node above it
 An id is not a node and has no depth of its own, so a misplaced id's paragraph moved to a new
 place — dragged by its warning glyph, or pasted — SHALL land as a line, never re-encoded into the
-destination scope's kind and never at a depth the destination offers. It SHALL be written directly
-under the last line above the destination, with no blank line between, at the column of that
-line's node: a list item's content column, the node's own column otherwise. Below it, the seam
-SHALL take the blank line a block directly under an attached id needs (`structural-operations`).
+destination scope's kind and never at a depth the destination offers. It SHALL be written under
+the last line above the destination, at the column of that line's node: a list item's content
+column, the node's own column otherwise. Under a paragraph's or a list item's text it SHALL follow
+that line directly, and under any other block after one blank line, the form a table's or a
+heading's id is read and edited in. Below it, the seam SHALL take the blank line a block directly
+under an attached id needs (`structural-operations`).
 
 The ordinary parse then decides what it is: under a paragraph's or an item's text it is a line of
-that text and names the node as an inline id does; under a heading, table, quote, callout, fence,
-rule or html block it attaches to that node; with no line above it — the top of the note — it
+that text and names the node as an inline id does; after a heading, table, quote, callout, fence,
+rule or html block outside a list item it attaches to that block; inside a list item it names the
+item and stays marked, as every id there does; with no line above it — the top of the note — it
 stays a misplaced id naming nothing.
 
 #### Scenario: Dropping an id between a lead paragraph and its list makes it a line of the paragraph
@@ -176,8 +179,8 @@ stays a misplaced id naming nothing.
 
 #### Scenario: Dropping an id under a heading attaches it, with a blank line below
 - **WHEN** a misplaced `^id` is dragged to the seam between `## H` and its first child `- a`
-- **THEN** the note reads `## H`, `^id`, a blank line, `- a`; `^id` is attached to the heading, and
-  nothing is marked
+- **THEN** the note reads `## H`, a blank line, `^id`, a blank line, `- a`; `^id` is attached to the
+  heading, and nothing is marked
 
 #### Scenario: Dropping an id where nothing is above it keeps it marked
 - **WHEN** a misplaced `^id` is dragged to the top of the note, above `Lead.`

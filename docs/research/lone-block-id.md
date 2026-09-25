@@ -203,6 +203,26 @@ Measured on `main` at 42130da: in `Lead.`, `- a`, blank, `^id`, blank, `After.`,
 to the seam between `Lead.` and `- a` makes it `Lead.`'s first child in that scope's kind, `- ^id`
 — an empty item carrying the id, which names neither `Lead.` nor the list.
 
+### With the id part of its node
+
+Re-run with `lone-block-id-travels-with-its-node` applied (25 September 2026), the same probe:
+
+| Shape | Move up | Move down | Indent | Outdent | Delete | Copy |
+| --- | --- | --- | --- | --- | --- | --- |
+| paragraph, blank, `^p3` | kept | kept | kept³ | refused | deleted with it | inside |
+| table, blank, `^t1` | kept | kept | refused | refused | deleted with it | inside |
+| table, `^t2` directly under | kept | kept | refused | refused | deleted with it | inside |
+| quote, `^q2` directly under | kept | kept | refused | refused | deleted with it | inside |
+| callout, blank, `^c1` | kept | kept | refused | refused | deleted with it | inside |
+| fence, blank, `^code1` | kept | kept | refused | refused | deleted with it | inside |
+| `- item a`, blank, `  ^under-a` | kept | kept | kept | refused | deleted with it | inside |
+
+³ The probe reports it separated, because the line the id follows is `- Some prose.` rather than
+`Some prose.`: the paragraph became that item, and the id sits at its content column, attached to
+it.
+
+The shapes of the second group (`^l1`, `^l2`) separate as before: they are marked instead.
+
 ## Two groups
 
 The shapes fall into two groups by where the id sits relative to the node it names.
