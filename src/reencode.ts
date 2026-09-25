@@ -4,7 +4,7 @@
  * else is carried verbatim.
  */
 
-import type { ListStyle, OutlineNode } from './model';
+import type { BlockIdLines, ListStyle, OutlineNode } from './model';
 import { isAtom } from './model';
 import { indentWidth, parseListMarker, TAB_WIDTH } from './parse';
 import { DEFAULT_LIST_STYLE } from './rules';
@@ -126,6 +126,24 @@ export function shiftBelowMarker(node: OutlineNode, delta: number): OutlineNode 
     },
     (line) => shiftLine(line, delta, false),
   );
+}
+
+/**
+ * `blockId` as `node` would carry it: at the node's own column, or its content
+ * column when it is a list item and a blank line comes before the id. A
+ * paragraph's id always follows a blank line, since one directly under its
+ * text is a line of that text.
+ */
+export function idFor(node: OutlineNode, blockId: BlockIdLines): BlockIdLines {
+  const first = node.lines[0] ?? '';
+  const own = leadingWhitespace(first);
+  const text = blockId.line.trimStart();
+  if (node.kind === 'list-item') {
+    const content = blockId.gap.length > 0 ? own + ' '.repeat(markerWidthOf(first)) : own;
+    return { gap: blockId.gap, line: content + text };
+  }
+  const gap = node.kind === 'paragraph' && blockId.gap.length === 0 ? [''] : blockId.gap;
+  return { gap, line: own + text };
 }
 
 /**

@@ -15,7 +15,10 @@ document with it:
 - An operation that re-indents or re-encodes a node — indent, outdent, a paste, a conversion
   between paragraph and list item, unwrapping a list item — SHALL re-indent the id line with the
   node, to the node's content column when it is a list item and to the node's own column
-  otherwise, so the id is still attached when the result is re-parsed.
+  otherwise, so the id is still attached when the result is re-parsed. The exception is a node
+  other than a list item that lands inside a list item: Obsidian names the enclosing item there,
+  so its id is written at the node's column and re-parses as a misplaced id
+  (`misplaced-block-ids`), which offers attaching it to that item.
 - A split SHALL leave the id attached to the node that keeps the original's first line.
 - A merge SHALL keep the id of whichever of the two nodes carried one, and SHALL be rejected with
   `merge-not-expressible` when both did.
@@ -57,6 +60,11 @@ attached ids are the ones the operation's result states.
   list item
 - **THEN** `^p3` sits at the new item's content column after a blank line, and is attached to the
   item
+
+#### Scenario: A table moved into a list item gives its id up to the mark
+- **WHEN** a table with `^t` attached is moved to be the first child of `- A`
+- **THEN** the table is `A`'s child, `^t` is a paragraph after it at the table's column, and it is
+  marked as misplaced with the reading that it names `A`
 
 #### Scenario: A split leaves the id where it was
 - **WHEN** a paragraph with `^p3` attached is split in the middle of its text
