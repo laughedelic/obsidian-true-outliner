@@ -1,0 +1,143 @@
+/*
+ * The search palette's own shell.
+ *
+ * The rows inside it are not here: they are `15-lineage-list.css`'s, the same
+ * rules the backlinks footer draws through, and the results container sets
+ * `to-lineage-list` to take them. What this part holds is everything around
+ * them — the box, the scope control, which hit is active, and the two lines
+ * that speak when there are no rows to show.
+ *
+ * Obsidian's own `prompt` classes do the sizing and placement, so the palette
+ * sits where the Quick Switcher sits and inherits its behaviour on every
+ * platform. These rules only say what is different about this one.
+ */
+
+.to-search-palette {
+  /* A search surface is scanned, so it wants the width the switcher has rather
+   * than a dialog's. Bounded on the viewport as well, since a phone renders a
+   * `Modal` full-screen and `min()` is what keeps the padding honest there. */
+  width: min(42rem, 92vw);
+}
+
+.to-search-palette .prompt-results {
+  padding: 0.5rem 0.75rem;
+}
+
+/* ── the scope control ───────────────────────────────────────────────────── */
+
+/*
+ * Present in both scopes, because on a phone the hints row is hidden and this
+ * is the only way to switch (design D7).
+ *
+ * Two appearances of one control: an offer while the vault is active, the
+ * note's own name once narrowed. Dashed against filled says which of the two it
+ * is at a glance, without either state needing to be read.
+ */
+.to-search-palette-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  max-width: 45%;
+  margin-inline-end: 0.5rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-l);
+  border: 1px dashed var(--background-modifier-border-hover);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.to-search-palette-scope.is-narrowed {
+  border-color: transparent;
+  background: var(--background-modifier-hover);
+  color: var(--text-accent);
+}
+
+.to-search-palette-scope:hover {
+  border-color: var(--background-modifier-border-focus);
+  color: var(--text-normal);
+}
+
+/* The key that does the same thing, or the way back out of the narrowed scope.
+ * Quieter than the label it sits beside: it is a reminder, not the control. */
+.to-search-palette-scope-key {
+  opacity: 0.65;
+  font-family: var(--font-monospace);
+  font-size: 0.9em;
+}
+
+/* ── results ─────────────────────────────────────────────────────────────── */
+
+/*
+ * The active hit, and only a HIT: the lineage rows above it are context the
+ * keyboard never lands on, and highlighting them would say they could be
+ * chosen.
+ */
+.to-search-palette .to-lineage-row.is-active {
+  background: var(--background-modifier-hover);
+  border-radius: var(--radius-s);
+}
+
+/* A group is a card in the footer, where it sits in a note's own text and needs
+ * an edge. Here the modal is the edge, so the card would be a frame inside a
+ * frame. */
+.to-search-palette .to-lineage-group {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding-block: 0.25rem;
+  margin-bottom: 0.35rem;
+}
+
+/* ── what speaks when there are no rows ──────────────────────────────────── */
+
+/*
+ * Three states share this line, and only one of them is ever true at a time:
+ * below the query floor it says nothing, mid-sweep it says the search is
+ * running, and after the sweep it says there was nothing to find. Empty means
+ * "there are rows", so the line takes no space at all then.
+ */
+.to-search-palette-state:empty,
+.to-search-palette-tail:empty {
+  display: none;
+}
+
+.to-search-palette-state {
+  padding: 0.75rem;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  text-align: center;
+}
+
+/* The count of notes the cap did not admit, stated once the sweep has finished
+ * so the number is what it claims to be rather than one that climbs. */
+.to-search-palette-tail {
+  padding: 0.4rem 0.75rem 0.6rem;
+  border-top: 1px solid var(--background-modifier-border);
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  text-align: center;
+}
+
+/* ── the phone ───────────────────────────────────────────────────────────── */
+
+/*
+ * Nothing here, and that is the finding rather than an omission.
+ *
+ * The hints name keys a phone does not have, and Obsidian's own mobile styling
+ * already hides `prompt-instructions` — which the palette gets by borrowing the
+ * prompt shell rather than reimplementing it. A container query of our own was
+ * written first and measured second: with it removed the hints were still
+ * hidden, so it was a rule that could only ever have agreed with the platform.
+ *
+ * What the palette owes the phone is elsewhere: the scope control is present in
+ * both scopes (design D7), because once this row is gone it is the only way to
+ * reach the narrowed scope at all.
+ */

@@ -75,3 +75,48 @@ describe('styles/ structure', () => {
     expect(css).not.toContain('to-zoom-crumb');
   });
 });
+
+/**
+ * The split between the lineage list's rules and the footer's own.
+ *
+ * Two surfaces draw a lineage row, and a scope class alone would not have kept
+ * the footer's rules off the other one: most of the footer's part was written
+ * as bare element-class selectors, which reach any surface that renders the
+ * element whatever scope wraps it. So the shared classes were renamed, and this
+ * is what keeps the rename meaning something — the alternative is a footer rule
+ * that silently applies to the search palette, which is exactly the defect the
+ * extraction exists to prevent.
+ *
+ * The footer may still SPECIALISE a shared row, and does: a selector there may
+ * name a `to-lineage-*` class as long as it is rooted at `.to-backlinks`, which
+ * reaches nothing else.
+ */
+describe('styles/ the lineage list and the footer keep to their own', () => {
+  const partNamed = (name: string): string => {
+    const part = parts.find((p) => p.name === name);
+    if (!part) throw new Error(`no such part: ${name}`);
+    return structuralCss(part.css);
+  };
+
+  /** Every selector in a part: what sits before each `{`, comments removed. */
+  const selectorsIn = (css: string): string[] =>
+    css
+      .split('}')
+      .flatMap((chunk) => chunk.split('{').slice(0, -1))
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0 && !s.startsWith('@'));
+
+  it('the shared part names no footer class', () => {
+    const offenders = selectorsIn(partNamed('15-lineage-list.css')).filter((s) =>
+      /\.to-backlinks/.test(s),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it('the footer part reaches a shared class only under its own scope', () => {
+    const offenders = selectorsIn(partNamed('20-backlinks-footer.css')).filter(
+      (s) => /\.to-lineage[-\w]*|\.to-chevron\b/.test(s) && !/\.to-backlinks/.test(s),
+    );
+    expect(offenders).toEqual([]);
+  });
+});

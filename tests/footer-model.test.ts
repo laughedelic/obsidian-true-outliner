@@ -9,7 +9,14 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse } from '../src/parse';
-import { buildRows, lineageKey, lineageSegment, splitPath, type FooterRow } from '../src/plugin/footer-model';
+import {
+  DESCENDANT_DEPTH,
+  buildRows,
+  lineageKey,
+  lineageSegment,
+  splitPath,
+  type FooterRow,
+} from '../src/plugin/footer-model';
 import type { OutlineNode } from '../src/model';
 import type { PlacedReference } from '../src/plugin/backlink-index';
 
@@ -610,14 +617,94 @@ describe('what the model reports whatever the renderer draws', () => {
     }
   });
 
-  it('takes no rendering options at all', () => {
-    // `buildRows` has no parameter a setting could be threaded through, which is
-    // the structural form of the same guarantee: two calls over one tree cannot
-    // differ because of a setting. One parse, because node ids are assigned per
-    // parse and two parses differ for a reason that is not rendering.
+  it('reads no setting, so one tree gives one answer', () => {
+    // No parameter an APPEARANCE setting could be threaded through, which is the
+    // structural form of the same guarantee: two calls over one tree cannot
+    // differ because of a setting. `descendantDepth` is not one — it says which
+    // rows exist, not how any of them looks, and a surface answers it once. One
+    // parse, because node ids are assigned per parse and two parses differ for a
+    // reason that is not rendering.
     const doc = parse(read(CHAIN));
     const once = buildRows(doc, referencesTarget, [], noRef, noneExpanded);
     const twice = buildRows(doc, referencesTarget, [], noRef, noneExpanded);
     expect(JSON.stringify(twice)).toEqual(JSON.stringify(once));
+  });
+});
+
+describe('footer model: the descendant depth a surface asks for', () => {
+  /**
+   * A hit, a non-matching node beneath it, and a second hit beneath THAT — the
+   * shape that separates asking for no descendants from filtering them out
+   * afterwards. `middle` matches nothing itself, and is the only thing that
+   * says where `beta` sits.
+   */
+  const NESTED = `# Heading
+
+- alpha [[Aurora Dashboard]]
+    - middle node
+        - beta [[Aurora Dashboard]]
+            - deep one
+            - deep two
+    - other child
+`;
+
+  const shape = (rows: readonly FooterRow[]): string[] =>
+    rows.map((r) =>
+      r.type === 'node'
+        ? `${'  '.repeat(r.depth)}${r.isHit ? '*' : '.'} ${(r.markdown.split('\n')[0] ?? '').trim()}`
+        : `${'  '.repeat(r.depth)}~ lineage`,
+    );
+
+  it('emits no descendant rows, and no folds over them, at zero', () => {
+    const rows = buildRows(parse(NESTED), referencesTarget, [], noRef, noneExpanded, {
+      descendantDepth: 0,
+    });
+    expect(shape(rows)).toEqual([
+      '~ lineage',
+      '  * alpha [[Aurora Dashboard]]',
+      '    . middle node',
+      '      * beta [[Aurora Dashboard]]',
+    ]);
+    // A fold is created by the descendant pass and by nothing else, so asking
+    // for none of that pass leaves nothing to fold and nothing to count.
+    expect(rows.filter((r) => r.type === 'node' && r.foldable)).toHaveLength(0);
+    expect(rows.filter((r) => r.type === 'node' && r.foldedCount > 0)).toHaveLength(0);
+  });
+
+  it('keeps the node between two hits, which is the only thing placing the deeper one', () => {
+    const rows = buildRows(parse(NESTED), referencesTarget, [], noRef, noneExpanded, {
+      descendantDepth: 0,
+    });
+    const middle = rows.find((r) => r.type === 'node' && r.markdown.includes('middle node'));
+    expect(middle).toBeDefined();
+    expect(middle?.type === 'node' && middle.isHit).toBe(false);
+  });
+
+  /**
+   * The negative control for the decision itself. Taking the footer's depth and
+   * dropping every row that is neither a hit nor a lineage row — the prototype's
+   * rule — throws away the node between the two hits, and the deeper hit is left
+   * indented under an ancestor the reader cannot see.
+   */
+  it('a hit-or-lineage filter over the footer’s depth loses that node instead', () => {
+    const filtered = buildRows(parse(NESTED), referencesTarget, [], noRef, noneExpanded).filter(
+      (r) => r.type === 'lineage' || (r.type === 'node' && r.isHit),
+    );
+    expect(filtered.some((r) => r.type === 'node' && r.markdown.includes('middle node'))).toBe(
+      false,
+    );
+    expect(shape(filtered)).toEqual([
+      '~ lineage',
+      '  * alpha [[Aurora Dashboard]]',
+      '      * beta [[Aurora Dashboard]]',
+    ]);
+  });
+
+  it('defaults to the footer’s own level when nothing is asked for', () => {
+    const asked = buildRows(parse(NESTED), referencesTarget, [], noRef, noneExpanded, {
+      descendantDepth: DESCENDANT_DEPTH,
+    });
+    const unasked = buildRows(parse(NESTED), referencesTarget, [], noRef, noneExpanded);
+    expect(shape(asked)).toEqual(shape(unasked));
   });
 });

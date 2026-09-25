@@ -166,8 +166,8 @@ describe('spike S5: what a hub note costs', function () {
       const rowsAt = await new Promise<number>((resolve) => {
         const deadline = performance.now() + 10000;
         const tick = (): void => {
-          const resolving = leaf?.querySelectorAll('.to-backlinks-resolving').length ?? 1;
-          const rows = leaf?.querySelectorAll('.to-backlinks-row').length ?? 0;
+          const resolving = leaf?.querySelectorAll('.to-lineage-resolving').length ?? 1;
+          const rows = leaf?.querySelectorAll('.to-lineage-row').length ?? 0;
           if (resolving === 0 && rows > 0) resolve(performance.now() - t0);
           else if (performance.now() > deadline) resolve(-1);
           else requestAnimationFrame(tick);

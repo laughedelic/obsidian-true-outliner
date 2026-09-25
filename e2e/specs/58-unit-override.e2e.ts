@@ -193,7 +193,7 @@ function footerRows(): Promise<Array<{ depth: number; paddingLeft: number }>> {
   return browser.executeObsidian(() => {
     const root = document.querySelector<HTMLElement>('.workspace-leaf.mod-active .to-backlinks');
     if (!root) throw new Error('no footer rendered');
-    return Array.from(root.querySelectorAll<HTMLElement>('.to-backlinks-row')).map((el) => ({
+    return Array.from(root.querySelectorAll<HTMLElement>('.to-lineage-row')).map((el) => ({
       depth: Number(el.style.getPropertyValue('--to-depth').trim() || '0'),
       paddingLeft: parseFloat(getComputedStyle(el).paddingLeft),
     }));
@@ -211,7 +211,7 @@ function footerGroupInsets(): Promise<{ insets: number[]; iconSize: number }> {
   return browser.executeObsidian(() => {
     const root = document.querySelector<HTMLElement>('.workspace-leaf.mod-active .to-backlinks');
     if (!root) throw new Error('no footer rendered');
-    const groups = Array.from(root.querySelectorAll<HTMLElement>('.to-backlinks-group'));
+    const groups = Array.from(root.querySelectorAll<HTMLElement>('.to-lineage-group'));
     const insets = groups.map((el) => parseFloat(getComputedStyle(el).paddingLeft) || 0);
     // `--to-marker-icon-size` is `0.8em`, an UNREGISTERED custom property: `em`
     // in its value resolves at each point of USE, against that consumer's own

@@ -174,7 +174,7 @@ async function readSettled<T>(read: () => Promise<T>, was?: T): Promise<T> {
 /** The zoom trail's inline heading glyphs, in every visible pane. */
 function trailGlyphs(): Promise<string[]> {
   return browser.execute(() =>
-    Array.from(document.querySelectorAll<HTMLElement>('.to-zoom-trail .to-backlinks-seg-icon svg'))
+    Array.from(document.querySelectorAll<HTMLElement>('.to-zoom-trail .to-lineage-seg-icon svg'))
       .filter((svg) => svg.getBoundingClientRect().width > 0)
       .map((svg) => svg.innerHTML),
   );
@@ -415,7 +415,7 @@ describe('heading level markers', function () {
     const footerLineageMark = (): Promise<string | null> =>
       browser.execute(() => {
         const svg = document.querySelector(
-          '.workspace-leaf.mod-active .to-backlinks .to-backlinks-row[data-kind="lineage"] .to-decor-marker-icon svg',
+          '.workspace-leaf.mod-active .to-backlinks .to-lineage-row[data-kind="lineage"] .to-decor-marker-icon svg',
         );
         return svg?.innerHTML ?? null;
       });

@@ -89,15 +89,15 @@ function shape(): Promise<Shape | null> {
   return browser.executeObsidian(() => {
     const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
     if (!root) return null;
-    const lineage = Array.from(root.querySelectorAll('.to-backlinks-row.is-lineage'));
+    const lineage = Array.from(root.querySelectorAll('.to-lineage-row.is-lineage'));
     return {
       lineageRows: lineage.length,
-      segIcons: root.querySelectorAll('.to-backlinks-seg-icon').length,
-      separators: root.querySelectorAll('.to-backlinks-seg-sep').length,
+      segIcons: root.querySelectorAll('.to-lineage-seg-icon').length,
+      separators: root.querySelectorAll('.to-lineage-seg-sep').length,
       // A lineage row's OWN marker, in the gutter — the middle rung of the
       // icons ladder keeps this and drops the per-segment ones.
       lineageMarkers: lineage.filter((r) => r.querySelector('.to-decor-marker-icon')).length,
-      guideRows: root.querySelectorAll('.to-backlinks-row.to-decor-guides').length,
+      guideRows: root.querySelectorAll('.to-lineage-row.to-decor-guides').length,
     };
   });
 }
@@ -230,7 +230,7 @@ describe('the footer’s appearance settings', function () {
         // reads a row whose background is `none` and compares nothing.
         const row = Array.from(
           document.querySelectorAll<HTMLElement>(
-            '.workspace-leaf.mod-active .to-backlinks-row.to-decor-guides',
+            '.workspace-leaf.mod-active .to-lineage-row.to-decor-guides',
           ),
         ).find((el) => getComputedStyle(el, '::after').backgroundImage !== 'none');
         if (!row) throw new Error('no footer row drawing guides');
@@ -245,7 +245,7 @@ describe('the footer’s appearance settings', function () {
         const guide = width('var(--to-guide-width)');
         probe.remove();
         const group = document.querySelector<HTMLElement>(
-          '.workspace-leaf.mod-active .to-backlinks-group',
+          '.workspace-leaf.mod-active .to-lineage-group',
         );
         return {
           // Carried so a comparison can tell it is reading the same row twice.

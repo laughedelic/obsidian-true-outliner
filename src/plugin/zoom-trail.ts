@@ -26,8 +26,8 @@ import { Component, editorInfoField } from 'obsidian';
 import type { OutlineNode } from '../model';
 import { nodeStartLine } from '../locate';
 import { lineageKey, lineageSegment, rowFact, splitPath, type LineageSegment } from './footer-model';
-import { renderLineageContent } from './lineage-row';
-import { renderInline, segmentGlyph, separatorGlyph } from './backlinks-footer';
+import { renderLineageContent, segmentGlyph, separatorGlyph } from './lineage-row';
+import { renderInline } from './inline-render';
 import { lineChrome, applyLineChrome, OWN_CHROME_CLASS } from './chrome-line';
 import { parsedDoc } from './parsed-doc';
 import { zoomScope } from './zoom-scope';
@@ -174,7 +174,7 @@ class ZoomTrailWidget extends WidgetType {
     const scope = zoomScope(view.state);
     if (!scope) return el;
 
-    const row = el.createDiv({ cls: 'to-backlinks-row' });
+    const row = el.createDiv({ cls: 'to-lineage-row' });
     row.dataset.kind = 'lineage';
     // The same chrome a footer lineage row takes, at depth 0 and with no guides:
     // the trail is one row about one chain, so there is no depth for a stripe to

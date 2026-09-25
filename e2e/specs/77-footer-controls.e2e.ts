@@ -167,7 +167,7 @@ describe('the footer’s controls', function () {
       browser.executeObsidian(() => {
         const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
         const row = root?.querySelector('.to-backlinks-filters');
-        const card = root?.querySelector('.to-backlinks-group');
+        const card = root?.querySelector('.to-lineage-group');
         // The head's own TEXT, not its box: the gutter is padding, so the
         // element starts at the same edge and only its content is pushed in.
         // Two title spans share this class now — a short one for a narrow
@@ -359,7 +359,7 @@ describe('the footer’s controls', function () {
     // on a fixture's note names.
     const term = await browser.executeObsidian(() => {
       const name = document.querySelector<HTMLElement>(
-        '.workspace-leaf.mod-active .to-backlinks-group-name',
+        '.workspace-leaf.mod-active .to-lineage-group-name',
       );
       return (name?.textContent ?? '').trim().slice(0, 5);
     });
@@ -386,17 +386,17 @@ describe('the footer’s controls', function () {
       return {
         value: input?.value ?? '',
         stillFocused: (document.activeElement as HTMLElement | null)?.dataset?.focusKey ?? '',
-        groups: root?.querySelectorAll('.to-backlinks-group').length ?? -1,
+        groups: root?.querySelectorAll('.to-lineage-group').length ?? -1,
         names: Array.from(
-          root?.querySelectorAll<HTMLElement>('.to-backlinks-group-name') ?? [],
+          root?.querySelectorAll<HTMLElement>('.to-lineage-group-name') ?? [],
         ).map((n) => n.textContent ?? ''),
         admitted: Array.from(
-          root?.querySelectorAll<HTMLElement>('.to-backlinks-group') ?? [],
+          root?.querySelectorAll<HTMLElement>('.to-lineage-group') ?? [],
         ).filter((card) => {
-          const name = card.querySelector<HTMLElement>('.to-backlinks-group-name');
+          const name = card.querySelector<HTMLElement>('.to-lineage-group-name');
           const lower = (t: string): string => t.toLowerCase();
           if (lower(name?.textContent ?? '').includes(lower(value))) return true;
-          return Array.from(card.querySelectorAll<HTMLElement>('.to-backlinks-content')).some(
+          return Array.from(card.querySelectorAll<HTMLElement>('.to-lineage-content')).some(
             (row) => lower(row.textContent ?? '').includes(lower(value)),
           );
         }).length,
@@ -731,17 +731,17 @@ describe('the footer’s controls', function () {
     } | null> =>
       browser.executeObsidian(() => {
         const group = Array.from(
-          document.querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .to-backlinks-group'),
+          document.querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .to-lineage-group'),
         ).find(
           (g) =>
-            (g.querySelector('.to-backlinks-group-name')?.textContent ?? '').trim() ===
+            (g.querySelector('.to-lineage-group-name')?.textContent ?? '').trim() ===
             'Severity study writeup',
         );
         if (!group) return null;
-        const rows = Array.from(group.querySelectorAll<HTMLElement>('.to-backlinks-row'));
+        const rows = Array.from(group.querySelectorAll<HTMLElement>('.to-lineage-row'));
         return {
-          count: group.querySelector('.to-backlinks-group-count')?.textContent ?? '',
-          embedTags: rows.filter((r) => r.querySelector('.to-backlinks-tag')).length,
+          count: group.querySelector('.to-lineage-group-count')?.textContent ?? '',
+          embedTags: rows.filter((r) => r.querySelector('.to-lineage-tag')).length,
           propertyRows: rows.filter((r) => r.dataset.kind === 'property').length,
           // ALL rows in the group. A property reference is its own row TYPE
           // and never carries `.is-hit` — that class marks a `type:
@@ -1090,7 +1090,7 @@ describe('the footer’s controls', function () {
         return {
           collapsed:
             root?.querySelector('.to-backlinks-head')?.classList.contains('is-collapsed') ?? false,
-          groups: root?.querySelectorAll('.to-backlinks-group').length ?? -1,
+          groups: root?.querySelectorAll('.to-lineage-group').length ?? -1,
           head: root?.querySelector('.to-backlinks-head') !== null,
         };
       });
@@ -1150,7 +1150,7 @@ describe('the footer’s controls', function () {
       browser.executeObsidian(() =>
         Array.from(
           document.querySelectorAll<HTMLElement>(
-            '.workspace-leaf.mod-active .to-backlinks-row',
+            '.workspace-leaf.mod-active .to-lineage-row',
           ),
         ).map((el) => {
           const role = el.classList.contains('is-hit')
@@ -1158,7 +1158,7 @@ describe('the footer’s controls', function () {
             : el.classList.contains('is-lineage')
               ? 'lineage'
               : 'row';
-          return `[${role}] ${(el.querySelector('.to-backlinks-content')?.textContent ?? '').trim()}`;
+          return `[${role}] ${(el.querySelector('.to-lineage-content')?.textContent ?? '').trim()}`;
         }),
       );
 
@@ -1260,7 +1260,7 @@ describe('the footer’s controls', function () {
         browser.executeObsidian(() =>
           Array.from(
             document.querySelectorAll<HTMLElement>(
-              '.workspace-leaf.mod-active .to-backlinks-content mark.to-match',
+              '.workspace-leaf.mod-active .to-lineage-content mark.to-match',
             ),
           ).map((m) => m.textContent ?? ''),
         ),
@@ -1275,7 +1275,7 @@ describe('the footer’s controls', function () {
       const cleared = await readStable(() =>
         browser.executeObsidian(
           () =>
-            document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-content mark')
+            document.querySelectorAll('.workspace-leaf.mod-active .to-lineage-content mark')
               .length,
         ),
       );
@@ -1299,10 +1299,10 @@ describe('the footer’s controls', function () {
         browser.executeObsidian(() => {
           const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
           const ours = Array.from(
-            root?.querySelectorAll<HTMLElement>('.to-backlinks-content mark.to-match') ?? [],
+            root?.querySelectorAll<HTMLElement>('.to-lineage-content mark.to-match') ?? [],
           );
           const authors = Array.from(
-            root?.querySelectorAll<HTMLElement>('.to-backlinks-content mark') ?? [],
+            root?.querySelectorAll<HTMLElement>('.to-lineage-content mark') ?? [],
           ).filter((m) => !m.classList.contains('to-match'));
           return {
             ours: ours.map((m) => m.textContent ?? ''),
@@ -1323,7 +1323,7 @@ describe('the footer’s controls', function () {
         browser.executeObsidian(() => {
           const anchors = Array.from(
             document.querySelectorAll<HTMLElement>(
-              '.workspace-leaf.mod-active .to-backlinks-content a.internal-link',
+              '.workspace-leaf.mod-active .to-lineage-content a.internal-link',
             ),
           );
           return {

@@ -117,7 +117,7 @@
  * selector there: the editor's is scoped to `.cm-content`'s lines, and a footer
  * row is neither. Same weight change, same reasoning — what differs is only
  * which element the mark hangs off. */
-.to-backlinks-row.to-decor-folded .to-decor-marker-icon {
+.to-lineage-row.to-decor-folded .to-decor-marker-icon {
   color: var(--text-normal);
 }
 
