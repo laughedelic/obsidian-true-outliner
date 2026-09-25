@@ -13,9 +13,11 @@ on:
 
 env:
   # "true" rebuilds and prints a sample without uploading.
-  DRY_RUN: "true"
+  DRY_RUN: "false"
   # How many CI runs to read, newest first; blank for every run in the window.
-  LIMIT: "5"
+  LIMIT: "2"
+  # Only runs older than this one; blank for no bound.
+  BEFORE: ""
 
 permissions:
   actions: read
@@ -34,7 +36,7 @@ jobs:
         with:
           node-version: "26"
 
-      - run: node scripts/codecov-backfill.mjs collect backfill ${LIMIT:+--limit "$LIMIT"}
+      - run: node scripts/codecov-backfill.mjs collect backfill ${LIMIT:+--limit "$LIMIT"} ${BEFORE:+--before "$BEFORE"}
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
@@ -49,7 +51,7 @@ jobs:
           echo "--- manifest (first 5)"
           head -5 backfill/manifest.tsv
           echo "--- a failing job's JUnit, if any"
-          sample=$(grep -l '<failure' $files | head -1)
+          sample=$(grep -l '<failure' $files | head -1 || true)
           head -40 "${sample:-$(echo "$files" | head -1)}"
 
       - uses: actions/upload-artifact@v7

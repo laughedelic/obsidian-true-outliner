@@ -3,7 +3,7 @@
  * that predate the JUnit upload. `.github/workflows/codecov-backfill.yml` runs
  * it and uploads what it writes.
  *
- *   node scripts/codecov-backfill.mjs collect <out-dir> [--limit <runs>]
+ *   node scripts/codecov-backfill.mjs collect <out-dir> [--limit <runs>] [--before <run-id>]
  *   node scripts/codecov-backfill.mjs upload <out-dir>
  *   node scripts/codecov-backfill.mjs parse <job-log>   # JUnit on stdout, to check a log by hand
  *
@@ -17,8 +17,8 @@
  * that already uploaded its own results, so the two sources never count one run
  * twice.
  *
- * `upload` sends each manifest row with `codecovcli upload-process`, which has
- * to be on the path (`pip install codecov-cli`), with CODECOV_TOKEN set.
+ * `upload` sends the manifest with `codecovcli upload-process`, one upload per
+ * run attempt and platform. The CLI has to be on the path (`pip install codecov-cli`), with CODECOV_TOKEN set.
  *
  * The names follow the `junit` reporter's options in `e2e/wdio.shared.mts`:
  * the testsuite is the innermost describe title, the classname every describe
@@ -33,7 +33,7 @@
  * Locally, `GITHUB_TOKEN=$(gh auth token)` will do.
  */
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -235,7 +235,7 @@ async function* ciRuns() {
   }
 }
 
-async function collect(outDir, limit) {
+async function collect(outDir, limit, before) {
   const repo = process.env.GITHUB_REPOSITORY;
   fs.mkdirSync(outDir, { recursive: true });
   const manifest = [];
@@ -243,6 +243,7 @@ async function collect(outDir, limit) {
   const since = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
   for await (const run of ciRuns()) {
     if (seen >= limit) break;
+    if (run.id >= before) continue;
     // Newest first, so the first run past the window ends the walk.
     if (Date.parse(run.created_at) < since) break;
     if (run.status !== 'completed' || !['success', 'failure'].includes(run.conclusion)) continue;
@@ -298,40 +299,69 @@ async function collect(outDir, limit) {
 
 // ---- Uploading -----------------------------------------------------------
 
-function upload(outDir) {
+/** Uploads at once. Each is mostly a wait on Codecov's API. */
+const UPLOAD_CONCURRENCY = 8;
+
+function run(cmd, args) {
+  return new Promise((resolve) => {
+    const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    let output = '';
+    child.stdout.on('data', (d) => (output += d));
+    child.stderr.on('data', (d) => (output += d));
+    child.on('close', (code) => resolve({ code, output }));
+    child.on('error', (e) => resolve({ code: -1, output: String(e) }));
+  });
+}
+
+/**
+ * One upload per run attempt and platform, carrying every group's file: a
+ * call per job would be thirteen times as many round trips for the same data.
+ */
+async function upload(outDir) {
   const repo = process.env.GITHUB_REPOSITORY;
-  const rows = fs
-    .readFileSync(path.join(outDir, 'manifest.tsv'), 'utf-8')
-    .split('\n')
-    .filter(Boolean)
-    .map((line) => line.split('\t'));
+  const batches = new Map();
+  for (const line of fs.readFileSync(path.join(outDir, 'manifest.tsv'), 'utf-8').split('\n')) {
+    if (!line) continue;
+    const [sha, branch, pr, flag, , build, url, file] = line.split('\t');
+    const key = `${url}\u0000${flag}`;
+    if (!batches.has(key)) batches.set(key, { sha, branch, pr, flag, build, url, files: [] });
+    batches.get(key).files.push(file);
+  }
+  const queue = [...batches.values()];
+  let done = 0;
   let failed = 0;
-  for (const [i, [sha, branch, pr, flag, name, build, url, file]] of rows.entries()) {
-    const args = [
-      'upload-process',
-      '--report-type', 'test_results',
-      '--token', process.env.CODECOV_TOKEN,
-      '--git-service', 'github',
-      '--slug', repo,
-      '--sha', sha,
-      '--branch', branch,
-      ...(pr === '-' ? [] : ['--pr', pr]),
-      '--flag', flag,
-      '--name', name,
-      '--build', build,
-      '--build-url', url,
-      '--file', file,
-      '--disable-search',
-    ];
-    try {
-      execFileSync('codecovcli', args, { stdio: 'inherit' });
-      console.log(`[backfill] ${i + 1}/${rows.length} ${sha.slice(0, 7)} ${name}`);
-    } catch {
-      failed++;
-      console.log(`[backfill] ${i + 1}/${rows.length} ${sha.slice(0, 7)} ${name}: upload failed`);
+
+  async function worker() {
+    for (let b = queue.shift(); b; b = queue.shift()) {
+      const args = [
+        'upload-process',
+        '--report-type', 'test_results',
+        '--token', process.env.CODECOV_TOKEN,
+        '--git-service', 'github',
+        '--slug', repo,
+        '--sha', b.sha,
+        '--branch', b.branch,
+        ...(b.pr === '-' ? [] : ['--pr', b.pr]),
+        '--flag', b.flag,
+        '--name', b.flag.replace(/^e2e-/, ''),
+        '--build', b.build,
+        '--build-url', b.url,
+        ...b.files.flatMap((f) => ['--file', f]),
+        '--disable-search',
+        '--fail-on-error',
+      ];
+      const { code, output } = await run('codecovcli', args);
+      done++;
+      if (code === 0) {
+        console.log(`[backfill] ${done}/${batches.size} ${b.sha.slice(0, 7)} ${b.flag} (${b.files.length} files)`);
+      } else {
+        failed++;
+        console.log(`[backfill] ${done}/${batches.size} ${b.sha.slice(0, 7)} ${b.flag}: upload failed\n${output}`);
+      }
     }
   }
-  console.log(`[backfill] uploaded ${rows.length - failed} of ${rows.length}`);
+  await Promise.all(Array.from({ length: UPLOAD_CONCURRENCY }, worker));
+  console.log(`[backfill] uploaded ${batches.size - failed} of ${batches.size}`);
   if (failed > 0) process.exitCode = 1;
 }
 
@@ -345,18 +375,20 @@ if (command === 'parse') {
   const [outDir] = args;
   const limitAt = args.indexOf('--limit');
   const limit = limitAt >= 0 ? Number(args[limitAt + 1]) : Infinity;
+  const beforeAt = args.indexOf('--before');
+  const before = beforeAt >= 0 ? Number(args[beforeAt + 1]) : Infinity;
   if (!outDir || !process.env.GITHUB_TOKEN || !process.env.GITHUB_REPOSITORY) {
-    console.error('usage: GITHUB_TOKEN=… GITHUB_REPOSITORY=owner/repo node scripts/codecov-backfill.mjs collect <out-dir> [--limit <runs>]');
+    console.error('usage: GITHUB_TOKEN=… GITHUB_REPOSITORY=owner/repo node scripts/codecov-backfill.mjs collect <out-dir> [--limit <runs>] [--before <run-id>]');
     process.exit(2);
   }
-  await collect(outDir, limit);
+  await collect(outDir, limit, before);
 } else if (command === 'upload') {
   const [outDir] = args;
   if (!outDir || !process.env.CODECOV_TOKEN || !process.env.GITHUB_REPOSITORY) {
     console.error('usage: CODECOV_TOKEN=… GITHUB_REPOSITORY=owner/repo node scripts/codecov-backfill.mjs upload <out-dir>');
     process.exit(2);
   }
-  upload(outDir);
+  await upload(outDir);
 } else if (command !== undefined) {
   console.error(`[backfill] unknown command ${JSON.stringify(command)}`);
   process.exit(2);
