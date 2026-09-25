@@ -49,6 +49,9 @@ and why, and a 1 774-row differential against `main`.
   with a list pasted into a list becomes an item whose list is laid out as any item's.
 - A note with no node yet gives a paste jurisdiction over its blank lines past any frontmatter,
   so the first paste into an empty note, or below a template's frontmatter, converges too.
+- A pasted payload's blank lines are written empty. The clipboard's whitespace on them is in its
+  own unit, means nothing, and cannot be reached from the outline to clean up. A whitespace-only
+  line inside a code block or another atom is the atom's content, and stays.
 
 ## Non-Goals
 
@@ -60,6 +63,10 @@ and why, and a 1 774-row differential against `main`.
 - **A document already indented two ways.** The unit is one answer per document, the one an
   indent there takes.
 - **The caret.** Where a paste leaves the caret is `caret-placement-policy`'s, and unchanged.
+- **Trailing whitespace.** A pasted line's trailing whitespace is kept. Two trailing spaces are a
+  hard line break, so when trailing whitespace can be trimmed is a question of its own.
+- **Renumbering.** A renumbering after the paste can move an item marked with a tab onto another
+  tab stop ([#227](https://github.com/laughedelic/obsidian-true-outliner/issues/227)).
 
 ## Impact
 
@@ -68,5 +75,5 @@ and why, and a 1 774-row differential against `main`.
 - Affected code: `src/ops.ts` (`reindentSubtree`, `reindentSubtreeInUnit`, `convertInUnit`,
   `reencodeIntoListScope`, `inferIndentUnit`, `moveSubtreesTo`), `src/reencode.ts`
   (`rewriteOwnLine`, `reprefixAtomLines`), `src/locate.ts` (`isEmptyBodyLine`),
-  `src/classify.ts` and `src/enforce.ts` (the empty-body paste), `tests/edit-ops.test.ts`, `tests/enforce.test.ts`,
+  `src/classify.ts` and `src/enforce.ts` (the empty-body paste, `payloadBlocks`), `tests/edit-ops.test.ts`, `tests/enforce.test.ts`,
   `e2e/specs/31-tab-indented-vault.e2e.ts`.

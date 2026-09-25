@@ -444,13 +444,32 @@ function deleteAndSplice(
   };
 }
 
+/**
+ * The blocks a pasted payload parses to, with every blank line between them
+ * written empty. A clipboard from another app or another vault carries its own
+ * indentation on its blank lines as well, and a blank line's whitespace says
+ * nothing: carried over, it leaves lines of stray spaces or tabs between the
+ * pasted nodes, in a unit the note does not use, which the outline gives no
+ * caret position to clean up. Only the gaps between nodes are blank lines; a
+ * whitespace-only line inside a code block or another atom is one of the
+ * atom's own lines, and is kept.
+ */
+function payloadBlocks(text: string): readonly OutlineNode[] {
+  const blank = (node: OutlineNode): OutlineNode => ({
+    ...node,
+    trailingGap: node.trailingGap.map(() => ''),
+    children: node.children.map(blank),
+  });
+  return parse(text).children.map(blank);
+}
+
 function composeTypeOver(
   doc: OutlineDoc,
   ids: readonly number[],
   insertText: string,
   fallbackIndentUnit: string | undefined,
 ): Verdict {
-  return deleteAndSplice(doc, ids, parse(insertText).children, fallbackIndentUnit);
+  return deleteAndSplice(doc, ids, payloadBlocks(insertText), fallbackIndentUnit);
 }
 
 /** A list item with no content of its own (just typed, e.g. via Enter) and
@@ -638,7 +657,7 @@ function computePasteVerdict(
   fallbackIndentUnit: string | undefined,
 ): Verdict {
   const node = nodeAtLine(doc, edit.from.line);
-  const parsedBlocks = parse(edit.insert).children;
+  const parsedBlocks = payloadBlocks(edit.insert);
   if (!isStructuralBlockSequence(parsedBlocks)) return PASS;
   if (!node) {
     return isEmptyBodyLine(doc, edit.from.line)

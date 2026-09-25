@@ -179,7 +179,8 @@ Reduced to their smallest reproductions, the six residual rows fall into two kin
   paste involved: in `8. a` / `9. b` / `   -⏵c` / `       1. d`, where `1. d` is `c`'s sibling,
   inserting an item after `8. a` renumbers `9.` to `10.`, and `1. d` becomes `c`'s child.
   `main` avoids these five pastes only because its verbatim columns happen to sit on the same
-  side of a tab stop.
+  side of a tab stop. Filed as
+  [#227](https://github.com/laughedelic/obsidian-true-outliner/issues/227).
 - **One is the destination's own next line.** A converted paragraph's list item lands at column
   zero, `2)   t3`, directly above a continuation the destination wrote at column six
   (`      cont9`, the tail of `    -  t8`). That continuation now reaches the pasted item's content
@@ -218,12 +219,33 @@ children through the same re-encode. Blank lines above the caret stay above it, 
 it become the run's trailing gap. The frontmatter stays out of reach, and plain text still goes
 to Obsidian.
 
+## A pasted blank line
+
+A blank line between two pasted nodes kept whatever whitespace the clipboard wrote on it: two
+spaces from a two-space source, a tab from a tab vault. The parse keeps a blank line between
+nodes as a gap, and the re-encode never rewrites a gap, so each such line landed as a line of
+stray spaces or a tab in a note that uses another unit, and the outline gives no caret position
+on a gap line to clean it up. Reported from everyday use, along with #216.
+
+A blank line's whitespace means nothing in Markdown, so the paste path writes every gap of the
+payload empty (`payloadBlocks`, `src/enforce.ts`), for a caret paste and a paste over a
+selection alike. This is the same rule `structural-operations` already states for the
+separation an insertion copies from its boundary. A whitespace-only line inside a code block or
+another atom is one of the atom's own lines rather than a gap, and is kept. The note's own
+blank lines are not touched, since one of them can be a place a structural Enter opened. Nor are
+the blank lines a move carries.
+
 ## What this does not reach
 
 - **Indent and outdent's conversions** keep moving a converted node's children by a width in
   spaces ([#215](https://github.com/laughedelic/obsidian-true-outliner/issues/215)).
 - **Blank lines above a note's first node**, when the note has nodes, are still preamble, and a
   paste there goes to Obsidian.
+- **Trailing whitespace** on a pasted line is kept. Two trailing spaces are a hard line break,
+  so which trailing whitespace is safe to trim is a question of its own.
+- **Renumbering after a paste** can move an item marked with a tab onto another tab stop
+  ([#227](https://github.com/laughedelic/obsidian-true-outliner/issues/227)), which accounts for
+  five of the six residual rows above.
 - **A document indented two ways.** The unit is one answer per document. A paste into a document
   whose lists already disagree converges on whichever unit `inferIndentUnit` reads, as an indent
   there does.

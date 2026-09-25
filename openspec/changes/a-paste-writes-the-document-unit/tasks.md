@@ -59,6 +59,13 @@
       (`carryWithRoot`). Test: a lazy `> q4` under a tab-marked item pasted nine columns in.
       Negative control: the line kept where it stood.
 
+- [x] 5.7 `payloadBlocks`: a pasted payload's gaps written empty, in `computePasteVerdict` and
+      `composeTypeOver` (D10). Tests: a caret paste into a tab and into a two-space note, a paste
+      over a selection, and a whitespace-only line inside a pasted code block, which stays; e2e:
+      a blank line of spaces pasted into a tab list. Negative control: the payload's gaps passed
+      through.
+- [x] 5.8 File the renumbering shift found by the fuzzer as #227.
+
 ## 4. Validate
 
 - [x] 4.1 `npm run build`, `npm test`, `npm run lint`, `npm run build:e2e`.

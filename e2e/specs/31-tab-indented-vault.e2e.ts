@@ -133,6 +133,13 @@ describe('a tab-indented vault: every line a node owns takes the tab', function 
     expect(await h.getCursor()).toEqual({ line: 4, ch: 4 });
   });
 
+  it('a pasted blank line of spaces lands empty', async function () {
+    await outlineNote('- top\n\t- sib\n', 1, 6);
+    await h.pasteText('- a\n  - b\n  \n  - c\n');
+    expect(await h.getBuffer()).toBe('- top\n\t- sib\n\t- a\n\t\t- b\n\n\t\t- c\n');
+    expect(await h.getCursor()).toEqual({ line: 5, ch: 5 });
+  });
+
   it('a tab list pasted into a note with no nested item lands in spaces with tabs off', async function () {
     await h.setIndentUsingTabs(false);
     try {

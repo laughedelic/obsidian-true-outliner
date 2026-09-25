@@ -130,6 +130,19 @@ trailing gap, which is where Obsidian's own paste leaves them. The frontmatter i
 and plain text, which opens no block, still goes to Obsidian. A note that has nodes keeps its
 leading blank lines as preamble, where a paste stays Obsidian's.
 
+### D10. A pasted payload's blank lines are written empty
+
+The parse keeps a blank line between nodes as a gap, and the re-encode passes gaps through, so
+a clipboard's blank lines kept their own whitespace. That was two spaces from a two-space
+source, or a tab from a tab vault, on a line the outline gives no caret position to clean up.
+The paste path now empties every gap of the payload before the re-encode sees it
+(`payloadBlocks`), for a caret paste and a paste over a selection alike. `structural-operations`
+already writes the separation an insertion copies empty, for the same reason: a blank line's
+whitespace says nothing. The rule reaches the payload only. The note's own blank lines can hold
+a place a structural Enter opened, and a move carries the note's own lines. A whitespace-only
+line inside a code block or another atom is one of the atom's lines, not a gap, and is kept as
+content.
+
 ## Risks / Trade-offs
 
 - **A document indented two ways** converges on the unit `inferIndentUnit` reads, for a paste

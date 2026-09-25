@@ -1232,6 +1232,42 @@ describe('a paste on the blank line under a node lands in it', () => {
     expect(pasteThroughBothGates('', pos(0, 0), pos(0, 0), 'plain words', '\t')).toEqual({ kind: 'pass' });
   });
 
+  it('a pasted payload’s blank lines are written empty', () => {
+    // Negative control: each gap kept the clipboard's whitespace, a line of two
+    // spaces in a tab-indented note, and of a tab in a two-space one.
+    const intoTabs = pasteThroughBothGates(
+      '- top\n\t- sib\n', pos(1, 6), pos(1, 6), '- a\n  \n  - b\n  - c\n  \n  - d\n',
+    );
+    expect(intoTabs.kind).toBe('rewrite');
+    if (intoTabs.kind !== 'rewrite') return;
+    expect(encode(intoTabs.after)).toBe('- top\n\t- sib\n\t- a\n\n\t\t- b\n\t\t- c\n\n\t\t- d\n');
+
+    const intoSpaces = pasteThroughBothGates(
+      '- top\n  - sib\n', pos(1, 7), pos(1, 7), '- a\n\t- b\n\t\n\t- c\n',
+    );
+    expect(intoSpaces.kind).toBe('rewrite');
+    if (intoSpaces.kind !== 'rewrite') return;
+    expect(encode(intoSpaces.after)).toBe('- top\n  - sib\n  - a\n    - b\n\n    - c\n');
+  });
+
+  it('a whitespace-only line inside a pasted code block is code, and stays', () => {
+    const verdict = pasteThroughBothGates(
+      '- top\n\t- sib\n', pos(1, 6), pos(1, 6), '- a\n  ```\n  x\n    \n  y\n  ```\n',
+    );
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(encode(verdict.after)).toBe('- top\n\t- sib\n\t- a\n\t  ```\n\t  x\n    \n\t  y\n\t  ```\n');
+  });
+
+  it('a payload pasted over a selection writes its blank lines empty too', () => {
+    const md = '- one\n- two\n- three\n';
+    const edit: EditFact = { from: pos(1, 0), to: pos(1, '- two'.length), insert: '- a\n  \n- b\n' };
+    const verdict = computeVerdict('boundary-crossing-edit', parse(md), edit);
+    expect(verdict.kind).toBe('rewrite');
+    if (verdict.kind !== 'rewrite') return;
+    expect(encode(verdict.after)).toBe('- one\n- a\n\n- b\n- three\n');
+  });
+
   it('a gap the payload lands PAST is left alone', () => {
     // Negative control: while the collapse keyed on "the caret was in a gap"
     // rather than on "the payload fills it", the shallow reading rewrote a gap
