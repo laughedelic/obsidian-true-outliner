@@ -219,3 +219,57 @@ describe('keys on an attached block id', function () {
     expect(await h.getCursor()).toEqual({ line: 8, ch: 0 });
   });
 });
+
+describe('a link to an attached block id', function () {
+  // Written as Obsidian's table editor pads it, which it does once the caret
+  // is in the table.
+  const MD = 'Intro.\n\n| a   | b   |\n| --- | --- |\n| 1   | 2   |\n\n^t1\n\nOutro.\n';
+
+  /** The line Obsidian's metadata names for `^t1`, once it has caught up with `text`. */
+  async function blockStart(text: string): Promise<number> {
+    let start = -1;
+    await browser.waitUntil(
+      async () => {
+        start = await browser.executeObsidian(({ app }, path, text) => {
+          const file = app.vault.getFileByPath(path);
+          const cache = file ? app.metadataCache.getFileCache(file) : null;
+          const lines = text.split('\n');
+          const block = cache?.blocks?.['t1'];
+          if (!block || !cache?.sections?.length) return -1;
+          // The cache for the current text: its last section ends where the text does.
+          const last = cache.sections[cache.sections.length - 1]!;
+          if (lines[last.position.end.line]?.trim() !== 'Outro.') return -1;
+          return block.position.start.line;
+        }, NOTE, text);
+        return start !== -1;
+      },
+      { timeout: 5000, timeoutMsg: 'the metadata cache never named ^t1' },
+    );
+    return start;
+  }
+
+  it('still lands on the table after the table moves', async function () {
+    await h.createNote(NOTE, MD);
+    await h.openNote(NOTE);
+    await h.setOutlineMode(true);
+    await h.setBuffer(MD);
+    await browser.pause(150);
+    await h.setCursorSettled(2, 2);
+    await h.runCommand('move-node-up');
+    const moved = '| a   | b   |\n| --- | --- |\n| 1   | 2   |\n\n^t1\n\nIntro.\n\nOutro.\n';
+    await browser.waitUntil(async () => (await h.getBuffer()) === moved, {
+      timeout: 2000,
+      timeoutMsg: `the move wrote ${JSON.stringify(await h.getBuffer())}`,
+    });
+    await h.saveActiveFile();
+    expect(await blockStart(moved)).toBe(0);
+
+    await h.setCursorSettled(7, 0);
+    await browser.executeObsidian(({ app }) => app.workspace.openLinkText('misplaced-ids#^t1', '', false));
+    await browser.waitUntil(async () => (await h.getCursor()).line <= 4, {
+      timeout: 2000,
+      timeoutMsg: 'following the link did not reach the table',
+    });
+    expect((await h.getCursor()).line).toBeLessThanOrEqual(4);
+  });
+});
