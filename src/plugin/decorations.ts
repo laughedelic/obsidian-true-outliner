@@ -887,6 +887,8 @@ const EMPTY_POSITION_TRAIL: PositionTrail = {
  * in that already-reserved space changes.
  */
 function shouldShowMarker(fact: LineDecorationFact, visibility: MarkerVisibility): boolean {
+  // A warning is not a kind's mark: hiding it would hide the only sign of it.
+  if (fact.misplaced) return true;
   switch (visibility) {
     case 'all':
       return true;
@@ -980,6 +982,8 @@ function stateMark(el: HTMLElement, subject: MarkSubject): void {
   el.dataset.kind = subject.kind;
   if (subject.kind === 'heading') el.dataset.level = String(subject.level);
   else delete el.dataset.level;
+  if (subject.kind !== 'heading' && subject.misplaced) el.dataset.misplaced = '';
+  else delete el.dataset.misplaced;
 }
 
 /** Which mark a widget-line icon was built for. The DOM states the kind and
