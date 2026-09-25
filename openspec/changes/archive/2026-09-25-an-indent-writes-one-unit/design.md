@@ -38,8 +38,17 @@ line, which is the property the differential checks.
 
 `- foo` / `\tbar` indented by four spaces swaps to `    \tbar`, which reaches the right column
 and puts a space in front of a tab. `shiftLine`'s own comments give the reason not to: a space
-in front of a tab vanishes into the stop the moment the prefix narrows. The swap is refused
-there unless the line already had one, and `shiftLine` writes `\t    bar`.
+in front of a tab vanishes into the stop the moment the prefix narrows. The swap is refused where
+it would put a space in front of a tab that had none there before, and `shiftLine` writes
+`\t    bar`.
+
+The swap can create that pair in two places only, since everything after the prefix is carried
+over as it was: inside the destination string, and where the destination string meets the rest
+of the line. The second is judged against what stood there before, so a prefix that ended in a
+tab and meets another tab is a new pair once the destination ends in a space — ` \t` / ` \t\t  b`
+swapped to four spaces would write `    \t  b`. A check over the whole line's indentation
+misses that, because the line already held a pair elsewhere; the review round on the pull
+request found it.
 
 ### D4. The swap first, then the marker's change
 

@@ -32,7 +32,7 @@ below cannot apply, and a 690-row differential against `main`.
   lines and the whole subtree — has the node's own first-line indentation PREFIX swapped for
   `indentText`, which is what `reindentSubtreeVerbatim` already does for a pasted subtree.
 - The swap is taken only where the line lands on the column the width delta asks for, and only
-  where it does not put a space in front of a tab the line did not already have one in front of.
+  where it does not put a space in front of a tab that had none in front of it before.
   Everywhere else, `shiftLine` answers exactly as it does on `main`, so no line moves to a
   different column than it did.
 - The marker-run normalization (`-  a` to `- a`) still moves the continuation lines and children

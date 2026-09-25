@@ -43,5 +43,8 @@
 - [x] 4.5 Manual check in Obsidian with **Indent using tabs** on: #154's case 1, a child
       carried into a tab-indented list, the outdent back, and a group indent — each broken on
       `main` and fixed here.
+- [x] 4.7 Copilot review round: the space-before-tab check is judged where the destination
+      string meets the rest of the line, not over the whole line (D3), with a test for the
+      shape it found.
 - [x] 4.6 Mark `decoration-follow-ups.md`'s entry closed, keeping its measurements; sync the
       delta spec, archive the change, bump the version.

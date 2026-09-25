@@ -144,8 +144,8 @@ const TAB_AFTER_SPACE = / \t/;
  * tab AFTER the prefix re-expands from wherever the new prefix ends, so a swap
  * between prefixes whose widths differ by less than a tab stop moves that line
  * by some other amount. Nor is it taken where it would put a space in front
- * of a tab the line did not already have one in front of — the arrangement
- * `shiftLine` exists to avoid. There, and on a line that does not open with
+ * of a tab that had none in front of it before — the arrangement `shiftLine`
+ * exists to avoid. There, and on a line that does not open with
  * the prefix at all, `shiftLine` answers as it always has.
  */
 function reprefixLine(
@@ -161,11 +161,23 @@ function reprefixLine(
   if (ws.startsWith(from)) {
     const swapped = to + line.slice(from.length);
     const lands = indentWidth(swapped) === Math.max(0, indentWidth(line) + delta);
-    if (lands && (TAB_AFTER_SPACE.test(ws) || !TAB_AFTER_SPACE.test(leadingWhitespace(swapped)))) {
+    if (lands && !addsTabAfterSpace(from, to, ws.slice(from.length))) {
       return shiftLine(swapped, columnDelta, keepBlank);
     }
   }
   return shiftLine(line, delta + columnDelta, keepBlank);
+}
+
+/**
+ * Whether writing `to` in place of `from`, ahead of the rest of a line's
+ * indentation, puts a space in front of a tab where there was none: inside
+ * `to` itself, or where `to` meets the rest. A pair already inside the rest
+ * is carried over unchanged and is not counted.
+ */
+function addsTabAfterSpace(from: string, to: string, rest: string): boolean {
+  if (TAB_AFTER_SPACE.test(to) && !TAB_AFTER_SPACE.test(from)) return true;
+  const meets = (prefix: string): boolean => prefix.endsWith(' ') && rest.startsWith('\t');
+  return meets(to) && !meets(from);
 }
 
 function reprefixSubtree(

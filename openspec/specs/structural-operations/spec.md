@@ -426,7 +426,7 @@ right columns and in two indentations.
 The substitution SHALL NOT move any line to a different column than a shift by the width delta
 would. Where the destination prefix followed by the rest of a line's indentation does not reach
 that column — a tab after the prefix re-expands from where the new prefix ends — or where it would
-put a space in front of a tab the line did not already have one in front of, the line SHALL be
+put a space in front of a tab that had none in front of it before, the line SHALL be
 shifted by the width delta instead.
 
 #### Scenario: A tab unit reaches the continuation line
