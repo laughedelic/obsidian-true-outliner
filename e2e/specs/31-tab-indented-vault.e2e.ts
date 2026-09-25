@@ -93,4 +93,20 @@ describe('a tab-indented vault: every line a node owns takes the tab', function 
     await browser.keys([process.platform === 'darwin' ? Key.Command : Key.Ctrl, 'z']);
     expect(await h.getBuffer()).toBe(before);
   });
+
+  // A clipboard from outside the vault indents with spaces, and every level
+  // below the pasted root used to keep them (#216).
+  it('a two-space list pasted into a tab list lands in tabs at every level', async function () {
+    await outlineNote('- top\n\t- sib\n', 1, 6);
+    await h.pasteText('- a\n  - b\n    - c\n');
+    expect(await h.getBuffer()).toBe('- top\n\t- sib\n\t- a\n\t\t- b\n\t\t\t- c\n');
+    expect(await h.getCursor()).toEqual({ line: 4, ch: 6 });
+  });
+
+  it('a four-space list pasted at the root lands in tabs below its root', async function () {
+    await outlineNote('- top\n\t- sib\n- end\n', 2, 5);
+    await h.pasteText('- a\n    - b\n        - c\n');
+    expect(await h.getBuffer()).toBe('- top\n\t- sib\n- end\n- a\n\t- b\n\t\t- c\n');
+    expect(await h.getCursor()).toEqual({ line: 5, ch: 5 });
+  });
 });

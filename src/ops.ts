@@ -48,6 +48,8 @@ import {
   markerWidthOf,
   normalizeMarkerRun,
   reencodeForDestination,
+  reprefixAtomLines,
+  rewriteOwnLine,
   shiftBelowMarker,
   shiftSubtree,
 } from './reencode';
@@ -782,31 +784,53 @@ function chooseIndent(
 }
 
 /**
- * The document's list indent unit: tab if any indented list line uses one,
- * else the first indented item's spaces, else `fallback` — which lets
- * callers with a live editor (Obsidian's own "Indent using tabs" setting,
- * read from CodeMirror's public `indentUnit` facet) supply the vault's
- * preferred unit instead of a hardcoded default. Only reached when the
- * document has no existing indented list item to infer from at all.
+ * The document's list indent unit: tab if the first indented list line uses
+ * one, else the step from a bullet item to its first indented child, else the
+ * first indented item's spaces, else `fallback` — which lets callers with a
+ * live editor (Obsidian's own "Indent using tabs" setting, read from
+ * CodeMirror's public `indentUnit` facet) supply the vault's preferred unit
+ * instead of a hardcoded default. Only reached when the document has no
+ * existing indented list item to infer from at all.
+ *
+ * A bullet's child is the evidence because its marker is narrower than any
+ * unit: the step from `- a` to its child is the unit the document chose. The
+ * step under `1. a` is also the width the child needs to reach the content
+ * column, so a two-space document whose first nested item sits under a
+ * numbered one reads as three spaces there, and every level a paste writes
+ * would come out one column deeper than the document writes it.
  */
 function inferIndentUnit(doc: OutlineDoc, fallback = '  '): string {
-  for (const node of walkDoc(doc)) {
+  let first: string | undefined;
+  for (const [node, parent] of walkDocWithParent(doc)) {
     if (node.kind !== 'list-item') continue;
     const ws = leadingWhitespace(node.lines[0] ?? '');
-    if (ws.includes('\t')) return '\t';
-    if (ws.length > 0) return ws.length >= 4 ? '    ' : ws;
-  }
-  return fallback;
-}
-
-function* walkDoc(doc: OutlineDoc): Generator<OutlineNode> {
-  function* walk(nodes: readonly OutlineNode[]): Generator<OutlineNode> {
-    for (const node of nodes) {
-      yield node;
-      yield* walk(node.children);
+    if (ws.length === 0) continue;
+    if (first === undefined && ws.includes('\t')) return '\t';
+    const spaces = (width: number): string => (width >= 4 ? '    ' : ' '.repeat(width));
+    first ??= spaces(ws.length);
+    if (parent?.kind === 'list-item' && parent.listStyle?.type === 'bullet') {
+      const parentWs = leadingWhitespace(parent.lines[0] ?? '');
+      if (ws.slice(parentWs.length).includes('\t')) return '\t';
+      const step = indentWidth(ws) - indentWidth(parentWs);
+      if (step > 0) return spaces(step);
     }
   }
-  yield* walk(doc.children);
+  return first ?? fallback;
+}
+
+function* walkDocWithParent(
+  doc: OutlineDoc,
+): Generator<readonly [OutlineNode, OutlineNode | undefined]> {
+  function* walk(
+    nodes: readonly OutlineNode[],
+    parent: OutlineNode | undefined,
+  ): Generator<readonly [OutlineNode, OutlineNode | undefined]> {
+    for (const node of nodes) {
+      yield [node, parent];
+      yield* walk(node.children, node);
+    }
+  }
+  yield* walk(doc.children, undefined);
 }
 
 // ------------------------------------------------------------------ indent
@@ -2272,51 +2296,70 @@ export function mergeNodes(doc: OutlineDoc, firstId: number): OpResult<OpOutput>
  * `reencodeBlocksForDestination`, which owns both the rule and the guard.
  */
 /**
- * Re-indents a whole subtree for a new destination by swapping its OWN
- * leading-whitespace PREFIX for `indentText` on every line, top to bottom —
- * preserving each descendant's ORIGINAL relative indent string beyond the
- * top node's own prefix verbatim, rather than adding a flat column delta.
- * Fixes a real bug `shiftSubtree`'s delta approach has for a pasted
- * subtree specifically (unlike indent/outdent's own single-level moves,
- * which keep using `reencodeForDestination`/`shiftSubtree` unchanged): a
- * numeric delta gets inserted as spaces regardless of the destination's own
- * unit, so a multi-level tab-indented subtree pasted somewhere landed with
- * descendants mixing the original tabs with newly-added spaces — same
- * WIDTH, wrong characters, and visibly inconsistent (design.md D15, third
- * manual pass finding). A string-prefix swap can't mismatch: whatever unit
- * the copied subtree's OWN internal nesting already used carries over
- * exactly, just re-rooted at the new depth.
+ * Re-indents a whole subtree for a new destination, writing every level in the
+ * document's own `unit`: the root takes `indentText`, and each node below it
+ * takes the indentation an indent would give it there — its parent's plus one
+ * unit, padded to the parent's content column where the unit falls short of
+ * it. A payload from outside the document arrives in whatever unit its source
+ * used, tabs or two or four spaces or a mix, and a tree carried in those
+ * characters leaves the document indented two ways; the tree the payload's
+ * indentation describes is the thing to keep, not its spelling. A payload the
+ * document itself wrote in `unit` comes back in the same bytes.
  *
- * The one line this leaves for width rather than characters: the ROOT's own
- * marker run is normalized to one space, same as `reencodeForDestination`'s
- * own no-conversion branch does for its first line — a pasted `-  a` should
- * not keep the surplus that turns its children into siblings at the new
- * depth, any more than an indented or outdented one does
- * (`list-marker-content-column`). Continuation lines and children shift by
- * the resulting width delta first, so what was under the item stays under it
- * at the new relative depth before the prefix swap below runs; a descendant's
- * OWN marker run, past the root, is untouched — this is verbatim re-indent,
- * not a normalization pass over the whole subtree.
+ * A nested list is what a unit is the step of, so only a list item under a
+ * list item is written that way. Every other child keeps its offset from its
+ * parent, as the parent's own lines do: a paragraph or a block under a list
+ * item sits at the item's content column, `⏵··more` in a tab document, where a
+ * unit would put it past it, and a paragraph's list attaches by adjacency at
+ * any column (`listAttachesTo`).
+ *
+ * A node's own lines below its first keep their offset from its indentation
+ * (`rewriteOwnLine`), and an atom's lines move as a unit by its first line's
+ * prefix, whitespace inside it being content (`reprefixAtomLines`).
+ *
+ * The root's own marker run is normalized to one space, as
+ * `reencodeForDestination` does for a line it rewrites — a pasted `-  a` should
+ * not keep the surplus that turns its children into siblings at the new depth
+ * (`list-marker-content-column`). A descendant's own marker run is carried as
+ * it was.
  */
-export function reindentSubtreeVerbatim(node: OutlineNode, indentText: string): OutlineNode {
+export function reindentSubtreeInUnit(
+  node: OutlineNode,
+  indentText: string,
+  unit: string,
+): OutlineNode {
   const first = node.lines[0] ?? '';
-  const normalizedFirst = node.kind === 'list-item' ? normalizeMarkerRun(first) : first;
-  const columnDelta =
-    normalizedFirst === first ? 0 : markerWidthOf(normalizedFirst) - markerWidthOf(first);
-  const root = shiftBelowMarker({ ...node, lines: [normalizedFirst, ...node.lines.slice(1)] }, columnDelta);
+  const normalized = node.kind === 'list-item' ? normalizeMarkerRun(first) : first;
+  const columnDelta = normalized === first ? 0 : markerWidthOf(normalized) - markerWidthOf(first);
+  const root = { ...node, lines: [normalized, ...node.lines.slice(1)] };
+  return rewriteSubtree(root, indentText, unit, columnDelta);
+}
 
-  const topWs = leadingWhitespace(root.lines[0] ?? '');
-  const swapLine = (line: string): string => {
-    if (line.trim() === '') return line;
-    const ws = leadingWhitespace(line);
-    return ws.startsWith(topWs) ? indentText + line.slice(topWs.length) : line;
-  };
-  const recur = (n: OutlineNode): OutlineNode => ({
-    ...n,
-    lines: n.lines.map(swapLine),
-    children: n.children.map(recur),
+function rewriteSubtree(
+  node: OutlineNode,
+  indentText: string,
+  unit: string,
+  columnDelta = 0,
+): OutlineNode {
+  const from = leadingWhitespace(node.lines[0] ?? '');
+  const lines = isAtom(node)
+    ? reprefixAtomLines(node, indentText)
+    : node.lines.map((line, i) =>
+        i === 0
+          ? indentText + line.slice(from.length)
+          : rewriteOwnLine(line, from, indentText, unit, columnDelta),
+      );
+  const written: OutlineNode = { ...node, lines };
+  const children = node.children.map((child) => {
+    const childIndent =
+      node.kind === 'list-item' && child.kind === 'list-item'
+        ? reachContentColumn(indentText + unit, written)
+        : leadingWhitespace(
+            rewriteOwnLine(child.lines[0] ?? '', from, indentText, unit, columnDelta),
+          );
+    return rewriteSubtree(child, childIndent, unit);
   });
-  return recur(root);
+  return { ...written, children };
 }
 
 /**
@@ -2348,6 +2391,7 @@ export function reindentSubtreeVerbatim(node: OutlineNode, indentText: string): 
 function reencodeIntoListScope(
   node: OutlineNode,
   indentText: string,
+  unit: string,
   style?: ListStyle,
 ): OutlineNode {
   let encoded: OutlineNode;
@@ -2363,12 +2407,14 @@ function reencodeIntoListScope(
       style,
     );
   }
-  // The child column is the item's own content column, as `childBaseCol` reads
-  // it — padding AFTER the indentation, never before, so a space never
-  // disappears into a tab stop.
+  // A child is written as an indent would write it: one of the document's units
+  // past the item, padded out to its content column where the unit falls short.
   const childIndent =
-    encoded.kind === 'list-item' ? indentText + ' '.repeat(markerWidth(encoded)) : indentText;
-  return { ...encoded, children: node.children.map((c) => reencodeIntoListScope(c, childIndent)) };
+    encoded.kind === 'list-item' ? reachContentColumn(indentText + unit, encoded) : indentText;
+  return {
+    ...encoded,
+    children: node.children.map((c) => reencodeIntoListScope(c, childIndent, unit)),
+  };
 }
 
 /**
@@ -2468,6 +2514,9 @@ export function reencodeBlocksForDestination(
     [...precedingSiblings, ...followingSiblings],
     fallbackIndentUnit,
   );
+  // Every level below a block's root is written in the document's unit, from
+  // the same source an indent takes it from.
+  const unit = inferIndentUnit(doc, fallbackIndentUnit);
   const parentKind = parent === 'root' ? 'root' : parent.kind;
   // The list the destination is already writing, for the blocks that CONVERT
   // into one. Read whether or not anything converts, since reading it is free
@@ -2482,13 +2531,13 @@ export function reencodeBlocksForDestination(
       // each arm runs owns every other heading in the payload.
       written.push(
         headingLevel === undefined
-          ? reencodeIntoListScope(block, indentText, listStyle)
+          ? reencodeIntoListScope(block, indentText, unit, listStyle)
           : reencodeHeadingSubtree(block, headingLevel - (block.level ?? 1)),
       );
       continue;
     }
     if (block.kind !== 'paragraph' && block.kind !== 'list-item') {
-      written.push(reindentSubtreeVerbatim(block, indentText));
+      written.push(reindentSubtreeInUnit(block, indentText, unit));
       continue;
     }
     // Each block lands after the ones written before it, so the attachment
@@ -2505,11 +2554,7 @@ export function reencodeBlocksForDestination(
     if (forced === 'paragraph' && isTaskItem(block)) return reject('insertion-not-expressible');
     written.push(
       forced === undefined || forced === block.kind
-        ? // No kind conversion needed: a verbatim whole-subtree re-indent keeps
-          // every descendant's original indent unit intact (see
-          // reindentSubtreeVerbatim's own comment for why this differs from
-          // reencodeForDestination's numeric-delta approach here).
-          reindentSubtreeVerbatim(block, indentText)
+        ? reindentSubtreeInUnit(block, indentText, unit)
         : reencodeForDestination(block, forced, indentText, listStyle),
     );
   }
@@ -2814,12 +2859,16 @@ export function moveSubtreesTo(
     .slice(0, destination.index)
     .filter((sibling) => movedIds.has(sibling.id)).length;
 
+  // The unit is read from the document the run was moved out of, where the
+  // removal has not yet taken it: a run that held the document's only nested
+  // items is the document's evidence of its unit, and the editor's setting
+  // would otherwise answer for a document that had already chosen one.
   const spliced = spliceAtIndex(
     afterRemoval,
     destPathAfter,
     destination.index - removedAbove,
     roots,
-    fallbackIndentUnit,
+    inferIndentUnit(doc, fallbackIndentUnit),
     undefined,
     destination.level,
   );

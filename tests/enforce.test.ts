@@ -1168,7 +1168,8 @@ describe('a paste on the blank line under a node lands in it', () => {
     );
     expect(child.kind).toBe('rewrite');
     if (child.kind !== 'rewrite') return;
-    expect(encode(child.after)).toBe('\t- one\n\t\t\n\t\t- alpha\n\t\t  - beta\n\n\t\t- sub\n');
+    // The payload's two-space level is written in the vault's tab.
+    expect(encode(child.after)).toBe('\t- one\n\t\t\n\t\t- alpha\n\t\t\t- beta\n\n\t\t- sub\n');
 
     // One tab in is column 4, short of 6, so it is still the sibling reading —
     // the comparison is columns against columns, not characters against either.
@@ -1177,7 +1178,21 @@ describe('a paste on the blank line under a node lands in it', () => {
     );
     expect(sibling.kind).toBe('rewrite');
     if (sibling.kind !== 'rewrite') return;
-    expect(encode(sibling.after)).toBe('\t- one\n\t\t\n\t\t- sub\n\t- alpha\n\t  - beta\n');
+    expect(encode(sibling.after)).toBe('\t- one\n\t\t\n\t\t- sub\n\t- alpha\n\t\t- beta\n');
+  });
+
+  it('a caret paste writes the clipboard’s levels in the document’s unit (#216)', () => {
+    // Negative control: every level below the pasted root keeps the
+    // clipboard's characters, `\t  - b` and `  \t- b`.
+    const intoTabs = pasteThroughBothGates('- top\n\t- sib\n', pos(1, 6), pos(1, 6), '- a\n  - b\n    - c\n');
+    expect(intoTabs.kind).toBe('rewrite');
+    if (intoTabs.kind !== 'rewrite') return;
+    expect(encode(intoTabs.after)).toBe('- top\n\t- sib\n\t- a\n\t\t- b\n\t\t\t- c\n');
+
+    const intoSpaces = pasteThroughBothGates('- top\n  - sib\n', pos(1, 7), pos(1, 7), '- a\n\t- b\n\t\t- c\n');
+    expect(intoSpaces.kind).toBe('rewrite');
+    if (intoSpaces.kind !== 'rewrite') return;
+    expect(encode(intoSpaces.after)).toBe('- top\n  - sib\n  - a\n    - b\n      - c\n');
   });
 
   it('a gap the payload lands PAST is left alone', () => {

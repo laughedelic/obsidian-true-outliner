@@ -179,6 +179,49 @@ function addsTabAfterSpace(from: string, to: string, rest: string): boolean {
   return meets(to) && !meets(from);
 }
 
+/**
+ * A line a node owns below its first, carried to a node whose indentation went
+ * from `from` to `to` in a document indented with `unit`: its offset from the
+ * node's own indentation survives, and its characters are the destination's.
+ *
+ * What follows the prefix is kept where it lands on the offset's column and is
+ * spaces, or tabs in a tab document; a space unit gets that offset in spaces
+ * instead, because a tab there is the clipboard's unit and not the document's.
+ * A line narrower than the node's own indentation is a lazy continuation,
+ * which a paragraph keeps at any column, and is carried as it was.
+ *
+ * An atom's lines are content, and go through `reprefixLine` instead.
+ */
+export function rewriteOwnLine(
+  line: string,
+  from: string,
+  to: string,
+  unit: string,
+  columnDelta: number,
+): string {
+  const ws = leadingWhitespace(line);
+  const offset = indentWidth(line) - indentWidth(from);
+  if (offset < 0) return line;
+  if (ws.startsWith(from)) {
+    const rest = ws.slice(from.length);
+    const swapped = to + line.slice(from.length);
+    const lands = indentWidth(swapped) - indentWidth(to) === offset;
+    if (lands && (unit === '\t' || !rest.includes('\t')) && !addsTabAfterSpace(from, to, rest)) {
+      return shiftLine(swapped, columnDelta, false);
+    }
+  }
+  return to + ' '.repeat(Math.max(0, offset + columnDelta)) + line.slice(ws.length);
+}
+
+/** `reprefixLine` for one atom's lines, whose whitespace is content: a line
+ * lands on the column the node's move gives it, in the destination's
+ * characters wherever the swap can say so. */
+export function reprefixAtomLines(node: OutlineNode, to: string): readonly string[] {
+  const from = leadingWhitespace(node.lines[0] ?? '');
+  const delta = indentWidth(to) - indentWidth(from);
+  return node.lines.map((line) => reprefixLine(line, from, to, delta, 0, true));
+}
+
 function reprefixSubtree(
   node: OutlineNode,
   from: string,
