@@ -154,17 +154,18 @@ misplaced id between a lead paragraph and its list writes `- ^id`: an empty item
 which names neither and is not marked either.
 
 A lone-id paragraph is exempt from that conversion, and from the destination's depth: an id is not
-a node, so what a drop chooses for it is the line it goes under. It is written directly under the
-last line above the destination, with no blank line between, at that line's node's column — a
-list item's content column, the node's own column otherwise. The re-parse decides the rest: under
-a paragraph's or an item's text it becomes a line of that text, which Obsidian reads as the
-node's id (`^id1`); under any other block it attaches (D2), and D4's seam rule puts a blank line
-below it when a block follows. Only at the top of the note, with no line above, does it stay a
-misplaced paragraph.
+a node, so what a drop chooses for it is the line it goes under, at that line's node's column — a
+list item's content column, the node's own column otherwise. Under a paragraph's or an item's text
+it follows the line directly and becomes a line of that text, which Obsidian reads as the node's
+id (`^id1`). Under any other block it follows one blank line and attaches (D2): the directly-under
+form attaches too (`^t2`, `^h3`), but beside a table's live-preview widget an id line directly
+under the last row is hard to reach and edit, and the blank-line form is the one the note already
+writes for such blocks. D4's seam rule puts a blank line below the id when a block follows. At the
+top of the note, with no line above, and inside a list item, where Obsidian names the item, it
+stays a misplaced paragraph.
 
-A drop with a blank line above the id would read as the drop of any paragraph, but it attaches to
-nothing where a block follows directly (`^id3`), and adds a blank line between a paragraph and
-the id that the paragraph's own text does not need.
+A blank line above an id under a paragraph would make it attach to nothing where a block follows
+directly (`^id3`), and separates the id from text it is a line of.
 
 Indent and outdent of a misplaced id are not exempt: they are paragraph operations the user asked
 for by name.

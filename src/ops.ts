@@ -53,6 +53,7 @@ import {
   rewriteOwnLine,
   shiftBelowMarker,
   shiftSubtree,
+  idFor,
   withIdLine,
 } from './reencode';
 
@@ -2157,6 +2158,9 @@ export function mergeNodes(doc: OutlineDoc, firstId: number): OpResult<OpOutput>
 
   if (isAtom(first) || isAtom(second)) return reject('merge-not-expressible');
   if (second.kind === 'heading') return reject('merge-not-expressible');
+  // One node carries at most one id: which of two the merged node keeps is not
+  // ours to decide.
+  if (first.blockId && second.blockId) return reject('merge-not-expressible');
 
   const content = bareContentLines(second);
   let mergedLines: readonly string[];
@@ -2229,6 +2233,7 @@ export function mergeNodes(doc: OutlineDoc, firstId: number): OpResult<OpOutput>
 
   const merged: OutlineNode = {
     ...first,
+    ...(second.blockId ? { blockId: idFor(first, second.blockId) } : {}),
     lines: [...mergedLines],
     trailingGap,
     // Absorbing `first`'s own first child REMOVES it from that child list, so
