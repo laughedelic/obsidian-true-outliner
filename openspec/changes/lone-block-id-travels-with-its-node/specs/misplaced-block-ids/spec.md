@@ -147,3 +147,26 @@ same reason, and the mark follows the re-parse.
 #### Scenario: Trailing whitespace is removed
 - **WHEN** `Remove trailing whitespace` is chosen for `^t4` with trailing spaces after a table
 - **THEN** the line reads `^t4`, the id attaches to the table, and nothing is marked
+
+### Requirement: A dragged misplaced id lands as an id
+A misplaced id's paragraph moved to a new place — dragged by its warning glyph, or pasted — SHALL
+land as a lone block id line, never re-encoded into the destination scope's kind. It SHALL be
+written at the destination's column: a list item's content column where it lands among that item's
+children, the scope's own column otherwise. Where it lands decides the rest, by the ordinary
+parse: directly after a node's own lines it attaches to that node and is no longer marked;
+anywhere else it stays misplaced, with the reading its new position has.
+
+#### Scenario: Dropping an id between a lead paragraph and its list attaches it to the paragraph
+- **WHEN** `^id`, misplaced after `Lead.` and its item `- a`, is dragged by its glyph to the seam
+  between `Lead.` and `- a`
+- **THEN** the note reads `Lead.`, a blank line, `^id`, `- a`; `^id` is attached to `Lead.`, and
+  nothing is marked
+
+#### Scenario: Dropping an id where nothing is above it keeps it marked
+- **WHEN** the same `^id` is dragged to the top of the note
+- **THEN** the note begins `^id`, a blank line, `Lead.`; `^id` is a paragraph of its own and is
+  marked with the reading that it names nothing
+
+#### Scenario: A dropped id is never a list item
+- **WHEN** a misplaced id is dropped among list items
+- **THEN** its line holds no list marker
