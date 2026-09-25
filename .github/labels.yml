@@ -72,7 +72,7 @@
   description: The plugin's own surfaces — commands, settings, lifecycle
 - name: area/testing
   color: "c5def5"
-  description: The test harnesses and their infrastructure, not the specs themselves
+  description: The test harnesses and their infrastructure, or a change to tests alone
 - name: area/ci
   color: "c5def5"
   description: Workflows, release and beta publishing

@@ -2,6 +2,13 @@
 # label per slice its diff touches; the scope in its title names the primary one.
 # `.github/labels.yml` says how a slice earns a label in the first place — the
 # repository's own groupings decide, not this file.
+#
+# A feature area also takes its own e2e specs and helpers, so a fix carrying the
+# spec that pins it is labelled for the slice the spec covers as well as the one
+# the fix edits. Every feature area is gated on the plugin's own code, though:
+# a pull request that touches specs and no `src/`, `styles/` or `manifest.json`
+# changes no feature, and is labelled `area/testing` alone. The gate is written
+# once, under area/parse, and every other feature area repeats it by alias.
 
 area/parse:
   - changed-files:
@@ -15,6 +22,12 @@ area/parse:
           - src/node-text.ts
           - src/plugin/parsed-doc.ts
           - src/plugin/source-tree-cache.ts
+  - &plugin-code
+    changed-files:
+      - any-glob-to-any-file:
+          - src/**
+          - styles/**
+          - manifest.json
 
 area/grammar:
   - changed-files:
@@ -29,6 +42,7 @@ area/grammar:
           - src/plugin/record-decision.ts
           - src/plugin/nested-editor.ts
           - e2e/specs/3*-*
+  - *plugin-code
 
 area/ops:
   - changed-files:
@@ -41,6 +55,7 @@ area/ops:
           - src/own-indent.ts
           - src/plugin/dispatch.ts
           - e2e/specs/2*-*
+  - *plugin-code
 
 area/selection:
   - changed-files:
@@ -50,6 +65,7 @@ area/selection:
           - src/plugin/crosscheck.ts
           - src/plugin/transaction-filter.ts
           - e2e/specs/6*-*
+  - *plugin-code
 
 # Markers sit here rather than beside this: `marker-shapes.ts` is the icon set,
 # and the placement logic lives in `decorations.ts` with the rest of the grid.
@@ -66,6 +82,7 @@ area/decorations:
           - src/lineage.ts
           - styles/**
           - e2e/specs/5*-*
+  - *plugin-code
 
 area/folding:
   - changed-files:
@@ -73,6 +90,7 @@ area/folding:
           - src/plugin/fold-*.ts
           - e2e/folding.ts
           - e2e/specs/9*-*
+  - *plugin-code
 
 area/zoom:
   - changed-files:
@@ -80,6 +98,7 @@ area/zoom:
           - src/zoom.ts
           - src/plugin/zoom-*.ts
           - e2e/specs/80-*
+  - *plugin-code
 
 area/backlinks:
   - changed-files:
@@ -90,6 +109,7 @@ area/backlinks:
           - src/plugin/lineage-row.ts
           - e2e/footer.ts
           - e2e/specs/7*-*
+  - *plugin-code
 
 area/mode:
   - changed-files:
@@ -97,6 +117,7 @@ area/mode:
           - src/plugin/outline-state.ts
           - src/plugin/view-registry.ts
           - e2e/specs/1*-*
+  - *plugin-code
 
 area/shell:
   - changed-files:
@@ -108,14 +129,20 @@ area/shell:
           - src/plugin/settings/**
           - manifest.json
           - e2e/specs/4*-*
+  - *plugin-code
 
-# The harness and the infrastructure under it, never an individual spec or unit
-# test: those belong to the feature they cover, which the globs above already give
-# them. Matching `e2e/` as a whole would put this label on most changes, since
-# almost every one carries the spec that pins it.
+# The harness and the infrastructure under it, or a change to tests alone. An
+# individual spec or unit test on a change that also edits the plugin belongs to
+# the feature it covers, which the globs above already give it: matching `e2e/`
+# as a whole would put this label on most changes, since almost every one carries
+# the spec that pins it. So the label takes the harness wherever it appears, and
+# otherwise a change that touches tests and none of the plugin's own code.
 area/testing:
   - changed-files:
       - any-glob-to-any-file:
+          - e2e/**
+          - tests/**
+      - any-glob-to-any-file: &harness
           - e2e/helpers.ts
           - e2e/wdio*.mts
           - e2e/obsidian-target.mts
@@ -128,6 +155,12 @@ area/testing:
           - .github/actions/e2e/**
           - vitest.config.ts
           - codecov.yml
+  - changed-files:
+      - any-glob-to-any-file: *harness
+      - all-globs-to-all-files:
+          - "!src/**"
+          - "!styles/**"
+          - "!manifest.json"
 
 area/ci:
   - changed-files:
