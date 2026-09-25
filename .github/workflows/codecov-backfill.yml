@@ -15,9 +15,9 @@ env:
   # "true" rebuilds and prints a sample without uploading.
   DRY_RUN: "false"
   # How many CI runs to read, newest first; blank for every run in the window.
-  LIMIT: "2"
+  LIMIT: ""
   # Only runs older than this one; blank for no bound.
-  BEFORE: ""
+  BEFORE: "36179916444"
 
 permissions:
   actions: read
