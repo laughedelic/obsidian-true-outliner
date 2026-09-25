@@ -2,21 +2,21 @@
 
 ## 1. The id in the model
 
-- [ ] 1.1 In `src/model.ts`, add the optional `blockId: { gap; line }` field, count it in `ownSpan`,
+- [x] 1.1 In `src/model.ts`, add the optional `blockId: { gap; line }` field, count it in `ownSpan`,
       compare it in `treesEqual`, and add `lineRole(node, index)` answering `content`, `id-gap`,
       `id` or `gap` (D1, D3). Verify with a unit test in `tests/locate.test.ts` over a node with and
       without an id; negative control: `ownSpan` ignoring `blockId` fails it.
-- [ ] 1.2 In `src/encode.ts`, emit `lines`, `blockId.gap`, `blockId.line`, `trailingGap`, then the
+- [x] 1.2 In `src/encode.ts`, emit `lines`, `blockId.gap`, `blockId.line`, `trailingGap`, then the
       children. Verify with a hand-built tree in `tests/roundtrip.test.ts` whose encoding is stated
       in full; negative control: emitting the id after `trailingGap` fails it.
 
 ## 2. The parser attaches first-group ids
 
-- [ ] 2.1 In `src/rules.ts`, beside `listAttachesTo`, add the strategy function deciding whether a
+- [x] 2.1 In `src/rules.ts`, beside `listAttachesTo`, add the strategy function deciding whether a
       lone id attaches to the node before it, from that node, the open list stack, the id's
       indentation, whether a blank line separates them, and whether the next block is another lone
       id (D2).
-- [ ] 2.2 In `src/parse.ts`, recognise a lone-id paragraph block and, when the strategy attaches it,
+- [x] 2.2 In `src/parse.ts`, recognise a lone-id paragraph block and, when the strategy attaches it,
       move the previous node's `trailingGap` into `blockId.gap` and the block's gap into the node's
       `trailingGap`. Verify with a test per `document-tree-mapping` scenario in
       `tests/roundtrip.test.ts` (or a new `tests/block-ids.test.ts`), each asserting the tree

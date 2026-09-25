@@ -17,6 +17,63 @@ export function listAttachesTo(precedingSibling: OutlineNode | undefined): boole
 }
 
 /**
+ * A LONE BLOCK ID: a line holding only indentation, `^` and the id's letters,
+ * digits and dashes. Nothing may follow the id — Obsidian registers no id for
+ * a line with trailing whitespace (`docs/research/lone-block-id`, "What a lone
+ * id names").
+ */
+const LONE_BLOCK_ID_RE = /^[ \t]*\^[A-Za-z0-9-]+$/;
+
+export function isLoneBlockIdLine(line: string): boolean {
+  return LONE_BLOCK_ID_RE.test(line);
+}
+
+/** A node that is nothing but a lone block id: a one-line paragraph. */
+export function isLoneBlockIdNode(node: Pick<OutlineNode, 'kind' | 'lines'>): boolean {
+  return node.kind === 'paragraph' && node.lines.length === 1 && isLoneBlockIdLine(node.lines[0]!);
+}
+
+/** The node a lone block id would attach to, as the parser sees it at the id. */
+export interface BlockIdHost {
+  readonly node: OutlineNode;
+  /** Whether a list item is among the node's ancestors. */
+  readonly inListItem: boolean;
+  /** A list item's content column; unused for other kinds. */
+  readonly contentCol: number;
+}
+
+/**
+ * Attachment rule for a lone block id: does it belong to `host`, the node
+ * whose own lines end right above it (blank lines skipped)? True in exactly
+ * the shapes where Obsidian names that same node (`docs/research/
+ * lone-block-id`, "Two groups"):
+ *
+ * - a block outside every list item, the id indented less than four columns;
+ * - a list item, the id after a blank line at the item's content column;
+ * - a list item, the id directly under it and short of its content column —
+ *   Obsidian's lazy continuation.
+ *
+ * `host` has no children yet: it is the node attached just before the id. A
+ * host that is itself a lone id, and an id followed by another lone id, never
+ * attach — Obsidian registers only the last of a run of them.
+ */
+export function blockIdAttaches(
+  host: BlockIdHost | undefined,
+  idIndent: number,
+  nextIsLoneId: boolean,
+): boolean {
+  if (!host || nextIsLoneId || isLoneBlockIdNode(host.node)) return false;
+  const { node } = host;
+  if (node.kind === 'list-item') {
+    const afterBlank = node.trailingGap.length > 0;
+    return afterBlank
+      ? idIndent >= host.contentCol && idIndent < host.contentCol + 4
+      : idIndent < host.contentCol;
+  }
+  return !host.inListItem && idIndent < 4;
+}
+
+/**
  * The kind a brand-new content node takes at a destination — what a split
  * materialises as a first child, where there is no node whose kind could be
  * kept. It reads the scope: the nearest content sibling's kind, preceding
