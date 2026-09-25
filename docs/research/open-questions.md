@@ -2537,7 +2537,8 @@ from the other side.
 callout and a rule: `segment` keeps the content columns of the list items open at each line and
 measures those three from the innermost. A heading and an HTML block stay measured from column
 0 — a heading opens a section, and the HTML pattern is wider than CommonMark's HTML block starts
-— so the fourth row above stays a paragraph. The measurements are in `block-start-margin`.
+— so the fourth row above stays a paragraph, and #136 stays open on it. The HTML half is #213.
+The measurements are in `block-start-margin`.
 
 Two neighbouring findings from the same pass, both Obsidian's rather than ours, recorded so the
 next reader does not re-diagnose them:

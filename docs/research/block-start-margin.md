@@ -63,7 +63,9 @@ CommonMark, each verified against `commonmark`:
 
 Narrowing the pattern to CommonMark's block starts, and ending the run where its container
 closes, is a change of its own. Until then an HTML block keeps measuring from column 0, and
-`kindAsWritten` judges it there.
+`kindAsWritten` judges it there. Both gaps reach the root as well, where a paragraph opening
+with `<b>` or an autolink takes the list below it:
+[#213](https://github.com/laughedelic/obsidian-true-outliner/issues/213).
 
 The same review found a setext heading leaving the margin of the list above it open — `segment`
 cleared the stack only for an ATX heading — which the seam rules, reading the heading's children
@@ -79,7 +81,8 @@ not index `- ## Notes` as a heading, though both editing surfaces style it as on
 `\t# heading child` under `- alpha` as a heading would move everything after it into a new
 section, which is a grammar decision rather than a parser fix. The paragraph interruption test
 keeps a `-` or `=` rule under a paragraph reading from column 0 for the same reason: at the
-margin it would be a setext underline, and so a heading.
+margin it would be a setext underline, and so a heading. The heading case stays open in
+[#136](https://github.com/laughedelic/obsidian-true-outliner/issues/136).
 
 ## Measured: one line, every column
 
