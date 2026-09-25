@@ -1,0 +1,107 @@
+// Copy to tests/zz-paste-sweep.test.ts and run with
+//   OUT=<file> npx vitest run tests/zz-paste-sweep.test.ts
+// once per checkout; diff the two JSON files with compare.mjs.
+import { it } from 'vitest';
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { parse } from '../src/parse';
+import { encode } from '../src/encode';
+import { walkNodes, type OutlineNode } from '../src/model';
+import { insertSubtrees, moveSubtreesTo } from '../src/ops';
+
+const SHAPES = [
+  '- top\n  - sib\n',
+  '- top\n\t- sib\n',
+  '- top\n    - sib\n',
+  '- a\n  - b\n    - c\n  - d\n- e\n',
+  '- a\n\t- b\n\t\t- c\n\t- d\n- e\n',
+  '- a\n    - b\n        - c\n- e\n',
+  '1. a\n   - b\n     - c\n- x\n  - y\n',
+  '- a\n  bar\n  - b\n    more\n',
+  '- a\n\t  bar\n\t- b\n\t  more\n',
+  '- a\n  ```\n  code\n\n    deeper\n  ```\n  - b\n',
+  '- a\n\t```\n\tcode\n\t```\n\t- b\n',
+  '- a\n\n  > quote\n  > two\n\n  - b\n',
+  '10. a\n    - b\n        - c\n',
+  'Para.\n- x\n  - y\n',
+  '# H\n\n- a\n  - b\n\n## K\n\n- c\n',
+  '- a\n  - b\n\t- c\n',
+];
+
+// The issue's tree in each spelling, pasted into each kind of document.
+const SPELLINGS = {
+  two: '- a\n  - b\n    - c\n  - d\n',
+  four: '- a\n    - b\n        - c\n    - d\n',
+  tab: '- a\n\t- b\n\t\t- c\n\t- d\n',
+  mixed: '- a\n  - b\n      - c\n  - d\n',
+  tabspace: '- a\n\t- b\n\t    - c\n\t- d\n',
+  cont: '- a\n  x\n  - b\n    y\n    - c\n  - d\n',
+  contTab: '- a\n\tx\n\t- b\n\t\ty\n\t\t- c\n\t- d\n',
+};
+const DESTS = {
+  tabNested: ['- top\n\t- sib\n', '\t'],
+  twoNested: ['- top\n  - sib\n', '  '],
+  fourNested: ['- top\n    - sib\n', '    '],
+  tabRoot: ['- top\n\t- sib\n', '\t'],
+  twoRoot: ['- top\n  - sib\n', '  '],
+  emptyTabFallback: ['- top\n', '\t'],
+  emptyTwoFallback: ['- top\n', '  '],
+} as const;
+
+function subtreeText(node: OutlineNode): string {
+  const lines: string[] = [];
+  const walk = (n: OutlineNode): void => {
+    lines.push(...n.lines);
+    n.children.forEach(walk);
+  };
+  walk(node);
+  return lines.join('\n') + '\n';
+}
+
+function shape(nodes: readonly OutlineNode[]): unknown {
+  return nodes.map((n) => [n.kind, n.lines.length, shape(n.children)]);
+}
+
+function isWithin(root: OutlineNode, id: number): boolean {
+  if (root.id === id) return true;
+  return root.children.some((c) => isWithin(c, id));
+}
+
+it('sweep', () => {
+  const docs = [
+    ...SHAPES,
+    ...readdirSync('tests/corpus').map((f) => readFileSync(`tests/corpus/${f}`, 'utf8')),
+  ];
+  const rows: Record<string, unknown> = {};
+  const record = (key: string, r: ReturnType<typeof insertSubtrees>): void => {
+    if (!r.ok) { rows[key] = { reject: r.rejection.reason }; return; }
+    const text = encode(r.value.doc);
+    rows[key] = { text, shape: shape(parse(text).children) };
+  };
+  for (const [d, md] of docs.entries()) {
+    const doc = parse(md);
+    const nodes = [...walkNodes(doc)];
+    for (const node of nodes) {
+      for (const unit of ['\t', '  ', '    ']) {
+        // A copy of the node's own subtree, pasted back after it.
+        const payload = parse(subtreeText(node)).children;
+        record(`self|${d}|${node.id}|${JSON.stringify(unit)}`, insertSubtrees(doc, node.id, payload, 'after', unit));
+        // The node moved to be the first child of every list item outside it.
+        for (const target of nodes) {
+          if (target.kind !== 'list-item' || isWithin(node, target.id)) continue;
+          record(
+            `move|${d}|${node.id}|${target.id}|${JSON.stringify(unit)}`,
+            moveSubtreesTo(doc, [[node.id]], { parentId: target.id, index: 0 }, unit),
+          );
+        }
+      }
+    }
+  }
+  for (const [s, clip] of Object.entries(SPELLINGS)) {
+    for (const [name, [md, unit]] of Object.entries(DESTS)) {
+      const doc = parse(md);
+      const anchor = name.endsWith('Root') ? doc.children[0]! : [...walkNodes(doc)].at(-1)!;
+      record(`matrix|${name}|${s}`, insertSubtrees(doc, anchor.id, parse(clip).children, 'after', unit));
+    }
+  }
+  writeFileSync(process.env.OUT!, JSON.stringify(rows));
+});
