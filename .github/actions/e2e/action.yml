@@ -91,7 +91,7 @@ runs:
 
     # Test Analytics: one upload per job, flagged by platform so the same
     # test's desktop and mobile histories stay apart. The directory holds one
-    # file per worker (e2e/wdio.shared.mts).
+    # file per worker (e2e-tests/wdio.shared.mts).
     - if: ${{ !cancelled() }}
       uses: codecov/codecov-action@v7
       with:
