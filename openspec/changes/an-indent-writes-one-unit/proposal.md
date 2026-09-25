@@ -3,7 +3,7 @@
 With **Indent using tabs** on — Obsidian's default — an indent writes the node's first line with
 a tab and every other line the node owns with spaces. Reported as
 [#154](https://github.com/laughedelic/obsidian-true-outliner/issues/154), `p1`, and reproduced
-against `main` at `48ecec3` through `indent`. `┆` marks a column edge, `┃` the caret, `⏵` a tab;
+against `main` at `48ecec3` through `indent`, and again at `e31db46`. `┆` marks a column edge, `┃` the caret, `⏵` a tab;
 the caret stays where it was in `foo`, as the caret policy for indent maps it.
 
 ```

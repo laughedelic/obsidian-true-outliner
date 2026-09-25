@@ -3,7 +3,8 @@
 An indent in a tab-indented vault wrote a node's first line with a tab and every line below it
 with spaces: one node, indented two ways. Reported as
 [#154](https://github.com/laughedelic/obsidian-true-outliner/issues/154), and measured here
-against `main` at `48ecec3`.
+against `main` at `48ecec3`, and re-run unchanged at `e31db46`, after the drag feature and the
+list-item-relative block starts of #210 landed.
 
 `┆` marks a column edge, `⏵` a tab.
 
