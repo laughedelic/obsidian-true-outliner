@@ -1,9 +1,11 @@
 /**
  * Checks that a pull request has been landed on its branch before review: its
- * OpenSpec change archived with the delta specs synced, and the version bumped
+ * OpenSpec change archived, finished and synced, and the version bumped
  * when it ships behaviour. CLAUDE.md, "Change lifecycle", step 5.
  *
  *   node scripts/check-landed.mjs <base> "<pull request title>"
+ *
+ * It needs the OpenSpec CLI on the path, which reads the change and the specs.
  *
  * `<base>` is the tip of the branch the pull request merges into; the pull
  * request is HEAD. What the pull request changes is read against their merge
@@ -51,9 +53,21 @@ if (kind === undefined) {
   problems.push(`the title has no conventional-commit prefix naming a kind: ${JSON.stringify(title)}`);
 }
 
-// An OpenSpec change outside `archive/` is one still in flight. Only a change
-// this pull request opens is its to archive: one already on the base belongs to
-// whichever pull request opened it, even when this one edits its text.
+/**
+ * The OpenSpec CLI's own reading of the tree. `validate` exits non-zero when
+ * anything fails, which here is data rather than an error.
+ */
+const openspec = (...args) => {
+  const env = { ...process.env, OPENSPEC_TELEMETRY: '0' };
+  let out;
+  try {
+    out = execFileSync('openspec', [...args, '--json'], { encoding: 'utf8', env, stdio: ['ignore', 'pipe', 'inherit'] });
+  } catch (e) {
+    if (typeof e.stdout !== 'string' || e.stdout === '') throw e;
+    out = e.stdout;
+  }
+  return JSON.parse(out);
+};
 const onBase = (p) => {
   try {
     execFileSync('git', ['cat-file', '-e', `${base}:${p}`], { stdio: 'ignore' });
@@ -62,19 +76,40 @@ const onBase = (p) => {
     return false;
   }
 };
-const active = new Set(
-  kept.map((f) => /^openspec\/changes\/([^/]+)\//.exec(f)?.[1]).filter((c) => c && c !== 'archive'),
-);
-for (const change of active) {
-  if (!onBase(`openspec/changes/${change}`)) problems.push(`openspec/changes/${change} is not archived`);
+
+// A change `openspec list` still reports is one in flight. Only a change this
+// pull request opens is its to archive: one already on the base belongs to
+// whichever pull request opened it, even when this one edits its text.
+for (const { name } of openspec('list').changes) {
+  if (!onBase(`openspec/changes/${name}`)) problems.push(`openspec/changes/${name} is not archived`);
 }
 
-// An archived delta spec whose capability's main spec the pull request leaves
-// alone was archived without being synced.
+// What this pull request archives: `openspec validate --archived` holds every
+// archived change to a finished task list, and earlier ones are not this pull
+// request's to finish.
+const archived = new Set(added.map((f) => /^openspec\/changes\/archive\/([^/]+)\//.exec(f)?.[1]).filter(Boolean));
+for (const item of openspec('validate', '--archived').items) {
+  if (archived.has(item.id) && !item.valid) {
+    for (const issue of item.issues) problems.push(`${item.id}: ${issue.path}: ${issue.message}`);
+  }
+}
+
+// `openspec archive` syncs each delta into its capability's main spec, and has
+// a flag to skip that; the CLI keeps no record of which it did. A delta whose
+// main spec the pull request leaves alone was archived without being synced.
 for (const f of added) {
   const m = /^openspec\/changes\/archive\/([^/]+)\/specs\/([^/]+)\/spec\.md$/.exec(f);
   if (m && !touched.has(`openspec/specs/${m[2]}/spec.md`)) {
     problems.push(`${m[1]} carries a delta for ${m[2]}, but openspec/specs/${m[2]}/spec.md is unchanged`);
+  }
+}
+
+// A sync writes the main specs, so they are checked as they will merge.
+for (const item of openspec('validate', '--specs', '--strict').items) {
+  if (!item.valid) {
+    for (const issue of item.issues.filter((i) => i.level !== 'INFO')) {
+      problems.push(`openspec/specs/${item.id}: ${issue.path}: ${issue.message}`);
+    }
   }
 }
 

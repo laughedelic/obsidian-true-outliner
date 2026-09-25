@@ -84,9 +84,9 @@ Planning and implementation share one PR, in this order:
 4. **Review at each ready point**, address the findings, and iterate until manual testing passes.
 5. **Land.** Validate, sync the delta specs, archive the change, and bump the version — all on the
    branch, before merging. Then squash-merge; CI releases from `main` when `manifest.json` moves.
-   The `Landed` check holds a ready PR to this: no change it opened left unarchived, and a `feat`
-   or `fix` that touches `src/` or `styles/` carries a minor or patch bump
-   (`scripts/check-landed.mjs`).
+   The `Landed` check holds a ready PR to this: no change it opened left unarchived, each one it
+   archived finished and synced, and a `feat` or `fix` that touches `src/` or `styles/` carrying a
+   minor or patch bump (`scripts/check-landed.mjs`).
 
 `npm version <patch|minor>` rewrites `manifest.json` and `versions.json` and deliberately creates
 no tag: the release is cut from the squashed merge commit, which no local tag can name.
