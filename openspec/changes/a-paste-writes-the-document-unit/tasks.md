@@ -65,6 +65,10 @@
       a blank line of spaces pasted into a tab list. Negative control: the payload's gaps passed
       through.
 - [x] 5.8 File the renumbering shift found by the fuzzer as #227.
+- [x] 5.9 Copilot review: a paste over a selection of an empty note's blank lines, a single
+      line or select-all, is routed to the empty body (`isEmptyBodyRange`) rather than the
+      deletion path, which passed it to Obsidian. Test: one line, select-all, and a selection
+      reaching the frontmatter, which passes. Negative control: the selection routed as before.
 
 ## 4. Validate
 
@@ -79,4 +83,4 @@
 - [ ] 4.5 Manual check in Obsidian with **Indent using tabs** on and off: #216's cases 1 to 6,
       and a copy pasted back within the note unchanged.
 - [ ] 4.6 Sync the delta spec, archive the change, bump the version.
-- [ ] 4.7 `openspec validate a-paste-writes-the-document-unit --strict`.
+- [x] 4.7 `openspec validate a-paste-writes-the-document-unit --strict`.

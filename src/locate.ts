@@ -87,6 +87,15 @@ export function isEmptyBodyLine(doc: OutlineDoc, line: number): boolean {
   return (doc.preamble[line] ?? '').trim() === '';
 }
 
+/** Whether every line from `fromLine` to `toLine` is one `isEmptyBodyLine`
+ * accepts: a selection lying wholly in the body of a note with no node. */
+export function isEmptyBodyRange(doc: OutlineDoc, fromLine: number, toLine: number): boolean {
+  for (let line = fromLine; line <= toLine; line++) {
+    if (!isEmptyBodyLine(doc, line)) return false;
+  }
+  return true;
+}
+
 function frontmatterLength(preamble: readonly string[]): number {
   if (!/^---[ \t]*$/.test(preamble[0] ?? '')) return 0;
   const close = preamble.findIndex((line, i) => i > 0 && /^(---|\.\.\.)[ \t]*$/.test(line));

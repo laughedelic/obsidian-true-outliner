@@ -13,7 +13,7 @@
  */
 
 import type { OutlineDoc } from './model';
-import { isEmptyBodyLine, nodeAtLine, nodeStartLine } from './locate';
+import { isEmptyBodyLine, isEmptyBodyRange, nodeAtLine, nodeStartLine } from './locate';
 import { parse } from './parse';
 import { isContentStartCh, surplusMarkerSpace } from './ops';
 import { coveredSubtreeRoots } from './escalate';
@@ -292,6 +292,18 @@ function isMultiBlockInsertion(
   return isStructuralBlockSequence(parse(span.insertedText).children);
 }
 
+/**
+ * A structural payload replacing a selection that lies wholly in the body of a
+ * note with no node — whitespace, over one line or several. The caret's own
+ * case is `isMultiBlockInsertion`'s; a selection reaches none of the node-level
+ * shapes, having no node to cross.
+ */
+function isEmptyBodyPaste(doc: OutlineDoc, span: ChangedLineSpan): boolean {
+  if (!span.insertedText) return false;
+  if (!isEmptyBodyRange(doc, span.fromLine, span.toLine)) return false;
+  return isStructuralBlockSequence(parse(span.insertedText).children);
+}
+
 /** The single-newline-deletion shape (see `deletesLineBoundary`'s own
  * comment) checked against the line immediately following `fromLine` —
  * the line whose owner the removed newline used to separate `fromLine`
@@ -414,6 +426,7 @@ export function classify(facts: TransactionFacts, doc: OutlineDoc): TransactionC
   const other = facts.changedLineSpans.some(
     (span) =>
       isMultiBlockInsertion(doc, facts, span) ||
+      isEmptyBodyPaste(doc, span) ||
       crossesViaBoundaryDeletion(doc, span) ||
       crossesViaChromeDeletion(doc, facts, span) ||
       isExactSubtreeCoverDeletion(doc, span),

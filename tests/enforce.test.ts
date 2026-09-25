@@ -1218,6 +1218,26 @@ describe('a paste on the blank line under a node lands in it', () => {
     expect(encode(spaces.after)).toBe('- a\n    - b\n');
   });
 
+  it('a paste over a selection of an empty note’s blank lines starts the outline too', () => {
+    // Negative control: the selection routed to the deletion path, which finds
+    // no node to cover in the preamble and passed the paste to Obsidian.
+    const oneLine = pasteThroughBothGates('  \n', pos(0, 0), pos(0, 2), '- a\n  - b\n', '\t');
+    expect(oneLine.kind).toBe('rewrite');
+    if (oneLine.kind !== 'rewrite') return;
+    expect(encode(oneLine.after)).toBe('- a\n\t- b\n');
+
+    // Select-all over a note of blank lines.
+    const all = pasteThroughBothGates('\n  \n\t\n', pos(0, 0), pos(3, 0), '- a\n  - b\n', '\t');
+    expect(all.kind).toBe('rewrite');
+    if (all.kind !== 'rewrite') return;
+    expect(encode(all.after)).toBe('- a\n\t- b\n');
+
+    // A selection reaching into the frontmatter is Obsidian's, as it always was.
+    expect(
+      pasteThroughBothGates('---\na: 1\n---\n\n', pos(2, 0), pos(4, 0), '- a\n  - b\n', '\t'),
+    ).toEqual({ kind: 'pass' });
+  });
+
   it('a paste below a template’s frontmatter lands under it, and the frontmatter stays out of reach', () => {
     const body = pasteThroughBothGates('---\na: 1\n---\n\n', pos(4, 0), pos(4, 0), '- a\n  - b\n', '\t');
     expect(body.kind).toBe('rewrite');

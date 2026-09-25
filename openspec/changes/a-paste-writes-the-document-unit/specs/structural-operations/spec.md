@@ -36,8 +36,9 @@ before, and its children SHALL be written in the document's unit: under a paragr
 paragraph's own indentation, and under a list item as any list item's children are.
 
 A paste into a note that holds no node SHALL be written as the root's children through the
-same re-encode, on any blank line past the note's frontmatter. The frontmatter SHALL NOT be
-touched.
+same re-encode, at a caret on any blank line past the note's frontmatter or over a selection
+lying wholly on such lines. The frontmatter SHALL NOT be touched, and a selection reaching into
+it SHALL be left to the native paste.
 
 The document's unit SHALL be read from the step between a bullet item and its first
 indented child where the document has one. The step under a numbered item is also the
@@ -115,6 +116,11 @@ blank to parse, so the separation a reader sees there is this one.
 #### Scenario: The first paste into an empty note converges
 - **WHEN** a two-space list is pasted into an empty note in a tab-indented vault
 - **THEN** it lands with tabs at every nested level
+
+#### Scenario: Select-all over an empty note converges too
+- **WHEN** a two-space list is pasted over a selection of every line of a note that holds only
+  blank lines, in a tab-indented vault
+- **THEN** it lands with tabs at every nested level, as a caret paste there does
 
 #### Scenario: A paste below a template's frontmatter leaves the frontmatter alone
 - **WHEN** a list is pasted on the blank line below the frontmatter of a note with no node

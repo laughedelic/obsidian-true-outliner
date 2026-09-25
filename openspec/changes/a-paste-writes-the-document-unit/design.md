@@ -123,9 +123,11 @@ because an indent's children are the document's own and a unit could move them.
 
 A note with no node is all preamble, which is outside the outline, so a paste into it went to
 Obsidian untouched. `isEmptyBodyLine` gives jurisdiction over such a note's blank lines past any
-frontmatter, and only while the note has no node. A structural paste there is written as the
-root's children through `reencodeBlocksForDestination`, so the first paste converges like every
-later one. The blank lines above the caret stay above it, and those below it become the run's
+frontmatter, and only while the note has no node. A structural paste there, at a caret or over
+a selection lying wholly on those lines (⌘A in a note of blank lines), is written as the root's
+children through `reencodeBlocksForDestination`, so the first paste converges like every later
+one. A selection has no node to cover, so it reaches none of the deletion path's shapes, and it
+is routed to the empty body before them. The blank lines above the caret stay above it, and those below it become the run's
 trailing gap, which is where Obsidian's own paste leaves them. The frontmatter is never touched,
 and plain text, which opens no block, still goes to Obsidian. A note that has nodes keeps its
 leading blank lines as preamble, where a paste stays Obsidian's.
