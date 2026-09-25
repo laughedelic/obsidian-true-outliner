@@ -64,9 +64,12 @@ and why, and a 1 774-row differential against `main`.
   indent there takes.
 - **The caret.** Where a paste leaves the caret is `caret-placement-policy`'s, and unchanged.
 - **Trailing whitespace.** A pasted line's trailing whitespace is kept. Two trailing spaces are a
-  hard line break, so when trailing whitespace can be trimmed is a question of its own.
+  hard line break, so when trailing whitespace can be trimmed is a question of its own
+  ([#230](https://github.com/laughedelic/obsidian-true-outliner/issues/230)).
 - **Renumbering.** A renumbering after the paste can move an item marked with a tab onto another
   tab stop ([#227](https://github.com/laughedelic/obsidian-true-outliner/issues/227)).
+- **An ordered item's delimiter.** A pasted `1)` beside a `.` run keeps its delimiter and takes the
+  run's number ([#228](https://github.com/laughedelic/obsidian-true-outliner/issues/228)).
 
 ## Impact
 

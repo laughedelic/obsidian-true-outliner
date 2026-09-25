@@ -185,6 +185,9 @@ Reduced to their smallest reproductions, the six residual rows fall into two kin
   zero, `2)   t3`, directly above a continuation the destination wrote at column six
   (`      cont9`, the tail of `    -  t8`). That continuation now reaches the pasted item's content
   column and becomes its child. `main` wrote the item at a tab and three spaces, past it.
+  The note is one the parser reads differently from CommonMark, which takes all three of its
+  lines as one paragraph, and no caret paste reaches that insertion. Filed as
+  [#229](https://github.com/laughedelic/obsidian-true-outliner/issues/229).
 
 A sixth kind, a line outside its node's indentation kept where it stood while the block moved
 right, turned a lazy `> q4` into a quote. It is fixed: such a line moves with the block's root
@@ -242,7 +245,11 @@ the blank lines a move carries.
 - **Blank lines above a note's first node**, when the note has nodes, are still preamble, and a
   paste there goes to Obsidian.
 - **Trailing whitespace** on a pasted line is kept. Two trailing spaces are a hard line break,
-  so which trailing whitespace is safe to trim is a question of its own.
+  so which trailing whitespace is safe to trim is a question of its own:
+  [#230](https://github.com/laughedelic/obsidian-true-outliner/issues/230).
+- **An ordered item pasted beside a run with the other delimiter** (`1)` after `2.`) keeps its
+  delimiter and takes the run's number, because renumbering reads across a change of delimiter:
+  [#228](https://github.com/laughedelic/obsidian-true-outliner/issues/228).
 - **Renumbering after a paste** can move an item marked with a tab onto another tab stop
   ([#227](https://github.com/laughedelic/obsidian-true-outliner/issues/227)), which accounts for
   five of the six residual rows above.
