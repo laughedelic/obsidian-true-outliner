@@ -20,7 +20,7 @@ import { execFile } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import * as path from 'node:path';
-import * as yaml from 'js-yaml';
+import { parse } from 'yaml';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dryRun = process.argv.includes('--dry-run');
@@ -41,7 +41,7 @@ interface RepoLabel {
   description: string | null;
 }
 
-const read = (rel: string): unknown => yaml.load(readFileSync(path.join(root, rel), 'utf8'));
+const read = (rel: string): unknown => parse(readFileSync(path.join(root, rel), 'utf8'));
 const declared = read('.github/labels.yml') as Label[];
 const declaredNames = new Set(declared.map((l) => l.name));
 

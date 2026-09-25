@@ -1,6 +1,6 @@
 {
   "name": "obsidian-true-outliner",
-  "version": "0.13.3",
+  "version": "0.13.4",
   "description": "A true outliner for Obsidian — mapping core library",
   "main": "src/index.ts",
   "directories": {
@@ -45,12 +45,10 @@
     "@wdio/junit-reporter": "^9.32.0",
     "@wdio/local-runner": "^9.31.9",
     "@wdio/mocha-framework": "^9.31.9",
-    "builtin-modules": "^5.4.0",
     "esbuild": "^0.28.2",
     "eslint": "^10.11.0",
     "eslint-plugin-obsidianmd": "^0.4.2",
     "fast-check": "^4.10.1",
-    "js-yaml": "^5.4.2",
     "mocha": "^12.0.2",
     "obsidian": "^1.13.1",
     "typescript": "~5.9.0",
@@ -59,6 +57,7 @@
     "vitest": "^5.0.1",
     "wdio-obsidian-reporter": "^3.2.1",
     "wdio-obsidian-service": "^3.2.1",
-    "webdriverio": "^9.29.1"
+    "webdriverio": "^9.29.1",
+    "yaml": "^2.9.1"
   }
 }
