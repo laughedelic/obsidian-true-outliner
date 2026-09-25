@@ -234,6 +234,18 @@ describe('edit dispatch: line edits → editor changes', () => {
     return out;
   }
 
+  it('keeps each line of an outdent that adds a separator as its own change', () => {
+    // `- A` with an attached id and a child, outdented: the paragraph needs a
+    // blank line between its id and the list, so the edit gains a line.
+    const text = 'x\n\n- A\n\n  ^a\n  - a\n    - A\n';
+    const after = 'x\n\nA\n\n^a\n\n- a\n  - A\n';
+    const lines = text.split('\n');
+    const changes = editsToChanges(lines, diffLines(lines, after.split('\n')));
+    expect(applyChanges(text, changes)).toBe(after);
+    expect(changes[0]).toEqual({ from: { line: 2, ch: 0 }, to: { line: 2, ch: 2 }, text: '' });
+    expect(changes.every((c) => c.to.line - c.from.line <= 1)).toBe(true);
+  });
+
   /**
    * The ordering guarantee `minimal-change-dispatch` states, asserted rather
    * than assumed. It is not free: runs are ascending and disjoint in LINE

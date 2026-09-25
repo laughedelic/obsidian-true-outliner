@@ -104,6 +104,10 @@ node's own span. The paths that rewrite a node's lines each handle it once:
   gives such a node with children a blank line before its first child, as it already does for a
   list item whose first child its text would swallow. Below a list item's id, only text joins the
   id (`^g6`, `^g7`), so the seam is the one below a paragraph line.
+- That separator makes an outdent change its line count, which `editsToChanges` used to narrow to
+  one region carrying the caret to its end. It gains a third reading, each line paired with the
+  line it was re-indented into and the separator one insertion, weighed against the other two by
+  the characters each claims.
 
 ### D5. Detection and corrections are a pure core module
 
