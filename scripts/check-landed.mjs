@@ -96,7 +96,7 @@ const removed = new Set(
     .filter((c) => c && c !== 'archive'),
 );
 for (const name of removed) {
-  const filed = [...archived].some((a) => a.replace(/^\d{4}-\d{2}-\d{2}-/, '') === name);
+  const filed = [...archived].some((a) => /^\d{4}-\d{2}-\d{2}-(.+)$/.exec(a)?.[1] === name);
   if (!inFlight.has(name) && !filed) problems.push(`openspec/changes/${name} is removed without being archived`);
 }
 
