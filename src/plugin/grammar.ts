@@ -85,6 +85,18 @@ export interface TxPlan {
    * how to remove a place if there is one; the module decides if there is.
    */
   abandon?: EditorChange[] | undefined;
+  /**
+   * The operation's own REVERSAL, in the coordinates of the document `changes`
+   * produces — stated only by an operation that may be CARRYING a place, which
+   * is one handed the line of an open place.
+   *
+   * `provisional-cleanup` composes it with the removal the place held before
+   * this operation, when the place was opened as an empty NODE: declining that
+   * node then returns the document to what it was before the key that opened
+   * it, whatever the carries did on the way (`structural-history-integration`,
+   * "A carried place is declined like a fresh one").
+   */
+  carryReversal?: EditorChange[] | undefined;
 }
 
 /**
@@ -117,13 +129,27 @@ export type AbandonForm = 'reverse' | 'drop-line' | 'none';
  * keys on where the caret landed, not on which key ran.
  */
 export const STRUCTURAL_DISPATCH = {
-  indent: { userEvent: 'input.structure.indent', abandon: 'none' },
-  outdent: { userEvent: 'input.structure.outdent', abandon: 'drop-line' },
-  'move-up': { userEvent: 'move.structure', abandon: 'none' },
-  'move-down': { userEvent: 'move.structure', abandon: 'none' },
-} as const satisfies Record<string, { userEvent: string; abandon: AbandonForm }>;
+  indent: { userEvent: 'input.structure.indent', abandon: 'drop-line', abandonWhen: 'carrying' },
+  outdent: { userEvent: 'input.structure.outdent', abandon: 'drop-line', abandonWhen: 'always' },
+  'move-up': { userEvent: 'move.structure', abandon: 'none', abandonWhen: 'always' },
+  'move-down': { userEvent: 'move.structure', abandon: 'none', abandonWhen: 'always' },
+} as const satisfies Record<
+  string,
+  { userEvent: string; abandon: AbandonForm; abandonWhen: 'always' | 'carrying' }
+>;
 
 export type StructuralKey = keyof typeof STRUCTURAL_DISPATCH;
+
+/**
+ * The removal form a key's dispatch states, given whether it began on an open
+ * place. Indent states one only then: over a place it carries, the line is the
+ * removal, and anywhere else nothing it does leaves a place — so a held Tab
+ * with no place builds no second document for an edit nobody will read.
+ */
+export function dispatchAbandon(key: StructuralKey, carrying: boolean): AbandonForm {
+  const entry = STRUCTURAL_DISPATCH[key];
+  return entry.abandonWhen === 'carrying' && !carrying ? 'none' : entry.abandon;
+}
 
 export type GrammarOutcome = { plan: TxPlan } | { notice: string } | null;
 
@@ -235,6 +261,13 @@ function planFromOp(
    * so it needs no escalation and no second geometry.
    */
   dispatchSpan = false,
+  /**
+   * Whether the operation began on an open place, and so states its own
+   * reversal (`TxPlan.carryReversal`). Separate from `placeLine`, which also
+   * steers how the result is READ for the caret: the empty-item ladder carries
+   * a place without wanting its result read through one.
+   */
+  carrying = placeLine !== undefined,
 ): GrammarOutcome {
   if (!result.ok) return { notice: REJECTION_MESSAGES[result.rejection.reason] };
   const changes = editsToChanges(lines, result.value.edits);
@@ -276,6 +309,7 @@ function planFromOp(
       })(),
       userEvent,
       abandon: abandonEdit(abandonForm, lines, newLines, caret.line),
+      carryReversal: carrying ? abandonEdit('reverse', lines, newLines, caret.line) : undefined,
     },
   };
 }
@@ -689,7 +723,7 @@ export function planKey(
         STRUCTURAL_DISPATCH.indent.userEvent,
         { kind: 'derived' },
         opDoc,
-        STRUCTURAL_DISPATCH.indent.abandon,
+        dispatchAbandon('indent', placeLine !== undefined),
         cursor,
         placeLine,
         span,
@@ -752,6 +786,11 @@ export function planKey(
             doc,
             STRUCTURAL_DISPATCH.outdent.abandon,
             cursor,
+            undefined,
+            false,
+            // The ladder CARRIES the empty item it moves when that item is an
+            // open place, so it states its reversal like any other carry.
+            placeLine !== undefined,
           );
         }
         return planFromOp(
@@ -763,6 +802,10 @@ export function planKey(
           // Leaving the list is what the user asked for; only the blank line it
           // left behind is debris. A reversal here would put the `- ` back.
           'drop-line',
+          undefined,
+          undefined,
+          false,
+          placeLine !== undefined,
         );
       }
       return planFromOp(

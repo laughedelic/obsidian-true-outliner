@@ -70,11 +70,12 @@ carrying one. For the same reason, indent states `drop-line` as its `abandon` on
 place line; outdent keeps stating it always.
 
 Four operations state `carryReversal`: indent, outdent, and the empty-item ladder's outdent and
-unwrap. The ladder currently plans both without the place line `planKey` receives. It now forwards
-it, which is what lets the ladder's outdent state a reversal. Handing a place line to an operation
-whose caret lands on a node's own line resolves nothing in `placeOutline`, as it already does for
-a Tab over an empty item. `STRUCTURAL_DISPATCH` records indent's "only when carrying". A Tab with no
-place states nothing new, so the keymap still builds no second document for a held run.
+unwrap. What decides it is a `carrying` flag on `planFromOp`, true exactly when the operation was
+handed a place line. The ladder plans both of its operations without the place line `planKey`
+receives, and it keeps doing so. The place line also steers how the RESULT is read for the caret,
+and the ladder's caret placement is not what this change is about. So the ladder passes only the
+flag. `STRUCTURAL_DISPATCH` records indent's "only when carrying" (`dispatchAbandon`). A Tab with
+no place states nothing new, so the keymap still builds no second document for a held run.
 
 The keymap dispatches `carryReversal` as an annotation beside `abandonEdit`. `runOp` computes the
 same reversal from the funnel's result with `abandonEdit('reverse', …)` when it read a place line.

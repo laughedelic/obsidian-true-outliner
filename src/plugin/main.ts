@@ -111,7 +111,7 @@ import { historyCaretExtension } from './history-caret';
 import { TransactionStats } from './stats';
 import { placeOutline } from './decorate';
 import { openPlaceLine, recordDispatch } from './provisional-cleanup';
-import { abandonEdit, STRUCTURAL_DISPATCH, type StructuralKey } from './grammar';
+import { abandonEdit, dispatchAbandon, STRUCTURAL_DISPATCH, type StructuralKey } from './grammar';
 import { ChangeSet } from '@codemirror/state';
 
 const CONFLICTING_PLUGINS = ['obsidian-outliner', 'obsidian-zoom'];
@@ -1453,7 +1453,12 @@ export default class TrueOutlinerPlugin extends Plugin {
         const dispatch = STRUCTURAL_DISPATCH[key];
         const abandon =
           outcome.to === undefined
-            ? abandonEdit(dispatch.abandon, text.split('\n'), outcome.newLines, outcome.from.line)
+            ? abandonEdit(
+                dispatchAbandon(key, placeLine !== undefined),
+                text.split('\n'),
+                outcome.newLines,
+                outcome.from.line,
+              )
             : undefined;
         recordDispatch(view, {
           event: dispatch.userEvent,

@@ -12,7 +12,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { EditorSelection, EditorState } from '@codemirror/state';
+import { ChangeSet, EditorSelection, EditorState } from '@codemirror/state';
 import { history, undo, undoDepth } from '@codemirror/commands';
 import { planKey, type GrammarKey, plannedCaret } from '../src/plugin/grammar';
 import { parse } from '../src/parse';
@@ -592,5 +592,81 @@ describe('Backspace returns to where the keypress started', () => {
     expect(originOf('- alpha\n', [0, 7]).before).toBe('- alpha');
     expect(originOf('1. a\n2. b\n3. c\n', [0, 4]).before).toBe('1. a');
     expect(originOf('## Foo\n', [0, 6], 'continue').before).toBe('## Foo');
+  });
+});
+
+/**
+ * `abandon-carried-place`: a place opened as an empty NODE and then carried is
+ * removed by reverting the carries and applying the opening removal. The rows
+ * are `docs/research/carried-place-removal`'s, "Removing a carried empty node".
+ */
+describe('a carried empty node is removed by reverting its carries', () => {
+  function toSpec(doc: EditorState['doc'], changes: readonly EditorChange[]) {
+    return changes.map((change) => ({
+      from: doc.line(change.from.line + 1).from + change.from.ch,
+      to: doc.line(change.to.line + 1).from + change.to.ch,
+      insert: change.text,
+    }));
+  }
+
+  /** Press `keys` in turn from `caret`, each later key handed the line the
+   * caret is on as its place, and return the carried document and the
+   * composed removal applied to it. */
+  function carryAndAbandon(
+    src: string,
+    caret: [number, number],
+    keys: readonly GrammarKey[],
+  ): { carried: string; restored: string } {
+    let state = EditorState.create({ doc: src, selection: EditorSelection.cursor(0) });
+    let pos = { line: caret[0], ch: caret[1] };
+    let removal: ChangeSet | undefined;
+    keys.forEach((key, i) => {
+      const outcome = planKey(state.doc.toString(), pos, key, '  ', undefined, i === 0 ? undefined : pos.line);
+      if (!outcome || !('plan' in outcome)) throw new Error(`${key} declined`);
+      const { plan } = outcome;
+      const changes = ChangeSet.of(toSpec(state.doc, plan.changes), state.doc.length);
+      state = state.update({ changes, selection: EditorSelection.cursor(plannedCaret(plan)) }).state;
+      if (i === 0) {
+        removal = ChangeSet.of(toSpec(state.doc, plan.abandon!), state.doc.length);
+      } else {
+        if (!plan.carryReversal) throw new Error(`${key} stated no reversal`);
+        const reversal = ChangeSet.of(toSpec(state.doc, plan.carryReversal), state.doc.length);
+        removal = reversal.compose(removal!);
+      }
+      const head = state.selection.main.head;
+      const line = state.doc.lineAt(head);
+      pos = { line: line.number - 1, ch: head - line.from };
+    });
+    return { carried: state.doc.toString(), restored: removal!.apply(state.doc).toString() };
+  }
+
+  const rows: [string, string, [number, number], GrammarKey[], string][] = [
+    ['the ladder with a following sibling', '- a\n  - b\n  - c\n', [1, 5], ['split', 'split'], '- a\n  - b\n- \n  - c\n'],
+    ['the ladder before a blank line and a paragraph', '- a\n  - b\n\npara\n', [1, 5], ['split', 'split'], '- a\n  - b\n- \n\npara\n'],
+    ['Tab before a blank line and a paragraph', '- foo\n\npara\n', [0, 5], ['split', 'indent'], '- foo\n  - \n\npara\n'],
+    ['Tab in a loose list', '- foo\n\n- bar\n', [0, 5], ['split', 'indent'], '- foo\n  - \n\n- bar\n'],
+    ['Shift+Tab into the parent run', '1. p\n   1. a\n   2. b\n2. q\n', [1, 7], ['split', 'outdent'], '1. p\n   1. a\n2. \n   3. b\n3. q\n'],
+    ['Tab in an ordered run', '1. a\n2. b\n', [0, 4], ['split', 'indent'], '1. a\n   2. \n2. b\n'],
+    ['a drafted heading, Shift+Tab', '## Foo\nbody\n## Bar\ntext\n', [0, 6], ['continue', 'outdent'], '## Foo\nbody\n#\n## Bar\ntext\n'],
+    ['Tab then Shift+Tab', '- a\n- b\n', [1, 3], ['split', 'indent', 'outdent'], '- a\n- b\n- \n'],
+  ];
+
+  for (const [name, src, caret, keys, carried] of rows) {
+    it(name, () => {
+      const out = carryAndAbandon(src, caret, keys);
+      expect(out.carried).toBe(carried);
+      expect(out.restored).toBe(src);
+    });
+  }
+
+  it('a drafted heading, Tab', () => {
+    const out = carryAndAbandon('## Foo\nbody\n## Bar\ntext\n', [0, 6], ['continue', 'indent']);
+    expect(out.restored).toBe('## Foo\nbody\n## Bar\ntext\n');
+  });
+
+  it('the ladder under a paragraph, which dissolves the item and moves its sibling out', () => {
+    const out = carryAndAbandon('para\n  - a\n  - b\n', [1, 5], ['split', 'split']);
+    expect(out.carried).not.toBe('para\n  - a\n  - b\n');
+    expect(out.restored).toBe('para\n  - a\n  - b\n');
   });
 });

@@ -2,9 +2,9 @@
 
 ## 1. What the carrying plans state
 
-- [ ] 1.1 Add `carryReversal` to `TxPlan`. Indent, outdent, and the ladder's outdent and unwrap state
+- [x] 1.1 Add `carryReversal` to `TxPlan`. Indent, outdent, and the ladder's outdent and unwrap state
   it when handed a place line, and indent then also states `drop-line` as its `abandon`. The ladder
-  forwards the place line `planKey` received. Record indent's "only when carrying" in
+  passes whether `planKey` received a place line (D2). Record indent's "only when carrying" in
   `STRUCTURAL_DISPATCH` (`src/plugin/grammar.ts`, D2).
 
   Verify in `tests/grammar.test.ts`:
@@ -16,7 +16,7 @@
   Negative controls:
   - stating them unconditionally breaks the Tab-with-no-place case;
   - not forwarding the place line in the ladder breaks the ladder case.
-- [ ] 1.2 Verify the composition in `tests/undo-on-abandon.test.ts`, over the table in
+- [x] 1.2 Verify the composition in `tests/undo-on-abandon.test.ts`, over the table in
   `docs/research/carried-place-removal`, "Removing a carried empty node". For every row, the
   reversal composed with the opening removal gives the original exactly: the ladder with a
   following sibling, the blank line after the list, the loose list, the nested ordered Shift+Tab,
