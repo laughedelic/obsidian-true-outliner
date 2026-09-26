@@ -76,6 +76,11 @@
 
 ## 4. Notes and specs
 
+- [ ] 4.0 Remove the drag pick-up's place resolution (`press.placeLine` and its `placeOutline` call
+  in `src/plugin/zoom-click.ts`), which no state reaches once a pick-up over an open place
+  declines it. Verify with an e2e case in the drag specs: ⇧⏎ ⇥, then press a bullet. The place is
+  removed and the drag does not start. The drag and selection groups stay green in narrow mode.
+
 - [ ] 4.1 Rewrite `keymap.ts`'s note on the selection handlers, and the carry comments in
   `provisional-cleanup.ts` (Risks). Close the abandon entry in
   `docs/research/decoration-follow-ups.md`, pointing to this change. Verify: a grep for "removal

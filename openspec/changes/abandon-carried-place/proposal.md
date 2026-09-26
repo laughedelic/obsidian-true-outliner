@@ -30,6 +30,10 @@ specified behaviour.
   below today.
 - Every gesture that declines a fresh place declines a carried one: moving away, ⌫, Delete, Enter
   on the place, and the bullet drag's pick-up.
+- Picking up a bullet while a place is open declines the place and the drag does not start, as it
+  already does after a plain Shift+Enter. `selection-structural-ops`' scenario for a drag resolved
+  against an open position is rewritten to say so, and the drag's place resolution, which no
+  longer runs, is removed.
 - The removal for a carried place follows what the place was when it was opened. That covers a
   node a carry dissolved into a blank line, whose adopted sibling goes back too.
 
@@ -43,6 +47,8 @@ None.
 
 - `structural-history-integration`: the open-place requirement stops saying that the removal record
   does not survive a carry. A new requirement states what a carried place's removal does.
+- `selection-structural-ops`: "A drag resolves an open position like the other two" now states
+  that the pick-up declines the position and the drag does not start.
 
 ## Impact
 
@@ -52,6 +58,7 @@ None.
   was live on the place the carry began on.
 - `src/plugin/keymap.ts` and `src/plugin/main.ts`: both dispatch paths hand the recorder the
   record that was live before the carry.
+- `src/plugin/zoom-click.ts`: the pick-up's place resolution (`press.placeLine`) is removed.
 - Tests: `tests/provisional-place-record.test.ts` and `tests/undo-on-abandon.test.ts`, and e2e cases
   in `e2e-tests/specs/30-keyboard-grammar.e2e.ts`.
 
@@ -61,12 +68,8 @@ None.
 - Moves do not carry a place, and this change does not make them.
 - The undo-grouping defect of a command run straight after a key (#250) is its own issue.
 - A place brought back by undo still cannot be declined, like a redone one.
-- Tab from a gap Enter widened between paragraphs moves the caret to the paragraph's own line, so
-  nothing carries the place and its blank lines stay. That is the same defect as #249 for
-  paragraphs, and it needs its own measurement.
-- Whether a bullet drag should still resolve a place, once every open place is removed on pick-up
-  (`selection-structural-ops`, "A drag resolves an open position like the other two"), is left for
-  review.
-- The Enter that renumbered a parent's ordered run in the live editor, although its plan does not
-  (`docs/research/carried-place-removal`, "Ordered, Enter then Shift+Tab"), is not located or fixed
-  here. The abandon only has to leave that run numbered correctly.
+- Tab after Enter at a paragraph's end moves the caret onto the paragraph's own line, so nothing
+  carries the position and its blank lines stay (#253).
+- Letting a drag go ahead after its pick-up declined a place (#254).
+- The Enter that renumbers a parent's ordered run in the live editor (#252). The abandon only has
+  to leave that run numbered correctly.

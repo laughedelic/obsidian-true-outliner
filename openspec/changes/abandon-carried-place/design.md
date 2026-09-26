@@ -148,9 +148,9 @@ undo-side twin of the redone place the spec already names.
   guard then aborts the drag, exactly as over a fresh place.
 
   After a carry, `main` still drags with the place resolved. Once every open place has a removal
-  record, `selection-structural-ops`' scenario "A drag resolves an open position like the other
-  two" has no state left where it applies. This change leaves that scenario and `press.placeLine`
-  in place and names the consequence for review. Removing them would be a spec change of its own.
+  record, that path has no state left where it runs. Decided on #251: the drag does not start, as
+  over a fresh place. `selection-structural-ops`' scenario is rewritten to say so, and the pick-up's
+  place resolution is removed. Letting the drag go ahead after the removal is #254.
 - [`keymap.ts`'s note on the selection handlers says a carry leaves the place record without a
   removal record] → That is no longer true. After this change a selection that leaves a carried
   place abandons it, as it does a fresh one. The note is rewritten; the handlers need no change.
