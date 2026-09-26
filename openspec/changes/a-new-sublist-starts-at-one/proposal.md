@@ -17,7 +17,10 @@ what the plan itself wrote. With the plan restored, ⇥ on `2. b` shows the spec
 number its own members carry". That clause was written for a paste, where the numbers are what
 the clipboard held. For a relocated item they are the numbers of the list it left. A new
 sublist rendered from `2.` reads as a list that starts part-way, and it is not what a Tab means.
-Decided on #256: a new sublist starts from `1.`.
+Decided on #256: a new sublist starts from `1.`. CommonMark agrees: an ordered list interrupts a paragraph only when
+it starts at 1, so `⏵2. b` directly under `1. a`'s text is read as more of that text, and
+Obsidian's reading mode shows it so. Our parser still reads that shape as a list; that is
+[#262](https://github.com/laughedelic/obsidian-true-outliner/issues/262).
 
 ## What Changes
 
