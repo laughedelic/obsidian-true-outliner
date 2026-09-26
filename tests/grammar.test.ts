@@ -813,9 +813,9 @@ describe('grammar planner: a structural key acts on the node a position is insid
       ['- a\n  - b\n    - c\n      \n      d\n', 'outdent', { line: 3, ch: 6 }, { line: 3, ch: 4 }],
       ['- top\n  9. a\n  - foo\n    \n    bar\n', 'indent', { line: 3, ch: 4 }, { line: 3, ch: 7 }],
       [
-        '- top\n  8. a\n  9. b\n  10. foo\n       \n       bar\n',
+        '9. top\n   8. a\n   9. b\n   10. foo\n        \n        bar\n',
         'outdent',
-        { line: 4, ch: 7 },
+        { line: 4, ch: 8 },
         { line: 4, ch: 5 },
       ],
       ['- top\n  - [ ] foo\n    \n    bar\n', 'outdent', { line: 2, ch: 4 }, { line: 2, ch: 2 }],
@@ -872,11 +872,11 @@ describe('grammar planner: a structural key acts on the node a position is insid
         { line: 2, ch: 4 },
       ],
       [
-        '1. a\n10. foo\n    \n',
+        '1. a\n   9. x\n10. foo\n    \n',
         'indent',
-        { line: 2, ch: 4 },
-        '1. a\n   10. foo\n       \n',
-        { line: 2, ch: 7 },
+        { line: 3, ch: 4 },
+        '1. a\n   9. x\n   10. foo\n       \n',
+        { line: 3, ch: 7 },
       ],
     ];
     for (const [text, key, cursor, after, caret] of cases) {

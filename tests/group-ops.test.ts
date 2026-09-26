@@ -341,12 +341,13 @@ describe('group operation scenarios', () => {
 
   it('renumbers an ordered run once, from the start it began with', () => {
     // Indenting the head of `5. 6. 7.` away leaves the survivors renumbering
-    // from 5 — computed over the final membership, not once per step.
+    // from 5 — computed over the final membership, not once per step. The
+    // indented pair starts a new list under the bullet, numbered from 1.
     const doc = parse('- bullet\n5. one\n6. two\n7. three\n');
     const result = indentGroups(doc, [idsOf(doc, 'one', 'two')]);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(encode(result.value.doc)).toBe('- bullet\n  5. one\n  6. two\n5. three\n');
+    expect(encode(result.value.doc)).toBe('- bullet\n  1. one\n  2. two\n5. three\n');
   });
 
   it('states a span that is exactly the cover of the moved roots', () => {

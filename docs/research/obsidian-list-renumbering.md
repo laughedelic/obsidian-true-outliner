@@ -108,6 +108,7 @@ With the plugin's planned change set carried on each of those four dispatches an
 | `1. p` / `   1. a` / `   2. b┃` / `2. q` | ⇧⇥ | `2. b` / `3. q` |
 | `1. p` / `    1. a┃` / `    2. b` / `2. q` (four spaces), and the same with a tab | move node down | `    1. b` / `    2. a` / `2. q` |
 | `1. a` / `2. b` / `3. c` / `- x┃` | move node up | `2. b` / `- x` / `3. c`: the split run keeps its numbers |
+| `1. a` / `2. b┃` / `3. c`, "Indent using tabs" on | ⇥ | `⏵1. b` / `2. c`, as on `main`. Restoring the plan alone gave `⏵2. b`, the number the spec then kept for a new list; `a-new-sublist-starts-at-one` numbers a new sublist from `1.` |
 
 The typing rows are unchanged: those edits are not the plugin's, and
 `transaction-classification` requires a within-node edit to land exactly as it would with our
