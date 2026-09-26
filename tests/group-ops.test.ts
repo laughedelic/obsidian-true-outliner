@@ -187,25 +187,89 @@ describe('2.8 group operations uphold closure, totality and minimal edits', () =
    */
   it('a sibling a move displaces carries its subtree to its widened marker', () => {
     const doc = parse(['9. L0', '   - L1', '10. L2'].join('\n'));
-    const { groups, labels } = operandOf(doc, 2, 2);
-    const result = moveGroupsUp(doc, groups);
-    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    const after = applied(doc, 'L2', moveGroupsUp);
 
-    expect(encode(result.value.doc).split('\n')).toEqual(['9. L2', '10. L0', '    - L1']);
-    expect(firstLinesKeptAbove(doc, labels, result.value.doc)).toBeDefined();
+    expect(encode(after).split('\n')).toEqual(['9. L2', '10. L0', '    - L1']);
+    expect(firstLinesKeptAbove(doc, ['L2'], after)).toBe(1);
+  });
+
+  /**
+   * The same reach through an ANCESTOR of the operand: outdenting `- L3` changes
+   * the sibling list its parent sits in, and that run was not consecutive, so
+   * it is normalized and `9. L1` becomes `10. L1`. `- L2` moves with it.
+   */
+  it('an outdent whose parent widens carries its other children along', () => {
+    const doc = parse(['9. L0', '9. L1', '   - L2', '   - L3'].join('\n'));
+    const after = applied(doc, 'L3', outdentGroups);
+
+    expect(encode(after).split('\n')).toEqual(['9. L0', '10. L1', '    - L2', '- L3']);
+    expect(firstLinesKeptAbove(doc, ['L3'], after)).toBe(1);
+  });
+
+  /**
+   * Narrowing keeps the tree and drifts the indentation, which no tree
+   * comparison sees: `10. L1` renumbered to `9. L1` has to bring `- L2` a
+   * column back in, and the oracle holds it to exactly that column.
+   */
+  it('a marker that narrows above the operand brings its subtree in', () => {
+    const doc = parse(['8. L0', '10. L1', '    - L2', '- L3', '1. L4'].join('\n'));
+    const after = applied(doc, 'L4', moveGroupsUp);
+
+    expect(encode(after).split('\n')).toEqual(['8. L0', '9. L1', '   - L2', '10. L4', '- L3']);
+    expect(firstLinesKeptAbove(doc, ['L4'], after)).toBe(2);
+  });
+
+  /**
+   * `09.` and `10.` are the same width, so the subtree must NOT move, though the
+   * number gained a digit: the oracle reads the width from the marker as
+   * written, and rejects a child that drifted anyway.
+   */
+  it('a renumbering that keeps a marker width moves nothing below it', () => {
+    const doc = parse(['09. L0', '    - L1', '10. L2'].join('\n'));
+    const after = applied(doc, 'L2', moveGroupsUp);
+
+    expect(encode(after).split('\n')).toEqual(['9. L2', '10. L0', '    - L1']);
+    expect(firstLinesKeptAbove(doc, ['L2'], after)).toBe(1);
+    const drifted = parse(['9. L2', '10. L0', '     - L1'].join('\n'));
+    expect(firstLinesKeptAbove(doc, ['L2'], drifted)).toBeUndefined();
   });
 });
 
+/** The document a group operation leaves, with `label`'s node as the operand. */
+function applied(
+  doc: OutlineDoc,
+  label: string,
+  op: (doc: OutlineDoc, groups: readonly (readonly number[])[]) => OpResult<OpOutput>,
+): OutlineDoc {
+  const result = op(doc, [[nodeByLabel(doc, label)!.id]]);
+  if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+  return result.value.doc;
+}
+
+/** The width of an ordered marker as written on `line`, digits and delimiter. */
+function orderedMarkerWidth(line: string): number {
+  return /^[ \t]*(\d{1,9}[.)])/.exec(line)?.[1]!.length ?? 0;
+}
+
+/** A line's leading whitespace, in characters; the generator indents with spaces. */
+function indentOf(line: string): number {
+  return line.length - line.trimStart().length;
+}
+
 /**
  * The minimal-edit oracle: every node above the operand's first root keeps its
- * first line verbatim in `after`. Returns how many nodes it checked, or
- * `undefined` at the first one that changed.
+ * first line in `after`. Returns how many nodes it checked, or `undefined` at
+ * the first one that changed.
  *
  * Scoped to nodes ABOVE the first moved root on purpose. Below it, an
  * operation legitimately rewrites lines it did not move: outdent re-parents
  * following siblings, and ordered runs renumber — the one documented exception
- * to minimal edits. Above it, nothing an operation does can reach, so a changed
- * line there is a real defect.
+ * to minimal edits. Above it, renumbering is the only thing that reaches: a
+ * reorder relocates the sibling it swaps with, and a run that was not
+ * consecutive is normalized wherever it stands, the operand's own ancestors
+ * included. A renumbered marker that changes width moves its item's content
+ * column, and its whole subtree moves with it; so a node under ordered items
+ * keeps its text and moves by exactly the sum of their width changes.
  */
 function firstLinesKeptAbove(
   before: OutlineDoc,
@@ -215,13 +279,27 @@ function firstLinesKeptAbove(
   const firstRootLine = Math.min(
     ...labels.map((label) => nodeStartLine(before, nodeByLabel(before, label)!.id)),
   );
+  // Each node's shift: the width its ordered ancestors' markers gained.
+  const shift = new Map<number, number>();
+  const measure = (nodes: readonly OutlineNode[], inherited: number): void => {
+    for (const node of nodes) {
+      shift.set(node.id, inherited);
+      let own = 0;
+      if (node.listStyle?.type === 'ordered') {
+        const renumbered = nodeByLabel(after, labelOf(node)!);
+        if (renumbered) {
+          own = orderedMarkerWidth(renumbered.lines[0]!) - orderedMarkerWidth(node.lines[0]!);
+        }
+      }
+      measure(node.children, inherited + own);
+    }
+  };
+  measure(before.children, 0);
+
   const above = [...walkNodes(before)].filter((node) => {
-    // Ordered items are excluded wherever they sit: renumbering is the
-    // one documented exception to minimal edits, and it reaches UPWARD
-    // within a run — an outdent arriving in a run can rewrite the marker
-    // of an item above the operand. (That particular rewrite is a
-    // pre-existing bug, filed separately: the arriving node's inherited
-    // number hijacks the run's start.)
+    // Ordered items are excluded wherever they sit: their own markers are
+    // what renumbering rewrites, including above the operand in a run that
+    // was not consecutive.
     if (node.listStyle?.type === 'ordered') return false;
     const start = nodeStartLine(before, node.id);
     return start >= 0 && start + node.lines.length <= firstRootLine;
@@ -229,7 +307,11 @@ function firstLinesKeptAbove(
   let checked = 0;
   for (const node of above) {
     const moved = nodeByLabel(after, labelOf(node)!);
-    if (!moved || moved.lines[0] !== node.lines[0]) return undefined;
+    if (!moved) return undefined;
+    const was = node.lines[0]!;
+    const is = moved.lines[0]!;
+    if (is.trimStart() !== was.trimStart()) return undefined;
+    if (indentOf(is) !== indentOf(was) + shift.get(node.id)!) return undefined;
     checked++;
   }
   return checked;
