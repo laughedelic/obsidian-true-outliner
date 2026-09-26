@@ -918,6 +918,24 @@ describe('keyboard grammar', function () {
     expect({ buffer: await h.getBuffer(), cursor: await h.getCursor() }).toEqual(byKey);
   });
 
+  it('Backspace on a place the outdent command leaves returns where the command started', async function () {
+    // The removal record's other reader: Backspace lands the caret on where
+    // the dispatch STARTED, which the command path maps through its own
+    // changes. Compared against the same steps with Shift+Tab.
+    await grammarNote('- one\n  - foo\n', 1, '  - foo'.length);
+    await h.keys.shiftEnter();
+    await h.keys.shiftTab();
+    await h.keys.backspace();
+    const byKey = { buffer: await h.getBuffer(), cursor: await h.getCursor() };
+    expect(byKey.buffer).toBe('- one\n- foo\n');
+
+    await grammarNote('- one\n  - foo\n', 1, '  - foo'.length);
+    await h.keys.shiftEnter();
+    await h.runCommand('outdent-node');
+    await h.keys.backspace();
+    expect({ buffer: await h.getBuffer(), cursor: await h.getCursor() }).toEqual(byKey);
+  });
+
   it('Mod-A on an interior position abandons the place rather than selecting half a node', async function () {
     // The tree-level fix for the ladder is covered in
     // `tests/select-all-ladder.test.ts`; what this pins is the interaction that

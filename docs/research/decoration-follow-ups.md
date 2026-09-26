@@ -589,12 +589,14 @@ left the caret on an empty place; the removal record keeps every condition it ha
 `undoDepth` backstop, which a fact issuing no edit does not need. `createdPlaceLine` became
 `openPlaceLine`, the name being the defect in miniature.
 
-**Still parked**, both named above: the ABANDON record does not survive a carrying key either, so
-walking away after a Tab still leaves the blank line in the file (the entry above this one); and
-the palette writes no record at all, for or against, because `runOp` dispatches with no `userEvent`
-and states no `abandon` edit. The palette half closed in #245: `runOp` hands `provisional-cleanup`
-the event and removal form the keymap's dispatch of the same operation carries, through the same
-rule. The abandon half is #153.
+**Left over**, both named above, and since split:
+
+- The palette wrote no record at all, for or against, because `runOp` dispatched with no `userEvent`
+  and stated no `abandon` edit. **Closed** in #245: `runOp` hands `provisional-cleanup` the event
+  and removal form the keymap's dispatch of the same operation carries, and one rule reads both.
+- The ABANDON record does not survive a carrying key, so walking away after a Tab still leaves the
+  blank line in the file (the entry above this one). **Still open**, as #153; the spec requires the
+  current behaviour, so closing it changes specified behaviour.
 
 **And newly reachable**: after a carrying key the place record answers while the removal record does
 not, which is the state `keymap.ts`'s note about the selection handlers said did not exist. It is a
