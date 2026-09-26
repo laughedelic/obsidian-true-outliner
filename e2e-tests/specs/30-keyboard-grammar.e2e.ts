@@ -1019,6 +1019,25 @@ describe('keyboard grammar', function () {
       expect(await h.getCursor()).toEqual({ line: 3, ch: 2 });
     });
 
+    it('Delete removes a carried position and lands on the node below', async function () {
+      // Delete computes its own target — the next node's content start — before
+      // the removal is applied, so it is checked apart from Backspace.
+      await grammarNote('- one\n  - kid\n- foo\n- bar\n', 2, 5);
+      await press(['shiftEnter', 'tab']);
+      await browser.keys(Key.Delete);
+      expect(await h.getBuffer()).toBe('- one\n  - kid\n  - foo\n- bar\n');
+      expect(await h.getCursor()).toEqual({ line: 3, ch: 2 });
+    });
+
+    it('Delete removes a carried empty item and lands on the sibling it had adopted', async function () {
+      await grammarNote('- a\n  - b\n  - c\n- d\n', 1, 5);
+      await press(['enter', 'enter']);
+      expect(await h.getBuffer()).toBe('- a\n  - b\n- \n  - c\n- d\n');
+      await browser.keys(Key.Delete);
+      expect(await h.getBuffer()).toBe('- a\n  - b\n  - c\n- d\n');
+      expect(await h.getCursor()).toEqual({ line: 2, ch: '  - '.length });
+    });
+
     it('Backspace after Shift+Tab returns to where the position was opened', async function () {
       await grammarNote('- a\n  - b\n- c\n', 1, 5);
       await press(['shiftEnter', 'shiftTab', 'backspace']);
