@@ -1,20 +1,18 @@
 /**
  * Deletes beta prereleases that no longer serve anyone, with their tags.
  *
- * Two occasions, one rule each:
- *   --slug <s> --keep <v>  every beta of that branch except the one just built
- *   --orphans              every beta whose branch is gone from the remote
+ * Three occasions, one rule each:
+ *   --branch <b> --keep <v>  every beta of that branch except the one just built
+ *   --branch <b>             every beta of that branch, once its pull request closes
+ *   --orphans                every beta whose branch heads no open pull request
  *
- * `--orphans` is what reclaims a merged branch's builds, and it reads the
- * remote's branch list rather than taking a branch name, so it also clears
- * betas left behind by a branch deleted while this workflow was not yet on the
- * default branch.
- *
- * Only tags of the beta shape are ever considered, so a real release and a
- * hand-cut release candidate are both out of reach.
+ * `--orphans` is what reclaims betas the other two missed: a pull request
+ * closed while this workflow could not run, or builds from before betas were
+ * published for pull requests only, when every pushed branch got one.
+ * Dependabot's pull requests never get a beta, so theirs count as closed.
  */
 import { execFileSync } from 'node:child_process';
-import { BETA_TAG, slugify } from './beta-version.ts';
+import { betaSlug, slugify } from './beta-version.ts';
 
 const run = (file: string, args: string[]): string => execFileSync(file, args, { encoding: 'utf8' });
 
@@ -23,38 +21,41 @@ const flag = (name: string): string | undefined => {
   return at === -1 ? undefined : process.argv[at + 1];
 };
 
-/** Every prerelease tag of the beta shape, paired with the branch slug in it. */
+/** Every prerelease tag of a beta shape, paired with the branch slug in it. */
 const betaReleases = (): { tag: string; slug: string }[] =>
-  (JSON.parse(run('gh', ['release', 'list', '--limit', '200', '--json', 'tagName,isPrerelease'])) as {
-    tagName: string;
-    isPrerelease: boolean;
-  }[])
+  (
+    JSON.parse(run('gh', ['release', 'list', '--limit', '500', '--json', 'tagName,isPrerelease'])) as {
+      tagName: string;
+      isPrerelease: boolean;
+    }[]
+  )
     .filter((release) => release.isPrerelease)
     .flatMap((release) => {
-      const slug = BETA_TAG.exec(release.tagName)?.groups?.slug;
+      const slug = betaSlug(release.tagName);
       return slug === undefined ? [] : [{ tag: release.tagName, slug }];
     });
 
-const liveSlugs = () =>
+const openPullRequestSlugs = () =>
   new Set(
-    run('git', ['ls-remote', '--heads', 'origin'])
+    run('gh', ['api', '--paginate', 'repos/{owner}/{repo}/pulls?state=open&per_page=100', '--jq', '.[].head.ref'])
       .split('\n')
-      .filter(Boolean)
-      .map((line) => slugify(line.split('refs/heads/')[1] ?? '')),
+      .filter((ref) => ref && !ref.startsWith('dependabot/'))
+      .map(slugify),
   );
 
 const doomed = process.argv.includes('--orphans')
   ? (() => {
-      const live = liveSlugs();
-      return betaReleases().filter((release) => !live.has(release.slug));
+      const open = openPullRequestSlugs();
+      return betaReleases().filter((release) => !open.has(release.slug));
     })()
   : (() => {
-      const slug = flag('slug');
-      const keep = flag('keep');
-      if (!slug || !keep) {
-        console.error('usage: beta-cleanup.ts --orphans | --slug <slug> --keep <version>');
+      const branch = flag('branch');
+      if (!branch) {
+        console.error('usage: beta-cleanup.ts --orphans | --branch <name> [--keep <version>]');
         process.exit(1);
       }
+      const slug = slugify(branch);
+      const keep = flag('keep');
       return betaReleases().filter((release) => release.slug === slug && release.tag !== keep);
     })();
 

@@ -1,20 +1,22 @@
 /**
- * Derives the version a branch's beta prerelease is published under.
+ * Derives the version a pull request's beta prerelease is published under.
  *
- * BRAT picks a beta by sorting every release's tag with `semver.coerce` and
- * taking the highest — not the most recent. So a branch build has to be a
- * semver prerelease that (a) outranks the current release, or BRAT would keep
- * serving that, and (b) stays below the next real one, or a branch build would
- * outrank the release it precedes. `0.8.3-beta-my-branch.41` against a
- * released 0.8.2 satisfies both.
+ * A beta is installed by picking its version in BRAT, so the version's job is
+ * to say which build it is: `0.13.5-12.g7b57965.fix-some-branch` is the 12th
+ * commit since the 0.13.4 release, at `7b57965`, on `fix/some-branch`. The
+ * middle part is `git describe`'s own, and each part is a separate
+ * dot-separated identifier: semver compares a numeric identifier as a number,
+ * while `12-g7b57965-...` would be one identifier compared as text. The `g`
+ * keeps a hash of digits alone from being a numeric identifier, which may not
+ * start with a zero.
  *
- * The run number is the ordering within a branch: BRAT treats "is there an
- * update" as a version comparison, so a rebuilt branch needs a strictly
- * greater version or the phone never sees it.
+ * The core is the next patch above the released version, so a beta sorts above
+ * the release it builds on and below the one that will contain it.
  *
- * Usage: node scripts/beta-version.ts <branch> <run-number>
- * Prints `slug=` and `version=` lines for $GITHUB_OUTPUT.
+ * Usage: node scripts/beta-version.ts <branch>, run in a full-history checkout
+ * of the commit being built. Prints a `version=` line for $GITHUB_OUTPUT.
  */
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -39,21 +41,41 @@ export const nextPatch = (version: string): string => {
 };
 
 /**
- * A beta tag, and only a beta tag: `0.8.3-beta-some-branch.41`. The cleanup
- * sweep decides what to delete by this shape, so the `beta-` marker is what
- * keeps a hand-cut `0.9.0-rc.1` out of its reach — a run number alone does
- * not, since a release candidate carries one too.
+ * Beta tags, and the branch slug in each. The first shape is the current one;
+ * the second is what betas were published under before it, kept so the sweep
+ * still reaches them.
  */
-export const BETA_TAG = /^\d+\.\d+\.\d+-beta-(?<slug>.+)\.\d+$/;
+export const BETA_TAGS = [
+  /^\d+\.\d+\.\d+-\d+\.g[0-9a-f]+\.(?<slug>.+)$/,
+  /^\d+\.\d+\.\d+-beta-(?<slug>.+)\.\d+$/,
+];
+
+export const betaSlug = (tag: string): string | undefined =>
+  BETA_TAGS.map((shape) => shape.exec(tag)?.groups?.slug).find((slug) => slug !== undefined);
+
+/**
+ * `git describe` against the nearest release tag: `0.13.4-12-g7b57965`, parsed
+ * into the commit count and the abbreviated hash. Betas are tags too, and all
+ * of them carry a hyphen, which releases never do.
+ */
+const describe = (): { commits: string; hash: string } => {
+  const out = execFileSync(
+    'git',
+    ['describe', '--tags', '--long', '--match', '[0-9]*.[0-9]*.[0-9]*', '--exclude', '*-*'],
+    { encoding: 'utf8' },
+  ).trim();
+  const parts = /-(?<commits>\d+)-g(?<hash>[0-9a-f]+)$/.exec(out)?.groups;
+  if (!parts?.commits || !parts.hash) throw new Error(`unexpected git describe output: ${out}`);
+  return { commits: parts.commits, hash: parts.hash };
+};
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const [branch, runNumber] = process.argv.slice(2);
-  if (!branch || !runNumber) {
-    console.error('usage: node scripts/beta-version.ts <branch> <run-number>');
+  const [branch] = process.argv.slice(2);
+  if (!branch) {
+    console.error('usage: node scripts/beta-version.ts <branch>');
     process.exit(1);
   }
   const { version } = JSON.parse(readFileSync('manifest.json', 'utf8'));
-  const slug = slugify(branch);
-  console.log(`slug=${slug}`);
-  console.log(`version=${nextPatch(version)}-beta-${slug}.${runNumber}`);
+  const { commits, hash } = describe();
+  console.log(`version=${nextPatch(version)}-${commits}.g${hash}.${slugify(branch)}`);
 }

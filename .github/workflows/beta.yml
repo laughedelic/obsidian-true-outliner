@@ -1,48 +1,52 @@
 name: Beta
 
-# Testing a branch on mobile, where there is no vault folder to copy a build
-# into. BRAT installs a plugin from a GitHub release, and reads prereleases
-# when it is tracking a beta — so every push to a branch publishes one, and the
-# phone picks it up with "Check for updates".
+# Testing a pull request on mobile, where there is no vault folder to copy a
+# build into. BRAT installs a plugin from a GitHub release, prereleases
+# included, so every push to a pull request publishes one, which the phone
+# installs by picking its version in BRAT.
 #
 # Prereleases are invisible to the community-plugin updater and to the Release
 # workflow, which fires on `manifest.json` landing on main. The version here is
 # computed at build time and never committed, so the two cannot collide.
 
 on:
-  push:
-    branches-ignore: 
-      - main
-      - dependabot/*
-  delete:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
   schedule:
-    # Sweeps betas whose branch is gone. Weekly: this only reclaims clutter.
+    # Sweeps betas whose branch heads no open pull request. Weekly: this only
+    # reclaims clutter.
     - cron: "17 4 * * 1"
   workflow_dispatch:
 
 permissions:
   contents: write
+  pull-requests: read
 
-# One beta per branch matters more than every push producing one: a push that
-# supersedes another leaves the older build's release unpublished, which is
-# what we would have deleted anyway.
+# One beta per pull request matters more than every push producing one: a push
+# that supersedes another leaves the older build's release unpublished, which is
+# what we would have deleted anyway. A pull request closing mid-build cancels
+# the build too, before its cleanup runs.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # `branches-ignore` keeps main out of the push trigger, but a manual dispatch
-  # defaults to the default branch and can also name a tag. Either would build a
-  # beta that outranks the current release and that no branch deletion would
-  # ever clean up, so the ref is checked here rather than trusted.
+  # Dependabot's pull requests run with a read-only token, and a fork's
+  # branches are not ours to publish from, so both are left out.
   publish:
     if: >-
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-      github.ref_type == 'branch' &&
-      github.ref_name != github.event.repository.default_branch
+      github.event_name == 'pull_request' &&
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-slim
     steps:
+      # The head commit, not the merge commit a pull request event checks out
+      # by default, and all of history, which `git describe` counts through.
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
 
       - uses: actions/setup-node@v7
         with:
@@ -55,7 +59,9 @@ jobs:
       - name: Derive the beta version
         id: version
         shell: bash
-        run: node scripts/beta-version.ts "$GITHUB_REF_NAME" "$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: node scripts/beta-version.ts "$BRANCH" >> "$GITHUB_OUTPUT"
 
       # Written into the built manifest only. Committing it would move
       # manifest.json, which is what triggers a real release from main.
@@ -68,45 +74,67 @@ jobs:
       - run: npm run build
         shell: bash
 
+      # A version names a commit, so a rebuild of one already published — a
+      # reopened pull request, a re-run — has nothing to add.
       - name: Publish the prerelease
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR: ${{ github.event.pull_request.number }}
         run: |
+          version="${{ steps.version.outputs.version }}"
+          if gh release view "$version" >/dev/null 2>&1; then
+            echo "Release $version already exists, skipping."
+            exit 0
+          fi
           assets="main.js manifest.json"
           [[ -f styles.css ]] && assets="$assets styles.css"
-          gh release create "${{ steps.version.outputs.version }}" \
+          gh release create "$version" \
             --prerelease \
-            --target "$GITHUB_SHA" \
-            --title "${{ steps.version.outputs.version }}" \
-            --notes "Beta build of \`$GITHUB_REF_NAME\` at ${GITHUB_SHA:0:7}. Install with BRAT; deleted when the branch is." \
+            --target "$HEAD_SHA" \
+            --title "$version" \
+            --notes "Beta build of #$PR (\`$BRANCH\`) at ${HEAD_SHA:0:7}. Install with BRAT; deleted when the pull request closes." \
             $assets
 
-      # Only the newest build of a branch is worth keeping — BRAT installs the
-      # highest version and nothing reaches back for an earlier one.
+      # Only the newest build of a pull request is worth keeping.
       - name: Drop this branch's older betas
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          node scripts/beta-cleanup.ts \
-            --keep "${{ steps.version.outputs.version }}" \
-            --slug "${{ steps.version.outputs.slug }}"
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: node scripts/beta-cleanup.ts --branch "$BRANCH" --keep "${{ steps.version.outputs.version }}"
 
-  # A branch deleted on merge takes its betas with it. This job lives on the
-  # default branch's copy of the workflow, so it only starts working once this
-  # change is merged; the scheduled sweep covers anything it misses.
+  # A merged or closed pull request takes its betas with it, whether or not its
+  # branch is deleted. The scheduled sweep covers anything this misses.
   cleanup:
-    if: github.event_name == 'delete' || github.event_name == 'schedule'
+    if: >-
+      (github.event_name == 'pull_request' && github.event.action == 'closed') ||
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-slim
     steps:
+      # The default branch's scripts: a closed pull request's merge ref may be
+      # gone, and its branch may predate them.
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
 
       - uses: actions/setup-node@v7
         with:
           node-version: "26"
 
-      - name: Delete betas with no live branch
+      - name: Delete the closed pull request's betas
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: node scripts/beta-cleanup.ts --branch "$BRANCH"
+
+      - name: Delete betas with no open pull request
+        if: github.event_name != 'pull_request'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
