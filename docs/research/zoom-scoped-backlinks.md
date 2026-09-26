@@ -265,3 +265,10 @@ corner brackets.
 The four node glyphs measure alike and all keep their shape at 20 px in both themes. With counts in
 the segments, the compact totals beside them repeat the reference count of the answer in force; only
 their note count is new there.
+
+`locate-fixed` was taken for This node. On desktop it read smaller than in the segments, and the
+probe's glyph sizes say why: the chip and the menu borrow the filter row's mark, `0.85em` of a
+smaller font, so the chip drew it at 11 px and the menu at 10.2 px, where the segments draw
+`1.1em` of `--font-ui-smaller` — 13.2 px on desktop, 14.1 px under mobile emulation. Given that one
+size, `calc(var(--font-ui-smaller) * 1.1)`, the chip and the menu draw every glyph at 13.2 px; the
+chip grows by 2 px (104 px for "this node", 117 px for "this branch") and the menu not at all.

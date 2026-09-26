@@ -58,10 +58,10 @@ force: "Backlinks to" followed by a control reading "this node", "this branch" o
 The control SHALL name the answer, not the zoom root: the zoom trail already names the root, and
 its text can be longer than the header holds.
 
-Each answer SHALL have one glyph — for This node a mark of focus on a point, for This branch a
-list tree, for Whole note a page — and SHALL carry it wherever the answer is offered or shown: in
-the control, in its menu and in the narrow form below. The control's words SHALL be set in the
-header's regular weight.
+Each answer SHALL have one glyph — for This node a crosshair on a point, for This branch a list
+tree, for Whole note a page — and SHALL carry it, at one size, wherever the answer is offered or
+shown: in the control, in its menu and in the narrow form below. The control's words SHALL be set
+in the header's regular weight.
 
 The control SHALL open a menu of the three answers, without a caption of its own: the words before
 the control already say what the menu chooses. Each entry SHALL carry its answer's glyph, its name
@@ -126,7 +126,7 @@ With no zoom active, the header SHALL be as it is without this requirement.
 #### Scenario: The same glyphs in every form
 
 - **WHEN** the reader compares the control, its menu and the segments under each answer
-- **THEN** each answer carries the same glyph in all three
+- **THEN** each answer carries the same glyph, at the same size, in all three
 
 #### Scenario: Opening the menu closes another popover
 

@@ -73,14 +73,14 @@
       answer comes before every filter, and is not one", against the fixture from 4.1. Negative
       control: ignore the fallback (apply the chosen answer even when unavailable) and confirm "A
       narrower choice falls back without being forgotten" fails
-- [ ] 4.5 Build the header control of design D6: the three shared glyphs, the chip and its menu
-      with no caption, and the narrow form's segments with their counts, the switch between them
-      in `styles/20-backlinks-footer.css` under the header's existing container query; add
-      `'scope'` to `OpenPopover`. Verify with `e2e-tests/specs/77-footer-zoom-scope.e2e.ts` cases
-      for each scenario of `backlinks-footer`'s "While zoomed, the header names what the footer
-      answers for" — the segments through `resizeLeafForFooter` on desktop and in a `--mobile`
-      narrow run — and confirm `e2e-tests/specs/77-footer-controls.e2e.ts` still passes its
-      one-row header case unzoomed. Negative controls: leave `'scope'` out of `OpenPopover` and
+- [ ] 4.5 Build the header control of design D6: the three shared glyphs at their one size, the chip
+      and its menu with no caption, and the narrow form's segments with their counts, the switch
+      between them in `styles/20-backlinks-footer.css` under the header's existing container query;
+      add `'scope'` to `OpenPopover`. Verify with `e2e-tests/specs/77-footer-zoom-scope.e2e.ts`
+      cases for each scenario of `backlinks-footer`'s "While zoomed, the header names what the
+      footer answers for" — the segments through `resizeLeafForFooter` on desktop and in a
+      `--mobile` narrow run — and confirm `e2e-tests/specs/77-footer-controls.e2e.ts` still passes
+      its one-row header case unzoomed. Negative controls: leave `'scope'` out of `OpenPopover` and
       confirm "Opening the menu closes another popover" fails; show the chip at every width and
       confirm "A narrow footer offers the answers as segments" fails
 - [ ] 4.6 Render the empty answer (design D7). Verify with the two scenarios of "An answer with

@@ -65,6 +65,8 @@ interface ChipVariant {
   readonly nodeIcon?: string;
   /** The chip label's weight; semibold unless set. */
   readonly weight?: 'normal';
+  /** One size for the glyph in the chip and the menu, as the segments draw it. */
+  readonly sharedGlyph?: boolean;
 }
 interface MenuOption {
   readonly label: string;
@@ -142,6 +144,21 @@ const CHOSEN_DESKTOP: Record<string, Variant> = {
     ]),
   ),
 };
+// The third round: `locate-fixed`, and the glyph at the segments' own size in every form.
+Object.assign(CHOSEN_DESKTOP, {
+  'final-chip-node': {
+    kind: 'chip', lead: 'Backlinks to', label: 'this node', glyph: 'node', icons: 'lucide', weight: 'normal',
+    nodeIcon: 'locate-fixed', sharedGlyph: true,
+  },
+  'final-chip-branch': {
+    kind: 'chip', lead: 'Backlinks to', label: 'this branch', glyph: 'below', icons: 'lucide', weight: 'normal',
+    nodeIcon: 'locate-fixed', sharedGlyph: true,
+  },
+  'final-menu': {
+    kind: 'chip', lead: 'Backlinks to', label: 'this branch', glyph: 'below', icons: 'lucide', weight: 'normal',
+    nodeIcon: 'locate-fixed', sharedGlyph: true, menu: MENU(['This node', 'This branch', 'Whole note'], 1, ''),
+  },
+} satisfies Record<string, ChipVariant>);
 const CHOSEN_NARROW: Record<string, Variant> = Object.fromEntries(
   NODE_ICONS.map((icon) => [`chosen-seg-${slug(icon)}`, {
     kind: 'segments', icons: 'lucide', selected: 1, counts: [2, 4, 12], outlined: true, accent: true, nodeIcon: icon,
@@ -167,6 +184,8 @@ interface Measure {
   readonly chip?: { width: number; height: number; labelCut: boolean; labelShown: number } | undefined;
   readonly segments?: Array<{ width: number; height: number }> | undefined;
   readonly menu?: { width: number; height: number } | undefined;
+  /** The rendered size of each glyph's svg, in px: chip, then menu entries or segments. */
+  readonly glyphs?: number[] | undefined;
 }
 
 async function apply(variant: Variant): Promise<Measure> {
@@ -241,8 +260,15 @@ async function apply(variant: Variant): Promise<Measure> {
         el.style.whiteSpace = 'nowrap';
       }
       if (v.menu) chip.classList.add('is-active');
+      const GLYPH = 'calc(var(--font-ui-smaller) * 1.1)';
+      const size = (el: HTMLElement): void => {
+        if (!v.sharedGlyph) return;
+        el.style.width = GLYPH;
+        el.style.height = GLYPH;
+      };
       const mark = document.createElement('span');
       mark.className = 'to-backlinks-facet-mark';
+      size(mark);
       icon(mark, v.glyph, v.icons);
       chip.appendChild(mark);
       if (v.label) {
@@ -293,6 +319,7 @@ async function apply(variant: Variant): Promise<Measure> {
           if (o.selected) option.classList.add('is-selected');
           const m = document.createElement('span');
           m.className = 'to-backlinks-facet-mark';
+          size(m);
           icon(m, glyphs[i]!, v.icons);
           option.appendChild(m);
           const l = document.createElement('span');
@@ -358,7 +385,12 @@ async function apply(variant: Variant): Promise<Measure> {
     }
 
     const rect = (el: Element) => el.getBoundingClientRect();
+    // Every glyph but the chip's chevron, which is the last mark in the chip.
+    const glyphs = Array.from(head.querySelectorAll('.to-backlinks-facet-anchor svg, [role="radiogroup"] svg'))
+      .filter((svg) => svg.parentElement?.nextElementSibling !== null || svg.closest('.to-backlinks-facet-menu, [role="radiogroup"]'))
+      .map((svg) => Math.round(rect(svg).width * 10) / 10);
     return {
+      glyphs,
       footerWidth: Math.round(rect(footer).width),
       headHeight: Math.round(rect(head).height),
       chip: chipEl && {
