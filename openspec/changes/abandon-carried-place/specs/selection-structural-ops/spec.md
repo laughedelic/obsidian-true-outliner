@@ -65,3 +65,29 @@ whole selections, and therefore needs no separate rule for covers.
 - **THEN** the pick-up declines the position, as every gesture whose selection leaves an open place
   does (`structural-history-integration`), and that drag does not start — so no drag resolves a
   destination against an open position
+
+#### Scenario: A drop agrees with the command that names the same move
+- **WHEN** a run is dropped at a destination, and the same run is moved to the same destination
+  through the command funnel on the same starting document
+- **THEN** the resulting document and the resulting selection are identical, and both form one
+  undo step
+
+#### Scenario: The two differ only by the indent unit, only where there is nothing to infer from
+- **WHEN** the same indent runs in a document with NO existing indented list item, so the unit
+  is not inferable, and the editor's configured unit is a tab
+- **THEN** both paths move the same nodes to the same places and dispatch the same selection,
+  and the only difference is the indentation characters the new level is written with
+
+#### Scenario: A drop reads the live indent unit
+- **WHEN** a run is dropped into a scope with no existing indentation to infer a unit from, in an
+  editor configured to indent with tabs
+- **THEN** the new level is written with the editor's own unit, as the keyboard path writes it
+
+#### Scenario: One undo step reverts the whole group
+- **WHEN** a cover over several subtrees is indented and undo is invoked once
+- **THEN** the document returns byte-identically to its pre-operation state
+
+#### Scenario: Redo restores the group's own selection
+- **WHEN** a cover is moved, then undone, then redone
+- **THEN** the selection after redo is the cover the operation dispatched, not a selection
+  recomputed by mapping
