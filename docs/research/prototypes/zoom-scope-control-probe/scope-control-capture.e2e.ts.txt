@@ -1,0 +1,416 @@
+/**
+ * THROWAWAY: how the zoom-scope control of docs/research/zoom-scoped-backlinks
+ * looks and measures in the real footer. Not a test.
+ *
+ * Opens a note with backlinks, zooms into `## Current sprint`, and rewrites the
+ * footer's own header into each variant in turn — the header chip of option A
+ * with several names for the answers, its menu, and the icon-only segments of
+ * option D — then saves a screenshot of the footer and records the sizes that
+ * decide whether it fits: the header's height (one line or two), the chip's
+ * width, whether its label is cut, and each segment's box.
+ *
+ * To re-run it: copy to `e2e-tests/specs/99-probe-scope-control.e2e.ts` and
+ *   sh e2e-tests/docker/start-xvfb-and-run.sh npm run test:e2e:narrow -- 99-probe-scope-control
+ *   sh e2e-tests/docker/start-xvfb-and-run.sh npm run test:e2e:narrow -- 99-probe-scope-control --mobile
+ * Screenshots and `measures-<platform>.json` land in `.obsidian-cache/scope-control-shots/`.
+ */
+import { $, browser } from '@wdio/globals';
+import { obsidianPage } from 'wdio-obsidian-service';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as h from '../helpers.js';
+import * as f from '../footer.js';
+
+const SHOTS = path.join(process.cwd(), '.obsidian-cache', 'scope-control-shots');
+const TARGET = 'Scope probe/Aurora.md';
+const TARGET_MD = [
+  '# Aurora',
+  '',
+  'Project notes.',
+  '',
+  '## Current sprint',
+  '',
+  '- Alarm list ships ^alarm-list',
+  '  - owner: Maya',
+  '- Mobile triage view ^mobile-triage',
+  '- Retro notes',
+  '',
+  '## Backlog',
+  '',
+  '- Offline mode',
+  '',
+].join('\n');
+const SOURCES: Record<string, string> = {
+  'Scope probe/2026-07-10.md': '- Standup\n  - [[Aurora#^alarm-list]] is on track\n',
+  'Scope probe/Weekly review.md': '# Weekly review\n\n- Sprint status in [[Aurora#Current sprint]]\n',
+  'Scope probe/Priya 1-1.md': '- Asked about [[Aurora#^mobile-triage]]\n',
+  'Scope probe/Atoms and anchors.md': 'See [[Aurora#current sprint]] for the plan.\n',
+  'Scope probe/Roadmap.md': '- [[Aurora]] ships in Q4\n- Backlog lives in [[Aurora#Backlog]]\n',
+};
+
+type Glyph = 'node' | 'below' | 'note';
+type IconSet = 'lucide' | 'marker';
+
+interface ChipVariant {
+  readonly kind: 'chip';
+  readonly lead: string;
+  readonly label: string;
+  readonly glyph: Glyph;
+  readonly icons: IconSet;
+  readonly labelMax?: string;
+  readonly menu?: { readonly cap: string; readonly options: readonly MenuOption[] };
+}
+interface MenuOption {
+  readonly label: string;
+  readonly count: number;
+  readonly selected?: boolean;
+  readonly hint?: string;
+}
+interface SegmentVariant {
+  readonly kind: 'segments';
+  readonly icons: IconSet;
+  readonly selected: 0 | 1 | 2;
+  readonly counts?: readonly [number, number, number];
+  readonly outlined?: boolean;
+  /** The chosen segment in the accent colour, not only the hover fill. */
+  readonly accent?: boolean;
+  /** Segment size, in em of the header's font; the sort button's is 1.6. */
+  readonly size?: number;
+}
+type Variant = ChipVariant | SegmentVariant;
+
+const LONG_NAME = 'Review the alarm list rollout with the mobile team before the October release';
+
+const MENU = (
+  names: readonly [string, string, string],
+  selected: 0 | 1 | 2,
+): { cap: string; options: MenuOption[] } => ({
+  cap: 'backlinks to',
+  options: names.map((label, i) => ({ label, count: [2, 4, 12][i]!, selected: i === selected })),
+});
+
+const DESKTOP: Record<string, Variant> = {
+  'a-name-and-below': { kind: 'chip', lead: 'Backlinks to', label: 'Current sprint and below', glyph: 'below', icons: 'lucide' },
+  'a-long-name': { kind: 'chip', lead: 'Backlinks to', label: `${LONG_NAME} and below`, glyph: 'below', icons: 'lucide', labelMax: '16rem' },
+  'a-words-and-below': { kind: 'chip', lead: 'Backlinks to', label: 'this node and below', glyph: 'below', icons: 'lucide' },
+  'a-words-children': { kind: 'chip', lead: 'Backlinks to', label: 'this node and its children', glyph: 'below', icons: 'lucide' },
+  'a-words-subtree': { kind: 'chip', lead: 'Backlinks to', label: 'this subtree', glyph: 'below', icons: 'lucide' },
+  'a-words-branch': { kind: 'chip', lead: 'Backlinks to', label: 'this branch', glyph: 'below', icons: 'lucide' },
+  'a-words-node': { kind: 'chip', lead: 'Backlinks to', label: 'this node', glyph: 'node', icons: 'lucide' },
+  'a-words-note': { kind: 'chip', lead: 'Backlinks to', label: 'the whole note', glyph: 'note', icons: 'lucide' },
+  'a-marker-glyphs': { kind: 'chip', lead: 'Backlinks to', label: 'this node and below', glyph: 'below', icons: 'marker' },
+  'a-menu-and-below': {
+    kind: 'chip', lead: 'Backlinks to', label: 'this node and below', glyph: 'below', icons: 'lucide',
+    menu: MENU(['This node', 'This node and below', 'Whole note'], 1),
+  },
+  'a-menu-children': {
+    kind: 'chip', lead: 'Backlinks to', label: 'this node and its children', glyph: 'below', icons: 'lucide',
+    menu: MENU(['This node', 'This node and its children', 'Whole note'], 1),
+  },
+  'a-menu-subtree': {
+    kind: 'chip', lead: 'Backlinks to', label: 'this subtree', glyph: 'below', icons: 'lucide',
+    menu: MENU(['This node', 'This subtree', 'Whole note'], 1),
+  },
+};
+
+const NARROW: Record<string, Variant> = {
+  'd-lucide': { kind: 'segments', icons: 'lucide', selected: 1 },
+  'd-lucide-outlined': { kind: 'segments', icons: 'lucide', selected: 1, outlined: true },
+  'd-lucide-accent': { kind: 'segments', icons: 'lucide', selected: 1, outlined: true, accent: true },
+  'd-marker-accent': { kind: 'segments', icons: 'marker', selected: 1, outlined: true, accent: true },
+  'd-lucide-touch': { kind: 'segments', icons: 'lucide', selected: 1, outlined: true, accent: true, size: 2.2 },
+  'd-marker': { kind: 'segments', icons: 'marker', selected: 1, outlined: true },
+  'd-lucide-counts': { kind: 'segments', icons: 'lucide', selected: 1, counts: [2, 4, 12], outlined: true },
+  'd-marker-counts': { kind: 'segments', icons: 'marker', selected: 1, counts: [2, 4, 12], outlined: true },
+  'a-narrow-words': { kind: 'chip', lead: '', label: 'this node and below', glyph: 'below', icons: 'lucide' },
+  'a-narrow-glyph-only': { kind: 'chip', lead: '', label: '', glyph: 'below', icons: 'lucide' },
+};
+
+interface Measure {
+  readonly footerWidth: number;
+  readonly headHeight: number;
+  readonly chip?: { width: number; height: number; labelCut: boolean; labelShown: number } | undefined;
+  readonly segments?: Array<{ width: number; height: number }> | undefined;
+  readonly menu?: { width: number; height: number } | undefined;
+}
+
+async function apply(variant: Variant): Promise<Measure> {
+  return browser.executeObsidian(({ obsidian }, v: Variant) => {
+    const footer = document.querySelector<HTMLElement>('.workspace-leaf.mod-active .to-backlinks')!;
+    const w = window as unknown as { __scopeProbeHead?: HTMLElement };
+    let head = footer.querySelector<HTMLElement>(':scope > .to-backlinks-head')!;
+    if (!w.__scopeProbeHead) w.__scopeProbeHead = head.cloneNode(true) as HTMLElement;
+    const fresh = w.__scopeProbeHead.cloneNode(true) as HTMLElement;
+    head.replaceWith(fresh);
+    head = fresh;
+    const title = head.querySelector<HTMLElement>('.to-backlinks-head-title')!;
+    const full = title.querySelector<HTMLElement>('.to-backlinks-title-full')!;
+    const short = title.querySelector<HTMLElement>('.to-backlinks-title-short')!;
+    const totalsFull = title.querySelector<HTMLElement>('.to-backlinks-totals-full')!;
+    const totalsCompact = title.querySelector<HTMLElement>('.to-backlinks-totals-compact')!;
+    totalsFull.textContent = '4 references · 4 notes';
+    totalsCompact.innerHTML = '<span>4</span><span> · </span><span class="to-backlinks-totals-notes">4</span>';
+
+    const MARKER: Record<string, string> = {
+      node: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5" fill="currentColor"/></svg>',
+      below:
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+        '<circle cx="6" cy="5.5" r="3" fill="currentColor" stroke="none"/><path d="M6 10v8.5h5M6 13.5h5"/>' +
+        '<circle cx="16" cy="13.5" r="2.2" fill="currentColor" stroke="none"/>' +
+        '<circle cx="16" cy="18.5" r="2.2" fill="currentColor" stroke="none"/></svg>',
+      note:
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">' +
+        '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg>',
+    };
+    const LUCIDE: Record<string, string> = { node: 'circle-dot', below: 'list-tree', note: 'file-text' };
+    const icon = (host: HTMLElement, glyph: string, set: string): void => {
+      if (set === 'marker') host.innerHTML = MARKER[glyph]!;
+      else obsidian.setIcon(host, LUCIDE[glyph]!);
+      const svg = host.querySelector('svg');
+      if (svg) {
+        svg.style.width = '100%';
+        svg.style.height = '100%';
+      }
+    };
+
+    let chipEl: HTMLElement | undefined;
+    let labelEl: HTMLElement | undefined;
+    const segs: HTMLElement[] = [];
+    let menuEl: HTMLElement | undefined;
+
+    if (v.kind === 'chip') {
+      full.textContent = v.lead || 'Backlinks to';
+      if (!v.lead) full.style.display = 'none';
+      short.textContent = v.lead ? 'Backlinks to' : 'Backlinks';
+      const anchor = document.createElement('div');
+      anchor.className = 'to-backlinks-facet-anchor';
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'to-backlinks-facet';
+      chip.style.fontSize = 'inherit';
+      chip.style.minWidth = '0';
+      // The chip gives way before the title does: its label is cut, not the word "Backlinks".
+      chip.style.flex = '0 1 auto';
+      for (const el of [full, short, totalsFull, totalsCompact]) {
+        el.style.flexShrink = '0';
+        el.style.whiteSpace = 'nowrap';
+      }
+      if (v.menu) chip.classList.add('is-active');
+      const mark = document.createElement('span');
+      mark.className = 'to-backlinks-facet-mark';
+      icon(mark, v.glyph, v.icons);
+      chip.appendChild(mark);
+      if (v.label) {
+        const label = document.createElement('span');
+        label.textContent = v.label;
+        label.style.overflow = 'hidden';
+        label.style.textOverflow = 'ellipsis';
+        label.style.whiteSpace = 'nowrap';
+        label.style.color = 'var(--text-normal)';
+        label.style.fontWeight = 'var(--font-semibold)';
+        if (v.labelMax) label.style.maxWidth = v.labelMax;
+        chip.appendChild(label);
+        labelEl = label;
+      }
+      const caret = document.createElement('span');
+      caret.className = 'to-backlinks-facet-mark';
+      caret.style.width = '0.7em';
+      caret.style.height = '0.7em';
+      obsidian.setIcon(caret, 'chevron-down');
+      caret.querySelector('svg')?.setAttribute('style', 'width:100%;height:100%');
+      chip.appendChild(caret);
+      anchor.appendChild(chip);
+      anchor.style.minWidth = '0';
+      anchor.style.display = 'flex';
+      anchor.style.flex = '0 1 auto';
+      // After both titles, so it follows whichever the container query shows.
+      short.after(anchor);
+      chipEl = chip;
+
+      if (v.menu) {
+        const menu = document.createElement('div');
+        menu.className = 'to-backlinks-facet-menu to-backlinks-sort-menu';
+        menu.style.insetInlineEnd = 'auto';
+        menu.style.insetInlineStart = '0';
+        const cap = document.createElement('div');
+        cap.className = 'to-backlinks-facet-cap';
+        cap.textContent = v.menu.cap;
+        menu.appendChild(cap);
+        const list = document.createElement('div');
+        list.className = 'to-backlinks-facet-list to-backlinks-sort-list';
+        const glyphs = ['node', 'below', 'note'];
+        v.menu.options.forEach((o, i) => {
+          const option = document.createElement('button');
+          option.type = 'button';
+          option.className = 'to-backlinks-facet-option to-backlinks-sort-option';
+          if (o.selected) option.classList.add('is-selected');
+          const m = document.createElement('span');
+          m.className = 'to-backlinks-facet-mark';
+          icon(m, glyphs[i]!, v.icons);
+          option.appendChild(m);
+          const l = document.createElement('span');
+          l.className = 'to-backlinks-facet-label';
+          l.textContent = o.label;
+          option.appendChild(l);
+          const c = document.createElement('span');
+          c.className = 'to-backlinks-chip-count';
+          c.textContent = String(o.count);
+          option.appendChild(c);
+          list.appendChild(option);
+        });
+        menu.appendChild(list);
+        anchor.style.position = 'relative';
+        anchor.appendChild(menu);
+        menuEl = menu;
+      }
+    } else {
+      full.style.display = 'none';
+      short.textContent = 'Backlinks';
+      const group = document.createElement('div');
+      group.setAttribute('role', 'radiogroup');
+      group.style.display = 'inline-flex';
+      group.style.alignItems = 'center';
+      group.style.gap = '1px';
+      if (v.outlined) {
+        group.style.border = '1px solid var(--background-modifier-border)';
+        group.style.borderRadius = 'var(--radius-s)';
+        group.style.padding = '1px';
+      }
+      ['node', 'below', 'note'].forEach((glyph, i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'to-backlinks-sort';
+        if (i === v.selected) b.classList.add('is-active');
+        if (i === v.selected && v.accent) b.style.color = 'var(--to-decor-accent, var(--text-accent))';
+        if (v.size) {
+          b.style.width = `${v.size}em`;
+          b.style.height = `${v.size}em`;
+          b.style.padding = `${(v.size - 1) / 2}em`;
+        }
+        if (v.counts) {
+          b.style.width = 'auto';
+          b.style.gap = '0.25em';
+          b.style.paddingInline = '0.35em';
+          b.style.fontSize = 'var(--font-ui-smaller)';
+        }
+        const m = document.createElement('span');
+        m.style.display = 'inline-flex';
+        m.style.width = v.counts ? '1.1em' : '100%';
+        m.style.height = v.counts ? '1.1em' : '100%';
+        icon(m, glyph, v.icons);
+        b.appendChild(m);
+        if (v.counts) {
+          const c = document.createElement('span');
+          c.textContent = String(v.counts[i]);
+          b.appendChild(c);
+        }
+        group.appendChild(b);
+        segs.push(b);
+      });
+      short.after(group);
+    }
+
+    const rect = (el: Element) => el.getBoundingClientRect();
+    return {
+      footerWidth: Math.round(rect(footer).width),
+      headHeight: Math.round(rect(head).height),
+      chip: chipEl && {
+        width: Math.round(rect(chipEl).width),
+        height: Math.round(rect(chipEl).height),
+        labelCut: labelEl ? labelEl.scrollWidth > labelEl.clientWidth + 1 : false,
+        labelShown: labelEl ? Math.round((100 * labelEl.clientWidth) / Math.max(1, labelEl.scrollWidth)) : 100,
+      },
+      segments: segs.length ? segs.map((s) => ({ width: Math.round(rect(s).width), height: Math.round(rect(s).height) })) : undefined,
+      menu: menuEl && { width: Math.round(rect(menuEl).width), height: Math.round(rect(menuEl).height) },
+    };
+  }, variant);
+}
+
+async function shoot(name: string): Promise<void> {
+  await browser.executeObsidian(() => {
+    const footer = document.querySelector<HTMLElement>('.workspace-leaf.mod-active .to-backlinks')!;
+    footer.scrollIntoView({ block: 'start' });
+    const scroller = footer.closest('.cm-scroller');
+    if (scroller) scroller.scrollTop -= 90;
+  });
+  await browser.pause(150);
+  await browser.saveScreenshot(path.join(SHOTS, `${name}.full.png`));
+  // A transparent frame over the header, its menu and the first card: an element
+  // screenshot of it is a crop of what the footer draws there.
+  await browser.executeObsidian(() => {
+    const footer = document.querySelector<HTMLElement>('.workspace-leaf.mod-active .to-backlinks')!;
+    const head = footer.querySelector<HTMLElement>(':scope > .to-backlinks-head')!.getBoundingClientRect();
+    const menu = footer.querySelector<HTMLElement>('.to-backlinks-facet-menu')?.getBoundingClientRect();
+    const f = footer.getBoundingClientRect();
+    const frame = document.createElement('div');
+    frame.id = 'scope-probe-frame';
+    const top = head.top - 12;
+    const bottom = Math.max(menu ? menu.bottom + 12 : 0, head.bottom + 70);
+    Object.assign(frame.style, {
+      position: 'fixed',
+      left: `${Math.max(0, f.left - 12)}px`,
+      top: `${top}px`,
+      width: `${f.width + 24}px`,
+      height: `${bottom - top}px`,
+      pointerEvents: 'none',
+      zIndex: '9999',
+    });
+    document.body.appendChild(frame);
+  });
+  await $('#scope-probe-frame').saveScreenshot(path.join(SHOTS, `${name}.png`));
+  await browser.executeObsidian(() => document.getElementById('scope-probe-frame')?.remove());
+}
+
+describe('zoom scope control capture', function () {
+  let platform = 'desktop';
+  const measures: Record<string, Measure & { theme: string }> = {};
+
+  before(async function () {
+    fs.mkdirSync(SHOTS, { recursive: true });
+    platform = (await browser.executeObsidian(({ app }) => (app as unknown as { isMobile: boolean }).isMobile))
+      ? 'mobile'
+      : 'desktop';
+    await obsidianPage.resetVault();
+    await h.resetPluginState();
+    for (const [p, md] of Object.entries(SOURCES)) await h.createNote(p, md);
+    await h.createNote(TARGET, TARGET_MD);
+    await f.waitForBacklinkIndexReady(TARGET, Object.keys(SOURCES).length);
+    await h.openNote(TARGET);
+    await h.setOutlineMode(true);
+    await h.dismissNotices();
+    const line = TARGET_MD.split('\n').indexOf('## Current sprint');
+    await h.setCursorSettled(line, 3);
+    await h.runCommand('zoom-in');
+    await browser.pause(300);
+    await f.scrollToFooter();
+    await f.settle();
+  });
+
+  after(function () {
+    fs.writeFileSync(path.join(SHOTS, `measures-${platform}.json`), JSON.stringify(measures, null, 2));
+  });
+
+  for (const dark of [true, false]) {
+    const theme = dark ? 'dark' : 'light';
+    it(`captures every variant, ${theme}`, async function () {
+      await h.setTheme(dark);
+      await browser.pause(300);
+      const sets: Array<[string, Record<string, Variant>, number | null]> =
+        platform === 'mobile'
+          ? [['phone', { ...NARROW, 'a-words-and-below': DESKTOP['a-words-and-below']!, 'a-menu-and-below': DESKTOP['a-menu-and-below']! }, 350]]
+          : [
+              ['wide', DESKTOP, null],
+              ['narrow', NARROW, 380],
+            ];
+      for (const [width, variants, px] of sets) {
+        await f.resizeLeafForFooter(px);
+        for (const [name, variant] of Object.entries(variants)) {
+          const key = `${platform}-${width}-${theme}-${name}`;
+          measures[key] = { ...(await apply(variant)), theme };
+          await shoot(key);
+        }
+      }
+      await f.resizeLeafForFooter(null);
+    });
+  }
+});
