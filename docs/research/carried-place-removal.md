@@ -175,3 +175,38 @@ In the live editor, ⏎ at the end of `   1. a` in `1. p` / `   1. a` / `2. q` g
 returns `1. p` / `   1. a` / `2. q`, so the renumbering arrives within the transaction the removal
 record is kept for, and the reversal undoes it. Where the renumbering comes from is not located
 here. The removal is correct either way.
+
+## After
+
+The same shapes on the branch that closes #249, driven through the e2e harness in the real app,
+desktop and mobile. Each row is an assertion in `e2e-tests/specs/30-keyboard-grammar.e2e.ts`,
+"a carried place is declined like a fresh one" and "the command path carries a place the way the
+keys do".
+
+| Shape | Keys | Result |
+| --- | --- | --- |
+| `- one` / `  - kid` / `- foo┃` | ⇧⏎ ⇥ ⌫ | `- one` / `  - kid` / `  - foo┃`: one ⌫ |
+| same | ⇧⏎ ⇥ ↑ | `- one` / `  - kid` / `  - foo`: no whitespace left |
+| `- one` / `  - kid` / `  - sib` / `- foo┃` | ⇧⏎ ⇥ ⇥ ↑ | `    - foo` with no line below it |
+| `- one` / `  - kid` / `- foo┃` / `- bar` | ⇧⏎ ⇥ ⏎ | position removed, caret at `- ┃bar` |
+| `- a` / `  - b┃` / `- c` | ⇧⏎ ⇧⇥ ⌫ | `- a` / `- b┃` / `- c`: the caret returns where ⇧⏎ started |
+| `- foo┃` | ⏎ ⇧⏎ ⌫ | `- foo` / `- ┃`: the second place goes, the empty item stays |
+| `- one` / `- foo┃` | ⏎ ⇥ ↑ | the document before the ⏎ |
+| `1. a┃` / `2. b` | ⏎ ⇥ ↑ | the document before the ⏎ |
+| `1. p` / `   1. a┃` / `2. q` | ⏎ ⇧⇥ ↑ | the document before the ⏎ |
+| same, with the parent run reaching `9.` | ⏎ ⇧⇥ ↑ | the document before the ⏎, across the `10.` width change |
+| `- a` / `  - b┃`, with and without `  - c` | ⏎ ⏎ ↑ | the document before the first ⏎, `c` back under `a` |
+| `para` / `  - a┃` / `  - b` | ⏎ ⏎ ↑ | the document before the first ⏎ |
+| `- foo┃` / `` / `para` | ⏎ ⇥ ↑ | the document before the ⏎, blank line kept |
+| `## Foo┃` / `body` / `## Bar` / `text` | ⇧⏎ ⇥ ↑ | the document before the ⇧⏎ |
+| same | ⇧⏎ ⇧⇥ ⌫ | the document before the ⇧⏎ |
+| ⇧⏎ ⇥ ↑, then ⌘Z | | the carried place back |
+| ⇧⏎ ⇥, type, delete, ↑ | | the place stays: typing ended its record |
+| the palette's "Indent node" and "Outdent node" in place of ⇥ and ⇧⇥ | | the same results as the keys |
+
+Two shapes behave as the table does not predict, and neither is this change's:
+
+- **With `   2. b` after the nested `a`,** ⏎ ⇧⇥ ↑ leaves `3. q`. The fresh ⏎ ↑ leaves the same, because
+  the Enter's renumbering of the parent run is not part of the removal its plan states (#252).
+- **On a line holding only `#`,** which ⇧⇥ leaves from a drafted `## `, the arrow keys do not move the
+  caret, so ↑ never leaves the place. ⌫ removes it.

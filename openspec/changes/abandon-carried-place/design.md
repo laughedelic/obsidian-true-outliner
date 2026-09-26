@@ -149,18 +149,11 @@ undo-side twin of the redone place the spec already names.
   the document the carried removal was stated against. Any other document change drops the record,
   and `cancel` still refuses a removal whose length does not match the live document. A mismatch
   therefore leaves the place standing, which is the safe direction.
-- [New gestures now remove a carried place] → Two gestures already remove a fresh place: Enter on
-  the place (`advanceFromEmptyPlace`), and the bullet drag's pick-up, whose collapse to a cover
-  leaves the place. They now remove a carried one too, as the spec states. The drag's doc-change
-  guard then aborts the drag, exactly as over a fresh place.
-
-  After a carry, `main` still drags with the place resolved. Once every open place has a removal
-  record, that path has no state left where it runs. Decided on #251: the drag does not start, as
-  over a fresh place. `selection-structural-ops`' scenario is rewritten to say so, and the pick-up's
-  place resolution is removed. `node-dragging` gains a requirement stating this as an exception to
-  its pick-up and cancellation requirements. The removal is the place's own edit, which the
-  cancellation requirement's "byte-identical" would otherwise forbid. That was already true over a
-  fresh place and stated nowhere. Letting the drag go ahead after the removal is #254.
+- [New gestures now remove a carried place] → Enter on the place (`advanceFromEmptyPlace`), and
+  the bullet drag's pick-up where its selection leaves the place, already remove a fresh one. They
+  now remove a carried one too. The drag is otherwise out of scope: what a pick-up over an open
+  place should do is #254. Until then, a drag right after a carry behaves as it does right after a
+  plain Shift+Enter.
 - [`keymap.ts`'s note on the selection handlers says a carry leaves the place record without a
   removal record] → That is no longer true. After this change a selection that leaves a carried
   place abandons it, as it does a fresh one. The note is rewritten; the handlers need no change.

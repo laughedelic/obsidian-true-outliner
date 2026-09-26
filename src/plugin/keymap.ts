@@ -317,19 +317,15 @@ function notAnOutlineGesture(
  * `e2e-tests/specs/30-keyboard-grammar.e2e.ts`). Without any record — after a redo, or
  * once a document change has dropped it — there is no provenance to read.
  *
- * `a-carried-place-keeps-its-record` narrowed that from "the one state where the
- * fix would show is the one state where the record is gone" to a state that now
- * exists: after a key CARRIED the place, `openPlaceLine` answers and the removal
- * record does not, so a cover taken there would be visible and would stick. It
- * is a slice of the shapes rather than the general case — a freshly opened place
- * is still the common one and still abandons — so wiring these handlers to it
- * would fix the ladder for whichever presses happen to follow a Tab and leave it
- * broken otherwise, which is worse than one honest answer.
+ * `abandon-carried-place` closed the one state that briefly had a place record
+ * and no removal record — a place a key had CARRIED — by passing the removal
+ * record across the carry. A carried place now abandons under these handlers
+ * exactly as a fresh one does, so there is no state left where an open place
+ * would survive their own selection.
  *
- * So this is left as it is rather than wired to a gate that opens only
- * sometimes. Closing it means giving a provisional position provenance that
- * survives undo and redo, which is a change of its own; recorded with its
- * measurements in docs/research/decoration-follow-ups.md.
+ * So this is left as it is. Closing it means giving a provisional position
+ * provenance that survives undo and redo, which is a change of its own;
+ * recorded with its measurements in docs/research/decoration-follow-ups.md.
  */
 
 /**

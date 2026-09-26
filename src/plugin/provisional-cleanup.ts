@@ -204,15 +204,13 @@ const NODE_PLACE_EVENTS: readonly string[] = [
  * move relocated is left behind with its node, which is the parking-lot entry
  * beside this one rather than this one.
  *
- * `outdent` is here for the rule rather than for its effect, and the difference
- * is worth stating so the next reader does not have to re-derive it. Over a GAP
- * place `recordablePlace` answers first — `GAP_PLACE_EVENTS` names `outdent` —
- * so the carry branch is never reached. It IS reached over a NODE place, and
- * there no consumer reads the answer: a node place's own line is a first line,
- * which `positionJoinsANode` refuses, so `placeOutline` resolves nothing. Only
- * `indent` therefore changes what any consumer sees today. The entry stays
- * because the rule is about what an operation DOES to a place, not about which
- * of two lists happens to name the event.
+ * `outdent` is here for the rule, and for what the removal record now reads.
+ * Over a GAP place `recordablePlace` answers first — `GAP_PLACE_EVENTS` names
+ * `outdent` — so this list decides nothing there. Over a NODE place it does:
+ * no operation reads a node place's own line (`positionJoinsANode` refuses a
+ * first line), but `nextRecords` passes the removal record on across the
+ * outdent, which is how Shift+Tab and the empty-item ladder carry an empty item
+ * that walking away then removes (`abandon-carried-place`).
  */
 const CARRY_PLACE_EVENTS: readonly string[] = [
   'input.structure.indent',

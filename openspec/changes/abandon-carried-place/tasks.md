@@ -94,20 +94,10 @@
 
 ## 4. Notes and specs
 
-- [ ] 4.0 Remove the drag pick-up's place resolution (`press.placeLine` and its `placeOutline` call
-  in `src/plugin/zoom-click.ts`), which no state reaches once a pick-up over an open place
-  declines it. Verify with e2e cases in the drag specs, one per scenario of `node-dragging`'s new
-  requirement:
-  - after ⇧⏎, pressing a bullet removes the place and starts no drag;
-  - the same after ⇧⏎ ⇥;
-  - a second press drags.
-
-  The drag and selection groups stay green in narrow mode.
-
-- [ ] 4.1 Rewrite `keymap.ts`'s note on the selection handlers, and the carry comments in
+- [x] 4.1 Rewrite `keymap.ts`'s note on the selection handlers, and the carry comments in
   `provisional-cleanup.ts` (Risks). Close the abandon entry in
   `docs/research/decoration-follow-ups.md`, pointing to this change. Verify: a grep for "removal
   record does not" finds no stale claim.
-- [ ] 4.2 Add an "After" section to `docs/research/carried-place-removal.md`, recording each shape
+- [x] 4.2 Add an "After" section to `docs/research/carried-place-removal.md`, recording each shape
   on the branch. Verify with `npm run lint`.
-- [ ] 4.3 `openspec validate abandon-carried-place --strict`
+- [x] 4.3 `openspec validate abandon-carried-place --strict`

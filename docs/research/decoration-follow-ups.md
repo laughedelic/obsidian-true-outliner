@@ -594,14 +594,14 @@ left the caret on an empty place; the removal record keeps every condition it ha
 - The palette wrote no record at all, for or against, because `runOp` dispatched with no `userEvent`
   and stated no `abandon` edit. **Closed** in #245: `runOp` hands `provisional-cleanup` the event
   and removal form the keymap's dispatch of the same operation carries, and one rule reads both.
-- The ABANDON record does not survive a carrying key, so walking away after a Tab still leaves the
-  blank line in the file (the entry above this one). **Still open**, as #249; the spec requires the
-  current behaviour, so closing it changes specified behaviour.
+- The ABANDON record did not survive a carrying key, so walking away after a Tab left the blank line
+  in the file (the entry above this one). **Closed** by `abandon-carried-place` (#249, PR #251): a
+  carry passes the removal record on, restated for where the place now is. Its measurements are in
+  `docs/research/carried-place-removal`.
 
-**And newly reachable**: after a carrying key the place record answers while the removal record does
-not, which is the state `keymap.ts`'s note about the selection handlers said did not exist. It is a
-slice of the shapes rather than the general case, so the handlers stay on the raw parse and the note
-now says so.
+**And briefly reachable**: between the two closings, a carrying key left a place record with no
+removal record, the state `keymap.ts`'s note about the selection handlers said did not exist.
+`abandon-carried-place` removed it again; the note says so.
 
 
 ### The palette path does not resolve a place at all

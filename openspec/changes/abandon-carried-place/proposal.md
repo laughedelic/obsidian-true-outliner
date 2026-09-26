@@ -28,12 +28,8 @@ specified behaviour.
 - ⌫ on a carried place returns the caret to where the key that opened the place started, as it
   does for a fresh one. That includes a position Shift+Tab re-created, where ⌫ lands in the node
   below today.
-- Every gesture that declines a fresh place declines a carried one: moving away, ⌫, Delete, Enter
-  on the place, and the bullet drag's pick-up.
-- Picking up a bullet while a place is open declines the place and the drag does not start, as it
-  already does after a plain Shift+Enter. `selection-structural-ops`' scenario for a drag resolved
-  against an open position is rewritten to say so, and the drag's place resolution, which no
-  longer runs, is removed.
+- Every keyboard gesture that declines a fresh place declines a carried one: moving away, ⌫,
+  Delete, Enter on the place.
 - The removal for a carried place follows what the place was when it was opened. That covers a
   node a carry dissolved into a blank line, whose adopted sibling goes back too.
 
@@ -47,10 +43,6 @@ None.
 
 - `structural-history-integration`: the open-place requirement stops saying that the removal record
   does not survive a carry. A new requirement states what a carried place's removal does.
-- `selection-structural-ops`: "A drag resolves an open position like the other two" now states
-  that the pick-up declines the position and the drag does not start.
-- `node-dragging`: a new requirement states that a pick-up over an open place declines it and
-  starts no drag, as an exception to its pick-up and cancellation requirements.
 
 ## Impact
 
@@ -60,7 +52,6 @@ None.
   was live on the place the carry began on.
 - `src/plugin/keymap.ts` and `src/plugin/main.ts`: both dispatch paths hand the recorder the
   record that was live before the carry.
-- `src/plugin/zoom-click.ts`: the pick-up's place resolution (`press.placeLine`) is removed.
 - Tests: `tests/provisional-place-record.test.ts` and `tests/undo-on-abandon.test.ts`, and e2e cases
   in `e2e-tests/specs/30-keyboard-grammar.e2e.ts`.
 
@@ -72,6 +63,8 @@ None.
 - A place brought back by undo still cannot be declined, like a redone one.
 - Tab after Enter at a paragraph's end moves the caret onto the paragraph's own line, so nothing
   carries the position and its blank lines stay (#253).
-- Letting a drag go ahead after its pick-up declined a place (#254).
+- Pointer gestures over an open place: drag and zoom (#254). The drag code is untouched.
+  Its pick-up already declines a place its selection leaves; a place carried by a key is now
+  declined there the same way, as it is after a plain Shift+Enter.
 - The Enter that renumbers a parent's ordered run in the live editor (#252). The abandon only has
   to leave that run numbered correctly.
