@@ -14,7 +14,8 @@
  * Our operations renumber the runs they change themselves
  * (`structural-operations`, "Ordered-run renumbering"), so for a transaction
  * this plugin planned, the planned document is the whole answer. Each such
- * dispatch carries its change set in `plannedChanges`, and the filter below,
+ * dispatch states its change set (`plannedChanges`, or `expectPlanned` where it
+ * cannot carry an annotation), and the filter below,
  * which runs after every filter of default precedence, puts back any marker
  * number that differs from the planned document. Only marker numbers: a line
  * that differs in any other way is some other filter's change and is left to
@@ -37,6 +38,18 @@ import {
 
 /** The change set a plugin dispatch intends, in its start document's offsets. */
 export const plannedChanges = Annotation.define<ChangeSet>();
+
+/**
+ * The same statement for a dispatch that cannot carry an annotation — the
+ * structural commands, which go through Obsidian's `Editor.transaction`. Keyed
+ * by the state the dispatch starts from, so it applies to the next transaction
+ * from that state and to nothing after it.
+ */
+const expected = new WeakMap<EditorState, ChangeSet>();
+
+export function expectPlanned(state: EditorState, changes: ChangeSet): void {
+  expected.set(state, changes);
+}
 
 /** An ordered marker: the container prefix, the number, then the rest of the line. */
 const ORDERED_MARKER_RE = /^([>\s]*)(\d+)([.)](?:[ \t].*)?)$/;
@@ -67,7 +80,8 @@ export function plannedChangesExtension(): Extension {
   // precedence up: this one sees the transaction after Obsidian's has added to it.
   return Prec.highest(
     EditorState.transactionFilter.of((tr) => {
-      const planned = tr.annotation(plannedChanges);
+      const planned = tr.annotation(plannedChanges) ?? expected.get(tr.startState);
+      expected.delete(tr.startState);
       if (!planned || !tr.docChanged || planned.length !== tr.startState.doc.length) return tr;
       const intended = planned.apply(tr.startState.doc);
       if (intended.eq(tr.newDoc)) return tr;

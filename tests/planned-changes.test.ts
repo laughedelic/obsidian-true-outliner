@@ -19,6 +19,7 @@ import {
 } from '@codemirror/state';
 import { history, undo } from '@codemirror/commands';
 import {
+  expectPlanned,
   markerNumberRestorations,
   plannedChanges,
   plannedChangesExtension,
@@ -75,6 +76,13 @@ describe('planned-changes', () => {
   it('restores whichever order the two are registered in', () => {
     const state = stateOf(SOURCE, [renumberingStandIn('3'), plannedChangesExtension()]);
     expect(plannedEnter(state, true).newDoc.toString()).toBe('1. p\n   1. a\n   2. \n2. q\n');
+  });
+
+  it('a change set stated against the start state counts as planned, once', () => {
+    const state = stateOf(SOURCE, [plannedChangesExtension(), renumberingStandIn('3')]);
+    expectPlanned(state, state.changes({ from: state.doc.line(3).from, insert: '   2. \n' }));
+    expect(plannedEnter(state, false).newDoc.toString()).toBe('1. p\n   1. a\n   2. \n2. q\n');
+    expect(plannedEnter(state, false).newDoc.toString()).toBe('1. p\n   1. a\n   2. \n3. q\n');
   });
 
   it('one undo takes the planned transaction back to the source', () => {

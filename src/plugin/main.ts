@@ -76,7 +76,7 @@ import { BUILD_STAMP } from 'virtual:build-stamp';
 import { decorationsExtension, type MarkerVisibility } from './decorations';
 import { drawHeadingMarkerPreview } from './heading-marker-preview';
 import { transactionFilterExtension } from './transaction-filter';
-import { plannedChanges, plannedChangesExtension } from './planned-changes';
+import { expectPlanned, plannedChangesExtension } from './planned-changes';
 import { viewRegistryExtension } from './view-registry';
 import { zoomStateExtension } from './zoom-state';
 import { guideHoverExtension } from './guide-hover';
@@ -91,7 +91,7 @@ import { deleteLineBoundaryBackward } from '@codemirror/commands';
 import { zoomScope } from './zoom-scope';
 import { zoomCleared, zoomTo } from './zoom-state';
 import { parentOf, reresolveZoom, resolveZoom } from '../zoom';
-import { linePosToOffset, toLineRange } from './cm-pos';
+import { toLineRange } from './cm-pos';
 import { nodeStartLine } from '../locate';
 import { parsedDoc } from './parsed-doc';
 import { foldable } from '@codemirror/language';
@@ -1420,8 +1420,8 @@ export default class TrueOutlinerPlugin extends Plugin {
     // once (`keymap.ts`); this is the command path catching up.
     //
     // The trailing `setCursor` is NOT how the caret gets set — it re-asserts
-    // the position it already has, to keep undo granularity. The dispatch below
-    // carries no `userEvent`, and CM6's `HistoryState.addChanges` joins
+    // the position it already has, to keep undo granularity. `Editor.transaction`
+    // dispatches with no `userEvent`, and CM6's `HistoryState.addChanges` joins
     // a new change into the previous event when (among other things)
     // `!userEvent` and the previous event has no `selectionsAfter`. Two palette
     // commands back-to-back — indent then outdent — are adjacent and inside
@@ -1441,33 +1441,18 @@ export default class TrueOutlinerPlugin extends Plugin {
       // Read before the dispatch: where the caret started, in the document the
       // changes produce, is what Backspace on a place this leaves returns to.
       const before = view?.state;
-      // The plan is read from `editor`, so it is dispatched through `view` only
-      // when that view holds the same document.
-      const changeSet =
-        before && before.doc.length === text.length && before.doc.toString() === text
-          ? ChangeSet.of(changesToSpec(before.doc, changes), before.doc.length)
-          : undefined;
+      const changeSet = before
+        ? ChangeSet.of(changesToSpec(before.doc, changes), before.doc.length)
+        : undefined;
       const startedAt =
         before && changeSet && before.selection.main.empty
           ? changeSet.mapPos(before.selection.main.head, -1)
           : undefined;
-      if (view && changeSet && before) {
-        // What `Editor.transaction` would dispatch, with the change set stated
-        // for `planned-changes`, which that API has no way to carry.
-        const after = changeSet.apply(before.doc);
-        const anchor = linePosToOffset(after, selectionAfter.from);
-        view.dispatch({
-          changes: changeSet,
-          selection: {
-            anchor,
-            head: selectionAfter.to === undefined ? anchor : linePosToOffset(after, selectionAfter.to),
-          },
-          scrollIntoView: true,
-          annotations: plannedChanges.of(changeSet),
-        });
-      } else {
-        editor.transaction({ changes, selection: selectionAfter });
-      }
+      // `Editor.transaction` cannot carry an annotation, so the change set it is
+      // about to dispatch is stated to `planned-changes` against the state it
+      // starts from.
+      if (before && changeSet) expectPlanned(before, changeSet);
+      editor.transaction({ changes, selection: selectionAfter });
       // What the keymap's dispatch of the same operation carries on the
       // transaction, stated to `provisional-cleanup` after it instead: this
       // dispatch has no `userEvent` to recognise it by, so the listener has
