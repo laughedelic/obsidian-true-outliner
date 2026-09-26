@@ -26,7 +26,15 @@ import { forEachNodeWithLine, nodeAtLine, nodeStartLine } from './locate';
 import { subtreeCoverOf, type Cover } from './escalate';
 import { posBefore, type LinePos } from './line-pos';
 import { encode, encodeLines } from './encode';
-import { parse, indentWidth, kindAsWritten, parseListMarker, tailAsWritten, TAB_WIDTH } from './parse';
+import {
+  continuesListItem,
+  parse,
+  indentWidth,
+  kindAsWritten,
+  parseListMarker,
+  tailAsWritten,
+  TAB_WIDTH,
+} from './parse';
 import type { Edit, OpResult } from './result';
 import { accept, diffLines, reject } from './result';
 import {
@@ -406,12 +414,13 @@ function needsBlankBetween(prev: OutlineNode, next: OutlineNode, margin: number)
       (nextKind === 'hr' && (next.lines[0] ?? '').includes('-'))
     );
   }
+  // A list item's continuation loop claims whatever it does not stop at, so
+  // the seam asks the loop's own question. Only the next node's lines are
+  // seen, so a single-line node can look claimed where a table opening on the
+  // line after it would have stopped the loop; that errs toward a separator.
   if (leafKind === 'list-item') {
     const contentCol = indentWidth(leaf.lines[0] ?? '') + markerWidthOf(leaf.lines[0] ?? '');
-    return (
-      (nextKind === 'paragraph' || nextKind === 'html') &&
-      indentWidth(next.lines[0] ?? '') >= contentCol
-    );
+    return continuesListItem(next.lines, 0, contentCol);
   }
   // An HTML block ends at a BLANK LINE, not at its closing tag, so whatever
   // follows one is inside it until a separator says otherwise — whatever kind

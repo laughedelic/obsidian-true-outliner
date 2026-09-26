@@ -113,7 +113,7 @@ the root's 4 are `- - -` at column 4, the same #138 row:
 
 | shape | shapes | where |
 | --- | --- | --- |
-| an `hr` or `<div>` directly under an item's marker line, no blank | 74 | a continuation to us; CommonMark interrupts. The latent list-item half of #197 |
+| an `hr` or `<div>` directly under an item's marker line, no blank | 74 | a continuation to us; CommonMark interrupts. The seam loss it caused, the latent list-item half of #197, is closed by #246; the reading itself stands |
 | `- - -` four or more columns past a margin | 40 | a list item to us; indented code, or a lazy continuation with no blank, to CommonMark. #138 and Q35 |
 | `<div>` at a child column after a blank line | 34 | a paragraph to us, an HTML block to CommonMark; left out above |
 
