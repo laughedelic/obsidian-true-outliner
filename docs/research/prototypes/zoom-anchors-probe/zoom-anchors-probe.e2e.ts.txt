@@ -3,8 +3,8 @@
  * metadata says a heading or block anchor addresses, and how far behind the
  * editor it runs.
  *
- * To re-run it: copy to `e2e/specs/99-probe-zoom-anchors.e2e.ts` and
- *   sh e2e/docker/start-xvfb-and-run.sh npm run test:e2e:narrow -- 99-probe-zoom-anchors
+ * To re-run it: copy to `e2e-tests/specs/99-probe-zoom-anchors.e2e.ts` and
+ *   sh e2e-tests/docker/start-xvfb-and-run.sh npm run test:e2e:narrow -- 99-probe-zoom-anchors
  * It asserts nothing — it prints PROBE_RESULT lines and is kept out of the
  * suite for that reason.
  */
