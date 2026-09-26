@@ -832,6 +832,43 @@ describe('keyboard grammar', function () {
     expect(doc.children[1]!.children).toEqual([]);
   });
 
+  it('a place carried by the indent COMMAND is still known to the key after it', async function () {
+    // Issue #153. The palette and a custom hotkey reach indent through
+    // `runOp`, which dispatches through Obsidian's `Editor` with no `userEvent`,
+    // so the carry the keyboard's Tab records was never recorded there: the
+    // Shift+Tab after it outdented the item alone, left the place a level
+    // deeper, and dropped the caret onto the item's own line.
+    await grammarNote('- one\n  - kid\n- foo\n', 2, '- foo'.length);
+    await h.keys.shiftEnter();
+    const opened = await h.getBuffer();
+    expect(opened).toBe('- one\n  - kid\n- foo\n  \n');
+    const openedAt = await h.getCursor();
+
+    await h.runCommand('indent-node');
+    const indented = (await h.getBuffer()).split('\n');
+    expect(indented[2]).toMatch(/^[ \t]+- foo$/);
+    expect(await h.getCursor()).toEqual({ line: 3, ch: indented[3]!.length });
+
+    await h.keys.shiftTab();
+    expect(await h.getBuffer()).toBe(opened);
+    expect(await h.getCursor()).toEqual(openedAt);
+  });
+
+  it('a place carried by the indent command survives a second command too', async function () {
+    // The same record read by the command path rather than the keymap: two
+    // palette operations in a row, which is what a custom hotkey held for
+    // indent and one for outdent produce.
+    await grammarNote('- one\n  - kid\n- foo\n', 2, '- foo'.length);
+    await h.keys.shiftEnter();
+    const opened = await h.getBuffer();
+    const openedAt = await h.getCursor();
+
+    await h.runCommand('indent-node');
+    await h.runCommand('outdent-node');
+    expect(await h.getBuffer()).toBe(opened);
+    expect(await h.getCursor()).toEqual(openedAt);
+  });
+
   it('Mod-A on an interior position abandons the place rather than selecting half a node', async function () {
     // The tree-level fix for the ladder is covered in
     // `tests/select-all-ladder.test.ts`; what this pins is the interaction that
