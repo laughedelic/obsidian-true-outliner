@@ -1,0 +1,154 @@
+## MODIFIED Requirements
+
+### Requirement: An open place stays known for as long as it is open
+
+WHICH LINE holds an open place is a fact this plugin SHALL keep for as long as the place is open,
+and SHALL keep separately from whether the keypress in front of it created one. The operation path
+reads the first (`outline-keyboard-grammar`, "Provisional positions"); the removal-on-abandonment
+above reads the second. A single answer serving both was measured to scope the first to one
+keypress: the second structural key on the same place read it as an ordinary blank line and edited
+the document accordingly (`docs/research/decoration-follow-ups`).
+
+The two facts are kept apart by their CONDITIONS, not by how long each lasts. A carry keeps both
+where both were held: "A carried place is declined like a fresh one" states what the removal record
+does across a carry. It does not let a carry start a removal record where none was held.
+
+The two facts SHALL be established by different tests, stated over the same transaction:
+
+- A place is CREATED by the dispatches "An unused structural keypress has its place removed" names,
+  on the terms it names them. Nothing here widens that test, and an operation that merely relocated
+  an already-empty item SHALL still create nothing.
+- A place is CARRIED by a dispatch of this plugin's that began with the caret on the open place and
+  left the caret on an empty place. A dispatch that did not begin on one SHALL NOT mark a blank
+  line as a place, whatever its caret lands on.
+
+Which keys carry SHALL be decided by measurement rather than by category, because it depends on
+where the operation's own caret rule sends the caret. Indent and outdent carry: their caret follows
+the place they moved (`caret-placement-policy`, "A derived caret follows the place it was on"). A
+MOVE does not: its caret is its subject's content start, so it leaves no place at the caret for the
+fact to be about, and the place it relocated is left behind with the node.
+
+The two tests OVERLAP, and the overlap is not a defect to remove. Outdent is already named by the
+creating test for a GAP place, so the carrying test decides nothing there; it decides only for a
+NODE place, whose own line no consumer resolves today. Indent is the key whose answer any consumer
+currently sees. The rule SHALL nonetheless be stated over what an operation DOES to a place, not
+over which test happens to answer first, so that an operation added later inherits it.
+
+The place fact SHALL be invalidated by a change to the DOCUMENT and by nothing else. A movement
+through history that leaves the document alone leaves the place where it is. The undo-depth
+backstop the removal record carries SHALL NOT be applied to it: that backstop exists because a
+removal is an EDIT and the editor joins typing into the keypress's own history entry, and a fact
+about which line holds a place issues no edit.
+
+Where the fact is absent — nothing created or carried a place, or a document change dropped it — a
+blank line SHALL be treated as an ordinary gap, which is what `outline-keyboard-grammar` already
+requires and is always safe.
+
+#### Scenario: A second structural key still knows the place
+- **WHEN** Shift+Enter opens a position inside a list item, Tab indents the item, and Shift+Tab
+  outdents it again
+- **THEN** the document is what one Shift+Enter alone leaves — the position at the item's
+  continuation indent, and the item's own lines below it moved with it — and the caret is on the
+  position
+
+#### Scenario: Either carrying key holds it, in either order
+- **WHEN** the same position is carried by Shift+Tab first and Tab second
+- **THEN** the result is the same as carrying it by Tab first and Shift+Tab second, and neither
+  key leaves the position at a width the item no longer has
+
+#### Scenario: A key that did not start on a place creates none
+- **WHEN** a structural key is pressed with the caret on a node's own line, in a document that also
+  holds a blank line the user authored
+- **THEN** no place is recorded, and a later key on that blank line acts on the node that owns the
+  gap
+
+#### Scenario: The removal record keeps its own conditions
+- **WHEN** Tab indents an empty list item the user did not just create, with the caret on it, and
+  the caret is then moved away with nothing typed
+- **THEN** nothing is removed — the carry kept the place fact, and there was no removal record for
+  it to keep
+
+#### Scenario: A document change drops the place
+- **WHEN** anything other than a dispatch that creates or carries a place changes the document
+- **THEN** the place fact is gone and the next structural key reads an ordinary blank line
+
+## ADDED Requirements
+
+### Requirement: A carried place is declined like a fresh one
+
+A place that still has a removal record when a structural key CARRIES it — in the sense "An open
+place stays known for as long as it is open" gives the word — SHALL still have one after the carry.
+Declining the place afterwards SHALL remove it exactly as declining it before the carry would have:
+one Backspace, one Delete, or moving the caret away with nothing typed. Everything the carrying key
+did SHALL stand. Tab, Shift+Tab, the empty-item ladder's outdent and the equivalent commands all
+carry. The rule holds across any run of carries, since each one leaves the place with a record for
+the next.
+
+The removal SHALL be stated again against the document the carrying key produced, by the
+operation that carried the place. It SHALL NOT be the removal the place was opened with, mapped
+through the carry. A carry's change set is the minimal change of the whole operation, and a
+removal mapped through it misses what the carry wrote into the place's own line. Measured, the
+place's line goes and its new indentation is left on the end of the item above as trailing spaces
+(`docs/research/carried-place-removal`).
+
+What the restated removal removes depends on the place, not on the key:
+
+- A PROVISIONAL POSITION SHALL be removed as its line.
+- An EMPTY NODE SHALL be removed as a node, whatever indentation the carry gave it. An ordered run
+  it belonged to SHALL be renumbered as if it had never been there, including a run the carry
+  moved it into.
+- An empty node that HAS CHILDREN SHALL NOT be removed. Removing its line would re-parent them, and
+  nothing that opens a place opens one with children.
+
+A carry that begins on a place with NO removal record SHALL NOT create one. That covers a place
+already declined, a place the user typed on, a redone place, and an already-empty item the user
+merely moved. The rule that a carry keeps a record is not a rule that a carry makes one.
+
+Backspace on a carried place SHALL return the caret to where the keypress that OPENED the place
+started, carried through every key since, as "An unused structural keypress has its place removed"
+states for a fresh place. Delete SHALL go to the content start of the node below, and moving away
+SHALL leave the caret where the gesture sent it.
+
+The removal SHALL be its own history entry, as every removal is. One undo SHALL therefore return to
+the carried place, not to the place as it stood before the carry.
+
+#### Scenario: One Backspace removes a position Tab carried
+- **WHEN** Shift+Enter at the end of a list item opens a position, Tab indents the item, and
+  Backspace is pressed on the position
+- **THEN** the position's line is gone, the item stays indented, and the caret is at the end of the
+  item's own text
+
+#### Scenario: Walking away removes a position Tab carried
+- **WHEN** Shift+Enter at the end of a list item opens a position, Tab indents the item once or
+  twice, and the caret is then moved away with nothing typed
+- **THEN** no line of whitespace is left in the file, and the item stays where the Tabs put it
+
+#### Scenario: An empty bullet item Tab carried is removed on leaving
+- **WHEN** Enter at the end of a list item creates an empty item, Tab indents it under the item
+  above, and the caret is then moved away with nothing typed
+- **THEN** the empty item is gone, whatever its indentation
+
+#### Scenario: An empty ordered item Tab carried leaves its run numbered as before
+- **WHEN** Enter at the end of `1. a`, above `2. b`, creates an empty item, Tab indents it under
+  `a`, and the caret is then moved away
+- **THEN** the list reads `1. a` `2. b`
+
+#### Scenario: An empty ordered item Shift+Tab carried is removed from the run it joined
+- **WHEN** Enter at the end of a nested ordered item creates an empty item, Shift+Tab outdents it
+  into its parent's run ahead of a later item, and the caret is then moved away
+- **THEN** the empty item is gone, and the later item carries the number it would have had if the
+  empty item had never been there
+
+#### Scenario: The empty-item ladder's outdent carries the item too
+- **WHEN** Enter at the end of a nested list item creates an empty item, a second Enter outdents
+  it, and the caret is then moved away
+- **THEN** the empty item is gone, and the document is what it was before the first Enter
+
+#### Scenario: One undo returns to the carried place
+- **WHEN** a carried place is removed on abandonment and undo is pressed once
+- **THEN** the place is back where the carry left it
+
+#### Scenario: A carried place that was typed on is left alone
+- **WHEN** Tab carries a position, text is typed on it, the text is deleted, and the caret moves
+  away
+- **THEN** nothing is removed — typing ended the removal record, and nothing restored it
