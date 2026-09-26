@@ -23,7 +23,7 @@ import { isAtom, type NodeKind, type OutlineDoc, type OutlineNode } from './mode
 import { ownSpan } from './model';
 import { reencodeBlocksForDestination } from './ops';
 import { parse } from './parse';
-import { destinationHeadingLevel, reorderReparents } from './rules';
+import { destinationHeadingLevel, isLoneBlockIdNode, reorderReparents } from './rules';
 
 /** A place at a seam: a parent, a position among its children, and the depth a
  * node placed there takes. What a seam offers before any run is asked about. */
@@ -301,6 +301,9 @@ export function dropSeams(
   const siblings = home
     ? operandRoots.filter((root) => placeOf(doc, root.id)?.parentId === home.parentId).length
     : 0;
+  // A lone block id is a line, not a node: every depth at a seam writes it
+  // under the same line (`moveSubtreesTo`), so a seam offers it once.
+  const loneId = operandRoots.length === 1 && isLoneBlockIdNode(first) && first.children.length === 0;
   const out: DropSeam[] = [];
   for (const seam of seams(doc, {
     ...options,
@@ -332,7 +335,12 @@ export function dropSeams(
       const absorbs = absorbedSpan(doc, seam, written.firstLine, operandIds, all, placed.depth);
       candidates.push(absorbs ? { ...placed, ...written, absorbs } : { ...placed, ...written });
     }
-    out.push({ line: seam.line, aboveId: seam.aboveId, belowId: seam.belowId, candidates });
+    out.push({
+      line: seam.line,
+      aboveId: seam.aboveId,
+      belowId: seam.belowId,
+      candidates: loneId ? oneDepth(candidates) : candidates,
+    });
   }
   // The run's lower boundary. The seam walk merged it into the run's top,
   // which keeps the run's own place; without a dead seam of its own here the
@@ -351,6 +359,17 @@ export function dropSeams(
     }
   }
   return out;
+}
+
+/**
+ * A lone id's one candidate at a seam: the deepest, which writes it under the
+ * line right above the seam. At the seam above the id's own line that is the
+ * node above it, not the id's own place: the seam below the id, which offers
+ * nothing, is where a drop puts it back.
+ */
+function oneDepth(candidates: readonly DropDestination[]): DropDestination[] {
+  const deepest = candidates[candidates.length - 1];
+  return deepest ? [deepest] : [];
 }
 
 /**

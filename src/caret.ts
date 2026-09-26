@@ -28,7 +28,7 @@
  */
 
 import type { OutlineDoc, OutlineNode } from './model';
-import { ownSpan } from './model';
+import { idLineIndex, lineRole, ownSpan, placeLineText } from './model';
 import type { LinePos } from './line-pos';
 import { nodeAtLine, nodeStartLine } from './locate';
 import { ownIndentAt } from './own-indent';
@@ -78,6 +78,15 @@ export function nodeContentEnd(doc: OutlineDoc, node: OutlineNode): LinePos {
   const start = nodeStartLine(doc, node.id);
   const lastLine = node.lines[node.lines.length - 1] ?? '';
   return { line: start + node.lines.length - 1, ch: lastLine.length };
+}
+
+/** The node's LAST place: the end of an attached block id's line where it
+ * has one, which is a line of the node the caret can stand on
+ * (`content-space-caret`), and the end of its own content otherwise. */
+export function nodeLastPlace(doc: OutlineDoc, node: OutlineNode): LinePos {
+  const idIndex = idLineIndex(node);
+  if (idIndex === undefined) return nodeContentEnd(doc, node);
+  return { line: nodeStartLine(doc, node.id) + idIndex, ch: node.blockId!.line.length };
 }
 
 /**
@@ -133,8 +142,8 @@ export function isAddressable(doc: OutlineDoc, pos: LinePos): boolean {
   const node = nodeAtLine(doc, pos.line);
   if (!node) return true; // preamble
   const lineIndex = pos.line - nodeStartLine(doc, node.id);
-  if (lineIndex >= node.lines.length) return false; // this node's own trailing gap
-  const line = node.lines[lineIndex] ?? '';
+  const line = placeLineText(node, lineIndex);
+  if (line === undefined) return false; // a blank line this node owns
   return pos.ch >= caretFloorCh(doc, node, pos.line, line);
 }
 
@@ -151,8 +160,12 @@ export function resolvePlacement(doc: OutlineDoc, pos: LinePos): LinePos {
   const node = nodeAtLine(doc, pos.line);
   if (!node) return pos; // preamble: out of jurisdiction (D10)
   const lineIndex = pos.line - nodeStartLine(doc, node.id);
-  if (lineIndex >= node.lines.length) return nodeContentEnd(doc, node); // gap line
-  const line = node.lines[lineIndex] ?? '';
+  const line = placeLineText(node, lineIndex);
+  if (line === undefined) {
+    // A gap line resolves to what is right above it: the node's own content
+    // for the blank lines before an attached id, its last place otherwise.
+    return lineRole(node, lineIndex) === 'id-gap' ? nodeContentEnd(doc, node) : nodeLastPlace(doc, node);
+  }
   const boundary = caretFloorCh(doc, node, pos.line, line);
   return pos.ch >= boundary ? pos : { line: pos.line, ch: boundary };
 }
@@ -178,8 +191,8 @@ export function resolveMarkerPlacement(doc: OutlineDoc, pos: LinePos): LinePos {
   const node = nodeAtLine(doc, pos.line);
   if (!node) return pos; // preamble: out of jurisdiction (D10)
   const lineIndex = pos.line - nodeStartLine(doc, node.id);
-  if (lineIndex >= node.lines.length) return pos; // gap line: D2 leaves these to user gestures
-  const line = node.lines[lineIndex] ?? '';
+  const line = placeLineText(node, lineIndex);
+  if (line === undefined) return pos; // gap line: D2 leaves these to user gestures
   const boundary = caretFloorCh(doc, node, pos.line, line);
   return pos.ch >= boundary ? pos : { line: pos.line, ch: boundary };
 }
@@ -254,23 +267,36 @@ export function planHorizontal(
   // preceding node's content end: a press that moved the caret in the OPPOSITE
   // direction to the one requested. A gap belongs to the node above it, so left
   // means that owner's content end and right means the next node's start.
-  if (lineIndex >= node.lines.length) {
-    if (direction === 'left') return nodeContentEnd(doc, node);
+  const role = lineRole(node, lineIndex);
+  const idIndex = idLineIndex(node);
+  const start = pos.line - lineIndex;
+  const idPlace = (): LinePos => {
+    const idLine = node.blockId!.line;
+    return { line: start + idIndex!, ch: caretFloorCh(doc, node, start + idIndex!, idLine) };
+  };
+  if (role === 'id-gap') {
+    // The blank lines between a node's content and its attached id: the
+    // content is above them and the id below, both the same node's.
+    return direction === 'left' ? nodeContentEnd(doc, node) : idPlace();
+  }
+  if (role === 'gap') {
+    if (direction === 'left') return nodeLastPlace(doc, node);
     const afterGap = nextNodeInOrder(doc, node);
     return afterGap ? nodeContentStart(doc, afterGap) : 'noop';
   }
 
-  const line = node.lines[lineIndex] ?? '';
+  const line = placeLineText(node, lineIndex) ?? '';
 
   if (direction === 'left') {
     const boundary = caretFloorCh(doc, node, pos.line, line);
     if (pos.ch > boundary) return { line: pos.line, ch: stepLeft(line, pos.ch, boundary) };
+    if (role === 'id') return nodeContentEnd(doc, node);
     if (lineIndex > 0) {
       const prevLine = node.lines[lineIndex - 1] ?? '';
       return { line: pos.line - 1, ch: prevLine.length };
     }
     const prev = previousNodeInOrder(doc, node);
-    if (prev) return nodeContentEnd(doc, prev);
+    if (prev) return nodeLastPlace(doc, prev);
     // Nothing above in NODE space — but a preamble is still reachable, and it is
     // out of jurisdiction (D10), so decline and let stock CM6 enter it. Only a
     // document with no preamble at all is a true edge.
@@ -283,10 +309,11 @@ export function planHorizontal(
   }
 
   if (pos.ch < line.length) return { line: pos.line, ch: stepRight(line, pos.ch) };
-  if (lineIndex < node.lines.length - 1) {
+  if (role === 'content' && lineIndex < node.lines.length - 1) {
     const nextLine = node.lines[lineIndex + 1] ?? '';
     return { line: pos.line + 1, ch: caretFloorCh(doc, node, pos.line + 1, nextLine) };
   }
+  if (role === 'content' && idIndex !== undefined) return idPlace();
   const next = nextNodeInOrder(doc, node);
   return next ? nodeContentStart(doc, next) : 'noop';
 }

@@ -82,6 +82,7 @@ import { guideHoverExtension } from './guide-hover';
 import { dragPreviewExtension, dragPreviewField, type DragPreview } from './drag-state';
 import { isOutlineMode, outlineStateExtension, outlineToggled } from './outline-state';
 import { zoomClickExtension } from './zoom-click';
+import { misplacedIdsExtension, misplacedAtLine, openCorrectionMenuAtCaret } from './misplaced-ids';
 import { zoomDecorationsExtension } from './zoom-decorations';
 import { zoomTrailExtension } from './zoom-trail';
 import { zoomViewExtension } from './zoom-view';
@@ -221,6 +222,21 @@ export default class TrueOutlinerPlugin extends Plugin {
         const view = this.app.workspace.getActiveViewOfType(MarkdownView);
         if (!view?.file) return false;
         if (!checking) this.toggleActiveTab();
+        return true;
+      },
+    });
+
+    // The correction menu of a misplaced block id (`misplaced-block-ids`), from
+    // the keyboard: offered only while the caret's line holds one.
+    this.addCommand({
+      id: 'correct-misplaced-block-id',
+      name: 'Correct misplaced block ID',
+      editorCheckCallback: (checking, _editor, ctx) => {
+        const cm = viewFor(ctx);
+        if (!cm || !isOutlineMode(cm.state)) return false;
+        const line = cm.state.doc.lineAt(cm.state.selection.main.head).number - 1;
+        if (!misplacedAtLine(cm.state, line)) return false;
+        if (!checking) openCorrectionMenuAtCaret(cm);
         return true;
       },
     });
@@ -452,6 +468,7 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.registerEditorExtension(foldCarryExtension());
     this.registerEditorExtension(grammarExtension());
     this.registerEditorExtension(decorationsExtension(this));
+    this.registerEditorExtension(misplacedIdsExtension());
     this.registerEditorExtension(transactionFilterExtension(this, this.stats));
     // Registered LAST among the decoration producers: it is the only block
     // decoration here, and keeping it last means any interaction with the

@@ -15,7 +15,10 @@ import {
   insertSubtrees,
   moveSubtreesTo,
   surplusMarkerSpace,
+  deleteSubtrees,
+  mergeNodes,
 } from '../src/ops';
+import { subtreeCoverOf } from '../src/escalate';
 import { applyEdits } from '../src/result';
 import { arbTree } from './generators';
 
@@ -1713,7 +1716,23 @@ describe('moveSubtreesTo', () => {
           index: i < j ? i : i + 1,
         });
         if (!back.ok) return KNOWN_MOVE_REASONS.has(back.rejection.reason);
-        return encode(back.value.doc) === before;
+        const returned = encode(back.value.doc);
+        if (returned === before) return true;
+        // An attached id outside a list item needs a blank line below it,
+        // which a tight seam did not have. Whichever node of the scope ends in
+        // one — the run, the node it landed under, or the one that took its
+        // place — the move writes that line, the trip back leaves it with a
+        // node the run passed, and it is the only difference the trip may make.
+        const endsInId = (node: OutlineNode): boolean => {
+          let final = node;
+          while (final.children.length > 0) final = final.children[final.children.length - 1]!;
+          return final.blockId !== undefined && final.kind !== 'list-item';
+        };
+        if (!siblings.some(endsInId)) return false;
+        const lines = returned.split('\n');
+        return lines.some(
+          (line, k) => line === '' && [...lines.slice(0, k), ...lines.slice(k + 1)].join('\n') === before,
+        );
       }),
       { numRuns: 400 },
     );
@@ -1726,5 +1745,129 @@ describe('moveSubtreesTo', () => {
     // lines: `#### A1` contains `## A1` as a substring.
     expect(out.split('\n')).toContain('#### A1');
     expect(out.split('\n')).not.toContain('## A1');
+  });
+});
+
+describe('an attached block id travels with its node', () => {
+  const TABLE = '| a | b |\n| --- | --- |\n| 1 | 2 |';
+  const first = (doc: OutlineDoc, line: string): OutlineNode =>
+    [...walkNodes(doc)].find((node) => node.lines[0] === line)!;
+  const ok = <T>(result: { ok: true; value: T } | { ok: false }): T => {
+    expect(result.ok).toBe(true);
+    return (result as { value: T }).value;
+  };
+
+  it('moves a table up with its id', () => {
+    const doc = parse(`Intro.\n\n${TABLE}\n\n^t1\n\nOutro.\n`);
+    const out = ok(moveUp(doc, first(doc, '| a | b |').id));
+    expect(encode(out.doc)).toBe(`${TABLE}\n\n^t1\n\nIntro.\n\nOutro.\n`);
+    expect(first(out.doc, '| a | b |').blockId?.line).toBe('^t1');
+  });
+
+  it('drags a table to the end of the note with its id', () => {
+    const doc = parse(`Intro.\n\n${TABLE}\n\n^t1\n\nOutro.\n`);
+    const out = ok(moveSubtreesTo(doc, [[first(doc, '| a | b |').id]], { parentId: 'root', index: 3 }));
+    expect(encode(out.doc)).toBe(`Intro.\n\nOutro.\n\n${TABLE}\n\n^t1\n`);
+    expect(first(out.doc, '| a | b |').blockId?.line).toBe('^t1');
+  });
+
+  it('deletes a callout with its id', () => {
+    const doc = parse('Intro.\n\n> [!note] Title\n> body\n\n^c1\n\nOutro.\n');
+    const out = ok(deleteSubtrees(doc, [first(doc, '> [!note] Title').id]));
+    expect(encode(out.doc)).not.toContain('^c1');
+  });
+
+  it('covers the id in a block selection of its node', () => {
+    const doc = parse(`Intro.\n\n${TABLE}\n\n^t1\n\nOutro.\n`);
+    const cover = subtreeCoverOf(doc, first(doc, '| a | b |'));
+    expect(cover.end.line).toBeGreaterThanOrEqual(6);
+  });
+
+  it('indents a paragraph into a list item with its id at the content column', () => {
+    const doc = parse('Lead.\n\nSome prose.\n\n^p3\n');
+    const out = ok(indent(doc, first(doc, 'Some prose.').id));
+    const item = [...walkNodes(out.doc)].find((node) => node.kind === 'list-item')!;
+    expect(item.lines).toEqual(['- Some prose.']);
+    expect(item.blockId).toEqual({ gap: [''], line: '  ^p3' });
+  });
+
+  it('leaves the id on the first half of a split', () => {
+    const doc = parse('Some prose.\n\n^p3\n');
+    const out = ok(splitNode(doc, first(doc, 'Some prose.').id, { line: 0, ch: 5 }));
+    expect(first(out.doc, 'Some ').blockId?.line).toBe('^p3');
+    expect(first(out.doc, 'prose.').blockId).toBeUndefined();
+  });
+
+  it('keeps the one id of a merge and rejects a merge of two', () => {
+    const one = parse('- a\n- b\n\n  ^b\n');
+    const merged = ok(mergeNodes(one, first(one, '- a').id));
+    expect(merged.doc.children.map((node) => [node.lines, node.blockId?.line])).toEqual([
+      [['- ab'], '  ^b'],
+    ]);
+    const two = parse('First.\n\n^f\n\nSecond.\n\n^s\n');
+    const rejected = mergeNodes(two, first(two, 'First.').id);
+    expect(rejected.ok ? 'accepted' : rejected.rejection.reason).toBe('merge-not-expressible');
+  });
+
+  it('separates an id from a list item moved under it', () => {
+    const doc = parse('## H\n^h3\n\nText.\n\n- x\n');
+    const heading = first(doc, '## H');
+    const out = ok(moveSubtreesTo(doc, [[first(doc, '- x').id]], { parentId: heading.id, index: 0 }));
+    expect(encode(out.doc)).toMatch(/^## H\n\^h3\n\n- x\n/);
+    expect(first(out.doc, '## H').blockId?.line).toBe('^h3');
+  });
+
+  it('gives a table\'s id up to the mark when the table moves into a list item', () => {
+    const doc = parse(`- A\n\n${TABLE}\n\n^t\n`);
+    const out = ok(moveSubtreesTo(doc, [[first(doc, '| a | b |').id]], { parentId: first(doc, '- A').id, index: 0 }));
+    const a = first(out.doc, '- A');
+    expect(a.children.map((node) => [node.kind, node.lines[0]])).toEqual([
+      ['table', '  | a | b |'],
+      ['paragraph', '  ^t'],
+    ]);
+  });
+});
+
+describe('a dragged misplaced id lands as a line of the node above it', () => {
+  const first = (doc: OutlineDoc, line: string): OutlineNode =>
+    [...walkNodes(doc)].find((node) => node.lines[0] === line)!;
+  const drop = (md: string, parent: string, index: number): string => {
+    const doc = parse(md);
+    const id = [...walkNodes(doc)].find((node) => node.lines[0]?.trim().startsWith('^'))!;
+    const parentId = parent === 'root' ? 'root' : first(doc, parent).id;
+    const result = moveSubtreesTo(doc, [[id.id]], { parentId, index });
+    if (!result.ok) throw new Error(result.rejection.reason);
+    return encode(result.value.doc);
+  };
+
+  it('makes an id dropped between a lead paragraph and its list a line of the paragraph', () => {
+    expect(drop('Lead.\n- a\n\n^id\n\nAfter.\n', 'Lead.', 0)).toBe('Lead.\n^id\n- a\n\nAfter.\n');
+  });
+
+  it('attaches an id dropped under a heading after a blank line, with a blank line below', () => {
+    const out = drop('## H\n- a\n\n^id\n', '## H', 0);
+    expect(out).toBe('## H\n\n^id\n\n- a\n');
+    expect(parse(out).children[0]!.blockId?.line).toBe('^id');
+  });
+
+  it('keeps an id dropped at the top of the note a paragraph of its own', () => {
+    const out = drop('Lead.\n- a\n\n^id\n', 'root', 0);
+    expect(out).toBe('^id\n\nLead.\n- a\n');
+    expect(parse(out).children[0]!.lines).toEqual(['^id']);
+  });
+
+  it('never writes a dropped id as a list item', () => {
+    const out = drop('- a\n- b\n\n^l1\n\nAfter.\n', 'root', 1);
+    expect(out).toBe('- a\n  ^l1\n- b\n\nAfter.\n');
+    expect(out).not.toContain('- ^l1');
+  });
+
+  it('leaves an id dropped where it already was untouched', () => {
+    const md = '- a\n- b\n\n^l1\n\nAfter.\n';
+    const doc = parse(md);
+    const id = first(doc, '^l1');
+    const at = doc.children.indexOf(id);
+    const result = moveSubtreesTo(doc, [[id.id]], { parentId: 'root', index: at });
+    expect(result.ok && encode(result.value.doc)).toBe(md);
   });
 });
