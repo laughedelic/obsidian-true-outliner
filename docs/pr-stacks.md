@@ -37,9 +37,9 @@ own worktree, and nothing needs setting up before sessions start.
 Detach the other worktrees around the restack instead:
 
 ```bash
-node scripts/stack-park.mjs park     # one stack only; refuses while any is dirty
+node scripts/stack-park.ts park     # one stack only; refuses while any is dirty
 gh stack sync
-node scripts/stack-park.mjs unpark
+node scripts/stack-park.ts unpark
 ```
 
 `park` takes the stack the current branch belongs to, and takes a stack number when standing on

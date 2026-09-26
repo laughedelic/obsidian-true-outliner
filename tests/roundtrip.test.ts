@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
-import { treesEqual } from '../src/model';
+import { treesEqual, walkNodes, type OutlineNode } from '../src/model';
 import { arbMarkdownText, arbTree } from './generators';
 
 describe('byte-identity round-trip: encode(parse(md)) === md', () => {
@@ -89,5 +89,114 @@ describe('a list item: own lines vs children', () => {
     for (const md of ['- item\n  more text\n', '- item\n\n  more text\n']) {
       expect(encode(parse(md))).toBe(md);
     }
+  });
+});
+
+describe('a block start inside a list item is measured from the item', () => {
+  /** Every node, depth-first, as `kind: first line`, with its parent's first line. */
+  const shape = (md: string): string[] => {
+    const out: string[] = [];
+    const walk = (nodes: readonly OutlineNode[], parent: string): void => {
+      for (const n of nodes) {
+        out.push(`${n.kind}: ${JSON.stringify(n.lines[0])} < ${parent}`);
+        walk(n.children, JSON.stringify(n.lines[0]));
+      }
+    };
+    walk(parse(md).children, 'root');
+    return out;
+  };
+  const kindOf = (md: string, line: string): string | undefined =>
+    [...walkNodes(parse(md))].find((n) => n.lines[0] === line)?.kind;
+
+  it("#136: a quote at the item's child column is a quote, however it is indented", () => {
+    // Negative control: measuring `QUOTE_RE` from column 0 again reads the
+    // tab and four-space cases as paragraphs, which is what `main` did.
+    for (const indent of ['  ', '\t', '    ']) {
+      const md = `- alpha\n\n${indent}> quote child\n`;
+      expect(shape(md)).toEqual([
+        'list-item: "- alpha" < root',
+        `quote: ${JSON.stringify(`${indent}> quote child`)} < "- alpha"`,
+      ]);
+      expect(encode(parse(md))).toBe(md);
+    }
+  });
+
+  it('#136: a heading under an item stays measured from column 0', () => {
+    expect(shape('- alpha\n\n\t# heading child\n')).toEqual([
+      'list-item: "- alpha" < root',
+      'paragraph: "\\t# heading child" < "- alpha"',
+    ]);
+  });
+
+  it('a quote, a callout and a rule at a depth-2 child column keep their kind', () => {
+    // Negative control: measuring from column 0 reads every one of these as a
+    // paragraph (with a blank), a continuation of `  - two` or a list item
+    // (without). A `***` directly under the marker line is left out: the
+    // item's continuation loop claims it at any column, which is #197.
+    const openers: [string, string, readonly string[]][] = [
+      ['> q', 'quote', ['\n', '']],
+      ['> [!note] c', 'callout', ['\n', '']],
+      ['***', 'hr', ['\n']],
+      ['- - -', 'hr', ['\n', '']],
+    ];
+    for (const [opener, kind, gaps] of openers) {
+      for (const gap of gaps) {
+        const line = `    ${opener}`;
+        const md = `- one\n  - two\n${gap}${line}\n`;
+        expect(shape(md)).toEqual([
+          'list-item: "- one" < root',
+          'list-item: "  - two" < "- one"',
+          `${kind}: ${JSON.stringify(line)} < "  - two"`,
+        ]);
+        expect(encode(parse(md))).toBe(md);
+        // Four columns past the item's content column it opens nothing.
+        const deep = `- one\n  - two\n\n        ${opener}\n`;
+        expect(kindOf(deep, `        ${opener}`)).toBe(opener === '- - -' ? 'list-item' : 'paragraph');
+      }
+    }
+  });
+
+  it("a quote's run ends at a line indented short of its margin", () => {
+    // Negative control: without the indentation check in the run, `> r`
+    // joins the item's quote.
+    expect(shape('- a\n  - b\n\n    > q\n> r\n')).toEqual([
+      'list-item: "- a" < root',
+      'list-item: "  - b" < "- a"',
+      'quote: "    > q" < "  - b"',
+      'quote: "> r" < root',
+    ]);
+  });
+
+  it('a setext heading closes the margin, as an ATX heading does', () => {
+    // Negative control: clearing the stack for an ATX heading only leaves
+    // `- a`'s margin open under `para`, and reads the last line as a quote.
+    expect(shape('- a\n\n  para\n  ---\n    > q\n')).toEqual([
+      'list-item: "- a" < root',
+      'heading: "  para" < root',
+      'paragraph: "    > q" < "  para"',
+    ]);
+  });
+
+  it('an HTML block is measured from column 0, so an inline tag opening a child paragraph is text', () => {
+    // Negative control: giving `HTML_OPEN_RE` the margin reads the first as an
+    // HTML block that takes `\t- c` into its lines, and the second as one that
+    // runs past `  - b` and takes the sibling `  - c`.
+    expect(shape('- a\n\n\t<b>Note</b> text\n\t- c\n')).toEqual([
+      'list-item: "- a" < root',
+      'paragraph: "\\t<b>Note</b> text" < "- a"',
+      'list-item: "\\t- c" < "- a"',
+    ]);
+    expect(shape('- a\n  - b\n\n    <div>\n  - c\n')).toEqual([
+      'list-item: "- a" < root',
+      'list-item: "  - b" < "- a"',
+      'paragraph: "    <div>" < "  - b"',
+      'list-item: "  - c" < "- a"',
+    ]);
+  });
+
+  it('only spaces and tabs are indentation', () => {
+    // Negative control: taking the lead with `trimStart`, which also strips a
+    // non-breaking space, reads the line as a quote.
+    expect(kindOf('- a\n\n  \u00a0 > q\n', '  \u00a0 > q')).toBe('paragraph');
   });
 });

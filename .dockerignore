@@ -28,7 +28,7 @@ dist
 .entire
 .delta
 
-# Build output, assembled by esbuild.config.mjs and scripts/styles.mjs.
+# Build output, assembled by scripts/build.ts and scripts/styles.ts.
 /main.js
 /styles.css
 
@@ -39,7 +39,7 @@ dist
 /test-vault/.obsidian/workspace.json
 /test-vault/.obsidian/workspace-mobile.json
 
-# Generated fixtures and reports: scripts/gen-backlink-hub.mjs, npm run
+# Generated fixtures and reports: scripts/gen-backlink-hub.ts, npm run
 # test:coverage, and the design canvases.
 /test-vault/Backlinks/Hub
 /coverage

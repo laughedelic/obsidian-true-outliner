@@ -412,6 +412,58 @@ the chosen indentation therefore stands as the evidence gave it.
 - **THEN** it is written at THREE columns — the column the target ends with — rather than the
   four the target carried when the operation began
 
+### Requirement: A moved node is written in one indentation
+When indent or outdent re-encodes a node for its destination without converting its kind, every
+line the node owns — its continuation lines and its whole subtree — SHALL be written with the
+destination's indentation characters in place of the node's own first-line indentation, wherever
+that line opens with it. The first line takes the destination's indentation string, and the lines
+below it SHALL NOT be re-spelled in a different unit.
+
+A width delta alone does not say which characters to write: it is spelled in spaces, so a node
+indented with a tab came back with a tab on its first line and spaces on every other line, at the
+right columns and in two indentations.
+
+The substitution SHALL NOT move any line to a different column than a shift by the width delta
+would. Where the destination prefix followed by the rest of a line's indentation does not reach
+that column — a tab after the prefix re-expands from where the new prefix ends — or where it would
+put a space in front of a tab that had none in front of it before, the line SHALL be
+shifted by the width delta instead. A space in front of a tab INSIDE the destination's indentation
+string is not such a pair: the first line is written with that string whatever the other lines
+take, and the other lines SHALL take it too.
+
+#### Scenario: A tab unit reaches the continuation line
+- **WHEN** `- foo` / `  bar` is indented under `- top` with a tab as the destination's
+  indentation
+- **THEN** the result is `\t- foo` / `\t  bar`, and the continuation line's column is the item's
+  content column
+
+#### Scenario: A space unit is unchanged
+- **WHEN** the same node is indented with two or four spaces as the destination's indentation
+- **THEN** the continuation line opens with the same spaces, exactly as a shift by the width would
+  write it
+
+#### Scenario: The subtree takes the same characters
+- **WHEN** a node with a continuation line and a child with its own continuation line is indented
+  into a scope whose siblings are indented with a tab
+- **THEN** every one of those lines opens with the tab, followed by what the source wrote after
+  the node's own indentation
+
+#### Scenario: A line that the swap would move falls back to the width
+- **WHEN** a node whose continuation line is indented with a tab is indented by two spaces
+- **THEN** the continuation line is written `\t  bar`, at the column the width delta asks for,
+  rather than `  \tbar`, whose tab re-expands two columns short
+
+#### Scenario: A normalized marker run keeps the tabs of a line the swap does not reach
+- **WHEN** `    -\tfoo` with a child `\t\t- kid` is indented with a tab as the destination's
+  indentation
+- **THEN** the child is written `\t\t  - kid`, the combined shift of the width delta and the
+  marker's change, and no line gains a tab stop's worth of spaces
+
+#### Scenario: An outdent restores the node
+- **WHEN** a node whose marker run is already one space wide, indented with a tab, is outdented
+  back to the column it came from
+- **THEN** every line it owns is restored byte-identically
+
 ### Requirement: Sibling reordering
 MoveUp/moveDown SHALL swap a node (with its entire subtree) with its previous/next sibling,
 and SHALL be rejected when no such sibling exists. Node types and encodings are unchanged by
@@ -1104,10 +1156,42 @@ list/paragraph depth encodings converted as the existing reparenting rules requi
 Sequences inexpressible at the target scope SHALL be rejected rather than inserted
 in corrupted form. When no kind conversion is needed (the common case — the
 sequence's own top-level kind already matches the destination context), each
-subtree's original indent characters SHALL carry through verbatim beyond its own
-top-level prefix, re-rooted at the destination depth — not expressed as a flat
-numeric width delta, which can introduce a mismatched indent unit (e.g. spaces
-inserted into an otherwise all-tab subtree) at any depth beyond the first level.
+subtree SHALL be written in the DOCUMENT's indent unit at every level, whatever unit
+the payload arrived in: a list item under a list item takes its parent's new
+indentation plus one unit, padded with spaces to the parent's content column where
+the unit falls short of it, which is what an indent writes there. The unit is the
+one an indent reads from the document, falling back to the editor's own setting. A
+payload the document itself wrote in that unit SHALL come back byte-identical.
+
+A node's own lines below its first, and a child that is not a list item, SHALL keep
+their offset from the node's indentation, written after its new indentation: the
+characters the payload wrote past the node's indentation are kept where they are
+spaces, or tabs in a tab document, and land on the same column; otherwise the offset
+is written in spaces. A line that does not open with its node's indentation SHALL move
+with the block by the swap of the block root's own prefix, and SHALL be carried as it was
+where it does not open with that either. A child that is not a list item SHALL be written at its parent's
+content column wherever its offset would reach the content column of the list item
+before it. An atom's lines are content and SHALL move as a unit by its first
+line's prefix, keeping the tabs inside it. A child list of a paragraph SHALL keep its
+offset from the paragraph, since it attaches by adjacency at any column.
+
+A block whose lines, so written and read back on their own, parse as a different tree
+from the block's own SHALL instead keep its own characters past its root's prefix,
+re-rooted at the destination depth.
+
+When a block's kind converts for its destination, its own lines SHALL be converted as
+before, and its children SHALL be written in the document's unit: under a paragraph at the
+paragraph's own indentation, and under a list item as any list item's children are.
+
+A paste into a note that holds no node SHALL be written as the root's children through the
+same re-encode, at a caret on any blank line past the note's frontmatter or over a selection
+lying wholly on such lines. The frontmatter SHALL NOT be touched, and a selection reaching into
+it SHALL be left to the native paste.
+
+The document's unit SHALL be read from the step between a bullet item and its first
+indented child where the document has one. The step under a numbered item is also the
+width its child needs to reach the content column, so it is not evidence of the unit.
+A move SHALL read the unit from the document before the moved run is removed.
 
 The inserted run SHALL carry the SEPARATION of the boundary it lands in on both sides of
 itself. A gap is a boundary's separation and an insertion turns one boundary into two: the node
@@ -1136,6 +1220,66 @@ blank to parse, so the separation a reader sees there is this one.
   character the anchor's own context uses — no mix of the original tabs with
   newly-added spaces at any level
 
+#### Scenario: Every spelling of one tree lands in the same bytes
+- **WHEN** one tree, spelled with tabs, with two spaces, with four spaces, or with a mix, is
+  pasted under a tab-indented list item, a two-space one, or a four-space one, or at the root
+  of a tab or a two-space document
+- **THEN** every spelling lands in the same bytes at each destination, every level in the
+  destination document's unit
+
+#### Scenario: A copy from the document comes back unchanged
+- **WHEN** a list item's subtree is copied from a document indented consistently with tabs,
+  two spaces or four spaces, including one whose first nested item sits under `1.`, and pasted
+  back after itself
+- **THEN** the pasted copy is byte-identical to the original, apart from an ordered root's number
+
+#### Scenario: A continuation keeps its offset in the document's characters
+- **WHEN** `- a` / `  x` is pasted under a tab-indented list item
+- **THEN** it lands as `\t- a` / `\t  x`
+- **AND** `- a` / `\tx` pasted under a two-space list item lands with `x` four columns past its
+  item, in spaces
+
+#### Scenario: A fenced block keeps the tabs inside it
+- **WHEN** a list item holding a fenced block whose code is indented with tabs is pasted into a
+  two-space document
+- **THEN** the fence opens at the offset it had from its item, in spaces, and no tab inside the
+  code is converted
+
+#### Scenario: A block after a nested item stays its parent's child
+- **WHEN** `- Step 1` / `    - detail` / a fenced block at four columns is pasted under a
+  two-space list item
+- **THEN** the fence is written at `Step 1`'s content column and remains its child, not
+  `detail`'s
+
+#### Scenario: A block that would read as another tree keeps its own
+- **WHEN** a payload's converged lines would turn a lazy line into a quote or a table
+- **THEN** the payload is written with its own characters past its root's prefix, and its tree
+  is unchanged
+
+#### Scenario: A list pasted after a paragraph converts with its list in the unit
+- **WHEN** a list in any spelling is pasted at the end of a paragraph in a tab-indented vault
+- **THEN** its root becomes a paragraph, its list follows at the paragraph's indentation, and
+  every nested level below that is written with tabs
+
+#### Scenario: The first paste into an empty note converges
+- **WHEN** a two-space list is pasted into an empty note in a tab-indented vault
+- **THEN** it lands with tabs at every nested level
+
+#### Scenario: Select-all over an empty note converges too
+- **WHEN** a two-space list is pasted over a selection of every line of a note that holds only
+  blank lines, in a tab-indented vault
+- **THEN** it lands with tabs at every nested level, as a caret paste there does
+
+#### Scenario: A paste below a template's frontmatter leaves the frontmatter alone
+- **WHEN** a list is pasted on the blank line below the frontmatter of a note with no node
+- **THEN** the list is written below the frontmatter in the vault's unit, and the frontmatter's
+  lines are unchanged
+
+#### Scenario: A move keeps the document's unit
+- **WHEN** a run holding the document's only nested list items is moved under another item
+- **THEN** its levels are written in the unit the document had before the move, not the
+  editor's setting
+
 #### Scenario: Insertion never splices mid-node
 - **WHEN** `insertSubtrees` is invoked with any anchor
 - **THEN** every existing node's own lines remain contiguous and byte-identical —
@@ -1159,6 +1303,10 @@ blank to parse, so the separation a reader sees there is this one.
 *(Amendment 2026-09-19, `paste-lands-where-it-is-pointed`: the run's own final gap was stripped
 and the anchor's was moved onto it, which left the run flush against a neighbour wherever the
 parse required no blank line — measured in `docs/research/paste-across-encoding-regimes`, M6.)*
+
+*(Amendment 2026-09-25, `a-paste-writes-the-document-unit`: the levels below a pasted root were
+carried in the payload's own characters, so a clipboard from outside the vault left the
+document indented two ways — measured in `docs/research/paste-indent-convergence`.)*
 
 ### Requirement: New operations uphold the existing operation guarantees
 `deleteSubtrees`, `mergeNodes`, and `insertSubtrees` SHALL satisfy the same contracts
@@ -1401,7 +1549,7 @@ undo-on-abandon rule, leaving no trace in the file.
 **Covered by**: `tests/split.test.ts` (the indented provisional position for each destination
 scope, and the re-parse of the materialized node including its siblings' attachment);
 `tests/undo-on-abandon.test.ts` (byte-identical abandonment of an indented position);
-`e2e/specs/30-keyboard-grammar.e2e.ts` (the live keypress-then-type sequence on a list item
+`e2e-tests/specs/30-keyboard-grammar.e2e.ts` (the live keypress-then-type sequence on a list item
 with a paragraph child).
 
 ### Requirement: Group forms of indent, outdent and reordering
@@ -1828,7 +1976,11 @@ The two differ wherever an operation has moved a node's column. `hr`, `quote`, `
 and an ATX heading open a block only within three columns of the left margin — `HR_RE`,
 `QUOTE_RE`, `CALLOUT_RE`, `HTML_OPEN_RE` and `ATX_RE` are all written `^ {0,3}` — and a setext
 heading carries that anchor on its UNDERLINE rather than on its first line. `code` and `table`
-have no such limit. Normalization runs on the TREE and encoding runs after it, so a node a
+have no such limit. The margin is the one the parser measures from: column 0 outside every list
+item, and inside one the content column of the innermost item holding the node, so a node's
+children are judged at their parent's content column when the parent is a list item and at the
+parent's own margin otherwise. A heading and an HTML block are judged at column 0 wherever they
+sit, as the parser reads them. Normalization runs on the TREE and encoding runs after it, so a node a
 re-encode has pushed past that margin is separated as the kind it was and read back as the kind
 its new column makes it. Measured, a `quote` needs no separator before a paragraph and the
 paragraph it becomes at column 4 does: the two nodes come back as one, and the payload the
@@ -1889,6 +2041,12 @@ table leaves a list item or a paragraph carrying a wikilink alias to be read as 
 - **WHEN** the same payload lands in a scope whose content sits at column 0
 - **THEN** the quote is still a quote, no separator is added, and the encoding is byte-identical
   to what the rules produced before this requirement
+
+#### Scenario: An atom at a list item's child column keeps its kind across the seam
+- **WHEN** a payload of `## H` over `---` is pasted after `  - two` below `- one`, so the rule is
+  written at column 4, the converted item's child column
+- **THEN** a blank line stands between `  - ## H` and the rule, and the rule re-parses as an `hr`,
+  a child of that item
 
 ### Requirement: A run moves to a named destination as one operation
 

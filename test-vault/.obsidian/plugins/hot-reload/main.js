@@ -71,7 +71,8 @@ module.exports = class HotReloadPlugin extends Plugin {
     const now = new Date();
     const at = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
     const stamp = plugins.plugins?.[pluginId]?.buildStamp;
-    const built = stamp ? `${stamp.buildId} (built ${stamp.clock})` : '';
+    // A release bundle's stamp is `{ dev: false }` alone (scripts/install-to-vault.ts).
+    const built = stamp?.dev ? `${stamp.buildId} (built ${stamp.clock})` : stamp ? 'release build' : '';
     // Replace rather than stack. A timeout of 0 never auto-dismisses, so without
     // this a watch session accumulates one permanent notice per save and buries
     // the UI. Only the latest reload is worth showing — that is the whole point

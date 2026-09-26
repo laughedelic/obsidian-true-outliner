@@ -1,0 +1,42 @@
+name: Landed
+
+# A pull request marked ready has been landed on its branch: its OpenSpec change
+# archived with the delta specs synced, and the version bumped when it ships
+# behaviour. `scripts/check-landed.ts` says what each of those reads.
+#
+# Its own workflow rather than a job in CI, because it has to run on events CI
+# ignores: `ready_for_review` is the moment it starts to apply, and `edited`
+# carries a new title, which is where the kind comes from. Adding those to CI
+# would start the whole e2e matrix on every retitle. A draft skips the job, and
+# a skipped job counts as passing wherever the check is required.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  landed:
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Pinned so that a CLI release changing what `validate` reports shows up
+      # as a diff here rather than as a red check on an unrelated pull request.
+      - run: npm install -g @fission-ai/openspec@1.13.1
+
+      - env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          TITLE: ${{ github.event.pull_request.title }}
+        run: node scripts/check-landed.ts "$BASE" "$TITLE"

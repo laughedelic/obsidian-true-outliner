@@ -26,7 +26,7 @@ env:
   node-version: "26"
   # Obsidian instances per e2e job. Beyond the runner's core count this stops
   # paying, and a group can never beat its longest single spec. Note that
-  # `waitBudget` in e2e/helpers.ts widens the harness timeouts off this value:
+  # `waitBudget` in e2e-tests/helpers.ts widens the harness timeouts off this value:
   # changing it needs repeated runs to confirm, not one green one.
   max-instances: "4"
 
@@ -43,8 +43,26 @@ jobs:
 
       - run: npm ci
       - run: npm run lint
-      - run: npm run build
-      - run: npm run build:e2e
+      - run: npm run typecheck
+      - run: npm run typecheck:e2e
+      - run: npm run typecheck:scripts
+
+  # The community directory scans every release: the manifest, the license,
+  # `npm ci && npm run build`, and its own ESLint and Stylelint rulesets over
+  # the source. Obsidian's action runs the same checks here, and `strict` fails
+  # the job on anything the directory would rate an error; warnings stay in the
+  # job summary.
+  directory-scan:
+    runs-on: ubuntu-latest
+    # It runs a third-party action and the repository's own build scripts.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: obsidianmd/obsidian-workflows@v1
+        with:
+          scanner-lint: true
+          strict: true
 
   unit-test:
     runs-on: ubuntu-latest
@@ -57,7 +75,10 @@ jobs:
           cache: npm
 
       - run: npm ci
-      - run: npm run test:coverage
+      - run: >-
+          npm run test:coverage --
+          --reporter=default --reporter=junit
+          --outputFile.junit=test-results/unit.junit.xml
 
       - if: always()
         uses: codecov/codecov-action@v7
@@ -67,8 +88,21 @@ jobs:
           flags: unittests
           fail_ci_if_error: false
 
+      # Test Analytics: per-test pass/fail history, from which Codecov reports
+      # flaky tests. A failing run is the one worth recording, so this runs
+      # whatever the tests did, short of a cancellation.
+      - if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          report_type: test_results
+          files: test-results/unit.junit.xml
+          disable_search: true
+          flags: unittests
+          fail_ci_if_error: false
+
   # Builds the e2e matrix from the specs that exist rather than a list in YAML.
-  # See scripts/spec-groups.mjs.
+  # See scripts/spec-groups.ts.
   e2e-groups:
     runs-on: ubuntu-slim
     outputs:
@@ -76,7 +110,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - id: list
-        run: echo "groups=$(node scripts/run-e2e.mjs --list-groups)" >> "$GITHUB_OUTPUT"
+        run: echo "groups=$(node scripts/run-e2e.ts --list-groups)" >> "$GITHUB_OUTPUT"
 
   e2e-desktop:
     needs: e2e-groups
@@ -95,6 +129,7 @@ jobs:
           group: ${{ matrix.group }}
           platform: desktop
           max-instances: ${{ env.max-instances }}
+          codecov-token: ${{ secrets.CODECOV_TOKEN }}
 
   # Same specs under Obsidian's mobile emulation — still the Electron app at a
   # phone viewport, not the Capacitor one. Its own job tree rather than a
@@ -117,6 +152,7 @@ jobs:
           group: ${{ matrix.group }}
           platform: mobile
           max-instances: ${{ env.max-instances }}
+          codecov-token: ${{ secrets.CODECOV_TOKEN }}
 
   # A stable check name per platform for branch protection: matrix job names
   # change whenever the groups do.

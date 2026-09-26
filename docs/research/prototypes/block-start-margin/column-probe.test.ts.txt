@@ -1,0 +1,20 @@
+import { readFileSync, writeFileSync } from 'node:fs';
+import { test } from 'vitest';
+import { parse } from '../src/parse';
+import { walkNodes } from '../src/model';
+
+test('probe', () => {
+  const cases = JSON.parse(readFileSync(process.env.CASES ?? 'cases.json', 'utf8'));
+  const out = cases.map((c: { md: string }) => {
+    const lines = c.md.split('\n');
+    const last = lines[lines.length - 2];
+    let kind = 'missing';
+    for (const n of walkNodes(parse(c.md))) {
+      const i = n.lines.indexOf(last);
+      if (i === 0) kind = n.kind;
+      else if (i > 0) kind = 'continuation';
+    }
+    return { ...c, ours: kind };
+  });
+  writeFileSync(process.env.PROBE_OUT!, JSON.stringify(out));
+});

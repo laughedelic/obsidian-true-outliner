@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { buildStylesheet, stylesheetParts } from '../scripts/styles.mjs';
+import { buildStylesheet, stylesheetParts } from '../scripts/styles.ts';
 
 /**
  * The stylesheet's own structural integrity.
@@ -46,7 +46,7 @@ describe('styles/ structure', () => {
   });
 
   it.each(parts)('$name is a whole file: one trailing newline, no leading blank', ({ css }) => {
-    // The join's contract (scripts/styles.mjs): a part ends with exactly one
+    // The join's contract (scripts/styles.ts): a part ends with exactly one
     // newline and the join supplies the blank line between neighbours, so
     // the spacing between parts never depends on which part came before.
     expect(css.endsWith('\n')).toBe(true);

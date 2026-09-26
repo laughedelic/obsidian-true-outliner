@@ -13,7 +13,7 @@
 
 import type { OutlineDoc, OutlineNode } from './model';
 import { childrenAt, findPath, nodeAt } from './model';
-import { forEachNodeWithLine, nodeAtLine, nodeStartLine } from './locate';
+import { forEachNodeWithLine, isEmptyBodyRange, nodeAtLine, nodeStartLine } from './locate';
 import { childBaseCol } from './reencode';
 import { TAB_WIDTH } from './parse';
 import { coveredForestOf } from './escalate';
@@ -444,13 +444,32 @@ function deleteAndSplice(
   };
 }
 
+/**
+ * The blocks a pasted payload parses to, with every blank line between them
+ * written empty. A clipboard from another app or another vault carries its own
+ * indentation on its blank lines as well, and a blank line's whitespace says
+ * nothing: carried over, it leaves lines of stray spaces or tabs between the
+ * pasted nodes, in a unit the note does not use, which the outline gives no
+ * caret position to clean up. Only the gaps between nodes are blank lines; a
+ * whitespace-only line inside a code block or another atom is one of the
+ * atom's own lines, and is kept.
+ */
+function payloadBlocks(text: string): readonly OutlineNode[] {
+  const blank = (node: OutlineNode): OutlineNode => ({
+    ...node,
+    trailingGap: node.trailingGap.map(() => ''),
+    children: node.children.map(blank),
+  });
+  return parse(text).children.map(blank);
+}
+
 function composeTypeOver(
   doc: OutlineDoc,
   ids: readonly number[],
   insertText: string,
   fallbackIndentUnit: string | undefined,
 ): Verdict {
-  return deleteAndSplice(doc, ids, parse(insertText).children, fallbackIndentUnit);
+  return deleteAndSplice(doc, ids, payloadBlocks(insertText), fallbackIndentUnit);
 }
 
 /** A list item with no content of its own (just typed, e.g. via Enter) and
@@ -600,6 +619,40 @@ function withGapCollapsed(doc: OutlineDoc, id: number): OutlineDoc {
   return { ...doc, children: doc.children.map(map) };
 }
 
+/**
+ * A paste into a note with no node yet: the payload becomes the root's
+ * children, re-encoded like any other insertion, so a clipboard's indentation
+ * converges on the vault's unit from the first paste. The run replaces the
+ * lines from `fromLine` to `toLine`, the caret's own or a selection's; the
+ * blank lines above stay above it, and those below become the run's trailing gap,
+ * which is where Obsidian's own paste leaves them.
+ */
+function pasteIntoEmptyBody(
+  doc: OutlineDoc,
+  fromLine: number,
+  toLine: number,
+  parsedBlocks: readonly OutlineNode[],
+  fallbackIndentUnit: string | undefined,
+): Verdict {
+  const written = reencodeBlocksForDestination(doc, 'root', [], [], parsedBlocks, fallbackIndentUnit);
+  if (!written.ok) return vetoFrom(written);
+  const blocks = written.value;
+  const below = doc.preamble.slice(toLine + 1);
+  const run = below.length > 0 ? [...blocks.slice(0, -1), setFinalGap(blocks.at(-1)!, below)] : blocks;
+  const surgery: OutlineDoc = { preamble: doc.preamble.slice(0, fromLine), children: run };
+  const inserted = finalize(doc, surgery, run[0]!.id);
+  if (!inserted.ok) return vetoFrom(inserted);
+  const runEnd = endOfInsertedRun(inserted.value.doc, inserted.value.anchor, payloadNodeCount(parsedBlocks));
+  const { caret } = planCaret({ kind: 'exact' }, { before: doc, after: inserted.value.doc, anchor: runEnd });
+  return {
+    kind: 'rewrite',
+    edits: inserted.value.edits,
+    cursor: caret,
+    userEvent: 'input.paste.structural',
+    after: inserted.value.doc,
+  };
+}
+
 function computePasteVerdict(
   doc: OutlineDoc,
   edit: EditFact,
@@ -607,7 +660,7 @@ function computePasteVerdict(
 ): Verdict {
   const node = nodeAtLine(doc, edit.from.line);
   if (!node) return PASS;
-  const parsedBlocks = parse(edit.insert).children;
+  const parsedBlocks = payloadBlocks(edit.insert);
   if (!isStructuralBlockSequence(parsedBlocks)) return PASS;
 
   if (isEmptyAnchor(node)) {
@@ -662,6 +715,15 @@ export function computeVerdict(
   fallbackIndentUnit?: string,
 ): Verdict {
   if (cls !== 'boundary-crossing-edit' || !edit) return PASS;
+
+  // A note with no node has only its body to paste into, at a caret or over a
+  // selection of its blank lines alike, and none of the node-level shapes below.
+  if (edit.insert !== '' && isEmptyBodyRange(doc, edit.from.line, edit.to.line)) {
+    const parsedBlocks = payloadBlocks(edit.insert);
+    return isStructuralBlockSequence(parsedBlocks)
+      ? pasteIntoEmptyBody(doc, edit.from.line, edit.to.line, parsedBlocks, fallbackIndentUnit)
+      : PASS;
+  }
 
   const isPureInsertion = edit.from.line === edit.to.line && edit.from.ch === edit.to.ch;
   if (isPureInsertion) {

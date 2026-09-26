@@ -449,12 +449,10 @@ describe('edit dispatch: line edits → editor changes', () => {
     });
 
     it('indenting a node with a child inserts one minimal change per changed line', () => {
-      // The node's own line gets a real tab (destinationIndent); its child's
-      // shift comes from shiftLine's own numeric-delta path (unrelated to
-      // this change — see 64-structural-history-cursor.e2e.ts's comment on
-      // the same fixture), so the two lines' insertions differ in text but
-      // each is still a single minimal per-line change, not a whole-region
-      // replacement.
+      // The node's own line gets a real tab (destinationIndent), and its
+      // child's line, which opens with the node's own indentation, gets the
+      // same tab: each is a single minimal per-line change, not a
+      // whole-region replacement.
       const text = '- alpha\n- beta\n\t- beta child\n- gamma\n';
       const doc = parse(text);
       const node = [...walkNodes(doc)].find((n) => n.lines[0] === '- beta')!;
@@ -464,7 +462,7 @@ describe('edit dispatch: line edits → editor changes', () => {
       const lines = text.split('\n');
       expect(editsToChanges(lines, result.value.edits)).toEqual([
         { from: { line: 1, ch: 0 }, to: { line: 1, ch: 0 }, text: '\t' },
-        { from: { line: 2, ch: 1 }, to: { line: 2, ch: 1 }, text: '    ' },
+        { from: { line: 2, ch: 1 }, to: { line: 2, ch: 1 }, text: '\t' },
       ]);
     });
 

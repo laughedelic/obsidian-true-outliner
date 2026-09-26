@@ -3,7 +3,15 @@ import fc from 'fast-check';
 import { kindAsWritten, parse, tailAsWritten } from '../src/parse';
 import { encode } from '../src/encode';
 import { makeNode, treesEqual, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
-import { deleteSubtrees, insertSubtrees, mergeNodes, outdent, type OpOutput } from '../src/ops';
+import {
+  deleteSubtrees,
+  indent,
+  insertSubtrees,
+  mergeNodes,
+  moveSubtreesTo,
+  outdent,
+  type OpOutput,
+} from '../src/ops';
 import { applyEdits, type OpResult } from '../src/result';
 import { arbTree } from './generators';
 
@@ -546,7 +554,7 @@ describe('insertSubtrees', () => {
   });
 
   it('a pasted item\'s own surplus marker run is normalized to one space, like any other rewritten first line', () => {
-    // The verbatim re-indent path (reindentSubtreeVerbatim) otherwise carried
+    // The whole-subtree re-indent path (reindentSubtreeInUnit) otherwise carried
     // a surplus run through unchanged, contradicting list-marker-content-column's
     // own goal ("a line an operation rewrites comes out with a one-space run")
     // for the one operation — paste — that takes this path instead of
@@ -767,7 +775,7 @@ describe('insertSubtrees: a payload whose roots came from different depths (sele
   // after it — roots always run deepest-first, since each is the subtree
   // successor of the last and that only ever moves outward.
   //
-  // No code was needed for D3: `reindentSubtreeVerbatim` already swaps each
+  // No code was needed for D3: `reindentSubtreeInUnit` already swaps each
   // block's OWN top-level whitespace for the destination indent,
   // independently per block, so roots at different source depths land as
   // siblings by construction. These tests pin that rather than assume it —
@@ -1323,5 +1331,276 @@ describe('a seam is judged on the kind the re-parse will see', () => {
     expect(shape(encode(result.value.doc))).toBe(
       ['h2: ## H2', '  list-item: - item', '  quote: > quote', '  paragraph: para'].join('\n'),
     );
+  });
+});
+
+describe('a seam inside a list item is judged at the item’s content column', () => {
+  const insertAfter = (md: string, anchorLine: string, payload: string) => {
+    const doc = parse(md);
+    const result = insertSubtrees(doc, byLine(doc, anchorLine).id, parse(payload).children, 'after');
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.rejection.reason);
+    return result.value.doc;
+  };
+
+  it('kindAsWritten measures a quote, a callout and a rule from the margin, and a heading or an HTML block from column 0', () => {
+    const at = (kind: OutlineNode['kind'], line: string, margin: number): string =>
+      kindAsWritten(makeNode({ kind, lines: [line] }), margin);
+    expect(at('quote', '       > q', 4)).toBe('quote');
+    expect(at('quote', '        > q', 4)).toBe('paragraph');
+    expect(at('callout', '\t\t> [!note] c', 6)).toBe('callout');
+    expect(at('hr', '      ***', 4)).toBe('hr');
+    expect(at('hr', '        - - -', 4)).toBe('list-item');
+    expect(at('html', '    <div>', 4)).toBe('paragraph');
+    expect(at('heading', '    ## H', 4)).toBe('paragraph');
+    const setext = makeNode({ kind: 'heading', setext: true, lines: ['    Title', '    ==='] });
+    expect(kindAsWritten(setext, 4)).toBe('paragraph');
+  });
+
+  it("#158 case 1: a rule pasted under a converted heading's item arrives as a rule", () => {
+    // Negative control: measuring `HR_RE` from column 0 in `segment` reads the
+    // rule at column 4 back as a paragraph, which is what `main` did.
+    const doc = insertAfter('- one\n  - two\n', '  - two', '## H\n---\n');
+    expect(encode(doc)).toBe('- one\n  - two\n  - ## H\n\n    ---\n');
+    const heading = byLine(doc, '  - ## H');
+    expect(heading.children.map((n) => [n.kind, n.lines[0]])).toEqual([['hr', '    ---']]);
+  });
+
+  it('a rule spelled with a marker stays a rule below a converted item, separated from it', () => {
+    // Negative control: `kindAsWritten` without the margin reads `    * * *`
+    // as the list item it would be at the root and writes it flush; the parse
+    // still reads a rule, so the separator is what the first-child rule asks
+    // of a rule and the node count cannot show the difference.
+    const doc = insertAfter('- one\n  - two\n', '  - two', '## H\n* * *\n');
+    expect(encode(doc)).toBe('- one\n  - two\n  - ## H\n\n    * * *\n');
+    expect(byLine(doc, '    * * *').kind).toBe('hr');
+  });
+});
+
+describe('a pasted subtree is written in the document’s own unit (#216)', () => {
+  // One tree, spelled every way a clipboard spells it. Negative control: with
+  // every level below the root carried verbatim, each spelling lands in its own
+  // characters and no two of them agree.
+  const SPELLINGS = {
+    'two spaces': '- a\n  - b\n    - c\n  - d\n',
+    'four spaces': '- a\n    - b\n        - c\n    - d\n',
+    tabs: '- a\n\t- b\n\t\t- c\n\t- d\n',
+    'inconsistent spaces': '- a\n  - b\n      - c\n  - d\n',
+    'a tab and spaces': '- a\n\t- b\n\t    - c\n\t- d\n',
+  };
+  const pasteAfter = (md: string, line: string, payload: string, unit?: string): string => {
+    const doc = parse(md);
+    const result = insertSubtrees(doc, byLine(doc, line).id, parse(payload).children, 'after', unit);
+    if (!result.ok) throw new Error(result.rejection.reason);
+    return encode(result.value.doc);
+  };
+
+  const DESTINATIONS: readonly (readonly [string, string, string, string])[] = [
+    ['under a tab item', '- top\n\t- sib\n', '\t- sib', '- top\n\t- sib\n\t- a\n\t\t- b\n\t\t\t- c\n\t\t- d\n'],
+    ['under a two-space item', '- top\n  - sib\n', '  - sib', '- top\n  - sib\n  - a\n    - b\n      - c\n    - d\n'],
+    [
+      'under a four-space item',
+      '- top\n    - sib\n',
+      '    - sib',
+      '- top\n    - sib\n    - a\n        - b\n            - c\n        - d\n',
+    ],
+    ['at the root of a tab document', '- top\n\t- sib\n', '- top', '- top\n\t- sib\n- a\n\t- b\n\t\t- c\n\t- d\n'],
+    ['at the root of a two-space document', '- top\n  - sib\n', '- top', '- top\n  - sib\n- a\n  - b\n    - c\n  - d\n'],
+  ];
+  for (const [where, md, anchor, expected] of DESTINATIONS) {
+    it(`every spelling lands in the same bytes ${where}`, () => {
+      for (const [name, payload] of Object.entries(SPELLINGS)) {
+        expect(pasteAfter(md, anchor, payload), name).toBe(expected);
+      }
+    });
+  }
+
+  it('a document with no nested item of its own takes the editor’s unit', () => {
+    expect(pasteAfter('- top\n', '- top', SPELLINGS['two spaces'], '\t')).toBe(
+      '- top\n- a\n\t- b\n\t\t- c\n\t- d\n',
+    );
+    expect(pasteAfter('- top\n', '- top', SPELLINGS.tabs, '  ')).toBe(
+      '- top\n- a\n  - b\n    - c\n  - d\n',
+    );
+  });
+
+  it('a subtree copied from the document comes back in the same bytes', () => {
+    // Negative control: the unit read from the first nested item alone, which
+    // here sits under `1.` at three spaces, writes every bullet's child one
+    // column deeper than the document does.
+    const docs = [
+      '- a\n\t- b\n\t\t- c\n\t  more\n- z\n',
+      '- a\n  - b\n    - c\n    more\n- z\n',
+      '- a\n    - b\n        - c\n- z\n',
+      '1. one\n   - a\n     - b\n       - c\n- z\n',
+      '10. ten\n    - a\n      - b\n- z\n',
+    ];
+    for (const md of docs) {
+      const doc = parse(md);
+      for (const node of walkNodes(doc)) {
+        // A copy is of whole items; an indented paragraph alone reads as code.
+        if (node.kind !== 'list-item') continue;
+        const lines: string[] = [];
+        const collect = (n: OutlineNode): void => {
+          lines.push(...n.lines);
+          n.children.forEach(collect);
+        };
+        collect(node);
+        const result = insertSubtrees(doc, node.id, parse(`${lines.join('\n')}\n`).children, 'after');
+        if (!result.ok) continue;
+        // The copy lands right below the original, whose lines nothing moves;
+        // an ordered root is renumbered as the next in its run.
+        const at = md.split('\n').indexOf(lines[0]!) + lines.length;
+        const copy = encode(result.value.doc).split('\n').slice(at, at + lines.length);
+        const ordinal = (line: string): string => line.replace(/^([ \t]*)\d+/, '$1#');
+        expect([ordinal(copy[0] ?? ''), ...copy.slice(1)], `${JSON.stringify(md)} / ${lines[0]}`).toEqual([
+          ordinal(lines[0]!),
+          ...lines.slice(1),
+        ]);
+      }
+    }
+  });
+
+  it('a child under a numbered item is padded to its content column', () => {
+    expect(pasteAfter('- top\n  - sib\n', '  - sib', '10. a\n\t - b\n')).toBe(
+      '- top\n  - sib\n  10. a\n      - b\n',
+    );
+  });
+
+  it('a continuation keeps its offset from its own item, in the document’s characters', () => {
+    // Negative control: a continuation carried verbatim past the old prefix
+    // keeps the clipboard's tab in a space document, `  \tx`.
+    expect(pasteAfter('- top\n\t- sib\n', '\t- sib', '- a\n  x\n  - b\n    y\n')).toBe(
+      '- top\n\t- sib\n\t- a\n\t  x\n\t\t- b\n\t\t  y\n',
+    );
+    expect(pasteAfter('- top\n  - sib\n', '  - sib', '- a\n\tx\n\t- b\n\t\ty\n')).toBe(
+      '- top\n  - sib\n  - a\n      x\n    - b\n        y\n',
+    );
+  });
+
+  it('a block after a nested item stays its parent’s child', () => {
+    // Negative control: the fence keeps its four-column offset from `Step 1`
+    // while `detail` moves two columns left, so the fence reaches `detail`'s
+    // content column and the parse reads it as `detail`'s child.
+    expect(
+      pasteAfter('- top\n  - sib\n', '  - sib', '- Step 1\n    - detail\n    ```\n    code\n    ```\n'),
+    ).toBe('- top\n  - sib\n  - Step 1\n    - detail\n    ```\n    code\n    ```\n');
+  });
+
+  it('a line written in another unit from its node is carried as it was', () => {
+    // Negative control, with the read-back below also off: the tab
+    // continuation spelled as its two-column offset from the paragraph, which
+    // sits two columns in, lands at column two, where `>` opens a quote and
+    // ends the paragraph.
+    const doc = parse('para0\n');
+    const payload = parse('-\tt0\n  cont1\n\t> q1\n\n10.  t1\n').children;
+    const result = insertSubtrees(doc, byLine(doc, 'para0').id, payload, 'after');
+    if (!result.ok) throw new Error(result.rejection.reason);
+    expect(encode(result.value.doc)).toContain('cont1\n\t> q1\n');
+  });
+
+  it('a line outside its node’s indentation moves with the block it belongs to', () => {
+    // Negative control: the line kept where it stood while the block moved
+    // nine columns right, so `> q4` sits one column into `t1` instead of
+    // eight, and opens a quote.
+    const payload = '-\tt1\n\t\t1.\tt3\n\t\t   cont4\n\t\t\t> q4\n';
+    const shape = (nodes: readonly OutlineNode[]): string =>
+      nodes.map((n) => `${n.kind}(${shape(n.children)})`).join(',');
+    const text = pasteAfter('         2) t4\n', '         2) t4', payload);
+    expect(shape(parse(text).children)).toBe(`list-item(),${shape(parse(payload).children)}`);
+  });
+
+  it('a block whose converged lines would read as another tree keeps its own', () => {
+    // Negative control: the nested items laid out afresh two columns left of
+    // where the payload wrote them, which turns a lazy `> q3` into a quote.
+    const payload = '- t0\n    2)  t1\n       10.  t2\n           > q3\n        | a | b |\n        | - | - |\n';
+    const doc = parse('para0\n');
+    const result = insertSubtrees(doc, byLine(doc, 'para0').id, parse(payload).children, 'before');
+    if (!result.ok) throw new Error(result.rejection.reason);
+    const shape = (nodes: readonly OutlineNode[]): string =>
+      nodes.map((n) => `${n.kind}(${shape(n.children)})`).join(',');
+    expect(shape(parse(encode(result.value.doc)).children)).toBe(
+      `${shape(parse(payload).children)},paragraph()`,
+    );
+  });
+
+  it('whitespace inside a fenced block is content, and keeps its tabs', () => {
+    // The fence keeps its offset from the item, one tab stop, in spaces; a
+    // line whose tab would follow a space keeps it, at the column the fence's
+    // move gives it.
+    expect(
+      pasteAfter('- top\n  - sib\n', '  - sib', '- a\n\t```\n\tfunc() {\n\t\treturn\n\t}\n\t```\n'),
+    ).toBe('- top\n  - sib\n  - a\n      ```\n      func() {\n\t\t  return\n      }\n      ```\n');
+  });
+
+  it('a heading converted into a tab list writes its section in tabs', () => {
+    // Negative control: the section's children at the item's content column
+    // in spaces, `\t  - b`.
+    expect(pasteAfter('- top\n\t- sib\n', '\t- sib', '## H\n\n- b\n  - c\n')).toBe(
+      '- top\n\t- sib\n\t- ## H\n\n\t\t- b\n\t\t\t- c\n',
+    );
+  });
+
+  it('a list converted to a paragraph writes its list in the document’s unit', () => {
+    // Negative control: the conversion moves the children by the marker's
+    // width in spaces, `  - b` / `\t  - c`, whatever the clipboard used.
+    for (const [name, payload] of Object.entries(SPELLINGS)) {
+      expect(pasteAfter('Some text.\n', 'Some text.', payload, '\t'), name).toBe(
+        'Some text.\n\na\n- b\n\t- c\n- d\n',
+      );
+    }
+  });
+
+  it('a paragraph converted to a list item writes its list in the document’s unit', () => {
+    // Negative control: the paragraph's list moved to the new item's content
+    // column in spaces, `      - x`, under a tab-indented item.
+    expect(pasteAfter('- top\n\t- sib\n', '\t- sib', 'Para.\n- x\n  - y\n')).toBe(
+      '- top\n\t- sib\n\t- Para.\n\t\t- x\n\t\t\t- y\n',
+    );
+  });
+
+  it('a paragraph whose list sits left of it keeps that list when it converts', () => {
+    // Negative control: the conversion alone moves `- t1` by the marker's
+    // width from the paragraph's two columns, which leaves it at column four
+    // under `\t- cont1`, short of the content column, a sibling of `cont1`.
+    expect(pasteAfter('- top\n\t- sib\n', '\t- sib', '  cont1\n- t1\n  - t2\n')).toBe(
+      '- top\n\t- sib\n\t- cont1\n\t\t- t1\n\t\t\t- t2\n',
+    );
+  });
+
+  it('a converted block the laid-out lines cannot express keeps the conversion’s own', () => {
+    // A quote under an item cannot hang from a paragraph at any column, so the
+    // laid-out block reads as two nodes where it was written as one; the
+    // conversion's own lines stand.
+    expect(pasteAfter('Some text.\n', 'Some text.', '* t2\n  > q3\n', '\t')).toBe(
+      'Some text.\n\nt2\n> q3\n',
+    );
+  });
+
+  it('a moved run that held the document’s only nested items keeps the document’s unit', () => {
+    // Negative control: the unit read after the removal, from a document the
+    // run has left with no nested item, which answers with the editor’s tab.
+    const doc = parse('- a\n  - b\n    - c\n- e\n');
+    const result = moveSubtreesTo(doc, [[byLine(doc, '- a').id]], { parentId: byLine(doc, '- e').id, index: 0 }, '\t');
+    if (!result.ok) throw new Error(result.rejection.reason);
+    expect(encode(result.value.doc)).toBe('- e\n  - a\n    - b\n      - c\n');
+  });
+
+  it('a tab step under a bullet reads as a tab, after a numbered item’s spaces', () => {
+    // Negative control: the first nested item alone, three spaces under `1.`,
+    // which writes the pasted levels in spaces in a note whose bullets nest
+    // with a tab.
+    expect(pasteAfter('1. one\n   - a\n- x\n\t- y\n', '\t- y', SPELLINGS['two spaces'])).toBe(
+      '1. one\n   - a\n- x\n\t- y\n\t- a\n\t\t- b\n\t\t\t- c\n\t\t- d\n',
+    );
+  });
+
+  it('an indent reads the unit under a bullet, not the padding under a number', () => {
+    // Negative control: the first nested item alone, `   - a` under `1.`,
+    // reads as a three-space unit.
+    const doc = parse('1. one\n   - a\n     - b\n- x\n- y\n');
+    const result = indent(doc, byLine(doc, '- y').id);
+    if (!result.ok) throw new Error(result.rejection.reason);
+    expect(encode(result.value.doc)).toBe('1. one\n   - a\n     - b\n- x\n  - y\n');
   });
 });

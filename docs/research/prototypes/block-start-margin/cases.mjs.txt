@@ -1,0 +1,26 @@
+// Every (container, separation, offset, opener) shape; the probed line is the last one.
+const openers = { quote: '> q', callout: '> [!note] c', hr: '***', 'hr-dash': '- - -', html: '<div>' };
+const containers = {
+  root: { lines: [], col: 0 },
+  'item cc2': { lines: ['- a'], col: 2 },
+  'item cc3': { lines: ['1. a'], col: 3 },
+  'depth2 cc4': { lines: ['- one', '  - two'], col: 4 },
+  'tab child cc6': { lines: ['- a', '\t- b'], col: 6 },
+  'depth3 cc6': { lines: ['- a', '  - b', '    - c'], col: 6 },
+};
+const cases = [];
+for (const [cname, c] of Object.entries(containers))
+  for (const blank of [true, false])
+    for (let off = 0; off <= 5; off++)
+      for (const [kind, text] of Object.entries(openers)) {
+        if (cname === 'root' && !blank) continue;
+        const col = c.col + off;
+        const spaces = ' '.repeat(col);
+        const tabs = '\t'.repeat(Math.floor(col / 4)) + ' '.repeat(col % 4);
+        for (const [ws, indent] of [['spaces', spaces], ['tabs', tabs]]) {
+          if (ws === 'tabs' && col < 4) continue;
+          const lines = [...c.lines, ...(blank && c.lines.length ? [''] : []), indent + text];
+          cases.push({ container: cname, blank, off, col, kind, ws, md: lines.join('\n') + '\n' });
+        }
+      }
+export default cases;

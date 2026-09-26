@@ -484,6 +484,9 @@ is in range.
 
 ### An indent writes its unit on the first line and spaces on the continuation lines
 
+**Closed** by `an-indent-writes-one-unit` (issue #154). Kept with its measurements; the diagnosis
+and the differential behind the fix are in `docs/research/indent-unit-on-every-line.md`.
+
 Found while re-measuring the entry below, and unrelated to places: it reproduces with none open, so
 it belongs to the indent operation.
 
@@ -502,9 +505,10 @@ item's content COLUMN counted in characters, which is the right column only whil
 spaces — so a tab-indented vault gets a node whose own lines are indented two ways, which
 `source-indentation-collapses` then has to render.
 
-Not diagnosed further. Closing it starts with which of `indent`'s two writers computes the
-continuation prefix, and whether a column is the right currency for it at all when the unit is a
-tab.
+The first line was written by `reencodeForDestination` with the destination's indentation
+string, and every other line by `shiftLine` with a column delta, spelled in spaces. The fix swaps
+the node's own first-line prefix for the destination's on every line that opens with it, and
+keeps the column delta wherever the swap would land elsewhere.
 
 ### The place record is single-shot, so a SECOND structural key mistreats the place
 
@@ -826,8 +830,8 @@ indentation underneath:
   The per-level heading markers idea (H1–H6, validated in the wild by obsidian-lapel) is
   **taken by the `heading-level-markers` change**: the mark, the two setting axes and why a
   text label was rejected are in [heading-level-markers.md](heading-level-markers.md). The
-  rest of this item is the roadmap's "Marker configurability"
-  ([#157](https://github.com/laughedelic/obsidian-true-outliner/issues/157)).
+  rest of this item is "Marker configurability"
+  ([#222](https://github.com/laughedelic/obsidian-true-outliner/issues/222)).
 - **A simpler, consistent bullet-style marker set as an opt-in** — one uniform mark for
   every kind, closer to a traditional outliner's look. (Experiment 5b's uniform dot lost
   the head-to-head as the *default*, but as an opt-in preset under the 5a mechanism it's

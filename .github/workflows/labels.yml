@@ -14,7 +14,7 @@ on:
     branches: [main]
     paths:
       - .github/labels.yml
-      - scripts/sync-labels.mjs
+      - scripts/sync-labels.ts
       - .github/workflows/labels.yml
   workflow_dispatch:
     inputs:
@@ -38,6 +38,6 @@ jobs:
 
       - run: npm ci
 
-      - run: node scripts/sync-labels.mjs ${{ inputs.dry-run && '--dry-run' || '' }}
+      - run: node scripts/sync-labels.ts ${{ inputs.dry-run && '--dry-run' || '' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
