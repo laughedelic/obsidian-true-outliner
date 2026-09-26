@@ -66,8 +66,8 @@ _None._
 - A setting for the default answer. The in-footer choice comes first; a default is chosen once it
   has been used.
 - A node scope without zoom — by caret, or in a sidebar pane.
-- Block-id shapes outside the probe (a table row ending in an id, footnotes, HTML blocks) beyond
-  what the agreement check in the tasks covers.
+- Block-id shapes outside the probes (an id in a footnote, after a nested quote or after a math
+  block) beyond what the agreement check in the tasks covers.
 - Reading mode.
 
 ## Impact
@@ -86,10 +86,12 @@ _None._
 
 ## Sequencing
 
-Stacks on the fix for [#207](https://github.com/laughedelic/obsidian-true-outliner/issues/207),
-which makes a lone `^id` line part of the node it names. This change reads what that fix adds:
-with it, where an id belongs follows from which node holds its line, and D2's attribution rule
-shrinks to the whole-list case.
+Stacks on `fix/lone-block-id-travels-with-its-node`
+([#208](https://github.com/laughedelic/obsidian-true-outliner/pull/208)), the fix for
+[#207](https://github.com/laughedelic/obsidian-true-outliner/issues/207). This change reads what it
+adds: a lone id that names one of our nodes is part of that node, and every other lone id carries
+the reading its mark shows. Where an id belongs then follows from which node holds it, or from
+that reading, with two rules of our own left over (design D2).
 
 At the file level the code also overlaps the open draft `feat/search-palette`
 ([#95](https://github.com/laughedelic/obsidian-true-outliner/pull/95)), which edits

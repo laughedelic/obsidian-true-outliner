@@ -83,14 +83,19 @@ the punctuation a heading subpath drops, nested heading paths, the first of two 
 — applied to the headings and block ids of the note as the editor currently holds it, not as the
 note was last saved.
 
-An anchor SHALL belong to the node that owns the first line of what the anchor names:
+An anchor SHALL belong to the node that owns the first line of what the anchor names, reading the
+tree as `document-tree-mapping` builds it, attached block ids included:
 
 - a heading, to that heading's node;
-- a block id ending a line that holds other text, to the node that line belongs to;
-- a block id on a line of its own, indented inside a list item, to that list item;
-- any other block id on a line of its own, to the block that ends immediately before it, blank
-  lines skipped — and when that block is a list item, to the first item of the outermost list
-  containing it, because such an id names the whole list.
+- a misplaced block id (`misplaced-block-ids`), to what Obsidian reads it as: an item reading to
+  that item, a whole-list reading to the first item of that list, an id with a block directly
+  under it to the paragraph it stands in, and to no node when the reading is that it names
+  nothing else or is not an id;
+- the last of a run of lone block ids, which neither attaches nor is misplaced, to the node it
+  would belong to were the ids before it absent;
+- any other block id, to the node holding it — ending one of its lines, as a line of it, or
+  attached to it — except that an id held by anything other than a list item, inside a list item,
+  belongs to the nearest list item holding it, because no id names a block inside a list item.
 
 Whenever the note's saved text and the editor's text are the same, every heading and block id
 Obsidian's metadata reports for the note SHALL belong to the node that owns the line where that
@@ -121,6 +126,14 @@ metadata says it begins.
 - **THEN** the reference is not admitted by This node or by This node and below
 - **WHEN** the note is instead zoomed into the first item
 - **THEN** the reference is admitted by This node
+
+#### Scenario: An id inside a list item names the item
+
+- **WHEN** `- a` holds the indented paragraph `inner prose ^x8`, a source links to
+  `[[Note#^x8]]`, and the note is zoomed into `a`
+- **THEN** the reference is admitted by This node
+- **WHEN** the note is instead zoomed into the paragraph `inner prose ^x8`
+- **THEN** the reference is not admitted by This node or by This node and below
 
 #### Scenario: An edit counts before the note is saved
 
