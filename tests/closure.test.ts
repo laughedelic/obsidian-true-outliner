@@ -241,7 +241,7 @@ describe('5.5 a move conserves the tree', () => {
           return false;
         });
         // Or, where the node itself is re-read as a paragraph (a quote moved
-        // past its opening margin), as that paragraph's last line.
+        // past its opening margin, #261), as that paragraph's last line.
         const asParagraphs = detached.every((id) =>
           after.some((node) => node.kind === 'paragraph' && node.lines[node.lines.length - 1]!.trim() === id),
         );
