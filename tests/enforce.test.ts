@@ -1297,6 +1297,22 @@ describe('a paste on the blank line under a node lands in it', () => {
     expect(encode(verdict.after)).toBe('- one\n- a\n\n- b\n- three\n');
   });
 
+  it('the blank lines above a pasted attached id are written empty too', () => {
+    const inserted = pasteThroughBothGates(
+      '- one\n\t- a\n\t- b\n', pos(1, 4), pos(1, 4), '- p\n  \n  ^idp\n- s\n',
+    );
+    expect(inserted.kind).toBe('rewrite');
+    if (inserted.kind !== 'rewrite') return;
+    expect(encode(inserted.after)).toBe('- one\n\t- a\n\t- p\n\n\t  ^idp\n\t- s\n\t- b\n');
+
+    const md = '- one\n- two\n- three\n';
+    const edit: EditFact = { from: pos(1, 0), to: pos(1, '- two'.length), insert: 'Para\n\t\n^idp\n\n- b\n' };
+    const typedOver = computeVerdict('boundary-crossing-edit', parse(md), edit);
+    expect(typedOver.kind).toBe('rewrite');
+    if (typedOver.kind !== 'rewrite') return;
+    expect(encode(typedOver.after)).toBe('- one\n- Para\n\n  ^idp\n\n  - b\n- three\n');
+  });
+
   it('a gap the payload lands PAST is left alone', () => {
     // Negative control: while the collapse keyed on "the caret was in a gap"
     // rather than on "the payload fills it", the shallow reading rewrote a gap

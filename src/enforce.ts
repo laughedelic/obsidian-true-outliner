@@ -448,8 +448,8 @@ function deleteAndSplice(
 }
 
 /**
- * The blocks a pasted payload parses to, with every blank line between them
- * written empty. A clipboard from another app or another vault carries its own
+ * The blocks a pasted payload parses to, with every blank line between them,
+ * and between a node and its attached id, written empty. A clipboard from another app or another vault carries its own
  * indentation on its blank lines as well, and a blank line's whitespace says
  * nothing: carried over, it leaves lines of stray spaces or tabs between the
  * pasted nodes, in a unit the note does not use, which the outline gives no
@@ -461,6 +461,7 @@ function payloadBlocks(text: string): readonly OutlineNode[] {
   const blank = (node: OutlineNode): OutlineNode => ({
     ...node,
     trailingGap: node.trailingGap.map(() => ''),
+    ...(node.blockId ? { blockId: { ...node.blockId, gap: node.blockId.gap.map(() => '') } } : {}),
     children: node.children.map(blank),
   });
   return parse(text).children.map(blank);
