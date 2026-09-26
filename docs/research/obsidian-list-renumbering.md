@@ -84,6 +84,11 @@ transaction, seen by the verdict layer, is the same order.
   pure deletion, and the edit passes natively. Selecting `   2. b` in `1. p` / `   1. a` /
   `   2. b` / `   3. c` / `2. q` and pressing ⌫ gives `   1. a` / blank / `   2. c` / `3. q`.
   Unchanged by the restoration, which covers only transactions this plugin planned.
+  Filed as [#260](https://github.com/laughedelic/obsidian-true-outliner/issues/260).
+- **A command move while zoomed** on the parent of a nested ordered list is vetoed as leaving the
+  zoom: Obsidian's appended `userEvent: 'input.renumber'` is the command transaction's first one,
+  so the verdict layer judges it, and the renumbering of a hidden line escapes the scope. Filed as
+  [#259](https://github.com/laughedelic/obsidian-true-outliner/issues/259).
 - **Typing while zoomed.** A typed character in the last nested item of a zoomed parent makes
   Obsidian renumber the hidden `2. q`, and the zoom clears, as a change outside the scope clears
   it. ⏎ in the same place keeps the zoom.
