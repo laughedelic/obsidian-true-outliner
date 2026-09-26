@@ -59,7 +59,7 @@ type FooterSettingKey =
   | 'backlinksGuides'
   | 'headingMarkerGlyph'
   | 'headingMarkerLevel';
-import type { EditorChange } from './dispatch';
+import { changesToSpec, type EditorChange } from './dispatch';
 import { planStructural, type StructuralOp } from './structural-run';
 import { noticeRejection } from './notices';
 import { compareWithSections, type SectionInfo } from './crosscheck';
@@ -110,7 +110,9 @@ import type { EditorView } from '@codemirror/view';
 import { historyCaretExtension } from './history-caret';
 import { TransactionStats } from './stats';
 import { placeOutline } from './decorate';
-import { openPlaceLine } from './provisional-cleanup';
+import { openPlaceLine, recordDispatch } from './provisional-cleanup';
+import { abandonEdit, STRUCTURAL_DISPATCH, type StructuralKey } from './grammar';
+import { ChangeSet } from '@codemirror/state';
 
 const CONFLICTING_PLUGINS = ['obsidian-outliner', 'obsidian-zoom'];
 
@@ -238,17 +240,25 @@ export default class TrueOutlinerPlugin extends Plugin {
       },
     });
 
-    this.addStructuralCommand('indent-node', 'Indent node', indentGroups, true);
-    this.addStructuralCommand('outdent-node', 'Outdent node', outdentGroups, true, undefined, true);
+    this.addStructuralCommand('indent-node', 'Indent node', indentGroups, 'indent', true);
+    this.addStructuralCommand(
+      'outdent-node',
+      'Outdent node',
+      outdentGroups,
+      'outdent',
+      true,
+      undefined,
+      true,
+    );
     // Mod+Shift+Arrow is the dominant move-node convention: obsidian-outliner
     // and obsidian-bullet ship exactly these as command defaults, and Logseq
     // binds mod+shift+up/down on macOS. It collides with no Obsidian core
     // command. See `addStructuralCommand` for why a default hotkey is used at
     // all despite the guideline.
-    this.addStructuralCommand('move-node-up', 'Move node up', moveGroupsUp, false, [
+    this.addStructuralCommand('move-node-up', 'Move node up', moveGroupsUp, 'move-up', false, [
       { modifiers: ['Mod', 'Shift'], key: 'ArrowUp' },
     ]);
-    this.addStructuralCommand('move-node-down', 'Move node down', moveGroupsDown, false, [
+    this.addStructuralCommand('move-node-down', 'Move node down', moveGroupsDown, 'move-down', false, [
       { modifiers: ['Mod', 'Shift'], key: 'ArrowDown' },
     ]);
 
@@ -1277,6 +1287,9 @@ export default class TrueOutlinerPlugin extends Plugin {
     id: string,
     name: string,
     op: StructuralOp,
+    /** The key whose dispatch this command's stands in for, in what it tells
+     * `provisional-cleanup` about a place it carried or left. */
+    key: StructuralKey,
     useMappedCursor = false,
     hotkeys?: Hotkey[],
     /** Outdent is the one operation whose result can leave a zoom scope from a
@@ -1297,7 +1310,7 @@ export default class TrueOutlinerPlugin extends Plugin {
         // (`selection-structural-ops`). Acting would silently discard every
         // range but one, and the two entry points must answer alike.
         if (editor.listSelections().length !== 1) return false;
-        if (!checking) this.runOp(editor, ctx, op, useMappedCursor, isOutdent);
+        if (!checking) this.runOp(editor, ctx, op, key, useMappedCursor, isOutdent);
         return true;
       },
     });
@@ -1321,6 +1334,7 @@ export default class TrueOutlinerPlugin extends Plugin {
     editor: Editor,
     ctx: MarkdownView | MarkdownFileInfo,
     op: StructuralOp,
+    key: StructuralKey,
     useMappedCursor = false,
     isOutdent = false,
   ): void {
@@ -1351,15 +1365,10 @@ export default class TrueOutlinerPlugin extends Plugin {
     // gave two different results depending on how it was invoked, which is the
     // divergence `selection-structural-ops` exists to hold shut.
     //
-    // It is held shut for ONE keypress and no further, and the remainder is
-    // stated here rather than left to be rediscovered. This path READS the
-    // record and then destroys it: the dispatch below carries no `userEvent`,
-    // deliberately, for the undo granularity its own comment explains — and
-    // `placeLineAfter` recognises neither a creating nor a carrying dispatch
-    // without one, so the update drops the record. A place carried by Tab
-    // survives for the key after it; the same place carried from the palette
-    // does not. Closing that means giving this dispatch an event without losing
-    // the history join, which is a measurement this change did not take.
+    // The dispatch below carries no `userEvent`, deliberately, for the undo
+    // granularity its own comment explains, so the update it produces drops the
+    // record; `recordDispatch` after it re-establishes what the keymap's
+    // dispatch of the same operation would have left.
     const placeLine = view ? (openPlaceLine(view) ?? undefined) : undefined;
     const outline = placeOutline(text, cursorBefore, placeLine);
     const opDoc = outline ?? doc;
@@ -1424,7 +1433,35 @@ export default class TrueOutlinerPlugin extends Plugin {
         outcome.to === undefined
           ? { from: outcome.from }
           : { from: outcome.from, to: outcome.to };
+      // Read before the dispatch: where the caret started, in the document the
+      // changes produce, is what Backspace on a place this leaves returns to.
+      const before = view?.state;
+      const startedAt =
+        before && before.selection.main.empty
+          ? ChangeSet.of(changesToSpec(before.doc, changes), before.doc.length).mapPos(
+              before.selection.main.head,
+              -1,
+            )
+          : undefined;
       editor.transaction({ changes, selection: selectionAfter });
+      // What the keymap's dispatch of the same operation carries on the
+      // transaction, stated to `provisional-cleanup` after it instead: this
+      // dispatch has no `userEvent` to recognise it by, so the listener has
+      // just dropped whatever place was open. Only after a real change — the
+      // rule reads a dispatch of ours, and there was none otherwise.
+      if (view) {
+        const dispatch = STRUCTURAL_DISPATCH[key];
+        const abandon =
+          outcome.to === undefined
+            ? abandonEdit(dispatch.abandon, text.split('\n'), outcome.newLines, outcome.from.line)
+            : undefined;
+        recordDispatch(view, {
+          event: dispatch.userEvent,
+          startedOn: placeLine ?? null,
+          stated: abandon ? changesToSpec(view.state.doc, abandon) : undefined,
+          startedAt,
+        });
+      }
     }
     if (outcome.to) editor.setSelection(outcome.from, outcome.to);
     else editor.setCursor(outcome.from);

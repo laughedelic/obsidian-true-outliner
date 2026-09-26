@@ -869,6 +869,47 @@ describe('keyboard grammar', function () {
     expect(await h.getCursor()).toEqual(openedAt);
   });
 
+  it('the outdent command carries a place too, for the key after it', async function () {
+    // The other order. Over a gap place, outdent is a CREATING dispatch rather
+    // than a carrying one (`structural-history-integration`), so the record the
+    // next key reads comes from the other half of the same rule.
+    await grammarNote('- one\n  - foo\n', 1, '  - foo'.length);
+    await h.keys.shiftEnter();
+    expect(await h.getBuffer()).toBe('- one\n  - foo\n    \n');
+
+    await h.runCommand('outdent-node');
+    expect(await h.getBuffer()).toBe('- one\n- foo\n  \n');
+    expect(await h.getCursor()).toEqual({ line: 2, ch: 2 });
+
+    // Relative from here, not byte-exact: Tab writes the vault's own indent
+    // unit, which need not be the note's.
+    await h.keys.tab();
+    const indented = (await h.getBuffer()).split('\n');
+    expect(indented[1]).toMatch(/^[ \t]+- foo$/);
+    expect(indented[2]).toMatch(/^[ \t]+$/);
+    expect(indented[2]).not.toBe('  ');
+    expect(await h.getCursor()).toEqual({ line: 2, ch: indented[2]!.length });
+
+    await h.keys.type('x');
+    const doc = parse(await h.getBuffer());
+    expect(doc.children[0]!.children.map((n) => n.lines.map((l) => l.trim()))).toEqual([
+      ['- foo', 'x'],
+    ]);
+  });
+
+  it('a place the outdent command leaves is removed on walking away, as Shift+Tab\'s is', async function () {
+    // Shift+Tab over a fresh place states a removal edit for the place it
+    // leaves; the command reaches the same operation and has to leave the
+    // same record, or walking away leaves a line of spaces behind.
+    await grammarNote('- one\n  - foo\n', 1, '  - foo'.length);
+    await h.keys.shiftEnter();
+    await h.runCommand('outdent-node');
+    expect(await h.getBuffer()).toBe('- one\n- foo\n  \n');
+
+    await h.keys.up();
+    expect(await h.getBuffer()).toBe('- one\n- foo\n');
+  });
+
   it('Mod-A on an interior position abandons the place rather than selecting half a node', async function () {
     // The tree-level fix for the ladder is covered in
     // `tests/select-all-ladder.test.ts`; what this pins is the interaction that

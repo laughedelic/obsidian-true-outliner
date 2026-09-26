@@ -592,7 +592,9 @@ left the caret on an empty place; the removal record keeps every condition it ha
 **Still parked**, both named above: the ABANDON record does not survive a carrying key either, so
 walking away after a Tab still leaves the blank line in the file (the entry above this one); and
 the palette writes no record at all, for or against, because `runOp` dispatches with no `userEvent`
-and states no `abandon` edit.
+and states no `abandon` edit. The palette half closed in #245: `runOp` hands `provisional-cleanup`
+the event and removal form the keymap's dispatch of the same operation carries, through the same
+rule. The abandon half is #153.
 
 **And newly reachable**: after a carrying key the place record answers while the removal record does
 not, which is the state `keymap.ts`'s note about the selection handlers said did not exist. It is a
