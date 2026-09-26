@@ -49,6 +49,8 @@ None.
   does not survive a carry. A new requirement states what a carried place's removal does.
 - `selection-structural-ops`: "A drag resolves an open position like the other two" now states
   that the pick-up declines the position and the drag does not start.
+- `node-dragging`: a new requirement states that a pick-up over an open place declines it and
+  starts no drag, as an exception to its pick-up and cancellation requirements.
 
 ## Impact
 

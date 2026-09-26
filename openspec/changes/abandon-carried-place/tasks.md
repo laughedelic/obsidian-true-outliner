@@ -20,7 +20,7 @@
   `docs/research/carried-place-removal`, "Removing a carried empty node". For every row, the
   reversal composed with the opening removal gives the original exactly: the ladder with a
   following sibling, the blank line after the list, the loose list, the nested ordered Shift+Tab,
-  the heading, a Tab followed by Shift+Tab, and the ladder under a paragraph that dissolves the item
+  the heading carried by ⇥ and by ⇧⇥, a Tab followed by Shift+Tab, and the ladder under a paragraph that dissolves the item
   and moves its sibling out. Negative control: replacing the composition with deleting the node
   fails the blank-line and sibling rows.
 
@@ -44,9 +44,11 @@
   - checking the depth against the end state makes the keyboard carry write none;
   - selecting the removal by the kind after the carry breaks the ladder-under-a-paragraph case;
   - running the creating branch first breaks the Shift+Tab start case.
-- [ ] 2.2 Supply `carried` and `reversal` from `runOp` in `src/plugin/main.ts`: read before
-  `editor.transaction`, with `startedAt` mapped through the command's changes. Verify with the e2e
-  case in 3.2.
+- [ ] 2.2 Export `carriedRecordOf(view, startedOn)` from `provisional-cleanup.ts` (D3). Supply
+  `carried` and `reversal` from `runOp` in `src/plugin/main.ts`: `carried` read through that export
+  before `editor.transaction`, with `startedAt` mapped through the command's changes. Verify with a
+  unit test that `carriedRecordOf` answers only for the record's line at an unmoved depth, and with
+  the e2e cases in 3.2.
 
 ## 3. End to end
 
@@ -63,23 +65,37 @@
   - ladder ⏎ ⏎ ↑, with and without a following sibling, and under a paragraph;
   - nested ordered ⏎ ⇧⇥ ↑ where the parent run crosses a digit boundary (`9.` to `10.`);
   - a list followed by a blank line and a paragraph, then ⏎ ⇥ ↑;
+  - a drafted heading: ⇧⏎ at the end of a heading that has a section, then ⇥ ↑ and ⇧⇥ ↑, back to the
+    document before the ⇧⏎;
   - one ⌘Z after an abandon;
   - typed then deleted then ↑.
 
   Each node case asserts the document before the opening key byte for byte. Verify in narrow mode
   on desktop and mobile. Negative control: with 2.1's carrying branch removed, every case except
   the typed one fails.
-- [ ] 3.2 Add the command-path case: ⇧⏎, "Indent node", ↑, compared with the ⇧⏎ ⇥ ↑ control in the
-  same test. Retitle "Backspace on a place the outdent command leaves returns where the command
-  started": both paths now return to where the Shift+Enter started. Negative control: omitting
-  `carried` in `runOp` fails both.
+- [ ] 3.2 Add the command-path cases, each compared with its keyboard control in the same test:
+  - ⇧⏎, "Indent node", ↑, against ⇧⏎ ⇥ ↑;
+  - ⏎ on an ordered item, "Indent node", ↑, against ⏎ ⇥ ↑, back to the document before the ⏎;
+  - ⏎ at a nested item with a following sibling, "Outdent node", ↑, against ⏎ ⇧⇥ ↑.
+
+  Retitle "Backspace on a place the outdent command leaves returns where the command started":
+  both paths now return to where the Shift+Enter started.
+
+  Negative controls:
+  - omitting `carried` in `runOp` fails every command case;
+  - omitting `reversal` fails only the two node cases.
 
 ## 4. Notes and specs
 
 - [ ] 4.0 Remove the drag pick-up's place resolution (`press.placeLine` and its `placeOutline` call
   in `src/plugin/zoom-click.ts`), which no state reaches once a pick-up over an open place
-  declines it. Verify with an e2e case in the drag specs: ⇧⏎ ⇥, then press a bullet. The place is
-  removed and the drag does not start. The drag and selection groups stay green in narrow mode.
+  declines it. Verify with e2e cases in the drag specs, one per scenario of `node-dragging`'s new
+  requirement:
+  - after ⇧⏎, pressing a bullet removes the place and starts no drag;
+  - the same after ⇧⏎ ⇥;
+  - a second press drags.
+
+  The drag and selection groups stay green in narrow mode.
 
 - [ ] 4.1 Rewrite `keymap.ts`'s note on the selection handlers, and the carry comments in
   `provisional-cleanup.ts` (Risks). Close the abandon entry in

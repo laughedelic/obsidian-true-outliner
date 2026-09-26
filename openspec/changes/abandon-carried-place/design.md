@@ -87,8 +87,14 @@ removal record was live on the place the dispatch began on. It checks that the r
 
 It checks against the START state, and deliberately so. By the time the listener runs, the carry's
 own history entry has raised the depth, so `liveRecord(view)` would always refuse. The listener
-passes `update.startState`. `runOp` reads the record before `editor.transaction`, while the state is
-still the start state. The tests call the same function rather than restating it.
+passes `update.startState` and its own record. The tests call the same function rather than
+restating it.
+
+The command path cannot reach the record, which is private to the module. So a second export,
+`carriedRecordOf(view, startedOn)`, applies `carriedRecord` to the view's record and `view.state`.
+`runOp` calls it before `editor.transaction`, while `view.state` is still the start state, with
+the `placeLine` it already reads. It is the only way the record leaves the module, and it hands
+back the record, including its removal edit and opening kind, only when the gate passes.
 
 ### D4. The recorder
 
@@ -150,7 +156,10 @@ undo-side twin of the redone place the spec already names.
   After a carry, `main` still drags with the place resolved. Once every open place has a removal
   record, that path has no state left where it runs. Decided on #251: the drag does not start, as
   over a fresh place. `selection-structural-ops`' scenario is rewritten to say so, and the pick-up's
-  place resolution is removed. Letting the drag go ahead after the removal is #254.
+  place resolution is removed. `node-dragging` gains a requirement stating this as an exception to
+  its pick-up and cancellation requirements. The removal is the place's own edit, which the
+  cancellation requirement's "byte-identical" would otherwise forbid. That was already true over a
+  fresh place and stated nowhere. Letting the drag go ahead after the removal is #254.
 - [`keymap.ts`'s note on the selection handlers says a carry leaves the place record without a
   removal record] → That is no longer true. After this change a selection that leaves a carried
   place abandons it, as it does a fresh one. The note is rewritten; the handlers need no change.
