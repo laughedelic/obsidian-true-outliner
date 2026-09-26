@@ -242,6 +242,18 @@ describe('keys on an attached block id', function () {
     expect(await h.getBuffer()).toBe('Intro.\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n^t1\n\n\n\nOutro.\n');
     expect(await h.getCursor()).toEqual({ line: 8, ch: 0 });
   });
+
+  it('returns Delete on the line opened after the note\'s last id to the id\'s end', async function () {
+    const LAST = 'Para.\n\n^abc\n';
+    await h.setBuffer(LAST);
+    await browser.pause(150);
+    await h.setCursorSettled(2, 4);
+    await browser.keys(Key.Enter);
+    await browser.waitUntil(async () => (await h.getBuffer()) !== LAST, { timeout: 2000 });
+    await browser.keys(Key.Delete);
+    await browser.waitUntil(async () => (await h.getBuffer()) === LAST, { timeout: 2000 });
+    expect(await h.getCursor()).toEqual({ line: 2, ch: 4 });
+  });
 });
 
 describe('a link to an attached block id', function () {

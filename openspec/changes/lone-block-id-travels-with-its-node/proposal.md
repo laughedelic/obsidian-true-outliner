@@ -73,6 +73,9 @@ misplaced, with a correction one press away (`docs/research/lone-block-id`, "Two
   kind's marker.
 - `outline-zoom`: pressing a misplaced id's warning glyph opens the correction menu and does not
   zoom.
+- `structural-history-integration`: an abandoned place that returns the caret to the node above
+  returns it to the end of that node's attached id.
+- `node-edit-enforcement`: a paste writes the blank lines before an attached id empty.
 
 ## Impact
 

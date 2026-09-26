@@ -113,6 +113,10 @@
 - [x] 6.7 Move a table with an attached id through the move command in the editor and follow
       `[[Note#^t1]]` afterwards, in an e2e case that asserts the link still lands on the table.
       Negative control: running it on `main` fails.
+- [x] 6.8 Carry an attached id through the paths `main` gained after the rebase: a paste writes the
+      blank lines before an id empty (`payloadBlocks`), and Delete on a place with nothing below
+      returns the caret to the end of the id above it (`cancelOnDelete`, `nodeLastPlace`), each
+      with a case that fails without the fix.
 
 ## 7. Land
 

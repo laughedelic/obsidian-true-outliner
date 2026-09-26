@@ -55,7 +55,7 @@ import { nodeAtLine, nodeStartLine } from '../locate';
 import { placeLineText } from '../model';
 import {
   nextNodeInOrder,
-  nodeContentEnd,
+  nodeLastPlace,
   nodeContentStart,
   previousNodeInOrder,
 } from '../caret';
@@ -546,7 +546,7 @@ export function cancelOnDelete(view: EditorView, forward: boolean): boolean {
     // content start rather than back where the keypress began.
     const next = node ? nextNodeInOrder(outlineDoc, node) : undefined;
     if (next) target = offsetOf(nodeContentStart(outlineDoc, next));
-    else if (node) target = offsetOf(nodeContentEnd(outlineDoc, node));
+    else if (node) target = offsetOf(nodeLastPlace(outlineDoc, node));
   } else if (record.startedAt !== undefined) {
     target = record.startedAt;
   } else if (node) {
@@ -554,7 +554,7 @@ export function cancelOnDelete(view: EditorView, forward: boolean): boolean {
     // caret returns to; an empty NODE place has the node above as its
     // predecessor in document order.
     const above = place.kind === 'gap' ? node : previousNodeInOrder(outlineDoc, node);
-    if (above) target = offsetOf(nodeContentEnd(outlineDoc, above));
+    if (above) target = offsetOf(nodeLastPlace(outlineDoc, above));
   }
   cancel(view, record, target);
   return true;
