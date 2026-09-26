@@ -8,7 +8,7 @@ import { groupRootsByParent } from '../src/operand';
 import { nodeStartLine } from '../src/locate';
 import { applyEdits } from '../src/result';
 import { indentWidth } from '../src/parse';
-import { markerWidthOf } from '../src/reencode';
+import { markerWidthOf, normalizeMarkerRun } from '../src/reencode';
 import {
   indent,
   indentGroups,
@@ -252,6 +252,19 @@ describe('2.8 group operations uphold closure, totality and minimal edits', () =
     expect(encode(moved).split('\n')).toEqual(['99.\tL2', '100.\tL0', '        - L1']);
     expect(firstLinesKeptAbove(wider, ['L2'], moved)).toBe(1);
   });
+
+  /**
+   * The carried line has a tab of its own: `-⇥` at column 3 runs to 8, and the
+   * column added in front of it would vanish into the same stop, so the child
+   * spells the run in spaces to keep its content column moving with it.
+   */
+  it('a carried item respells a tab after its own marker', () => {
+    const doc = parse(['9. L0', '   -\tL1', '10. L2'].join('\n'));
+    const after = applied(doc, 'L2', moveGroupsUp);
+
+    expect(encode(after).split('\n')).toEqual(['9. L2', '10. L0', '    -    L1']);
+    expect(firstLinesKeptAbove(doc, ['L2'], after)).toBe(1);
+  });
 });
 
 /** The document a group operation leaves, with `label`'s node as the operand. */
@@ -263,6 +276,20 @@ function applied(
   const result = op(doc, [[nodeByLabel(doc, label)!.id]]);
   if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
   return result.value.doc;
+}
+
+/**
+ * `is` is `was` moved `by` columns: its indent and its content column both move
+ * by that much, and it keeps its marker and text. The whitespace after a marker
+ * may be respelled on the way, since a tab there absorbs the columns added in
+ * front of it.
+ */
+function sameShiftedLine(was: string, is: string, by: number): boolean {
+  return (
+    indentWidth(is) === indentWidth(was) + by &&
+    markerWidthOf(is) === markerWidthOf(was) &&
+    normalizeMarkerRun(is).trimStart() === normalizeMarkerRun(was).trimStart()
+  );
 }
 
 /**
@@ -322,8 +349,7 @@ function firstLinesKeptAbove(
     const was = node.lines[0]!;
     const is = moved.lines[0]!;
     const by = shift.get(node.id)!;
-    if (by === 0 ? is !== was : is.trimStart() !== was.trimStart()) return undefined;
-    if (indentWidth(is) !== indentWidth(was) + by) return undefined;
+    if (by === 0 ? is !== was : !sameShiftedLine(was, is, by)) return undefined;
     checked++;
   }
   return checked;
