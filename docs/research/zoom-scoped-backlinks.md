@@ -243,3 +243,25 @@ bullets — a dot, a dot over nested dots, a page.
 Every size here is below the 44 px touch target of the platform guidelines, as the header's
 existing buttons already are. Emulation is not a device: the app's mobile font sizes and
 safe-area insets on a phone, and what a tap on a 20 px segment feels like, were not measured.
+
+### The chosen look
+
+From those shots the answers were named This node, This branch and Whole note; the chip names the
+answer in the header's regular weight rather than the root in semibold; the menu lost its "backlinks
+to" caption, which repeated the words before the chip; D with counts was taken for the narrow form;
+and the chip, the menu and the segments share one set of glyphs — `list-tree` for This branch,
+`file-text` for Whole note, and for This node a mark of focus rather than `circle-dot`. The same
+probe, run with `PROBE_SET=chosen`, measured that look with four candidates for the node's glyph:
+Lucide's `crosshair`, `locate-fixed` and `focus`, and a drawn focus-center, a dot inside four
+corner brackets.
+
+| Variant | Footer | Measured |
+| --- | --- | --- |
+| chip "this branch", regular weight | 604 px | 115 px (125 px in semibold) |
+| chip "the whole note" / "this node" | 604 px | 139 / 102 px |
+| the menu without its caption | 604 px | 192 × 79 px (104 px tall with it) |
+| segments with counts, the chosen one in the accent colour | 330 px | 36, 36 and 45 × 20 px; header one row |
+
+The four node glyphs measure alike and all keep their shape at 20 px in both themes. With counts in
+the segments, the compact totals beside them repeat the reference count of the answer in force; only
+their note count is new there.

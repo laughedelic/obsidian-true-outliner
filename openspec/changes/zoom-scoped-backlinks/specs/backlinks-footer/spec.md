@@ -54,57 +54,79 @@ rather than a line at the end of a long one.
 ### Requirement: While zoomed, the header names what the footer answers for
 
 While a zoom scope is active and the note has references, the header SHALL name the answer in
-force where its title stands: the zoom root, the zoom root and what is below it, or the note. That
-name SHALL be a control opening a menu of the three answers. Each entry SHALL state how many
-references it would show; the entry in force SHALL read as chosen; an unavailable entry SHALL read
-as unavailable and SHALL say why. Choosing an entry SHALL apply it and close the menu.
+force: "Backlinks to" followed by a control reading "this node", "this branch" or "the whole note".
+The control SHALL name the answer, not the zoom root: the zoom trail already names the root, and
+its text can be longer than the header holds.
 
-The control SHALL name the zoom root by the text a lineage segment naming the same node carries,
-and SHALL mark which answer is in force by a glyph as well as in words, so that a narrow footer
-which sheds the words still says which answer it shows.
+Each answer SHALL have one glyph — for This node a mark of focus on a point, for This branch a
+list tree, for Whole note a page — and SHALL carry it wherever the answer is offered or shown: in
+the control, in its menu and in the narrow form below. The control's words SHALL be set in the
+header's regular weight.
 
-The totals beside the control SHALL be the totals of the answer in force. The header SHALL remain
-a single row, carrying the filter affordance and the sort selector as it does unzoomed.
+The control SHALL open a menu of the three answers, without a caption of its own: the words before
+the control already say what the menu chooses. Each entry SHALL carry its answer's glyph, its name
+and how many references it would show; the entry in force SHALL read as chosen; an unavailable
+entry SHALL read as unavailable and SHALL say why. Choosing an entry SHALL apply it and close the
+menu.
+
+Where the footer is narrower than its header's words — the width at which the header already
+shortens its title — the control and its menu SHALL give way to three segments, one per answer,
+each carrying its answer's glyph and reference count. The segment of the answer in force SHALL
+read as chosen in the accent colour; an unavailable answer's segment SHALL read as unavailable and
+SHALL say why when pointed at; pressing an available segment SHALL apply its answer. Which form is
+shown SHALL follow the footer's own width, not the platform.
+
+The totals beside the control or the segments SHALL be the totals of the answer in force. The
+header SHALL remain a single row, carrying the filter affordance and the sort selector as it does
+unzoomed.
 
 The menu SHALL be one of the footer's popovers: opening it SHALL close any other, and it SHALL
 close on a press outside the footer like the rest.
 
 The control SHALL be a real button, reachable and operable from the keyboard, whose accessible name
-states the answer in force and whose `aria-expanded` tracks the menu. The entries SHALL be a group
-of radio items, of which exactly one is checked.
+states the answer in force and whose `aria-expanded` tracks the menu. The menu's entries SHALL be a
+group of radio items, of which exactly one is checked. The segments SHALL be a radio group of their
+own, one checked, each named by its answer and its count.
 
 With no zoom active, the header SHALL be as it is without this requirement.
 
 #### Scenario: The header says what it counts
 
 - **WHEN** a note is zoomed into `## Current sprint` under the default answer
-- **THEN** the header names `Current sprint` and that what is below it is included, and its totals
-  are that answer's
+- **THEN** the header reads "Backlinks to" and "this branch" with the list-tree glyph, and its
+  totals are that answer's
 
 #### Scenario: The menu offers all three with their counts
 
 - **WHEN** the control is activated
-- **THEN** a menu lists This node, This node and below, and Whole note, each with its reference
-  count, and the one in force reads as chosen
+- **THEN** a menu with no caption lists This node, This branch and Whole note, each with its glyph
+  and its reference count, and the one in force reads as chosen
 
 #### Scenario: Choosing an answer applies it
 
 - **WHEN** Whole note is chosen from the menu
-- **THEN** the menu closes, the header names the note, and the footer shows every reference to the
-  note
+- **THEN** the menu closes, the control reads "the whole note", and the footer shows every
+  reference to the note
 
 #### Scenario: An unavailable answer says why
 
 - **WHEN** the note is zoomed into a node that carries no anchor and has none below it, and the
   control is activated
-- **THEN** This node and This node and below read as unavailable, each saying that nothing there
-  carries a heading or a block id, and Whole note reads as chosen
+- **THEN** This node and This branch read as unavailable, each saying that nothing there carries a
+  heading or a block id, and Whole note reads as chosen
 
-#### Scenario: A narrow footer keeps the answer's mark
+#### Scenario: A narrow footer offers the answers as segments
 
 - **WHEN** the footer is narrower than its header's words
-- **THEN** the control still carries the glyph of the answer in force and the zoom root's name, and
-  the header is still one row
+- **THEN** the header shows three segments with their glyphs and counts in place of the control,
+  the one in force in the accent colour, and the header is still one row
+- **WHEN** the This node segment is pressed
+- **THEN** This node applies and its segment reads as chosen
+
+#### Scenario: The same glyphs in every form
+
+- **WHEN** the reader compares the control, its menu and the segments under each answer
+- **THEN** each answer carries the same glyph in all three
 
 #### Scenario: Opening the menu closes another popover
 
@@ -116,6 +138,12 @@ With no zoom active, the header SHALL be as it is without this requirement.
 - **WHEN** the reader tabs to the control, presses Enter, moves to Whole note and presses Enter
 - **THEN** Whole note applies, and the control's `aria-expanded` reported the menu open and then
   closed
+
+#### Scenario: The segments are operable from the keyboard
+
+- **WHEN** the footer is narrow, the reader tabs to the segments and moves to Whole note with the
+  arrow keys
+- **THEN** Whole note applies, and exactly one segment is checked throughout
 
 #### Scenario: The unzoomed header is unchanged
 

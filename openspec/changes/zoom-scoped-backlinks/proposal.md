@@ -16,15 +16,17 @@ subpath matches, and how far Obsidian's metadata runs behind the editor.
 - **While zoomed, the footer answers for the zoomed view.** By default it shows only the
   references whose heading or block subpath lands on the zoom root or on a node below it. A link to
   the note as a whole is not a reference to a node, and is left out of that answer.
-- **Three answers, chosen from the header.** This node, This node and below, Whole note. The
-  header reads "Backlinks to ‹Current sprint and below›"; the bracketed part is a control opening a
-  menu of the three, each with the count it would show, and the totals beside it are that answer's.
-  The choice is kept per note like the footer's other view state. This is option A of the six in
-  `docs/research/zoom-scoped-backlinks`; the others are recorded there with their trade-offs.
+- **Three answers, chosen from the header.** This node, This branch, Whole note. The header reads
+  "Backlinks to ‹this branch›"; the bracketed part is a chip opening a menu of the three, each with
+  its glyph and the count it would show, and the totals beside it are that answer's. Where the
+  footer is too narrow for those words — always on a phone — the chip gives way to three segments,
+  each an answer's glyph and count. The choice is kept per note like the footer's other view
+  state. These are options A and D of the six in `docs/research/zoom-scoped-backlinks`; the others
+  are recorded there with their trade-offs.
 - **A view with nothing to link to answers for the note.** When neither the zoom root nor anything
   below it carries a heading or a block id, the narrower answers are empty by construction; the
-  footer answers for the note, as it does today, and the menu says why the other two are
-  unavailable.
+  footer answers for the note, as it does today, and the menu and the segments say why the other
+  two are unavailable.
 - **An empty answer says so.** A view that has anchors but no references to them shows one quiet
   line and an action that widens to the whole note, rather than the dormant "no linked references"
   footer, which would say the note has none.

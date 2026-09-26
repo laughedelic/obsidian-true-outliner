@@ -13,6 +13,8 @@
  *   sh e2e-tests/docker/start-xvfb-and-run.sh npm run test:e2e:narrow -- 99-probe-scope-control
  *   sh e2e-tests/docker/start-xvfb-and-run.sh npm run test:e2e:narrow -- 99-probe-scope-control --mobile
  * Screenshots and `measures-<platform>.json` land in `.obsidian-cache/scope-control-shots/`.
+ * With `PROBE_SET=chosen` in the environment it captures only the second round: the chosen look,
+ * once per candidate glyph for This node.
  */
 import { $, browser } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
@@ -59,6 +61,10 @@ interface ChipVariant {
   readonly icons: IconSet;
   readonly labelMax?: string;
   readonly menu?: { readonly cap: string; readonly options: readonly MenuOption[] };
+  /** A Lucide id, or `custom:<name>`, for the node answer's glyph. */
+  readonly nodeIcon?: string;
+  /** The chip label's weight; semibold unless set. */
+  readonly weight?: 'normal';
 }
 interface MenuOption {
   readonly label: string;
@@ -76,6 +82,7 @@ interface SegmentVariant {
   readonly accent?: boolean;
   /** Segment size, in em of the header's font; the sort button's is 1.6. */
   readonly size?: number;
+  readonly nodeIcon?: string;
 }
 type Variant = ChipVariant | SegmentVariant;
 
@@ -84,8 +91,9 @@ const LONG_NAME = 'Review the alarm list rollout with the mobile team before the
 const MENU = (
   names: readonly [string, string, string],
   selected: 0 | 1 | 2,
+  cap = 'backlinks to',
 ): { cap: string; options: MenuOption[] } => ({
-  cap: 'backlinks to',
+  cap,
   options: names.map((label, i) => ({ label, count: [2, 4, 12][i]!, selected: i === selected })),
 });
 
@@ -112,6 +120,33 @@ const DESKTOP: Record<string, Variant> = {
     menu: MENU(['This node', 'This subtree', 'Whole note'], 1),
   },
 };
+
+const NODE_ICONS = ['crosshair', 'locate-fixed', 'focus', 'custom:focus-center'] as const;
+const slug = (icon: string) => icon.replace('custom:', '');
+const CHOSEN_DESKTOP: Record<string, Variant> = {
+  'chosen-chip-branch': {
+    kind: 'chip', lead: 'Backlinks to', label: 'this branch', glyph: 'below', icons: 'lucide', weight: 'normal',
+  },
+  'chosen-chip-note': {
+    kind: 'chip', lead: 'Backlinks to', label: 'the whole note', glyph: 'note', icons: 'lucide', weight: 'normal',
+  },
+  ...Object.fromEntries(
+    NODE_ICONS.flatMap((icon) => [
+      [`chosen-chip-node-${slug(icon)}`, {
+        kind: 'chip', lead: 'Backlinks to', label: 'this node', glyph: 'node', icons: 'lucide', weight: 'normal', nodeIcon: icon,
+      } satisfies ChipVariant],
+      [`chosen-menu-${slug(icon)}`, {
+        kind: 'chip', lead: 'Backlinks to', label: 'this branch', glyph: 'below', icons: 'lucide', weight: 'normal', nodeIcon: icon,
+        menu: MENU(['This node', 'This branch', 'Whole note'], 1, ''),
+      } satisfies ChipVariant],
+    ]),
+  ),
+};
+const CHOSEN_NARROW: Record<string, Variant> = Object.fromEntries(
+  NODE_ICONS.map((icon) => [`chosen-seg-${slug(icon)}`, {
+    kind: 'segments', icons: 'lucide', selected: 1, counts: [2, 4, 12], outlined: true, accent: true, nodeIcon: icon,
+  } satisfies SegmentVariant]),
+);
 
 const NARROW: Record<string, Variant> = {
   'd-lucide': { kind: 'segments', icons: 'lucide', selected: 1 },
@@ -163,8 +198,18 @@ async function apply(variant: Variant): Promise<Measure> {
         '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg>',
     };
     const LUCIDE: Record<string, string> = { node: 'circle-dot', below: 'list-tree', note: 'file-text' };
+    const CUSTOM: Record<string, string> = {
+      'focus-center':
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+        '<path d="M4 8V5a1 1 0 0 1 1-1h3"/><path d="M16 4h3a1 1 0 0 1 1 1v3"/>' +
+        '<path d="M20 16v3a1 1 0 0 1-1 1h-3"/><path d="M8 20H5a1 1 0 0 1-1-1v-3"/>' +
+        '<circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/></svg>',
+    };
     const icon = (host: HTMLElement, glyph: string, set: string): void => {
-      if (set === 'marker') host.innerHTML = MARKER[glyph]!;
+      const override = glyph === 'node' ? v.nodeIcon : undefined;
+      if (override?.startsWith('custom:')) host.innerHTML = CUSTOM[override.slice('custom:'.length)]!;
+      else if (override) obsidian.setIcon(host, override);
+      else if (set === 'marker') host.innerHTML = MARKER[glyph]!;
       else obsidian.setIcon(host, LUCIDE[glyph]!);
       const svg = host.querySelector('svg');
       if (svg) {
@@ -207,7 +252,7 @@ async function apply(variant: Variant): Promise<Measure> {
         label.style.textOverflow = 'ellipsis';
         label.style.whiteSpace = 'nowrap';
         label.style.color = 'var(--text-normal)';
-        label.style.fontWeight = 'var(--font-semibold)';
+        label.style.fontWeight = v.weight === 'normal' ? 'var(--font-normal, 400)' : 'var(--font-semibold)';
         if (v.labelMax) label.style.maxWidth = v.labelMax;
         chip.appendChild(label);
         labelEl = label;
@@ -232,10 +277,12 @@ async function apply(variant: Variant): Promise<Measure> {
         menu.className = 'to-backlinks-facet-menu to-backlinks-sort-menu';
         menu.style.insetInlineEnd = 'auto';
         menu.style.insetInlineStart = '0';
-        const cap = document.createElement('div');
-        cap.className = 'to-backlinks-facet-cap';
-        cap.textContent = v.menu.cap;
-        menu.appendChild(cap);
+        if (v.menu.cap) {
+          const cap = document.createElement('div');
+          cap.className = 'to-backlinks-facet-cap';
+          cap.textContent = v.menu.cap;
+          menu.appendChild(cap);
+        }
         const list = document.createElement('div');
         list.className = 'to-backlinks-facet-list to-backlinks-sort-list';
         const glyphs = ['node', 'below', 'note'];
@@ -386,8 +433,14 @@ describe('zoom scope control capture', function () {
     await f.settle();
   });
 
-  after(function () {
-    fs.writeFileSync(path.join(SHOTS, `measures-${platform}.json`), JSON.stringify(measures, null, 2));
+  after(async function () {
+    const icons = await browser.executeObsidian(({ obsidian }) =>
+      obsidian.getIconIds().filter((id) => /crosshair|locate|focus|target|scan|dot/.test(id)),
+    );
+    fs.writeFileSync(
+      path.join(SHOTS, `measures-${platform}.json`),
+      JSON.stringify({ nodeIconIds: icons, ...measures }, null, 2),
+    );
   });
 
   for (const dark of [true, false]) {
@@ -395,13 +448,26 @@ describe('zoom scope control capture', function () {
     it(`captures every variant, ${theme}`, async function () {
       await h.setTheme(dark);
       await browser.pause(300);
+      // PROBE_SET=chosen captures only the look chosen after the first round.
+      const chosenOnly = process.env.PROBE_SET === 'chosen';
       const sets: Array<[string, Record<string, Variant>, number | null]> =
         platform === 'mobile'
-          ? [['phone', { ...NARROW, 'a-words-and-below': DESKTOP['a-words-and-below']!, 'a-menu-and-below': DESKTOP['a-menu-and-below']! }, 350]]
-          : [
-              ['wide', DESKTOP, null],
-              ['narrow', NARROW, 380],
-            ];
+          ? [[
+              'phone',
+              chosenOnly
+                ? CHOSEN_NARROW
+                : { ...NARROW, 'a-words-and-below': DESKTOP['a-words-and-below']!, 'a-menu-and-below': DESKTOP['a-menu-and-below']! },
+              350,
+            ]]
+          : chosenOnly
+            ? [
+                ['wide', CHOSEN_DESKTOP, null],
+                ['narrow', CHOSEN_NARROW, 380],
+              ]
+            : [
+                ['wide', DESKTOP, null],
+                ['narrow', NARROW, 380],
+              ];
       for (const [width, variants, px] of sets) {
         await f.resizeLeafForFooter(px);
         for (const [name, variant] of Object.entries(variants)) {
