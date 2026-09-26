@@ -108,7 +108,7 @@ and a copy of them would be a second answer to where a link goes.
 
 `src/plugin/footer-scope.ts` exports `zoomAnswerFor(state)`, memoized per `EditorState`. For an
 active zoom it returns: which answers are available (an anchor owned by the root; an anchor owned
-by any node in the root's subtree), the root's label, and `classify(subpath)` →
+by any node in the root's subtree), and `classify(subpath)` →
 `'node' | 'below' | 'outside'` — `node` when the anchor the subpath lands on belongs to the root,
 `below` when it belongs to a descendant, `outside` otherwise, including a subpath that lands on
 nothing. With no zoom it returns `null`.
@@ -120,7 +120,7 @@ from the unit suite, which cannot import `obsidian`.
 
 The controller turns that into D1's set at render time: it collects the distinct subpaths among
 the note's references from the summaries, classifies each once, and keeps those the answer in
-force admits. `below` admits `node` and `below`; `node` admits `node`.
+force admits. This branch admits `node` and `below`; This node admits `node`.
 
 Subtree membership is "the owning node is the root or has it as an ancestor", tested by the
 owning node's start line falling inside the scope's cover — the same `Cover` every zoom clamp
@@ -129,7 +129,7 @@ compares against, so there is no second notion of "inside the zoom".
 ### D4. The scope reaches the footer through the widget, which updates in place
 
 `BacklinksFooterWidget` gains the zoom answer object, and `eq` compares the path and the object's
-KEY: the root's path and label, and every anchor's identity (heading text or block id) with its
+KEY: the root's path, and every anchor's identity (heading text or block id) with its
 membership, in document order. Line numbers are left out, so an edit that shifts lines without
 changing any anchor or membership does not touch the footer. When the key differs, `updateDOM`
 hands the new object to the widget's existing controller, which re-renders into the same element —
@@ -142,34 +142,45 @@ state; the widget already sits in the one place CodeMirror hands a new state to.
 
 ### D5. The answer in force: a remembered choice, narrowed to what the zoom offers
 
-`ViewState` gains `scopeAnswer: 'node' | 'below' | 'note'`, default `'below'`, kept and pruned with
-the rest of the per-note state (not persisted). The answer in force is the choice if available,
-otherwise the next wider available one — `node` → `below` → `note`. The choice itself is only
-written by the menu and the empty state's action, so a fallback never overwrites it.
+`ViewState` gains `scopeAnswer: 'node' | 'branch' | 'note'`, default `'branch'`, kept and pruned
+with the rest of the per-note state (not persisted). The answer in force is the choice if
+available, otherwise the next wider available one — `node` → `branch` → `note`. The choice itself
+is only written by the menu, the segments and the empty state's action, so a fallback never
+overwrites it.
 
-### D6. The header control is option A, built from the sort menu's parts
+### D6. The header control: a chip and its menu, or three segments where the footer is narrow
 
-Option A is the desktop control. Its narrow form is open (Open Questions), and what follows is the
-form the specs are written for until that is settled.
+While zoomed, `renderHeader` replaces the title text with "Backlinks to" and a scope chip — option
+A of the research note — and the totals follow it as today. The chip is the filter row's chip
+(`.to-backlinks-facet`): the answer's glyph, its name in the header's regular weight ("this node",
+"this branch", "the whole note") and a chevron. It names the answer rather than the root: the zoom
+trail names the root already, and a root's text runs past what the header holds (a 78-character
+name kept 39% of itself in the probe).
 
-While zoomed, `renderHeader` replaces the title text with "Backlinks to" and a scope button; the
-totals follow it as today. The button carries a glyph for the answer in force (a filled dot for
-This node, a dot with two branches for This node and below, the page for Whole note), the root's
-label — `lineageSegment`, which the footer's lineage rows and zoom's crumbs already share — or the note's
-name, and "and below" for the middle answer. The container query that already swaps the title's
-long and short forms drops "Backlinks to" and "and below" in the narrow form and truncates the
-label, keeping the glyph.
-
-The menu is `renderSortControl`'s shape: a caption, `menuitemradio` entries, the chosen one set in
-weight rather than marked with a box. `OpenPopover` gains `'scope'`, so the one-popover rule and
+The menu is `renderSortControl`'s shape without its caption — the words before the chip say what it
+chooses — with `menuitemradio` entries, each the answer's glyph, name and count, the chosen one set
+in weight rather than marked with a box. `OpenPopover` gains `'scope'`, so the one-popover rule and
 the outside-press dismissal cover it with no new code. Each entry's count comes from running the
 summary pass once per answer — the pass is pure and reads no file — or, with a term active, from
 `admitReferences` over the sources already placed for the counts. An unavailable entry is
 disabled, with "Nothing here has a heading or block id to link to" as its second line.
 
-The drawn comparison of this and the five alternatives is in the research note; option A is the
-one that keeps the header's totals describing a named answer and leaves the filter model's
-semantics alone.
+Below the width at which the header already swaps its long title for the short one (the
+`@container (max-width: 32rem)` rule), the chip and its menu give way to option D: three segments
+in a `radiogroup`, each the header's icon button widened to hold its glyph and count, the chosen
+one in the accent colour and the group outlined. Both forms are rendered and the container query
+shows one, so the switch follows the footer's width — a narrow desktop pane gets the segments, a
+phone always does — and costs no measurement in code. The segments take their counts from the same
+pass as the menu, and an unavailable one is disabled with the same reason as its title.
+
+The three glyphs are drawn once and shared by the chip, the menu and the segments: This node's is
+a mark of focus on a point (which one is open), This branch's is Lucide's `list-tree`, Whole
+note's is Lucide's `file-text`. They are the footer's own icons, drawn beside `sortGlyph` and
+`filterGlyph`.
+
+The drawn comparison of the six options, and both rounds of probes in the real footer, are in the
+research note; A keeps the header's totals describing a named answer and leaves the filter model's
+semantics alone, and D is the form of it that fits a phone.
 
 ### D7. An empty answer is its own state, not the dormant footer
 
@@ -225,15 +236,11 @@ path as today (`scope: null`). Reverting the change restores the note-wide foote
 
 ## Open Questions
 
-- The header control's narrow form. D6 drops words and truncates the label, and at a 330 px
-  footer the label keeps 38–51% of itself (research note, "The control in the real footer").
-  Option D's three icon-only segments fit there at the header buttons' own size, the chosen one
-  in the accent colour. Taking D rewrites `backlinks-footer`'s "A narrow footer keeps the
-  answer's mark" to three segments, one checked, and adds their accessible names; the menu stays
-  the desktop control.
-- The answers' names. "This node and below" can be read as "and everything after it in the note";
-  "subtree" is exact but technical; "this node and its children" is the widest chip (229 px) and
-  still one row on desktop. The zoom root's own text is 225 px for "Current sprint" and cut to
-  39% for a 78-character name. Naming the answer instead of the root rewrites the requirement's
-  "SHALL name the zoom root by the text a lineage segment … carries" to naming the answer, and
-  leaves the root to the zoom trail above.
+- This node's glyph: Lucide's `crosshair`, `locate-fixed` or `focus`, or a drawn focus-center (a
+  dot inside four corner brackets). All four draw at 20 px in both themes; the canvas's "Chosen
+  look" holds them side by side.
+- In the narrow form the segments carry each answer's count and the compact totals beside them
+  carry the answer in force's references and notes, so its reference count appears twice. Whether
+  the compact totals drop their first number while the segments show is open.
+- Touch: the segments are 36–45 × 20 px under emulation, the size of the header's existing
+  buttons in height. Not measured on a device.

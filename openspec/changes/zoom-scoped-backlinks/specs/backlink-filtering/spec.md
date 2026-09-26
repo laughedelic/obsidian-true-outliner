@@ -6,7 +6,7 @@ While a zoom scope is active (`outline-zoom`), the references the footer answers
 chosen by one of three answers:
 
 - **This node** — references whose subpath lands on an anchor belonging to the zoom root.
-- **This node and below** — references whose subpath lands on an anchor belonging to the zoom root
+- **This branch** — references whose subpath lands on an anchor belonging to the zoom root
   or to any node in its subtree.
 - **Whole note** — every reference to the note, exactly as with no zoom active.
 
@@ -17,12 +17,12 @@ admission: an Anchor, an Embed of a heading or block, and a Property whose link 
 heading or block SHALL be admitted alike when their subpath lands inside the answer. A subpath that
 lands on nothing SHALL be admitted by Whole note only.
 
-The answer SHALL default to This node and below. A reader's choice SHALL be kept per note, for as
+The answer SHALL default to This branch. A reader's choice SHALL be kept per note, for as
 long as the footer keeps that note's other view state, and SHALL apply to every zoom into that note
 until it is changed.
 
 An answer SHALL be available only when it could admit a reference at all: This node when an anchor
-belongs to the zoom root, This node and below when an anchor belongs to the root or to a node below
+belongs to the zoom root, This branch when an anchor belongs to the root or to a node below
 it. Whole note is always available. When the chosen answer is unavailable for the current zoom, the
 nearest wider available answer SHALL apply in its place, without changing the reader's choice, so
 a later zoom where the chosen answer is available applies it again.
@@ -50,7 +50,7 @@ With no zoom active, no answer applies and the footer answers for the note.
 
 - **WHEN** one source embeds `![[Note#^alarm-list]]` and another names `[[Note#^alarm-list]]` in a
   property, and the block with that id is inside the zoomed view
-- **THEN** both references are shown under This node and below
+- **THEN** both references are shown under This branch
 
 #### Scenario: A view with nothing to link to answers for the note
 
@@ -62,7 +62,7 @@ With no zoom active, no answer applies and the footer answers for the note.
 
 - **WHEN** the reader chooses This node, then zooms into a node that carries no anchor while one
   of its children carries a block id, and then zooms into a node that carries one
-- **THEN** This node and below applies during the first zoom, and This node applies again during
+- **THEN** This branch applies during the first zoom, and This node applies again during
   the second
 
 #### Scenario: The choice outlives a zoom
@@ -73,7 +73,7 @@ With no zoom active, no answer applies and the footer answers for the note.
 
 #### Scenario: Clearing the zoom answers for the note
 
-- **WHEN** a zoom answered with This node and below is cleared
+- **WHEN** a zoom answered with This branch is cleared
 - **THEN** the footer answers for the note
 
 ### Requirement: An anchor belongs to the node where what it names begins
@@ -111,7 +111,7 @@ metadata says it begins.
 
 - **WHEN** a note has two `## Duplicate` headings, a source links to `[[Note#Duplicate]]`, and the
   note is zoomed into the second of them
-- **THEN** the reference is not admitted by This node or by This node and below
+- **THEN** the reference is not admitted by This node or by This branch
 
 #### Scenario: An id under a table names the table
 
@@ -123,7 +123,7 @@ metadata says it begins.
 
 - **WHEN** two list items are followed by a blank line and a line holding only `^l1` at the left
   margin, a source links to `[[Note#^l1]]`, and the note is zoomed into the second item
-- **THEN** the reference is not admitted by This node or by This node and below
+- **THEN** the reference is not admitted by This node or by This branch
 - **WHEN** the note is instead zoomed into the first item
 - **THEN** the reference is admitted by This node
 
@@ -133,7 +133,7 @@ metadata says it begins.
   `[[Note#^x8]]`, and the note is zoomed into `a`
 - **THEN** the reference is admitted by This node
 - **WHEN** the note is instead zoomed into the paragraph `inner prose ^x8`
-- **THEN** the reference is not admitted by This node or by This node and below
+- **THEN** the reference is not admitted by This node or by This branch
 
 #### Scenario: An edit counts before the note is saved
 
@@ -170,25 +170,25 @@ and listed, and SHALL apply again once an answer admits references carrying it.
 
 #### Scenario: Totals describe the answer
 
-- **WHEN** a zoom answered with This node and below admits four references from four notes, out of
+- **WHEN** a zoom answered with This branch admits four references from four notes, out of
   twelve references from five notes to the whole note
 - **THEN** the footer reports four references and four notes
 
 #### Scenario: The axes offer what the answer holds
 
-- **WHEN** a zoom is answered with This node and below
+- **WHEN** a zoom is answered with This branch
 - **THEN** the kind axis does not offer Note, since no reference that answer admits addresses the
   note as a whole
 
 #### Scenario: A narrowed answer does not read as a filter
 
-- **WHEN** a zoom answered with This node and below is shown with no filter selected
+- **WHEN** a zoom answered with This branch is shown with no filter selected
 - **THEN** the filter affordance does not indicate that filtering is in effect
 
 #### Scenario: Reset leaves the answer alone
 
-- **WHEN** filters are active under This node and below and reset is invoked
-- **THEN** the filters clear and This node and below still applies
+- **WHEN** filters are active under This branch and reset is invoked
+- **THEN** the filters clear and This branch still applies
 
 #### Scenario: A selection survives a zoom
 
