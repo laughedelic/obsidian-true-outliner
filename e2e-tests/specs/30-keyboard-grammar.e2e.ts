@@ -484,6 +484,31 @@ describe('keyboard grammar', function () {
     expect(await h.getBuffer()).toBe('# H\n\n1. new\n2. c\n');
   });
 
+  it('Enter in a nested ordered list leaves the parent list\'s numbers alone', async function () {
+    // The parent run is `p`, `q`: an item added to the nested run is not its
+    // member, so `q` keeps its number whatever the nested run holds.
+    await grammarNote('1. p\n   1. a\n2. q\n', 1, 7);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('1. p\n   1. a\n   2. \n2. q\n');
+
+    await grammarNote('1. p\n   1. a\n   2. b\n2. q\n', 1, 7);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('1. p\n   1. a\n   2. \n   3. b\n2. q\n');
+    // Walking away removes the place, and the removal is planned too.
+    await h.keys.up();
+    expect(await h.getBuffer()).toBe('1. p\n   1. a\n   2. b\n2. q\n');
+
+    // A new first child renumbers its own run only.
+    await grammarNote('1. p\n   1. a\n2. q\n', 0, 4);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('1. p\n   1. \n   2. a\n2. q\n');
+
+    // The command path, which is how the move hotkey arrives.
+    await grammarNote('1. p\n   1. a\n   2. b\n2. q\n', 1, 7);
+    await h.keys.moveNodeDown();
+    expect(await h.getBuffer()).toBe('1. p\n   1. b\n   2. a\n2. q\n');
+  });
+
   it('a thematic break rejects Enter, so the stock newline never splits it', async function () {
     await grammarNote('---\n', 0, 2);
     await h.keys.enter();
