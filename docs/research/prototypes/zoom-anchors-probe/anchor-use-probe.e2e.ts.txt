@@ -3,8 +3,8 @@
  * link actually DOES for each id shape — the embed it renders and where
  * following it lands — as against what the metadata cache reports.
  *
- * To re-run it: copy to `e2e/specs/99-probe-anchor-use.e2e.ts` and
- *   sh e2e/docker/start-xvfb-and-run.sh npm run test:e2e:narrow -- 99-probe-anchor-use
+ * To re-run it: copy to `e2e-tests/specs/99-probe-anchor-use.e2e.ts` and
+ *   sh e2e-tests/docker/start-xvfb-and-run.sh npm run test:e2e:narrow -- 99-probe-anchor-use
  * It asserts nothing — it prints PROBE_RESULT lines and is kept out of the
  * suite for that reason.
  */

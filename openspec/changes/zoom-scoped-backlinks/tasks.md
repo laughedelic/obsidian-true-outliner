@@ -2,7 +2,7 @@
 
 - [ ] 1.1 Add `subpath` to `BacklinkReference` in `src/plugin/backlink-index.ts`, set from
       `parseLinktext(ref.link).subpath` for links, embeds and frontmatter links, absent when empty.
-      Verify with cases in `e2e/specs/72-backlink-index.e2e.ts` for each scenario of
+      Verify with cases in `e2e-tests/specs/72-backlink-index.e2e.ts` for each scenario of
       `backlink-index`'s new requirement: an aliased heading link, a nested heading path, an embed
       of a block, a frontmatter heading link, and the three whole-note forms reporting none.
       Negative control: leave the frontmatter loop without the field and confirm the property case
@@ -60,23 +60,25 @@
       key of design D4; memoized per `EditorState`. Verified end to end by 4.4 and 5.1
 - [ ] 4.3 Give `BacklinksFooterWidget` the answer object: `eq` compares the path and the key, and
       `updateDOM` hands a new object to the existing controller and re-renders it (design D4).
-      Verify with a case in `e2e/specs/77-footer-zoom-scope.e2e.ts` that tags the footer element
-      before zooming and finds the same element after zooming in, switching answers and zooming
-      out. Negative control: return `false` from `updateDOM` and confirm the element is replaced
+      Verify with a case in `e2e-tests/specs/77-footer-zoom-scope.e2e.ts` that tags the footer
+      element before zooming and finds the same element after zooming in, switching answers and
+      zooming out. Negative control: return `false` from `updateDOM` and confirm the element is
+      replaced
 - [ ] 4.4 Add `scopeAnswer` to the per-note view state with the fallback of design D5, and have the
       controller build `ControlsState.scope` from the summaries' distinct subpaths. Verify with
-      `e2e/specs/77-footer-zoom-scope.e2e.ts` cases for every scenario of `backlink-filtering`'s
-      "While zoomed, the footer answers for the zoomed node" and "The zoom answer comes before
-      every filter, and is not one", against the fixture from 4.1. Negative control: ignore the
-      fallback (apply the chosen answer even when unavailable) and confirm "A narrower choice falls
-      back without being forgotten" fails
+      `e2e-tests/specs/77-footer-zoom-scope.e2e.ts` cases for every scenario of
+      `backlink-filtering`'s "While zoomed, the footer answers for the zoomed node" and "The zoom
+      answer comes before every filter, and is not one", against the fixture from 4.1. Negative
+      control: ignore the fallback (apply the chosen answer even when unavailable) and confirm "A
+      narrower choice falls back without being forgotten" fails
 - [ ] 4.5 Build the header control and its menu (design D6), with its glyphs and the narrow form in
       `styles/20-backlinks-footer.css`, and add `'scope'` to `OpenPopover`. Verify with
-      `e2e/specs/77-footer-zoom-scope.e2e.ts` cases for each scenario of `backlinks-footer`'s
-      "While zoomed, the header names what the footer answers for" — the narrow case through
-      `resizeLeafForFooter` — and confirm `e2e/specs/77-footer-controls.e2e.ts` still passes its
-      one-row header case unzoomed. Negative control: leave `'scope'` out of `OpenPopover` and
-      confirm "Opening the menu closes another popover" fails
+      `e2e-tests/specs/77-footer-zoom-scope.e2e.ts` cases for each scenario of
+      `backlinks-footer`'s "While zoomed, the header names what the footer answers for" — the
+      narrow case through `resizeLeafForFooter` — and confirm
+      `e2e-tests/specs/77-footer-controls.e2e.ts` still passes its one-row header case unzoomed.
+      Negative control: leave `'scope'` out of `OpenPopover` and confirm "Opening the menu closes
+      another popover" fails
 - [ ] 4.6 Render the empty answer (design D7). Verify with the two scenarios of "An answer with
       nothing in it says so and offers the note". Negative control: render the dormant footer for
       an empty answer and confirm the first scenario fails
@@ -91,17 +93,17 @@
 
 ## 5. Agreement with Obsidian
 
-- [ ] 5.1 Add the agreement case of design D9 to `e2e/specs/77-footer-zoom-scope.e2e.ts`: for every
-      fixture note carrying headings or block ids, each `getFileCache` heading and block starts on
-      the line `anchorsOf` gives the same heading or id. Negative control: attribute a lone id to
-      its own paragraph and confirm the case fails on `Zoom target.md`
+- [ ] 5.1 Add the agreement case of design D9 to `e2e-tests/specs/77-footer-zoom-scope.e2e.ts`:
+      for every fixture note carrying headings or block ids, each `getFileCache` heading and block
+      starts on the line `anchorsOf` gives the same heading or id. Negative control: attribute a
+      lone id to its own paragraph and confirm the case fails on `Zoom target.md`
 
 ## 6. Docs and landing
 
 - [ ] 6.1 Add to `docs/research/structured-backlinks` D13 a pointer to this change and to
       `docs/research/zoom-scoped-backlinks`, and record in the research note that
       `Backlinks/Zoom target.md` now carries the probe corpus the agreement case runs over. Verify
-      with `node scripts/check-research-index.mjs`
+      with `node scripts/check-research-index.ts`
 - [ ] 6.2 Run `npm run build`, `npm test` and `npm run lint`, and a narrow run of
       `77-footer-zoom-scope` on desktop and with `--mobile`; all pass
 - [ ] 6.3 `openspec validate zoom-scoped-backlinks --strict`
