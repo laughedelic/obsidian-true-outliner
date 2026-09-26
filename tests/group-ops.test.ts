@@ -163,46 +163,77 @@ describe('2.8 group operations uphold closure, totality and minimal edits', () =
   });
 
   it('every node above the operand keeps its own first line verbatim', () => {
-    // Scoped to nodes ABOVE the first moved root on purpose. Below it, an
-    // operation legitimately rewrites lines it did not move: outdent re-parents
-    // following siblings, and ordered runs renumber — the one documented
-    // exception to minimal edits. Above it, nothing an operation does can reach,
-    // so a changed line there is a real defect.
     let checked = 0;
     fc.assert(
       fc.property(arbLabeledDoc(), fc.nat(), fc.nat(), arbGroupOp, (doc, i, j, op) => {
-        const all = [...walkNodes(doc)];
-        if (all.length === 0) return true;
+        if ([...walkNodes(doc)].length === 0) return true;
         const { groups, labels } = operandOf(doc, i, j);
         const result = GROUP_OPS[op](doc, groups);
         if (!result.ok) return true;
-
-        const firstRootLine = Math.min(
-          ...labels.map((label) => nodeStartLine(doc, nodeByLabel(doc, label)!.id)),
-        );
-        const above = all.filter((node) => {
-          // Ordered items are excluded wherever they sit: renumbering is the
-          // one documented exception to minimal edits, and it reaches UPWARD
-          // within a run — an outdent arriving in a run can rewrite the marker
-          // of an item above the operand. (That particular rewrite is a
-          // pre-existing bug, filed separately: the arriving node's inherited
-          // number hijacks the run's start.)
-          if (node.listStyle?.type === 'ordered') return false;
-          const start = nodeStartLine(doc, node.id);
-          return start >= 0 && start + node.lines.length <= firstRootLine;
-        });
-        for (const node of above) {
-          const after = nodeByLabel(result.value.doc, labelOf(node)!);
-          if (!after || after.lines[0] !== node.lines[0]) return false;
-          checked++;
-        }
+        const kept = firstLinesKeptAbove(doc, labels, result.value.doc);
+        if (kept === undefined) return false;
+        checked += kept;
         return true;
       }),
       { numRuns: 2000 },
     );
     expect(checked).toBeGreaterThan(200);
   });
+
+  /**
+   * Moving `10. L2` up renumbers the item it swaps with from `9.` to `10.`, and
+   * the widened marker carries `- L1` a column right with it. `- L1` started
+   * above the operand, and the oracle counted it as a node nothing could reach.
+   */
+  it('a sibling a move displaces carries its subtree to its widened marker', () => {
+    const doc = parse(['9. L0', '   - L1', '10. L2'].join('\n'));
+    const { groups, labels } = operandOf(doc, 2, 2);
+    const result = moveGroupsUp(doc, groups);
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+
+    expect(encode(result.value.doc).split('\n')).toEqual(['9. L2', '10. L0', '    - L1']);
+    expect(firstLinesKeptAbove(doc, labels, result.value.doc)).toBeDefined();
+  });
 });
+
+/**
+ * The minimal-edit oracle: every node above the operand's first root keeps its
+ * first line verbatim in `after`. Returns how many nodes it checked, or
+ * `undefined` at the first one that changed.
+ *
+ * Scoped to nodes ABOVE the first moved root on purpose. Below it, an
+ * operation legitimately rewrites lines it did not move: outdent re-parents
+ * following siblings, and ordered runs renumber — the one documented exception
+ * to minimal edits. Above it, nothing an operation does can reach, so a changed
+ * line there is a real defect.
+ */
+function firstLinesKeptAbove(
+  before: OutlineDoc,
+  labels: readonly string[],
+  after: OutlineDoc,
+): number | undefined {
+  const firstRootLine = Math.min(
+    ...labels.map((label) => nodeStartLine(before, nodeByLabel(before, label)!.id)),
+  );
+  const above = [...walkNodes(before)].filter((node) => {
+    // Ordered items are excluded wherever they sit: renumbering is the
+    // one documented exception to minimal edits, and it reaches UPWARD
+    // within a run — an outdent arriving in a run can rewrite the marker
+    // of an item above the operand. (That particular rewrite is a
+    // pre-existing bug, filed separately: the arriving node's inherited
+    // number hijacks the run's start.)
+    if (node.listStyle?.type === 'ordered') return false;
+    const start = nodeStartLine(before, node.id);
+    return start >= 0 && start + node.lines.length <= firstRootLine;
+  });
+  let checked = 0;
+  for (const node of above) {
+    const moved = nodeByLabel(after, labelOf(node)!);
+    if (!moved || moved.lines[0] !== node.lines[0]) return undefined;
+    checked++;
+  }
+  return checked;
+}
 
 /** Task 2.10 — a group of one is the single-node operation, exactly. */
 describe('2.10 a single-root group is the single-node operation', () => {
