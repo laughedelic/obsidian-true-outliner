@@ -901,13 +901,21 @@ describe('keyboard grammar', function () {
     // Shift+Tab over a fresh place states a removal edit for the place it
     // leaves; the command reaches the same operation and has to leave the
     // same record, or walking away leaves a line of spaces behind.
+    // The control: the same steps with Shift+Tab.
+    await grammarNote('- one\n  - foo\n', 1, '  - foo'.length);
+    await h.keys.shiftEnter();
+    await h.keys.shiftTab();
+    await h.keys.up();
+    const byKey = { buffer: await h.getBuffer(), cursor: await h.getCursor() };
+    expect(byKey.buffer).toBe('- one\n- foo\n');
+
     await grammarNote('- one\n  - foo\n', 1, '  - foo'.length);
     await h.keys.shiftEnter();
     await h.runCommand('outdent-node');
     expect(await h.getBuffer()).toBe('- one\n- foo\n  \n');
 
     await h.keys.up();
-    expect(await h.getBuffer()).toBe('- one\n- foo\n');
+    expect({ buffer: await h.getBuffer(), cursor: await h.getCursor() }).toEqual(byKey);
   });
 
   it('Mod-A on an interior position abandons the place rather than selecting half a node', async function () {
