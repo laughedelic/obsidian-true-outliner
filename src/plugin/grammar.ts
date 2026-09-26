@@ -101,7 +101,29 @@ export interface TxPlan {
  *   to escape, so the line goes and the departure stands.
  * - `none`: the operation cannot leave a place to abandon.
  */
-type AbandonForm = 'reverse' | 'drop-line' | 'none';
+export type AbandonForm = 'reverse' | 'drop-line' | 'none';
+
+/**
+ * What a dispatch of each structural key states about itself, beside its
+ * changes: its `userEvent`, and the form of the removal edit it carries for a
+ * place it leaves. Exported so the command path states the same for the same
+ * operation — it dispatches through Obsidian's `Editor`, which carries neither,
+ * and tells `provisional-cleanup` instead (`recordDispatch`).
+ *
+ * Outdent drops the line: Shift+Tab reaches the same operation the empty-item
+ * ladder does, and an outdent that lands an empty item under a paragraph
+ * dissolves it into a blank line. Stating the form by OPERATION rather than by
+ * key is what keeps the two agreeing — the module that consumes this already
+ * keys on where the caret landed, not on which key ran.
+ */
+export const STRUCTURAL_DISPATCH = {
+  indent: { userEvent: 'input.structure.indent', abandon: 'none' },
+  outdent: { userEvent: 'input.structure.outdent', abandon: 'drop-line' },
+  'move-up': { userEvent: 'move.structure', abandon: 'none' },
+  'move-down': { userEvent: 'move.structure', abandon: 'none' },
+} as const satisfies Record<string, { userEvent: string; abandon: AbandonForm }>;
+
+export type StructuralKey = keyof typeof STRUCTURAL_DISPATCH;
 
 export type GrammarOutcome = { plan: TxPlan } | { notice: string } | null;
 
@@ -267,7 +289,7 @@ function planFromOp(
  * express a whole-line removal at a document's END, where there is no following
  * line break to take, so neither form needs arithmetic of its own for it.
  */
-function abandonEdit(
+export function abandonEdit(
   form: AbandonForm,
   lines: readonly string[],
   newLines: readonly string[],
@@ -664,10 +686,10 @@ export function planKey(
       return planFromOp(
         lines,
         indentGroups(opDoc, groups, fallbackIndentUnit),
-        'input.structure.indent',
+        STRUCTURAL_DISPATCH.indent.userEvent,
         { kind: 'derived' },
         opDoc,
-        'none',
+        STRUCTURAL_DISPATCH.indent.abandon,
         cursor,
         placeLine,
         span,
@@ -676,15 +698,10 @@ export function planKey(
       return planFromOp(
         lines,
         outdentGroups(opDoc, groups, fallbackIndentUnit),
-        'input.structure.outdent',
+        STRUCTURAL_DISPATCH.outdent.userEvent,
         { kind: 'derived' },
         opDoc,
-        // Shift+Tab reaches the same operation the empty-item ladder does, and
-        // an outdent that lands an empty item under a paragraph dissolves it
-        // into a blank line. Stating the form by OPERATION rather than by key
-        // is what keeps the two agreeing — the module that consumes this
-        // already keys on where the caret landed, not on which key ran.
-        'drop-line',
+        STRUCTURAL_DISPATCH.outdent.abandon,
         cursor,
         placeLine,
         span,
@@ -693,10 +710,10 @@ export function planKey(
       return planFromOp(
         lines,
         moveGroupsUp(opDoc, groups),
-        'move.structure',
+        STRUCTURAL_DISPATCH['move-up'].userEvent,
         { kind: 'subject' },
         opDoc,
-        'none',
+        STRUCTURAL_DISPATCH['move-up'].abandon,
         undefined,
         undefined,
         span,
@@ -705,10 +722,10 @@ export function planKey(
       return planFromOp(
         lines,
         moveGroupsDown(opDoc, groups),
-        'move.structure',
+        STRUCTURAL_DISPATCH['move-down'].userEvent,
         { kind: 'subject' },
         opDoc,
-        'none',
+        STRUCTURAL_DISPATCH['move-down'].abandon,
         undefined,
         undefined,
         span,
@@ -730,10 +747,10 @@ export function planKey(
           return planFromOp(
             lines,
             outdented,
-            'input.structure.outdent',
+            STRUCTURAL_DISPATCH.outdent.userEvent,
             { kind: 'derived' },
             doc,
-            'drop-line',
+            STRUCTURAL_DISPATCH.outdent.abandon,
             cursor,
           );
         }

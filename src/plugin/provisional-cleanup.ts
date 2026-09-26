@@ -526,6 +526,53 @@ export function cancelOnDelete(view: EditorView, forward: boolean): boolean {
   return true;
 }
 
+/** What one dispatch of ours says about the place it may have left, read off
+ * the transaction by the listener or stated by the command path. */
+export interface DispatchFacts {
+  readonly event: string | undefined;
+  /** The open place the dispatch began on (`carriedPlace`), or `null`. */
+  readonly startedOn: number | null;
+  /** The removal edit the dispatch stated, in the resulting document. */
+  readonly stated: readonly ChangeSpec[] | undefined;
+  /** Where the caret was before the dispatch, in the resulting document. */
+  readonly startedAt: number | undefined;
+}
+
+/**
+ * Both records, re-established from one dispatch of ours — called once the
+ * update that dispatch produced has dropped them.
+ *
+ * The listener reads the facts off the transaction. The structural COMMANDS
+ * call this themselves, right after their dispatch: they go through Obsidian's
+ * `Editor`, which carries no `userEvent` and no annotation
+ * (`editor-structural-commands` keeps it that way for its undo steps), so the
+ * listener cannot tell that dispatch from a foreign edit. A command states what
+ * the keymap's dispatch of the same operation carries — its event and the
+ * removal edit its plan states — and the same rule reads them. Without it a
+ * place the palette or a custom hotkey carried was forgotten by the key after
+ * it, and one it left was never removed.
+ */
+export function recordDispatch(view: EditorView, facts: DispatchFacts): void {
+  const open = placeLineAfter(view.state, facts.event, facts.startedOn);
+  if (open !== null) openPlace.set(view, open);
+
+  // BOTH must agree, and they are independent by contract: the dispatch
+  // states how to remove a place, this module decides whether one was
+  // left. Neither is evidence for the other — Shift+Tab states a removal
+  // for an outdent that may only have relocated an already-empty item,
+  // and `recordablePlace` is what excludes that. Disagreement means no
+  // cleanup, which leaves the place standing: the safe direction.
+  const place = recordablePlace(view.state, facts.event);
+  if (facts.stated && place) {
+    created.set(view, {
+      depth: undoDepth(view.state),
+      line: place.line,
+      startedAt: facts.startedAt,
+      abandon: ChangeSet.of(facts.stated, view.state.doc.length),
+    });
+  }
+}
+
 /**
  * Records the place a structural keypress creates, and cancels it when a later
  * gesture moves the caret away without typing there.
@@ -566,31 +613,16 @@ export function provisionalCleanup(inOutlineMode: (view: EditorView) => boolean)
 
       const last = update.transactions[update.transactions.length - 1];
       if (last) {
-        const event = last.annotation(Transaction.userEvent) ?? undefined;
-        // The place a CARRYING dispatch could have moved: the one this view had
-        // open, and only when the caret was actually on it when the transaction
-        // began. A key pressed anywhere else carries nothing.
-        const startedOn = carriedPlace(last.startState, openBefore);
-        const open = placeLineAfter(view.state, event, startedOn);
-        if (open !== null) openPlace.set(view, open);
-
-        // BOTH must agree, and they are independent by contract: the dispatch
-        // states how to remove a place, this module decides whether one was
-        // left. Neither is evidence for the other — Shift+Tab states a removal
-        // for an outdent that may only have relocated an already-empty item,
-        // and `recordablePlace` is what excludes that. Disagreement means no
-        // cleanup, which leaves the place standing: the safe direction.
-        const stated = last.annotation(abandonEdit);
-        const place = recordablePlace(view.state, event);
-        if (stated && place) {
-          const before = last.startState.selection.main;
-          created.set(view, {
-            depth: undoDepth(view.state),
-            line: place.line,
-            startedAt: before.empty ? last.changes.mapPos(before.head, -1) : undefined,
-            abandon: ChangeSet.of(stated, view.state.doc.length),
-          });
-        }
+        const before = last.startState.selection.main;
+        recordDispatch(view, {
+          event: last.annotation(Transaction.userEvent) ?? undefined,
+          // The place a CARRYING dispatch could have moved: the one this view
+          // had open, and only when the caret was actually on it when the
+          // transaction began. A key pressed anywhere else carries nothing.
+          startedOn: carriedPlace(last.startState, openBefore),
+          stated: last.annotation(abandonEdit),
+          startedAt: before.empty ? last.changes.mapPos(before.head, -1) : undefined,
+        });
       }
       return;
     }
