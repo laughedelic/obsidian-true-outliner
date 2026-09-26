@@ -149,6 +149,9 @@ written by the menu and the empty state's action, so a fallback never overwrites
 
 ### D6. The header control is option A, built from the sort menu's parts
 
+Option A is the desktop control. Its narrow form is open (Open Questions), and what follows is the
+form the specs are written for until that is settled.
+
 While zoomed, `renderHeader` replaces the title text with "Backlinks to" and a scope button; the
 totals follow it as today. The button carries a glyph for the answer in force (a filled dot for
 This node, a dot with two branches for This node and below, the page for Whole note), the root's
@@ -222,8 +225,15 @@ path as today (`scope: null`). Reverting the change restores the note-wide foote
 
 ## Open Questions
 
-- The header control's narrow form. D6 drops words and truncates the label; option D of the
-  research note — three icon-only segments — is the candidate for phone width, pending probes of
-  how it reads and how it takes a tap.
+- The header control's narrow form. D6 drops words and truncates the label, and at a 330 px
+  footer the label keeps 38–51% of itself (research note, "The control in the real footer").
+  Option D's three icon-only segments fit there at the header buttons' own size, the chosen one
+  in the accent colour. Taking D rewrites `backlinks-footer`'s "A narrow footer keeps the
+  answer's mark" to three segments, one checked, and adds their accessible names; the menu stays
+  the desktop control.
 - The answers' names. "This node and below" can be read as "and everything after it in the note";
-  "subtree" is exact but technical. The zoom root's own text can also be too long for the chip.
+  "subtree" is exact but technical; "this node and its children" is the widest chip (229 px) and
+  still one row on desktop. The zoom root's own text is 225 px for "Current sprint" and cut to
+  39% for a 78-character name. Naming the answer instead of the root rewrites the requirement's
+  "SHALL name the zoom root by the text a lineage segment … carries" to naming the answer, and
+  leaves the root to the zoom trail above.
