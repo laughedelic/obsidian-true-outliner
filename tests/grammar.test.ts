@@ -275,6 +275,11 @@ describe('grammar planner: the empty-item ladder (Enter)', () => {
     return { text: applied.text, cursor: { line, ch: applied.cursor - (before.lastIndexOf('\n') + 1) } };
   }
 
+  it('an empty ordered item that leaves its list starts a new one at 1', () => {
+    const state = press('- p\n  3. a\n  4. \n', { line: 2, ch: 5 });
+    expect(state.text).toBe('- p\n  3. a\n1. \n');
+  });
+
   it('walks out one level per press, then leaves the list', () => {
     // The sequence is the behavior; three independent cases would not catch a
     // ladder that stops climbing.
@@ -818,6 +823,13 @@ describe('grammar planner: a structural key acts on the node a position is insid
         { line: 4, ch: 8 },
         { line: 4, ch: 5 },
       ],
+      // A new list numbered from 1, so the marker narrows from two digits to one.
+      [
+        '- top\n  8. a\n  9. b\n  10. foo\n       \n       bar\n',
+        'outdent',
+        { line: 4, ch: 7 },
+        { line: 4, ch: 4 },
+      ],
       ['- top\n  - [ ] foo\n    \n    bar\n', 'outdent', { line: 2, ch: 4 }, { line: 2, ch: 2 }],
       ['# H\n\nfirst\n\nalpha\n\nbeta\n', 'indent', { line: 5, ch: 0 }, { line: 5, ch: 2 }],
     ];
@@ -871,6 +883,8 @@ describe('grammar planner: a structural key acts on the node a position is insid
         '- a\n  - [ ] foo\n    \n',
         { line: 2, ch: 4 },
       ],
+      // The same indent starting a new list: `10.` narrows to `1.`.
+      ['1. a\n10. foo\n    \n', 'indent', { line: 2, ch: 4 }, '1. a\n   1. foo\n      \n', { line: 2, ch: 6 }],
       [
         '1. a\n   9. x\n10. foo\n    \n',
         'indent',

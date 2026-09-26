@@ -82,7 +82,8 @@ start to recover, and what it starts at depends on where it came from. A run of 
 node's own child list, and a drag to another level) starts a new list, and SHALL be numbered from
 `1.`: the numbers its members carry belonged to the list they left, and a new list rendered from
 one of them reads as a list that starts part-way. A run of PASTED blocks SHALL keep the lowest
-number its own members carry, since that numbering is what the clipboard held.
+number its own members carry, since that numbering is what the clipboard held. A child list a
+merge adopts moves as one unit, the list it was, and SHALL keep its own numbers too.
 
 A merge is covered by the general rule in all three of its shapes, and none of them is saved
 by the survivor keeping its index. Absorbing a non-ordered node standing between two runs
@@ -190,9 +191,14 @@ renumbers only the members that follow what moved.
 - **THEN** `b` reads `1. b` as the first child of `1. a`, and the item left behind reads `2. c`
 
 #### Scenario: Siblings an outdent adopts into a new child list number it from one
-- **WHEN** `outdent` is applied to `1. a` in `- p` / `1. a` / `2. b` / `3. c`, where `a` has no
-  children of its own
+- **WHEN** `outdent` is applied to `1. a` in `- p` / `  1. a` / `  2. b` / `  3. c` (the three
+  items children of `- p`), where `a` has no children of its own
 - **THEN** the adopted siblings read `1. b` / `2. c` under `1. a`
+
+#### Scenario: Enter on an empty item that leaves its list starts a new one
+- **WHEN** Enter on the empty `4.` of `- p` / `  3. a` / `  4.` outdents it to the root, where no
+  ordered run is
+- **THEN** it reads `1.`
 
 #### Scenario: A drag to another level that starts a new list numbers it from one
 - **WHEN** `moveSubtreesTo` moves `3. c` of `1. a` / `2. b` / `3. c` / `- d` to be the first

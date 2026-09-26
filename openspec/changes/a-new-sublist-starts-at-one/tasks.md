@@ -16,6 +16,10 @@
 - [x] 2.2 Update the cases that pinned the old number: the group indent under a bullet, the
       removal control, and the two grammar caret rows that needed a two-digit marker (now given
       a destination run that keeps it).
+- [x] 2.4 Enter on an empty ordered item that leaves its list for the root gives `1.`
+      (`tests/grammar.test.ts`, the empty-item ladder).
+- [x] 2.5 Keep a caret row for each direction of a narrowing relocation: ⇥ of `10. foo` with a
+      trailing place, and ⇧⇥ of `10. foo` with an interior place, each now `1. foo`.
 - [x] 2.3 e2e `31-tab-indented-vault`: ⇥ on `2. b` in a tab vault gives `⏵1. b`, and ⇧⇥ brings
       the list back.
 

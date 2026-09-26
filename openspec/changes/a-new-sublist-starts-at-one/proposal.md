@@ -26,6 +26,9 @@ Decided on #256: a new sublist starts from `1.`.
   - the siblings an outdent adopts into the outdented node's own child list
   - a drag to another level
 - A run of PASTED blocks keeps its own lowest number, as before.
+- Enter on an empty item outdents it, so an empty item that leaves its list for a place with no
+  ordered run starts at `1.` too.
+- A child list a merge adopts keeps its numbers, as before: it moves as one unit.
 - `renumberOrderedAgainst` (`src/ops.ts`) takes which of the two a call site is. Indent, outdent
   and `moveSubtreesTo`'s splice pass the relocation form. Paste keeps the default.
 
@@ -33,6 +36,10 @@ Decided on #256: a new sublist starts from `1.`.
 
 - A relocated item joining a run that is already there is unchanged: it takes the next number of
   that run.
+- A same-level reorder that divides a run is unchanged: the moved item is still a member of the
+  run it left, so the split rule keeps its number. A multi-group drag that takes roots from
+  several levels goes through the relocation path, and a root there starting a new list is
+  numbered from `1.` even when it lands at its old depth.
 - A paste is unchanged. Whether a pasted fragment should also restart at `1.` is a separate
   question, which the decision did not reach.
 
