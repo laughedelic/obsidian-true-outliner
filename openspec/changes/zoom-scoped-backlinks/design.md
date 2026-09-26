@@ -64,11 +64,19 @@ while zoomed, and must survive Reset.
 
 `src/anchors.ts` exports `anchorsOf(doc: OutlineDoc)`, returning every heading and block id in
 document order, each with the start line Obsidian gives it and the id of the node it belongs to.
-The attribution is the rule `docs/research/zoom-scoped-backlinks` derives from its seventeen
-shapes; the spec states it as "An anchor belongs to the node where what it names begins". A
-heading's text is its line after the marker, with closing hashes removed and trimmed, or the first
-line of a setext heading. A block id is `^` followed by letters, digits and dashes, ending a line
-after whitespace or standing alone on it.
+It reads the tree `lone-block-id-travels-with-its-node`
+([#208](https://github.com/laughedelic/obsidian-true-outliner/pull/208)) builds: an attached id is
+part of its node (`OutlineNode.blockId`), and every lone id that does not attach is a paragraph
+whose reading `misplacedBlockIds` (`src/block-ids.ts`) already gives — the item it names, the
+whole list, its own line, nothing, or not an id. What is left of our own is two rules Obsidian was
+measured to follow and #208 has no need for: an id held inside a list item by anything but an item
+names the nearest item, and the last of a run of lone ids is read as if the others were absent.
+The spec states the whole as "An anchor belongs to the node where what it names begins";
+`docs/research/zoom-scoped-backlinks`, "The same attribution on the tree #208 builds", runs it
+over 68 shapes, and 68 of 69 ids start on Obsidian's line. A heading's text is its line after
+the marker, with closing hashes removed and trimmed, or the first line of a setext heading. A
+block id is `^` followed by letters, digits and dashes, ending a line after whitespace or standing
+alone on it.
 
 The plugin layer assembles those anchors into a `CachedMetadata` holding only `headings` and
 `blocks` — block keys lower-cased, since the resolver matched `#^XYZ` to the key `xyz` — and asks
@@ -81,10 +89,10 @@ where `#Duplicate` lands.
 
 Memoized per `EditorState` in a `WeakMap`, like `parsedDoc` and `zoomScope`.
 
-The attribution rule exists because our parser reads a lone id line as a paragraph of its own
-([#207](https://github.com/laughedelic/obsidian-true-outliner/issues/207)). This change stacks on
-the fix for that issue; once the lone line belongs to the node it names, the rule reduces to "an id
-belongs to the node holding its line", with the whole-list case the only one left to state.
+*Alternative:* attribute from the tree `main` builds, where every lone id is a paragraph of its
+own, by walking back to the block that ends before it. That was this design's first form; it
+needs its own reading of every shape #208 now reads once for the marks, and two readings of the
+same id could disagree.
 
 *Alternative:* resolve against the note's own `getFileCache`. One source of truth and no rule of
 our own, but its lines run about two seconds behind the editor after every edit (research note,
@@ -187,7 +195,9 @@ probed.
 - [A block-id shape outside the probe gets a different start line from ours] → the reference is
   counted under the wrong answer while its navigation, which is Obsidian's, is still right. The
   agreement case (D9) runs over every fixture, and the research note lists the shapes that were
-  not probed.
+  not probed. One measured shape already differs: an id line with a table directly under it
+  (`^f15`), which Obsidian reads as part of the table and registers no id for, and which counts
+  here for the paragraph our parser makes of it — a link that goes nowhere counted for a node.
 - [`resolveSubpath` accepting a partial cache is measured, not documented] → the e2e scenarios for
   case, nested paths and duplicates go through it on every run, so a release that reads another
   field fails them; D2's rejected alternative is the fallback.
@@ -197,7 +207,11 @@ probed.
   the hub fixture before accepting it.
 - [An id naming a whole list belongs to the list's first item] → zoomed into that first item, This
   node admits references to the whole list. The id names a range no single node of ours spans, and
-  the first item is where that range begins; recorded rather than special-cased.
+  the first item is where that range begins; recorded rather than special-cased. #208 marks such
+  an id and offers to attach it to a node, after which it belongs to that node.
+- [This change reads what #208 adds] → `OutlineNode.blockId` and `misplacedBlockIds` are its
+  surface; a change to either on that branch is a change to D2, and the attribution prototype in
+  the research note re-runs against it.
 - [Two panes on one note share the chosen answer] → view state is keyed by path, as the filters
   are; each pane still classifies against its own zoom.
 
@@ -208,5 +222,8 @@ path as today (`scope: null`). Reverting the change restores the note-wide foote
 
 ## Open Questions
 
-- Which node owns an id naming a whole list is decided by the fix for #207; the spec's first-item
-  reading is what this change assumes until then.
+- The header control's narrow form. D6 drops words and truncates the label; option D of the
+  research note — three icon-only segments — is the candidate for phone width, pending probes of
+  how it reads and how it takes a tap.
+- The answers' names. "This node and below" can be read as "and everything after it in the note";
+  "subtree" is exact but technical. The zoom root's own text can also be too long for the chip.

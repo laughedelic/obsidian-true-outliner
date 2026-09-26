@@ -1,0 +1,200 @@
+/**
+ * The anchor attribution of docs/research/zoom-scoped-backlinks, restated on
+ * the tree `lone-block-id-travels-with-its-node` builds (#208): an attached id
+ * is part of its node (`OutlineNode.blockId`), and an id the parser cannot
+ * attach is a paragraph `misplacedBlockIds` reads. For every shape measured in
+ * `zoom-scoped-backlinks` and `lone-block-id`, prints the start line the rule
+ * gives each block id beside the one Obsidian's metadata gave it.
+ *
+ * To re-run it from the repository root, on a branch carrying #208:
+ *   npx esbuild docs/research/prototypes/zoom-anchors-probe/attribution-on-attached-ids.ts.txt \
+ *     --loader:.txt=ts --bundle --platform=node --format=esm --outfile=/tmp/attribution.mjs
+ *   node /tmp/attribution.mjs
+ */
+
+import { parse } from '../../../../src/parse';
+import { misplacedBlockIds } from '../../../../src/block-ids';
+import { ownSpan, type OutlineDoc, type OutlineNode } from '../../../../src/model';
+import { isLoneBlockIdNode } from '../../../../src/rules';
+
+interface Placed {
+  readonly node: OutlineNode;
+  readonly start: number;
+  readonly ancestors: readonly OutlineNode[];
+  readonly parent: readonly OutlineNode[];
+}
+
+function place(doc: OutlineDoc): Placed[] {
+  const out: Placed[] = [];
+  let line = doc.preamble.length;
+  const visit = (nodes: readonly OutlineNode[], ancestors: readonly OutlineNode[]): void => {
+    for (const node of nodes) {
+      out.push({ node, start: line, ancestors, parent: nodes });
+      line += ownSpan(node);
+      visit(node.children, [...ancestors, node]);
+    }
+  };
+  visit(doc.children, []);
+  return out;
+}
+
+const INLINE_ID = /\s\^([A-Za-z0-9-]+)$/;
+const LONE_ID = /^[ \t]*\^([A-Za-z0-9-]+)$/;
+
+/** The ids a node holds: ending one of its lines, as a line of its own, or attached. */
+function idsHeld(node: OutlineNode): string[] {
+  const ids: string[] = [];
+  for (const line of node.lines) {
+    const m = INLINE_ID.exec(line) ?? LONE_ID.exec(line);
+    if (m) ids.push(m[1]!);
+  }
+  const attached = node.blockId && LONE_ID.exec(node.blockId.line);
+  if (attached) ids.push(attached[1]!);
+  return ids;
+}
+
+function nearestItem(p: Placed): OutlineNode | undefined {
+  return [...p.ancestors].reverse().find((a) => a.kind === 'list-item');
+}
+
+/** The first item of the list `last` ends: up through its item ancestors, then
+ * back along the outermost item's run of sibling items. */
+function firstItemOfList(placed: readonly Placed[], last: Placed): OutlineNode {
+  let outer = last;
+  for (let i = last.ancestors.length - 1; i >= 0 && last.ancestors[i]!.kind === 'list-item'; i--) {
+    outer = placed.find((p) => p.node === last.ancestors[i])!;
+  }
+  const siblings = outer.parent;
+  let at = siblings.indexOf(outer.node);
+  while (at > 0 && siblings[at - 1]!.kind === 'list-item') at--;
+  return siblings[at]!;
+}
+
+/** Parts of the rule to leave out, for the negative controls:
+ * DROP=lift,readings,block-below,run node /tmp/attribution.mjs */
+declare const process: { env: Record<string, string | undefined> };
+const drop = new Set((process.env.DROP ?? '').split(',').filter(Boolean));
+
+/** Start line per block id, or null for an id Obsidian registers no block for. */
+export function attribute(md: string): Record<string, number | null> {
+  const doc = parse(md);
+  const placed = place(doc);
+  const startOf = (node: OutlineNode) => placed.find((p) => p.node === node)!.start;
+  const misplaced = new Map(misplacedBlockIds(doc).map((m) => [m.line, m]));
+  const out: Record<string, number | null> = {};
+  placed.forEach((p, index) => {
+    for (const id of idsHeld(p.node)) {
+      const marked = drop.has('readings') ? undefined : misplaced.get(p.start);
+      let owner: OutlineNode | null;
+      if (marked) {
+        const r = marked.reading;
+        if (r.kind === 'item') owner = nearestItem(p)!;
+        else if (r.kind === 'whole-list') owner = firstItemOfList(placed, placed[index - 1]!);
+        // An id with a block directly under it names its own line: its own paragraph.
+        else if (r.kind === 'nothing' && r.because === 'block-below' && !drop.has('block-below')) owner = p.node;
+        else owner = null;
+      } else if (isLoneBlockIdNode(p.node) && !drop.has('run')) {
+        // The last of a run of lone ids: read as if the ids before it were absent.
+        let k = index - 1;
+        while (k >= 0 && isLoneBlockIdNode(placed[k]!.node)) k--;
+        owner = k >= 0 ? placed[k]!.node : null;
+      } else if (p.node.kind !== 'list-item' && nearestItem(p) && !drop.has('lift')) {
+        owner = nearestItem(p)!;
+      } else {
+        owner = p.node;
+      }
+      out[id] = owner ? startOf(owner) : null;
+    }
+  });
+  return out;
+}
+
+/** Shape → the start line Obsidian's `CachedMetadata.blocks` gave each id,
+ * null where it registered none. */
+const shapes: Array<[string, string, Record<string, number | null>]> = [
+  // docs/research/zoom-scoped-backlinks, "What a block id names"
+  ['paragraph, id at end', 'Some prose. ^p1\n', { p1: 0 }],
+  ['paragraph, id directly below', 'Some prose.\n^p2\n', { p2: 0 }],
+  ['paragraph, blank, id', 'Some prose.\n\n^p3\n', { p3: 0 }],
+  ['item with children, id at end', '- parent ^li1\n  - child\n', { li1: 0 }],
+  ['nested item, id at end', '- parent\n  - child ^li2\n', { li2: 1 }],
+  ['two-line item, id on continuation', '- first line\n  second line ^li3\n', { li3: 0 }],
+  ['heading, id at end', '## Head ^h1\n\nbody\n', { h1: 0 }],
+  ['table, blank, id', '| a | b |\n| --- | --- |\n| 1 | 2 |\n\n^t1\n', { t1: 0 }],
+  ['table, id directly below', '| a | b |\n| --- | --- |\n| 1 | 2 |\n^t2\n', { t2: 0 }],
+  ['quote, blank, id', '> quoted\n\n^q1\n', { q1: 0 }],
+  ['quote, id directly below', '> quoted\n^q2\n', { q2: 0 }],
+  ['callout, blank, id', '> [!note] Title\n> body\n\n^c1\n', { c1: 0 }],
+  ['fence, blank, id', '```\ncode\n```\n\n^code1\n', { code1: 0 }],
+  ['two items, blank, id', '- a\n- b\n\n^l1\n', { l1: 0 }],
+  ['id indented under an item, after a blank', '- item a\n\n  ^under-a\n- item b\n', { 'under-a': 0 }],
+  ['lead, nested list, blank, id', 'Lead.\n- item a\n- item b\n  - nested c\n\n^l2\n', { l2: 1 }],
+  ['callout body line ending an id', '> [!note] Title\n> body line ^cb\n', { cb: 0 }],
+  ['quote line ending an id', '> quoted line ^qa\n', { qa: 0 }],
+  // docs/research/lone-block-id, "What a lone id names"
+  ['heading, blank, id', '## H\n\n^h2\n', { h2: 0 }],
+  ['heading, id directly below', '## H\n^h3\n', { h3: 0 }],
+  ['rule, blank, id', '***\n\n^hr1\n', { hr1: 0 }],
+  ['html, blank, id', '<div>html</div>\n\n^html1\n', { html1: 0 }],
+  ['fence, id directly below', '```\ncode\n```\n^code2\n', { code2: 0 }],
+  ['callout, id directly below', '> [!note] T\n> body\n^c2\n', { c2: 0 }],
+  ['table, two blanks, id', '| a |\n| --- |\n| 1 |\n\n\n^t3\n', { t3: 0 }],
+  ['paragraph, two blanks, id', 'Para.\n\n\n^p4\n', { p4: 0 }],
+  ['table under a heading, blank, id', '## H\n\n| a |\n| --- |\n| 1 |\n\n^t6\n', { t6: 2 }],
+  ['id with trailing spaces', '| a |\n| --- |\n| 1 |\n\n^t4   \n', { t4: null }],
+  ['id with text directly under', '| a |\n| --- |\n| 1 |\n\n^t5\nMore text.\n', { t5: null }],
+  ['two ids in a row', 'Para.\n\n^y1\n\n^y2\n', { y1: null, y2: 0 }],
+  ['id as the first line', '^first\n\nPara.\n', { first: null }],
+  ['item, child, blank, id at the item column', '- a\n  - child\n\n  ^x1\n', { x1: 0 }],
+  ['item, child, blank, id at the child column', '- a\n  - child\n\n    ^x2\n', { x2: 1 }],
+  ['item, blank, id, blank, next item', '- a\n\n  ^x4\n\n- b\n', { x4: 0 }],
+  ['prose inside an item, blank, id', '- a\n\n  inner prose\n\n  ^x3\n', { x3: 0 }],
+  ['table inside an item, blank, id', '- a\n\n  | t |\n  | --- |\n  | 1 |\n\n  ^x5\n', { x5: 0 }],
+  ['fence inside an item, blank, id', '- a\n\n  ```\n  code\n  ```\n\n  ^x6\n', { x6: 0 }],
+  ['quote inside an item, id directly below', '- a\n\n  > quoted\n  ^x7\n', { x7: 0 }],
+  ['two items, id directly below', '- a\n- b\n^l3\n', { l3: 1 }],
+  ['lead, two items, id directly below', 'Lead.\n- a\n- b\n^l5\n', { l5: 2 }],
+  ['items, nested item, blank, id', '- a\n- b\n  - c\n\n^l4\n', { l4: 0 }],
+  ['prose inside an item, ending an id', '- a\n\n  inner prose ^x8\n', { x8: 0 }],
+  ['table inside an item, last row ending an id', '- a\n\n  | x | y |\n  | --- | --- |\n  | 1 | 2 | ^x9\n- b\n', { x9: 0 }],
+  ['quote inside an item, ending an id', '- a\n\n  > quoted ^x10\n', { x10: 0 }],
+  ['lead, items, nested item ending an id', 'Lead.\n- a\n- b\n  - c ^l6\n', { l6: 3 }],
+  // docs/research/lone-block-id, "What may follow the id"
+  ['lead, blank, id, item directly under', 'Lead.\n\n^id3\n- a\n', { id3: 2 }],
+  ['lead, blank, id, heading directly under', 'Lead.\n\n^f1\n## H\n', { f1: 2 }],
+  ['table, blank, id, item directly under', '| a |\n| --- |\n| 1 |\n\n^f6\n- a\n', { f6: 4 }],
+  ['table, id directly below, item directly under', '| a |\n| --- |\n| 1 |\n^f7\n- a\n', { f7: 3 }],
+  ['heading, id directly below, item directly under', '## H\n^f12\n- a\n', { f12: 1 }],
+  ['lead, blank, id, table directly under', 'Lead.\n\n^f15\n| a |\n| --- |\n| 1 |\n', { f15: null }],
+  ['heading, blank, id, item directly under', '## H\n\n^f11\n- a\n', { f11: 2 }],
+  ['callout, id, item directly under', '> [!note] T\n> body\n^g9\n- a\n', { g9: 0 }],
+  ['lead, blank, id, blank, item', 'Lead.\n\n^id4\n\n- a\n', { id4: 0 }],
+  ['heading, blank, id at the end, no newline', '## H\n\n^g11', { g11: 0 }],
+  ['lead, id directly under, item directly under', 'Lead.\n^id1\n- a\n', { id1: 0 }],
+  ['lead, id directly under, blank, item', 'Lead.\n^id2\n\n- a\n', { id2: 0 }],
+  ['two-line lead, id directly under', 'Lead one\nlead two\n^id5\n', { id5: 0 }],
+  ['items, blank, indented id, item directly under', '- z\n- a\n\n  ^f8\n- b\n', { f8: 1 }],
+  ['item, blank, id, nested item directly under', '- a\n\n  ^f9\n  - c\n', { f9: 0 }],
+  ['item, id, item directly under', '- a\n^f10\n- b\n', { f10: 0 }],
+  ['item, blank, id, quote directly under', '- a\n\n  ^g1\n  > q\n', { g1: 0 }],
+  ['item, id, quote directly under', '- a\n^g2\n> q\n', { g2: 0 }],
+  ['item, id, heading directly under', '- a\n^g3\n## H\n', { g3: 0 }],
+  ['item, blank, id, heading directly under', '- a\n\n  ^g4\n## H\n', { g4: 0 }],
+  ['item, id, ordered item directly under', '- a\n^g5\n1. b\n', { g5: 0 }],
+  ['item, blank, id, text directly under', '- a\n\n  ^g6\nText.\n', { g6: null }],
+  ['item, id, continuation directly under', '- a\n^g7\n  more\n', { g7: null }],
+];
+
+let agree = 0;
+let ids = 0;
+for (const [name, md, expected] of shapes) {
+  const got = attribute(md);
+  for (const [id, want] of Object.entries(expected)) {
+    ids++;
+    const have = id in got ? got[id]! : null;
+    const same = have === want;
+    if (same) agree++;
+    console.log(`${same ? 'ok  ' : 'DIFF'} ${name} — ^${id}: Obsidian ${want ?? 'none'}, rule ${have ?? 'none'}`);
+  }
+}
+console.log(`\n${agree} of ${ids} ids agree, over ${shapes.length} shapes`);
