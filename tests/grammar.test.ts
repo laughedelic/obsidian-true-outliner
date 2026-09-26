@@ -1197,6 +1197,26 @@ describe('grammar planner: keys on an attached block id', () => {
     }
   });
 
+  it('Shift+Enter above a paragraph\'s id line keeps a blank line below the id', () => {
+    const md = 'Lead.\n^id1\n- a\n';
+    const outcome = plan(md, { line: 0, ch: 5 }, 'continue');
+    expect(outcome && 'plan' in outcome).toBe(true);
+    if (outcome && 'plan' in outcome) {
+      const { text, cursor } = applyPlan(md, outcome.plan);
+      expect(text).toBe('Lead.\n\n^id1\n\n- a\n');
+      expect(text.slice(0, cursor)).toBe('Lead.\n');
+      const lead = parse(text).children[0]!;
+      expect(lead.blockId?.line).toBe('^id1');
+      expect(lead.children.map((node) => node.lines[0])).toEqual(['- a']);
+      expect(applyChanges(text, outcome.plan.abandon!)).toBe(md);
+    }
+    // With a blank line already below the id, nothing is added.
+    const closed = plan('Lead.\n^id1\n\nNext.\n', { line: 0, ch: 5 }, 'continue');
+    if (closed && 'plan' in closed) {
+      expect(applyPlan('Lead.\n^id1\n\nNext.\n', closed.plan).text).toBe('Lead.\n\n^id1\n\nNext.\n');
+    }
+  });
+
   it('refuses Backspace at the start of an id, and nowhere else', () => {
     expect(refusesBackspaceOnId(TABLE, { line: 6, ch: 0 })).toBe(true);
     expect(refusesBackspaceOnId(TABLE, { line: 6, ch: 1 })).toBe(false);

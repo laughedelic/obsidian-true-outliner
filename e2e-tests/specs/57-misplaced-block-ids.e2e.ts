@@ -259,6 +259,22 @@ describe('keys on an attached block id', function () {
     expect(await h.getBuffer()).toMatch(/\n- one\n(  \n)?  \^abc\n$/);
   });
 
+  it('keeps a paragraph\'s id line with it through Shift+Enter and a move', async function () {
+    const LEAD = 'Lead.\n^id1\n- a\n\nNext.\n';
+    await h.setBuffer(LEAD);
+    await browser.pause(150);
+    await h.setCursorSettled(0, 5);
+    await h.keys.shiftEnter();
+    expect(await h.getBuffer()).toBe('Lead.\n\n^id1\n\n- a\n\nNext.\n');
+    expect(await h.getCursor()).toEqual({ line: 1, ch: 0 });
+    await h.runCommand('move-node-down');
+    await browser.waitUntil(async () => (await h.getBuffer()).startsWith('Next.\n'), {
+      timeout: 2000,
+      timeoutMsg: `the move wrote ${JSON.stringify(await h.getBuffer())}`,
+    });
+    expect(await h.getBuffer()).toMatch(/^Next\.\n\nLead\.\n(\n)?\n\^id1\n\n- a\n$/);
+  });
+
   it('returns Delete on the line opened after the note\'s last id to the id\'s end', async function () {
     const LAST = 'Para.\n\n^abc\n';
     await h.setBuffer(LAST);

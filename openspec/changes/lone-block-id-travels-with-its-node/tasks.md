@@ -121,7 +121,9 @@
       with a case that fails without the fix.
 - [x] 6.9 Shift+Enter that opens an empty line above an item's lazy id writes the id at the
       content column, so the id stays attached while the line is open and through a move, with a
-      unit and an e2e case that fail without the change.
+      unit and an e2e case that fail without the change. For a paragraph outside a list item that
+      ends in an id line with a block directly under it, the same Shift+Enter writes a blank line
+      below the id, with a unit and an e2e case that fail without the change.
 
 ## 7. Land
 

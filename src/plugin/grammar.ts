@@ -6,7 +6,8 @@
  */
 
 import type { OutlineDoc } from '../model';
-import { idLineIndex, isAtom } from '../model';
+import { findPath, idLineIndex, isAtom, nodeAt } from '../model';
+import { isLoneBlockIdLine } from '../rules';
 import { indentWidth, parse, parseListMarker } from '../parse';
 import {
   contentColumnCh,
@@ -194,6 +195,14 @@ function offsetInNewText(newLines: readonly string[], pos: EditorPos): number {
  * spaces: the content column counts tab stops, which a tab-led item's own lead
  * already occupies.
  */
+function insideListItem(doc: OutlineDoc, nodeId: number): boolean {
+  const path = findPath(doc, nodeId) ?? [];
+  for (let depth = 1; depth < path.length; depth++) {
+    if (nodeAt(doc, path.slice(0, depth))?.kind === 'list-item') return true;
+  }
+  return false;
+}
+
 function continuationPrefix(line: string): string {
   const marker = parseListMarker(line);
   if (!marker) return '';
@@ -359,7 +368,8 @@ function insertionPlan(
   text: string,
   userEvent: string,
   consume = 0,
-  /** A later line rewritten in the same edit, in the original's coordinates. */
+  /** A later line rewritten in the same edit, in the original's coordinates;
+   * its text may hold more than one line. */
   rewrite?: { readonly line: number; readonly text: string },
 ): GrammarOutcome {
   const lineText = lines[at.line] ?? '';
@@ -392,7 +402,7 @@ function insertionPlan(
       (inserted.at(-1) ?? '') + tail,
     );
   }
-  if (rewrite) newLines[rewrite.line + inserted.length - 1] = rewrite.text;
+  if (rewrite) newLines.splice(rewrite.line + inserted.length - 1, 1, ...rewrite.text.split('\n'));
   return {
     plan: {
       changes,
@@ -934,7 +944,21 @@ export function planKey(
               text: `${continuationPrefix(node.lines[0] ?? '')}${node.blockId.line.trimStart()}`,
             }
           : undefined;
-      return insertionPlan(lines, at, `\n${prefix}`, 'input.structure.continue', consume, lazyId);
+      // A paragraph outside a list item whose last line is an id: the empty
+      // line leaves the id alone above whatever follows it, and an id with a
+      // block directly under it names only its own line. A blank line below
+      // the id, the one a move writes there, keeps it naming the paragraph.
+      const lastLine = nodeStart + node.lines.length - 1;
+      const idOwnLine =
+        node.kind === 'paragraph' &&
+        opensBlank &&
+        cursor.line < lastLine &&
+        isLoneBlockIdLine(node.lines[node.lines.length - 1] ?? '') &&
+        (lines[lastLine + 1] ?? '').trim() !== '' &&
+        !insideListItem(doc, node.id)
+          ? { line: lastLine, text: `${lines[lastLine] ?? ''}\n` }
+          : undefined;
+      return insertionPlan(lines, at, `\n${prefix}`, 'input.structure.continue', consume, lazyId ?? idOwnLine);
     }
   }
 }
