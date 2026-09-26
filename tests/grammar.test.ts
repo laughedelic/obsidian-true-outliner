@@ -144,7 +144,7 @@ describe('grammar planner: Enter (split)', () => {
     expect(text).toBe('- alpha\n- \n');
   });
 
-  it('a split that renumbers past a digit boundary keeps a tab-marked child’s children', () => {
+  it('a split that renumbers past a digit boundary keeps a tab-marked item’s sibling out of it', () => {
     // #227: `c`'s tab runs to column 8, one past `1. d`. Renumbering `9. b` to
     // `10. b` moves both lines a column; the tab alone would still end at 8,
     // and `1. d` would become `c`'s child.
