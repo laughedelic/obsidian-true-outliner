@@ -76,9 +76,10 @@ read as chosen in the accent colour; an unavailable answer's segment SHALL read 
 SHALL say why when pointed at; pressing an available segment SHALL apply its answer. Which form is
 shown SHALL follow the footer's own width, not the platform.
 
-The totals beside the control or the segments SHALL be the totals of the answer in force. The
-header SHALL remain a single row, carrying the filter affordance and the sort selector as it does
-unzoomed.
+The totals beside the control SHALL be the totals of the answer in force. Beside the segments the
+header SHALL show no totals: each segment's count already says how many references its answer
+holds. The header SHALL remain a single row, carrying the filter affordance and the sort selector
+as it does unzoomed.
 
 The menu SHALL be one of the footer's popovers: opening it SHALL close any other, and it SHALL
 close on a press outside the footer like the rest.
@@ -119,7 +120,7 @@ With no zoom active, the header SHALL be as it is without this requirement.
 
 - **WHEN** the footer is narrower than its header's words
 - **THEN** the header shows three segments with their glyphs and counts in place of the control,
-  the one in force in the accent colour, and the header is still one row
+  the one in force in the accent colour, no totals beside them, and the header is still one row
 - **WHEN** the This node segment is pressed
 - **THEN** This node applies and its segment reads as chosen
 

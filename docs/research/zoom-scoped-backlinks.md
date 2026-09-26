@@ -272,3 +272,7 @@ smaller font, so the chip drew it at 11 px and the menu at 10.2 px, where the se
 `1.1em` of `--font-ui-smaller` — 13.2 px on desktop, 14.1 px under mobile emulation. Given that one
 size, `calc(var(--font-ui-smaller) * 1.1)`, the chip and the menu draw every glyph at 13.2 px; the
 chip grows by 2 px (104 px for "this node", 117 px for "this branch") and the menu not at all.
+
+The repeated count was settled by removing the compact totals while the segments show, rather than
+only their first number: a note count on its own beside three reference counts would read as a
+fourth. The desktop header keeps its full totals beside the chip.
