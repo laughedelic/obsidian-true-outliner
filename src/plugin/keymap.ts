@@ -657,7 +657,7 @@ function makeHorizontalHandler(direction: "left" | "right") {
       if (nativePos.line === pos.line) {
         const node = nodeAtLine(outlineDoc, pos.line);
         const lineIndex = node ? pos.line - nodeStartLine(outlineDoc, node.id) : 0;
-        const boundary = node ? contentBoundaryCh(node, node.lines[lineIndex] ?? "") : 0;
+        const boundary = node ? contentBoundaryCh(node, placeLineText(node, lineIndex) ?? "") : 0;
         // Never let a visual step land inside chrome; `max` is safe rightward too,
         // since native motion cannot go below the boundary in that direction.
         const ch = Math.max(nativePos.ch, boundary);
@@ -926,7 +926,7 @@ function makeVerticalHandler(forward: boolean) {
         Math.min(Math.max(rawOffset, lineObj.from), lineObj.to),
       );
 
-      const lineText = node.lines[lineIndex] ?? "";
+      const lineText = placeLineText(node, lineIndex) ?? "";
       const boundary = contentBoundaryCh(node, lineText);
       dispatchAt(
         rawPos.ch < boundary ? { line: rawPos.line, ch: boundary } : rawPos,
@@ -1001,7 +1001,7 @@ function makeHomeEndHandler(forward: boolean) {
     // so Home/End always move the caret somewhere real.
     const pos = resolvePlacement(outlineDoc, raw);
     const lineIndex = pos.line - nodeStartLine(outlineDoc, node.id);
-    const line = node.lines[lineIndex] ?? "";
+    const line = placeLineText(node, lineIndex) ?? "";
     const rungs = contentStartRungs(node, line, lineIndex === 0);
     const target: LinePos = forward
       ? { line: pos.line, ch: line.length }
