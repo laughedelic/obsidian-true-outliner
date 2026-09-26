@@ -415,12 +415,16 @@ function needsBlankBetween(prev: OutlineNode, next: OutlineNode, margin: number)
     );
   }
   // A list item's continuation loop claims whatever it does not stop at, so
-  // the seam asks the loop's own question. Only the next node's lines are
-  // seen, so a single-line node can look claimed where a table opening on the
-  // line after it would have stopped the loop; that errs toward a separator.
+  // the seam asks the loop's own question, over the lines `encode` writes
+  // after the next node's first: its own, then its gap, then its first child,
+  // all settled before this seam is judged. A childless one-line node is
+  // followed by a line this pass has yet to decide, so it is read with none,
+  // which can take a table's header row for a claimed line and errs toward a
+  // separator.
   if (leafKind === 'list-item') {
     const contentCol = indentWidth(leaf.lines[0] ?? '') + markerWidthOf(leaf.lines[0] ?? '');
-    return continuesListItem(next.lines, 0, contentCol);
+    const below = next.trailingGap.length > 0 ? next.trailingGap : next.children[0]?.lines ?? [];
+    return continuesListItem([...next.lines, ...below.slice(0, 1)], 0, contentCol);
   }
   // An HTML block ends at a BLANK LINE, not at its closing tag, so whatever
   // follows one is inside it until a separator says otherwise — whatever kind

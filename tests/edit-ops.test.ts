@@ -1393,6 +1393,21 @@ describe('a seam is judged on the kind the re-parse will see', () => {
     expect(shape(encode(result.value.doc))).toBe(['list-item: - item', '  hr: ---'].join('\n'));
   });
 
+  it('a line the continuation loop reads as a table header is left flush', () => {
+    // `## H | x` over a delimiter row stops the loop, which reads the pair as
+    // a table start; the main loop then opens the heading first. The row is
+    // the heading's child, so the lookahead is in the tree the seam is judged
+    // on.
+    const doc = parse('- item\n- other\n\n  ## H | x\n  | - |\n');
+    const result = deleteSubtrees(doc, [byLine(doc, '- other').id]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('- item\n  ## H | x\n  | - |\n');
+    expect(shape(encode(result.value.doc))).toBe(
+      ['list-item: - item', 'h2: ## H | x', '  paragraph: | - |'].join('\n'),
+    );
+  });
+
   it('a seam that stays inside the margin is left flush, as it was', () => {
     // Control: the demotion is what adds a separator, not the kind pair. The
     // same payload into the same scope, whose children sit at column 0 — the
