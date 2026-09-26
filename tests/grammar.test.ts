@@ -1179,6 +1179,24 @@ describe('grammar planner: keys on an attached block id', () => {
     }
   });
 
+  it('Shift+Enter above an item\'s lazy id writes the id at the content column', () => {
+    const md = '- zero\n- one\n^abc\n- two\n';
+    const outcome = plan(md, { line: 1, ch: 5 }, 'continue');
+    expect(outcome && 'plan' in outcome).toBe(true);
+    if (outcome && 'plan' in outcome) {
+      const { text, cursor } = applyPlan(md, outcome.plan);
+      expect(text).toBe('- zero\n- one\n  \n  ^abc\n- two\n');
+      expect(text.slice(0, cursor)).toBe('- zero\n- one\n  ');
+      const one = parse(text).children.find((node) => node.lines[0] === '- one')!;
+      expect(one.blockId?.line).toBe('  ^abc');
+      expect(applyChanges(text, outcome.plan.abandon!)).toBe(md);
+    }
+    const mid = plan('- one two\n^abc\n', { line: 0, ch: 5 }, 'continue');
+    if (mid && 'plan' in mid) {
+      expect(applyPlan('- one two\n^abc\n', mid.plan).text).toBe('- one\n  two\n^abc\n');
+    }
+  });
+
   it('refuses Backspace at the start of an id, and nowhere else', () => {
     expect(refusesBackspaceOnId(TABLE, { line: 6, ch: 0 })).toBe(true);
     expect(refusesBackspaceOnId(TABLE, { line: 6, ch: 1 })).toBe(false);

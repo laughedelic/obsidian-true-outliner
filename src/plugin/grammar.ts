@@ -359,6 +359,8 @@ function insertionPlan(
   text: string,
   userEvent: string,
   consume = 0,
+  /** A later line rewritten in the same edit, in the original's coordinates. */
+  rewrite?: { readonly line: number; readonly text: string },
 ): GrammarOutcome {
   const lineText = lines[at.line] ?? '';
   const before = lineText.slice(0, at.ch);
@@ -366,6 +368,13 @@ function insertionPlan(
   const changes: EditorChange[] = [
     { from: at, to: { line: at.line, ch: at.ch + consume }, text },
   ];
+  if (rewrite) {
+    changes.push({
+      from: { line: rewrite.line, ch: 0 },
+      to: { line: rewrite.line, ch: (lines[rewrite.line] ?? '').length },
+      text: rewrite.text,
+    });
+  }
   const inserted = text.split('\n');
   const newCursorLine = at.line + inserted.length - 1;
   const newCh =
@@ -383,6 +392,7 @@ function insertionPlan(
       (inserted.at(-1) ?? '') + tail,
     );
   }
+  if (rewrite) newLines[rewrite.line + inserted.length - 1] = rewrite.text;
   return {
     plan: {
       changes,
@@ -910,7 +920,21 @@ export function planKey(
       // whenever the grammar declines — on a gap line reached by a programmatic
       // placement, for instance — and that stock newline would then be recorded
       // as ours and undone when the caret moved.
-      return insertionPlan(lines, at, `\n${prefix}`, 'input.structure.continue', consume);
+      // An id written directly under an item, short of its content column, is
+      // a lazy continuation of the item's text: a blank line above it ends the
+      // text, and the id no longer names the item. Opening an empty line there
+      // writes the id at the content column, where after a blank line it still
+      // does, so it stays with the item while the line is open.
+      const idIndex = idLineIndex(node);
+      const opensBlank = lineText.slice(at.ch + consume).trim() === '';
+      const lazyId =
+        node.kind === 'list-item' && node.blockId?.gap.length === 0 && idIndex !== undefined && opensBlank
+          ? {
+              line: nodeStart + idIndex,
+              text: `${continuationPrefix(node.lines[0] ?? '')}${node.blockId.line.trimStart()}`,
+            }
+          : undefined;
+      return insertionPlan(lines, at, `\n${prefix}`, 'input.structure.continue', consume, lazyId);
     }
   }
 }

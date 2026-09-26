@@ -28,3 +28,21 @@ node's text, so the grammar's keys SHALL treat it as follows:
 #### Scenario: Backspace at the start of an id is refused
 - **WHEN** the caret is before `^` on an attached id's line and Backspace is pressed
 - **THEN** the document is unchanged and the cue appears
+
+### Requirement: Shift+Enter keeps an item's lazy id with the item
+Where a list item's attached id is written directly under its text, short of its content column,
+Shift+Enter that opens an empty line in the item's text SHALL write the id at the item's content
+column in the same edit. The id is a lazy continuation of the item's text there, and a blank line
+above it ends that text, so written where it was it would stop naming the item while the line is
+open; at the content column after a blank line it names the item. Abandoning the line restores the
+id as it was written. A Shift+Enter that carries text onto the new line leaves the id alone.
+
+#### Scenario: The open line keeps the id attached
+- **WHEN** Shift+Enter is pressed at the end of `- one`, with `^abc` at column 0 directly under
+  it and `- two` below
+- **THEN** the document reads `- one`, the open line, `  ^abc`, `- two`, and `^abc` is still
+  attached to `- one`
+
+#### Scenario: A move with the line open takes the id along
+- **WHEN** that line is open and the item is moved down
+- **THEN** `^abc` moves with `- one`

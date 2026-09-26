@@ -243,6 +243,22 @@ describe('keys on an attached block id', function () {
     expect(await h.getCursor()).toEqual({ line: 8, ch: 0 });
   });
 
+  it('keeps an item\'s lazy id with it through Shift+Enter and a move', async function () {
+    const LAZY = '- zero\n- one\n^abc\n- two\n';
+    await h.setBuffer(LAZY);
+    await browser.pause(150);
+    await h.setCursorSettled(1, 5);
+    await h.keys.shiftEnter();
+    expect(await h.getBuffer()).toBe('- zero\n- one\n  \n  ^abc\n- two\n');
+    expect(await h.getCursor()).toEqual({ line: 2, ch: 2 });
+    await h.runCommand('move-node-down');
+    await browser.waitUntil(async () => (await h.getBuffer()).startsWith('- zero\n- two\n'), {
+      timeout: 2000,
+      timeoutMsg: `the move wrote ${JSON.stringify(await h.getBuffer())}`,
+    });
+    expect(await h.getBuffer()).toMatch(/\n- one\n(  \n)?  \^abc\n$/);
+  });
+
   it('returns Delete on the line opened after the note\'s last id to the id\'s end', async function () {
     const LAST = 'Para.\n\n^abc\n';
     await h.setBuffer(LAST);
