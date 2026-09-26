@@ -1,22 +1,22 @@
 # Development
 
-## Testing a branch on mobile
+## Testing a pull request on mobile
 
-Mobile has no vault folder to copy a build into, so a branch reaches a phone as a GitHub
+Mobile has no vault folder to copy a build into, so a pull request reaches a phone as a GitHub
 prerelease that BRAT installs.
 
-`.github/workflows/beta.yml` publishes one on every push to a branch other than `main`, versioned
-`<next patch>-beta-<branch slug>.<run number>` — above the current release so BRAT prefers it,
-below the next one so it never outranks a real release, and increasing per push so BRAT sees an
-update (`scripts/beta-version.ts` derives it). The version is stamped into the built
-`manifest.json` only; committing it would move the file that triggers the release workflow.
+`.github/workflows/beta.yml` publishes one on every push to an open pull request, Dependabot's
+aside, versioned `<next patch>-pr<number>.<commits>.g<hash>.<branch slug>` —
+`0.13.5-pr208.12.g7b57965.fix-foo` is pull request #208, 12 commits past the 0.13.4 release, at
+`7b57965`, on `fix/foo` (`scripts/beta-version.ts` derives it). The next patch keeps a beta above the release it builds on and below the one that
+will contain it. The version is stamped into the built `manifest.json` only; committing it would
+move the file that triggers the release workflow.
 
-On the phone: BRAT → *Add beta plugin* → `laughedelic/obsidian-true-outliner`, then *Check for
-updates* after each push. BRAT tracking "latest" takes the highest prerelease across every
-branch, so two branches publishing at once serve whichever sorts higher — pin BRAT to a specific
-version, or keep one branch at a time on beta.
+On the phone: BRAT → *Add beta plugin* → `laughedelic/obsidian-true-outliner`, and pick the
+pull request's version from the list. BRAT tracking "latest" takes the highest prerelease across
+every pull request, and a pinned version never updates, so a new push means picking its version
+again.
 
-Betas clean themselves up (`scripts/beta-cleanup.ts`): each push drops the branch's earlier
-ones, and a deleted branch — a merge, usually — takes the rest with it, with a weekly sweep
-behind that for anything missed. Only the `-beta-<slug>.<n>` shape is ever deleted, so releases
-and hand-cut release candidates are out of reach.
+Betas clean themselves up (`scripts/beta-cleanup.ts`): each push drops the pull request's
+earlier ones, a merged or closed pull request takes the rest with it, and a weekly sweep deletes
+any beta of a pull request that is no longer open.
