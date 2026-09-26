@@ -83,7 +83,7 @@ function shiftLine(line: string, delta: number, keepBlank: boolean): string {
  * than a whole stop moves the column by some other amount. There, and only
  * there, the run after the marker is written as spaces at the width it had.
  */
-function carryContentColumn(line: string, shifted: string): string {
+export function carryContentColumn(line: string, shifted: string): string {
   const was = parseListMarker(line);
   const now = parseListMarker(shifted);
   const run = MARKER_RUN_RE.exec(shifted);
@@ -238,10 +238,10 @@ export function rewriteOwnLine(
   const rest = ws.slice(from.length);
   const swapped = to + line.slice(from.length);
   if ((unit === '\t' || !rest.includes('\t')) && !addsTabAfterSpace(from, to, rest)) {
-    return carryContentColumn(line, shiftLine(swapped, columnDelta, false));
+    return shiftLine(swapped, columnDelta, false);
   }
   const offset = indentWidth(line) - indentWidth(from) + columnDelta;
-  return carryContentColumn(line, to + ' '.repeat(Math.max(0, offset)) + line.slice(ws.length));
+  return to + ' '.repeat(Math.max(0, offset)) + line.slice(ws.length);
 }
 
 /** `reprefixLine` for one atom's lines, whose whitespace is content: a line
