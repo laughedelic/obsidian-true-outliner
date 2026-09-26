@@ -63,10 +63,10 @@ requires and is always safe.
   gap
 
 #### Scenario: The removal record keeps its own conditions
-- **WHEN** Tab indents an empty list item the user did not just create, with the caret on it, and
-  the caret is then moved away with nothing typed
-- **THEN** nothing is removed — the carry kept the place fact, and there was no removal record for
-  it to keep
+- **WHEN** Tab carries a place, undo is pressed once, and the caret is then moved away with nothing
+  typed
+- **THEN** nothing is removed — the undo changed the document, which ended both records, and the
+  place it brought back has none, as a redone place has none
 
 #### Scenario: A document change drops the place
 - **WHEN** anything other than a dispatch that creates or carries a place changes the document
@@ -78,19 +78,26 @@ requires and is always safe.
 
 A place that still has a removal record when a structural key CARRIES it — in the sense "An open
 place stays known for as long as it is open" gives the word — SHALL still have one after the carry.
-Tab, Shift+Tab, the empty-item ladder's outdent and the equivalent commands all carry. The rule
-holds across any run of carries, since each one leaves the place with a record for the next.
+Tab, Shift+Tab, the empty-item ladder's outdent and unwrap, and the equivalent commands all carry
+in this sense. Each begins with the caret on the place and acts on the node the place stands for or
+belongs to. A key that opens a SECOND place beside the first, such as Shift+Enter on an empty item,
+does not carry the first: it creates a place of its own, as "An unused structural keypress has its
+place removed" states. The rule holds across any run of carries, since each one leaves the place
+with a record for the next.
 
 Every gesture that declines a fresh place SHALL decline a carried one the same way. That means
 moving the caret away with nothing typed, Backspace, Delete, Enter on the place, and any other
 gesture whose selection leaves it.
 
-What the removal does depends on the place, not on the key:
+What the removal does depends on what the place was when it was OPENED, not on the key, and not on
+what a carry has since turned it into:
 
-- A PROVISIONAL POSITION SHALL be removed as its line. What the carrying keys did to the node the
+- A place opened as a PROVISIONAL POSITION SHALL be removed as its line. What the carrying keys did to the node the
   position belongs to SHALL stand: the item stays where Tab put it.
-- An EMPTY NODE is the only thing the carrying keys acted on. Declining it SHALL therefore return the
-  document to what it was before the keypress that opened it. The carries are reverted along with
+- A place opened as an EMPTY NODE is the only thing the carrying keys acted on. Declining it SHALL
+  therefore return the document to what it was before the keypress that opened it. That holds even
+  where a carry dissolved the node into a blank line, as the ladder's outdent does under a
+  paragraph. The carries are reverted along with
   the node, and so is everything they did on the way: siblings an outdent re-parented under the
   empty node, runs a carry renumbered, blank lines the user wrote around it. Removing only the
   node's own line or subtree was measured to lose blank lines and to re-parent or delete siblings
@@ -105,13 +112,15 @@ set is the minimal change of the whole operation, and a removal mapped through i
 carry wrote into the place's line. Measured, the carry's new indentation is left on the end of the
 item's line as trailing spaces (`docs/research/carried-place-removal`).
 
-A carry that begins on a place with NO removal record SHALL NOT create one. That covers a place
-already declined, a place the user typed on, a redone place, and an already-empty item the user
-merely moved. The rule that a carry keeps a record is not a rule that a carry makes one.
+A carry keeps a removal record only where one was live on the place the carry began on. It SHALL
+NOT make one where there was none. The one reachable case is a place brought back by UNDO: the undo
+changes the document, which ends both records, so the place it restores cannot be declined. That
+extends "Known limitation — a redone place cannot be declined again" to undo.
 
-Backspace on a place a key carried or re-created SHALL return the caret to where the keypress that
-OPENED the place started, carried through every key since. That includes a Shift+Tab over a gap
-position, which counts as creating one. Delete SHALL go to the content start of the node below.
+Backspace on a carried place SHALL return the caret to where the keypress that OPENED the place
+started, carried through every key since. That includes a Shift+Tab over a gap position, which
+the creating test also names. A key that opened a second place is that place's opening key, so
+Backspace on it returns to where that key started, as it does today. Delete SHALL go to the content start of the node below.
 Moving away SHALL leave the caret where the gesture sent it.
 
 The removal SHALL be its own history entry, as every removal is. One undo SHALL therefore return to
@@ -159,6 +168,17 @@ the carried place, not to the place as it stood before the carry.
 - **WHEN** Enter at the end of a nested list item creates an empty item, a second Enter outdents
   it, and the caret is then moved away
 - **THEN** the document is what it was before the first Enter
+
+#### Scenario: An item dissolved under a paragraph puts its adopted sibling back
+- **WHEN** under a paragraph, Enter at the end of a nested list item that has a following sibling
+  creates an empty item, a second Enter dissolves it into a blank line and moves the sibling out
+  to the paragraph's level, and the caret is then moved away
+- **THEN** the document is what it was before the first Enter, the sibling back in its list
+
+#### Scenario: A second place beside the first is declined on its own
+- **WHEN** Enter at the end of a list item creates an empty item, Shift+Enter on it opens a
+  position below, and Backspace is pressed on the position
+- **THEN** the position is gone, the caret is on the empty item, and the empty item is still there
 
 #### Scenario: Siblings an outdent adopted go back where they were
 - **WHEN** Enter at the end of a nested list item that has a following sibling creates an empty

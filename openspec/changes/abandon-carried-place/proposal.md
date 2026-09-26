@@ -30,6 +30,8 @@ specified behaviour.
   below today.
 - Every gesture that declines a fresh place declines a carried one: moving away, ⌫, Delete, Enter
   on the place, and the bullet drag's pick-up.
+- The removal for a carried place follows what the place was when it was opened. That covers a
+  node a carry dissolved into a blank line, whose adopted sibling goes back too.
 
 ## Capabilities
 
@@ -44,8 +46,8 @@ None.
 
 ## Impact
 
-- `src/plugin/grammar.ts`: indent and outdent state their own reversal, and indent its line
-  removal, when they carry a place.
+- `src/plugin/grammar.ts`: indent, outdent and the ladder state their own reversal when they carry
+  a place, and indent states its line removal. The ladder forwards the place line it receives.
 - `src/plugin/provisional-cleanup.ts`: the recorder keeps a removal record across a carry when one
   was live on the place the carry began on.
 - `src/plugin/keymap.ts` and `src/plugin/main.ts`: both dispatch paths hand the recorder the
@@ -58,6 +60,13 @@ None.
 - A redone place still cannot be declined again. That limitation is specified and stays.
 - Moves do not carry a place, and this change does not make them.
 - The undo-grouping defect of a command run straight after a key (#250) is its own issue.
+- A place brought back by undo still cannot be declined, like a redone one.
+- Tab from a gap Enter widened between paragraphs moves the caret to the paragraph's own line, so
+  nothing carries the place and its blank lines stay. That is the same defect as #249 for
+  paragraphs, and it needs its own measurement.
+- Whether a bullet drag should still resolve a place, once every open place is removed on pick-up
+  (`selection-structural-ops`, "A drag resolves an open position like the other two"), is left for
+  review.
 - The Enter that renumbered a parent's ordered run in the live editor, although its plan does not
   (`docs/research/carried-place-removal`, "Ordered, Enter then Shift+Tab"), is not located or fixed
   here. The abandon only has to leave that run numbered correctly.

@@ -2,40 +2,48 @@
 
 ## 1. What the carrying plans state
 
-- [ ] 1.1 Add `carryReversal` to `TxPlan`. Make indent and outdent state it, and make indent state
-  `drop-line` as its `abandon`, only when handed a place line. Record this in
+- [ ] 1.1 Add `carryReversal` to `TxPlan`. Indent, outdent, and the ladder's outdent and unwrap state
+  it when handed a place line, and indent then also states `drop-line` as its `abandon`. The ladder
+  forwards the place line `planKey` received. Record indent's "only when carrying" in
   `STRUCTURAL_DISPATCH` (`src/plugin/grammar.ts`, D2).
 
   Verify in `tests/grammar.test.ts`:
   - a Tab handed a place line states both;
   - a Tab with none states neither;
+  - the ladder's second Enter on a carried empty item states a reversal;
   - Shift+Tab's `abandon` over a gap is unchanged.
 
-  Negative control: stating them unconditionally breaks the Tab-with-no-place case.
+  Negative controls:
+  - stating them unconditionally breaks the Tab-with-no-place case;
+  - not forwarding the place line in the ladder breaks the ladder case.
 - [ ] 1.2 Verify the composition in `tests/undo-on-abandon.test.ts`, over the table in
   `docs/research/carried-place-removal`, "Removing a carried empty node". For every row, the
   reversal composed with the opening removal gives the original exactly: the ladder with a
   following sibling, the blank line after the list, the loose list, the nested ordered Shift+Tab,
-  the heading, and a Tab followed by Shift+Tab. Negative control: replacing the composition with deleting the node
+  the heading, a Tab followed by Shift+Tab, and the ladder under a paragraph that dissolves the item
+  and moves its sibling out. Negative control: replacing the composition with deleting the node
   fails the blank-line and sibling rows.
 
 ## 2. The recorder keeps the removal across a carry
 
 - [ ] 2.1 Add `carriedRecord(record, startState, startedOn)` to `src/plugin/provisional-cleanup.ts`
-  (D3). Add `carried` and `reversal` to `DispatchFacts`, and add the carrying branch and the
-  creating branch's `startedAt` preference to `recordDispatch` (D4, D5). The listener supplies both
+  (D3). Add `opened` to the removal record and `carried` and `reversal` to `DispatchFacts`. Put
+  the carrying branch ahead of the creating one in `recordDispatch`, and select its removal by
+  `carried.opened` (D4, D5). The listener supplies both
   from `update.startState`, its own record and the transaction's annotations.
 
   Verify in `tests/provisional-place-record.test.ts`, calling `carriedRecord` and `recordDispatch`'s
   decision rather than a restatement. Rewrite "a carrying key leaves a place record and no removal
-  record" to expect a removal record after Tab and after Tab Tab. Add cases where it is absent:
-  - after a carry that began with no removal record;
-  - after typing on the place;
-  - where the record's depth does not match the start state.
+  record" to expect a removal record after Tab and after Tab Tab. Add these cases:
+  - after an undo of the carry, no record;
+  - where the record's depth does not match the start state, no record;
+  - Shift+Enter on an empty item keeps its own start;
+  - Shift+Tab over an opened gap takes the opening start.
 
   Negative controls:
-  - dropping the `carried` requirement makes the no-record case write one;
-  - checking the depth against the end state makes the keyboard carry write none.
+  - checking the depth against the end state makes the keyboard carry write none;
+  - selecting the removal by the kind after the carry breaks the ladder-under-a-paragraph case;
+  - running the creating branch first breaks the Shift+Tab start case.
 - [ ] 2.2 Supply `carried` and `reversal` from `runOp` in `src/plugin/main.ts`: read before
   `editor.transaction`, with `startedAt` mapped through the command's changes. Verify with the e2e
   case in 3.2.
@@ -48,10 +56,12 @@
   - ⇧⏎ ⇥ ↑, and ⇧⏎ ⇥ ⇥ ↑;
   - ⇧⏎ ⇥ ⏎;
   - ⇧⏎ ⇧⇥ ⌫;
+  - ⏎ ⇧⏎ ⌫, where the empty item stays;
   - bullet ⏎ ⇥ ↑;
   - ordered ⏎ ⇥ ↑;
   - nested ordered ⏎ ⇧⇥ ↑;
-  - ladder ⏎ ⏎ ↑, with and without a following sibling;
+  - ladder ⏎ ⏎ ↑, with and without a following sibling, and under a paragraph;
+  - nested ordered ⏎ ⇧⇥ ↑ where the parent run crosses a digit boundary (`9.` to `10.`);
   - a list followed by a blank line and a paragraph, then ⏎ ⇥ ↑;
   - one ⌘Z after an abandon;
   - typed then deleted then ↑.
@@ -60,7 +70,9 @@
   on desktop and mobile. Negative control: with 2.1's carrying branch removed, every case except
   the typed one fails.
 - [ ] 3.2 Add the command-path case: ⇧⏎, "Indent node", ↑, compared with the ⇧⏎ ⇥ ↑ control in the
-  same test. Negative control: omitting `carried` in `runOp` fails it.
+  same test. Retitle "Backspace on a place the outdent command leaves returns where the command
+  started": both paths now return to where the Shift+Enter started. Negative control: omitting
+  `carried` in `runOp` fails both.
 
 ## 4. Notes and specs
 
