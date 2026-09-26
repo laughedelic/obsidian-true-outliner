@@ -29,7 +29,7 @@ import { describe, expect, it } from 'vitest';
  * timer would honour that one.
  */
 
-const E2E = join(__dirname, '..', 'e2e');
+const E2E = join(__dirname, '..', 'e2e-tests');
 
 /** The functions whose callback body is a SUITE, where `this` is mocha's suite
  * context and a budget reaches what is declared after it. */

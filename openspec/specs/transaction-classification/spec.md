@@ -28,7 +28,7 @@ behavior is byte-for-byte and timing-indistinguishable from stock Obsidian.
 - **WHEN** outline mode is toggled on for the active note
 - **THEN** the very next transaction in that editor is classified, with no editor reload
 
-**Covered by**: `e2e/specs/60-transaction-classification.e2e.ts` (off-mode
+**Covered by**: `e2e-tests/specs/60-transaction-classification.e2e.ts` (off-mode
 byte-identity in "a boundary-crossing edit sequence is byte-identical whether outline
 mode is on or off")
 
@@ -228,7 +228,7 @@ interop guarantee that other tools' edits are never fought or rewritten.
 - **THEN** the history transaction passes through unmodified and restores the prior
   state exactly
 
-**Covered by**: `e2e/specs/60-transaction-classification.e2e.ts` ("setValue-style and
+**Covered by**: `e2e-tests/specs/60-transaction-classification.e2e.ts` ("setValue-style and
 external replacements…", "undo restores state exactly…" — which also records the
 finding that on desktop Obsidian's undo bypasses the filter entirely, a stronger
 guarantee; under mobile emulation the bypass is platform-dependent, see
@@ -258,7 +258,7 @@ name of what they are exempt from.)*
 - **THEN** the resulting transaction is classified `plugin-own` and applied exactly as
   the grammar produced it, including its cursor placement
 
-**Covered by**: `e2e/specs/60-transaction-classification.e2e.ts`
+**Covered by**: `e2e-tests/specs/60-transaction-classification.e2e.ts`
 
 ### Requirement: IME composition is never interfered with
 Transactions that are part of an active IME composition SHALL be classified
@@ -286,7 +286,7 @@ verified against the existing wide-table fixture, not assumed.
 - **THEN** cell content and cell selection behave byte-for-byte as stock Obsidian, with
   no escalation or other enforcement effect inside the cell
 
-**Covered by**: `e2e/specs/60-transaction-classification.e2e.ts` ("nested per-cell
+**Covered by**: `e2e-tests/specs/60-transaction-classification.e2e.ts` ("nested per-cell
 table editor…")
 
 ### Requirement: Classification meets the keystroke-latency budget
@@ -301,7 +301,7 @@ selection-only transactions never re-parse.
 - **THEN** recorded timings satisfy the budget, and the numbers (median/p95) are
   written into the change documentation
 
-**Covered by**: `e2e/specs/60-transaction-classification.e2e.ts` ("performance:
+**Covered by**: `e2e-tests/specs/60-transaction-classification.e2e.ts` ("performance:
 classification stays within budget…"); measured numbers in docs/research/open-questions Q14
 
 ### Requirement: Classification is observable for verification
@@ -323,7 +323,7 @@ the funnel.
 - **WHEN** the debug setting is off
 - **THEN** no per-transaction console output is produced, while counters still update
 
-**Covered by**: `tests/stats.test.ts`; `e2e/specs/60-transaction-classification.e2e.ts`
+**Covered by**: `tests/stats.test.ts`; `e2e-tests/specs/60-transaction-classification.e2e.ts`
 (coverage matrix — note: find-and-replace and drag-drop-text are known automation gaps,
 recorded in the change's tasks.md 3.1; both are UI-panel/native-DnD gestures the
 WebDriver harness cannot reliably synthesize)

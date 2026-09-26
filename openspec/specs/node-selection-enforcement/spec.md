@@ -72,7 +72,7 @@ Outside outline mode, cursor placement remains byte-for-byte stock, as it always
 - **WHEN** the user clicks on a blank line between nodes in a note without outline mode
 - **THEN** the cursor lands exactly where stock Obsidian would place it
 
-**Covered by**: `e2e/specs/61-selection-enforcement.e2e.ts` (within-node drag,
+**Covered by**: `e2e-tests/specs/61-selection-enforcement.e2e.ts` (within-node drag,
 double-click, off-mode placement); `tests/escalate.test.ts` (empty ranges pass through
 `escalateRanges` unchanged); the caret capability's own suites for placement itself.
 
@@ -101,7 +101,7 @@ a multi-line gap the drag actually stopped on.
   text before releasing
 - **THEN** the selection is the native character-level selection again
 
-**Covered by**: `e2e/specs/61-selection-enforcement.e2e.ts` ("dragging past a node's
+**Covered by**: `e2e-tests/specs/61-selection-enforcement.e2e.ts` ("dragging past a node's
 end onto its gap line…"); `tests/escalate.test.ts` (gap-line trigger cases,
 multi-blank-line gap case)
 
@@ -136,7 +136,7 @@ position outside the scope is reachable in the first place.
 - **WHEN** no zoom is active
 - **THEN** escalation expands only, exactly as specified above, with no clamp applied
 
-**Covered by**: `e2e/specs/61-selection-enforcement.e2e.ts` ("Select All without
+**Covered by**: `e2e-tests/specs/61-selection-enforcement.e2e.ts` ("Select All without
 frontmatter…"); `tests/escalate.test.ts` (containment property over generated trees, and the
 clamped-result-is-still-a-cover property).
 
@@ -155,9 +155,9 @@ observable intermediate selection state.
 - **THEN** each pointer update yields the escalated selection without flicker between
   native and escalated states
 
-**Covered by**: `e2e/specs/61-selection-enforcement.e2e.ts` (backward drag, live-drag
+**Covered by**: `e2e-tests/specs/61-selection-enforcement.e2e.ts` (backward drag, live-drag
 stability); `tests/escalate.test.ts` (orientation property); undo-stack
-non-interference in `e2e/specs/60-transaction-classification.e2e.ts`
+non-interference in `e2e-tests/specs/60-transaction-classification.e2e.ts`
 
 ### Requirement: Multi-range selections escalate uniformly
 For multi-cursor/multi-range selections, each non-empty range SHALL first be evaluated
@@ -180,7 +180,7 @@ byte-for-byte native.
 - **WHEN** a multi-range selection consists only of within-node content ranges
 - **THEN** every range passes through unmodified
 
-**Covered by**: `e2e/specs/61-selection-enforcement.e2e.ts` (uniform multi-range,
+**Covered by**: `e2e-tests/specs/61-selection-enforcement.e2e.ts` (uniform multi-range,
 all-within-native); `tests/escalate.test.ts` (escalateRanges cases incl. cursors and
 preamble ranges)
 
@@ -194,7 +194,7 @@ stock Obsidian.
   frontmatter
 - **THEN** the entire document is selected exactly as in stock Obsidian
 
-**Covered by**: `e2e/specs/61-selection-enforcement.e2e.ts` (Select All with
+**Covered by**: `e2e-tests/specs/61-selection-enforcement.e2e.ts` (Select All with
 frontmatter vs off-mode reference); `tests/escalate.test.ts` (preamble jurisdiction)
 
 ### Requirement: Enforcement is scoped to outline mode and enforced classes only
@@ -213,7 +213,7 @@ and off-mode notes SHALL show byte-for-byte stock selection behavior.
 - **THEN** the selection is applied exactly as dispatched, even if it crosses node
   boundaries
 
-**Covered by**: `e2e/specs/61-selection-enforcement.e2e.ts` (off-mode drag,
+**Covered by**: `e2e-tests/specs/61-selection-enforcement.e2e.ts` (off-mode drag,
 programmatic restore)
 
 ### Requirement: Boundary-crossing selections escalate to a forest of whole subtrees
@@ -321,7 +321,7 @@ the filter.)
   line
 - **THEN** the selection already includes the second node's whole owned trailing gap
 
-**Covered by**: `e2e/specs/61-selection-enforcement.e2e.ts` (forward/backward drags,
+**Covered by**: `e2e-tests/specs/61-selection-enforcement.e2e.ts` (forward/backward drags,
 heading-subtree, cross-scope crossing, sibling crossing with later siblings present,
 ancestor-swallowed-mid-span); `tests/escalate.test.ts` (forest-span computation,
 downward-closure and contiguity properties over generated trees). Keyboard extension is covered

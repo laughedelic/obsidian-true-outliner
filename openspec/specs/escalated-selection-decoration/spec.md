@@ -67,7 +67,7 @@ reads as the set of subtrees it is rather than as one block at any single root's
   boundary or a gap line
 - **THEN** no block-level chrome renders
 
-**Covered by**: `e2e/specs/63-selection-visual-treatment.e2e.ts` (drag-past-boundary,
+**Covered by**: `e2e-tests/specs/63-selection-visual-treatment.e2e.ts` (drag-past-boundary,
 whole-line-text match, mixed-depth forest, partial-content, cursor); a pure-module test
 suite for the cover-membership query, mirroring `tests/escalate.test.ts`'s property style.
 

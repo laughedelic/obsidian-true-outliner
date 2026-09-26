@@ -85,8 +85,8 @@ content. A press at the top of a bounded ladder SHALL leave the selection unchan
 
 **Covered by**: `tests/select-all-ladder.test.ts` (unit and property tests,
 mirroring `tests/escalate.test.ts`'s style, including the scope-bounded ladder);
-`e2e/specs/64-progressive-select-all.e2e.ts` (real Obsidian instance, keyboard-driven);
-`e2e/specs/80-outline-zoom.e2e.ts` (the bounded ladder in a live instance).
+`e2e-tests/specs/64-progressive-select-all.e2e.ts` (real Obsidian instance, keyboard-driven);
+`e2e-tests/specs/80-outline-zoom.e2e.ts` (the bounded ladder in a live instance).
 
 ### Requirement: Ladder progression is stateless
 The handler SHALL determine the next rung solely from the CURRENT selection
@@ -111,7 +111,7 @@ rung before advancing.
 - **THEN** the selection becomes that node's whole subtree — the smallest rung
   containing the original selection
 
-**Covered by**: `tests/select-all-ladder.test.ts`; `e2e/specs/64-progressive-
+**Covered by**: `tests/select-all-ladder.test.ts`; `e2e-tests/specs/64-progressive-
 select-all.e2e.ts` ("is stateless: an interruption between presses restarts the
 ladder from own content").
 
@@ -166,7 +166,7 @@ starting there cannot be the item's content on screen.
   presses Mod-A
 - **THEN** the selection covers the entire heading line including `## `
 
-**Covered by**: `tests/select-all-ladder.test.ts`; `e2e/specs/64-progressive-
+**Covered by**: `tests/select-all-ladder.test.ts`; `e2e-tests/specs/64-progressive-
 select-all.e2e.ts` ("a list item's first press selects its content only,
 excluding the marker"; "a task item's first press selects its text only").
 
@@ -191,7 +191,7 @@ not forced to a common or uniform rung as part of this ladder progression.
 - **THEN** the final selection presents them as a single merged range, consistent
   with normal selection-range normalization
 
-**Covered by**: `tests/select-all-ladder.test.ts`; `e2e/specs/64-progressive-
+**Covered by**: `tests/select-all-ladder.test.ts`; `e2e-tests/specs/64-progressive-
 select-all.e2e.ts` ("each range in a multi-range selection climbs its own
 ladder independently").
 

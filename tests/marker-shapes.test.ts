@@ -273,10 +273,10 @@ describe('a node’s mark, and the subject drawn from it', () => {
   });
 
   /**
-   * The guarantee is the type's, so the check is the compiler's: `npm run build`
+   * The guarantee is the type's, so the check is the compiler's: `npm run typecheck`
    * type-checks this file. Negative control: make `level` optional on the
    * heading arm of `NodeMark`, and the directive below goes unused, which fails
-   * the build.
+   * the typecheck.
    */
   it('cannot be written for a heading without its level', () => {
     // @ts-expect-error a heading without a level is not a NodeMark

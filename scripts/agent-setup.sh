@@ -33,6 +33,13 @@ fi
 
 notes=()
 
+# The tooling scripts are TypeScript that Node runs by stripping the types, which
+# it does by default from 22.18; an older Node fails every `node scripts/*.ts`,
+# this session's own hooks included.
+if ! node -e 'process.exit(process.features.typescript ? 0 : 1)' >/dev/null 2>&1; then
+  notes+=("node $(node --version 2>/dev/null || echo missing) cannot run the TypeScript scripts; put Node 22.18+ first on PATH")
+fi
+
 if [ ! -d node_modules ]; then
   if $install; then
     # `ci` rather than `install`: the container ships an older npm than the one

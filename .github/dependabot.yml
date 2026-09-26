@@ -20,7 +20,7 @@ updates:
       unit-tests:
         patterns: ["vitest", "@vitest/*", "vite", "fast-check"]
       lint-build:
-        patterns: ["eslint", "typescript", "typescript-eslint", "esbuild", "builtin-modules", "@types/node"]
+        patterns: ["eslint", "typescript", "typescript-eslint", "esbuild", "yaml", "@types/node"]
       other-patches:
         patterns: ["*"]
         update-types: [patch]

@@ -190,7 +190,7 @@ part of its text can only be represented as its child.
 **Covered by**: `tests/corpus.test.ts` ("a marker needs whitespace after it to be a marker"
 suite); `tests/grammar.test.ts` ("continues a bare marker as the paragraph it is, at column 0");
 `tests/caret.test.ts` ("leaves a marker with no trailing space wholly addressable, being no
-marker"); `e2e/specs/58-bare-marker-is-a-paragraph.e2e.ts`.
+marker"); `e2e-tests/specs/58-bare-marker-is-a-paragraph.e2e.ts`.
 
 ### Requirement: A block start inside a list item is measured from the item
 A quote, a callout and a thematic break SHALL open where the line's indentation

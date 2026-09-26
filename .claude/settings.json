@@ -15,7 +15,7 @@
           },
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/scripts/agent-conventions.mjs"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/scripts/agent-conventions.ts"
           }
         ]
       }
@@ -26,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/scripts/agent-conventions.mjs"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/scripts/agent-conventions.ts"
           }
         ]
       }
@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/scripts/agent-conventions.mjs"
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/scripts/agent-conventions.ts"
           }
         ]
       }

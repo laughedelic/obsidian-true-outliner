@@ -34,7 +34,7 @@
 # primary one.
 #
 # A slice earns a label when the repository already treats it as separable in its
-# own declared groupings — the CI spec groups in `scripts/spec-groups.mjs`, the
+# own declared groupings — the CI spec groups in `scripts/spec-groups.ts`, the
 # settings slices under `src/plugin/settings/`, the stylesheet parts under
 # `styles/`, and the OpenSpec capabilities. Where those disagree we take the
 # coarser reading, so marker work sits under decorations rather than beside it,

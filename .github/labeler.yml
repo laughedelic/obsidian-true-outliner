@@ -28,7 +28,7 @@ area/grammar:
           - src/plugin/provisional-cleanup.ts
           - src/plugin/record-decision.ts
           - src/plugin/nested-editor.ts
-          - e2e/specs/3*-*
+          - e2e-tests/specs/3*-*
 
 area/ops:
   - changed-files:
@@ -40,7 +40,7 @@ area/ops:
           - src/reencode.ts
           - src/own-indent.ts
           - src/plugin/dispatch.ts
-          - e2e/specs/2*-*
+          - e2e-tests/specs/2*-*
 
 area/selection:
   - changed-files:
@@ -49,7 +49,7 @@ area/selection:
           - src/select-all-ladder.ts
           - src/plugin/crosscheck.ts
           - src/plugin/transaction-filter.ts
-          - e2e/specs/6*-*
+          - e2e-tests/specs/6*-*
 
 # Markers sit here rather than beside this: `marker-shapes.ts` is the icon set,
 # and the placement logic lives in `decorations.ts` with the rest of the grid.
@@ -65,21 +65,21 @@ area/decorations:
           - src/plugin/heading-marker-preview.ts
           - src/lineage.ts
           - styles/**
-          - e2e/specs/5*-*
+          - e2e-tests/specs/5*-*
 
 area/folding:
   - changed-files:
       - any-glob-to-any-file:
           - src/plugin/fold-*.ts
-          - e2e/folding.ts
-          - e2e/specs/9*-*
+          - e2e-tests/folding.ts
+          - e2e-tests/specs/9*-*
 
 area/zoom:
   - changed-files:
       - any-glob-to-any-file:
           - src/zoom.ts
           - src/plugin/zoom-*.ts
-          - e2e/specs/80-*
+          - e2e-tests/specs/80-*
 
 area/backlinks:
   - changed-files:
@@ -88,15 +88,15 @@ area/backlinks:
           - src/plugin/backlink*.ts
           - src/plugin/footer-*.ts
           - src/plugin/lineage-row.ts
-          - e2e/footer.ts
-          - e2e/specs/7*-*
+          - e2e-tests/footer.ts
+          - e2e-tests/specs/7*-*
 
 area/mode:
   - changed-files:
       - any-glob-to-any-file:
           - src/plugin/outline-state.ts
           - src/plugin/view-registry.ts
-          - e2e/specs/1*-*
+          - e2e-tests/specs/1*-*
 
 area/shell:
   - changed-files:
@@ -107,24 +107,24 @@ area/shell:
           - src/plugin/settings.ts
           - src/plugin/settings/**
           - manifest.json
-          - e2e/specs/4*-*
+          - e2e-tests/specs/4*-*
 
 # The harness and the infrastructure under it, never an individual spec or unit
 # test: those belong to the feature they cover, which the globs above already give
-# them. Matching `e2e/` as a whole would put this label on most changes, since
+# them. Matching `e2e-tests/` as a whole would put this label on most changes, since
 # almost every one carries the spec that pins it.
 area/testing:
   - changed-files:
       - any-glob-to-any-file:
-          - e2e/helpers.ts
-          - e2e/wdio*.mts
-          - e2e/obsidian-target.mts
-          - e2e/tsconfig.json
-          - e2e/docker/**
-          - e2e/fixtures/**
-          - e2e/baselines/**
-          - scripts/run-e2e.mjs
-          - scripts/spec-groups.mjs
+          - e2e-tests/helpers.ts
+          - e2e-tests/wdio*.mts
+          - e2e-tests/obsidian-target.mts
+          - e2e-tests/tsconfig.json
+          - e2e-tests/docker/**
+          - e2e-tests/fixtures/**
+          - e2e-tests/baselines/**
+          - scripts/run-e2e.ts
+          - scripts/spec-groups.ts
           - .github/actions/e2e/**
           - vitest.config.ts
           - codecov.yml
@@ -138,8 +138,8 @@ area/ci:
           - .github/labeler.yml
           - .github/release.yml
           - .github/dependabot.yml
-          - scripts/sync-labels.mjs
-          - scripts/check-landed.mjs
+          - scripts/sync-labels.ts
+          - scripts/check-landed.ts
 
 area/agents:
   - changed-files:

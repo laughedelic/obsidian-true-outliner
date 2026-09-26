@@ -1095,7 +1095,7 @@ export default class TrueOutlinerPlugin extends Plugin {
    *
    * Gated on `BUILD_STAMP.dev`, a constant compiled into the bundle. That flag
    * is OPT-IN via esbuild's `--dev` argument (passed by `dev`, `vault:install`
-   * and the e2e runner), so a plain `npm run build:plugin` — what the release
+   * and the e2e runner), so a plain `npm run build` — what the release
    * pipeline runs, through an external reusable workflow this repo does not
    * control — cannot ship this UI even if someone forgets the flag. Two earlier
    * revisions of this gate are worth not repeating: the manifest version carrying

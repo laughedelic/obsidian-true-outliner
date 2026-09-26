@@ -26,7 +26,7 @@ env:
   node-version: "26"
   # Obsidian instances per e2e job. Beyond the runner's core count this stops
   # paying, and a group can never beat its longest single spec. Note that
-  # `waitBudget` in e2e/helpers.ts widens the harness timeouts off this value:
+  # `waitBudget` in e2e-tests/helpers.ts widens the harness timeouts off this value:
   # changing it needs repeated runs to confirm, not one green one.
   max-instances: "4"
 
@@ -43,8 +43,26 @@ jobs:
 
       - run: npm ci
       - run: npm run lint
-      - run: npm run build
-      - run: npm run build:e2e
+      - run: npm run typecheck
+      - run: npm run typecheck:e2e
+      - run: npm run typecheck:scripts
+
+  # The community directory scans every release: the manifest, the license,
+  # `npm ci && npm run build`, and its own ESLint and Stylelint rulesets over
+  # the source. Obsidian's action runs the same checks here, and `strict` fails
+  # the job on anything the directory would rate an error; warnings stay in the
+  # job summary.
+  directory-scan:
+    runs-on: ubuntu-latest
+    # It runs a third-party action and the repository's own build scripts.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: obsidianmd/obsidian-workflows@v1
+        with:
+          scanner-lint: true
+          strict: true
 
   unit-test:
     runs-on: ubuntu-latest
@@ -84,7 +102,7 @@ jobs:
           fail_ci_if_error: false
 
   # Builds the e2e matrix from the specs that exist rather than a list in YAML.
-  # See scripts/spec-groups.mjs.
+  # See scripts/spec-groups.ts.
   e2e-groups:
     runs-on: ubuntu-slim
     outputs:
@@ -92,7 +110,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - id: list
-        run: echo "groups=$(node scripts/run-e2e.mjs --list-groups)" >> "$GITHUB_OUTPUT"
+        run: echo "groups=$(node scripts/run-e2e.ts --list-groups)" >> "$GITHUB_OUTPUT"
 
   e2e-desktop:
     needs: e2e-groups

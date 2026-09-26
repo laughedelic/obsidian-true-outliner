@@ -107,11 +107,11 @@ out of a shared repository while still making a cloud session's commits ours.
 `@wdio/local-runner` does bring up a display of its own when `DISPLAY` is unset, but it does so by
 shelling out to `xvfb-run --auto-servernum` — the wrapper whose readiness handshake hung
 indefinitely in our Linux container, with Xvfb up and the wrapped command never launched
-(`e2e/docker/start-xvfb-and-run.sh`). Rather than re-litigate that on a cloud VM, reuse the
+(`e2e-tests/docker/start-xvfb-and-run.sh`). Rather than re-litigate that on a cloud VM, reuse the
 starter that already avoids it: plain POSIX sh, assuming nothing about a container.
 
 ```bash
-sh e2e/docker/start-xvfb-and-run.sh npm run test:e2e:narrow -- <spec>
+sh e2e-tests/docker/start-xvfb-and-run.sh npm run test:e2e:narrow -- <spec>
 ```
 
 It polls for the X socket, exports `DISPLAY`, then hands over — which also makes the launcher's
@@ -119,7 +119,7 @@ own auto-management a no-op, since that only acts when `DISPLAY` is unset. It in
 which is what the packages above are for.
 
 Two limits shape what a cloud run is good for. `E2E_MAX_INSTANCES` belongs at 2 against the VM's
-4 vCPUs, and it is not only a speed knob — `waitBudget` in `e2e/helpers.ts` widens the harness
+4 vCPUs, and it is not only a speed knob — `waitBudget` in `e2e-tests/helpers.ts` widens the harness
 timeouts off that value. And cloud sessions top out at Node 22 where CI and the e2e container use
 26; nothing here declares a floor above 22, but the combination has not been proven. CI stays the
 source of truth for the full sweep, so what a cloud session gains is the narrow loop.
