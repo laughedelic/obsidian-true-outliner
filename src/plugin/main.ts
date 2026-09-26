@@ -1441,9 +1441,12 @@ export default class TrueOutlinerPlugin extends Plugin {
       // Read before the dispatch: where the caret started, in the document the
       // changes produce, is what Backspace on a place this leaves returns to.
       const before = view?.state;
-      const changeSet = before
-        ? ChangeSet.of(changesToSpec(before.doc, changes), before.doc.length)
-        : undefined;
+      // The plan is read from `editor`, so it is dispatched through `view` only
+      // when that view holds the same document.
+      const changeSet =
+        before && before.doc.length === text.length && before.doc.toString() === text
+          ? ChangeSet.of(changesToSpec(before.doc, changes), before.doc.length)
+          : undefined;
       const startedAt =
         before && changeSet && before.selection.main.empty
           ? changeSet.mapPos(before.selection.main.head, -1)

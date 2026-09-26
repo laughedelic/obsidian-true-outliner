@@ -25,9 +25,7 @@ lands in the same transaction as the edit that caused it and joins its undo step
   level until one already carries the number it would get.
 
 Because the filter reads nesting that way, it rewrites lines in a list the edit never touched. The
-parser, CommonMark and Obsidian's own reading view all nest the three-column item. The filter is
-Obsidian's alone; a plugin that registers an extension through `registerEditorExtension` at
-default precedence runs its filters before it.
+parser, CommonMark and Obsidian's own reading view all nest the three-column item.
 
 ## Where it fires
 
@@ -58,7 +56,8 @@ the keypress path, and not our own transaction filter.
 
 Every structural dispatch this plugin makes renumbers the runs it changes itself
 (`structural-operations`, "Ordered-run renumbering"), and the filter then renumbers on top of it.
-The plugin's dispatches of a planned change are four: the keyboard grammar (`keymap.ts`), the
+The plugin's dispatches of a planned change are four (the within-node deletions of ⌘⌫ and of a
+marker's surplus spaces are typing, and are not among them): the keyboard grammar (`keymap.ts`), the
 structural commands (`main.ts`'s `runOp`), a drag's drop (`zoom-click.ts`) and the removal of an
 abandoned place (`provisional-cleanup.ts`). An enforcement `rewrite` is not reached: Obsidian's
 filter runs before ours, so the verdict layer sees the user's edit with the renumbering already
@@ -71,6 +70,27 @@ CM6 runs transaction filters from the last facet value to the first, so a filter
 `Prec.highest` runs after every filter of default precedence. Measured: a `Prec.highest` filter
 registered by the plugin sees the transaction with Obsidian's renumbering already merged in, and
 a change it appends with `sequential: true` lands after it.
+
+Where our default-precedence enforcement filter sits relative to Obsidian's is read from its
+effects rather than from the bundle. ⌫ at the content start of `   2. b` in `1. p` / `   1. a` /
+`   2. b` / `2. q` is an enforcement merge, and gives `   1. ab` / `2. q`: had Obsidian's filter run
+on the rewrite, it would have numbered the merged line `2.` as a sibling of `p`. Q23's two-range
+transaction, seen by the verdict layer, is the same order.
+
+## Known gaps
+
+- **A block deletion across nested items** is Q23's shape: Obsidian's renumbering is appended
+  before the verdict layer sees the deletion, the verdict layer declines a range that is not a
+  pure deletion, and the edit passes natively. Selecting `   2. b` in `1. p` / `   1. a` /
+  `   2. b` / `   3. c` / `2. q` and pressing ⌫ gives `   1. a` / blank / `   2. c` / `3. q`.
+  Unchanged by the restoration, which covers only transactions this plugin planned.
+- **Typing while zoomed.** A typed character in the last nested item of a zoomed parent makes
+  Obsidian renumber the hidden `2. q`, and the zoom clears, as a change outside the scope clears
+  it. ⏎ in the same place keeps the zoom.
+- **A line count the plan does not predict.** The restoration aligns the planned and the actual
+  document line by line and does nothing when their line counts differ. Obsidian's table-widget
+  filter, read next to the renumbering one in `app.js`, can append a newline when a change ends at
+  a table's start; a planned change that meets both would keep Obsidian's numbers. Not measured.
 
 ## After
 
@@ -86,6 +106,8 @@ With the plugin's planned change set carried on each of those four dispatches an
 | `1. p` / `   1. a` / `   2. b` / `2. q`, caret in `a` | move node down | `   1. b` / `   2. a` / `2. q` |
 | `1. p` / `   1. a` / `2. q┃` / `3. r` | ⇥ | `   2. q` / `2. r` |
 | `1. p` / `   1. a` / `   2. b┃` / `2. q` | ⇧⇥ | `2. b` / `3. q` |
+| `1. p` / `    1. a┃` / `    2. b` / `2. q` (four spaces), and the same with a tab | move node down | `    1. b` / `    2. a` / `2. q` |
+| `1. a` / `2. b` / `3. c` / `- x┃` | move node up | `2. b` / `- x` / `3. c`: the split run keeps its numbers |
 
 The typing rows are unchanged: those edits are not the plugin's, and
 `transaction-classification` requires a within-node edit to land exactly as it would with our
