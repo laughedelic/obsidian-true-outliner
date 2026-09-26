@@ -173,10 +173,13 @@ shows one, so the switch follows the footer's width — a narrow desktop pane ge
 phone always does — and costs no measurement in code. The segments take their counts from the same
 pass as the menu, and an unavailable one is disabled with the same reason as its title.
 
-The three glyphs are drawn once and shared by the chip, the menu and the segments: This node's is
-a mark of focus on a point (which one is open), This branch's is Lucide's `list-tree`, Whole
-note's is Lucide's `file-text`. They are the footer's own icons, drawn beside `sortGlyph` and
-`filterGlyph`.
+The three glyphs are drawn once and shared by the chip, the menu and the segments: Lucide's
+`locate-fixed` for This node, `list-tree` for This branch and `file-text` for Whole note. They are
+the footer's own icons, drawn beside `sortGlyph` and `filterGlyph`, and all three forms size them
+by one rule, `calc(var(--font-ui-smaller) * 1.1)` — the segments' size. The chip and the menu take
+their marks from the filter row, whose `.to-backlinks-facet-mark` is `0.85em` of a smaller font:
+there `locate-fixed` drew at 11 and 10.2 px against the segments' 13.2, and its ring and centre
+ran together.
 
 The drawn comparison of the six options, and both rounds of probes in the real footer, are in the
 research note; A keeps the header's totals describing a named answer and leaves the filter model's
@@ -236,9 +239,6 @@ path as today (`scope: null`). Reverting the change restores the note-wide foote
 
 ## Open Questions
 
-- This node's glyph: Lucide's `crosshair`, `locate-fixed` or `focus`, or a drawn focus-center (a
-  dot inside four corner brackets). All four draw at 20 px in both themes; the canvas's "Chosen
-  look" holds them side by side.
 - In the narrow form the segments carry each answer's count and the compact totals beside them
   carry the answer in force's references and notes, so its reference count appears twice. Whether
   the compact totals drop their first number while the segments show is open.
