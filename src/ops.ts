@@ -1821,7 +1821,8 @@ export function unwrapListItem(doc: OutlineDoc, nodeId: number): OpResult<OpOutp
   if (!path) return reject('node-not-found');
   const node = nodeAt(doc, path)!;
   if (node.children.length > 0) return reject('would-orphan-children');
-  if (!itemContentIsEmpty(node) || node.blockId) return reject('cannot-unwrap');
+  if (!itemContentIsEmpty(node)) return reject('cannot-unwrap');
+  if (node.blockId) return reject('item-carries-block-id');
 
   // Captured before the surgery: everything above this line is untouched, so
   // the blank line that replaces the item sits exactly where the item was.

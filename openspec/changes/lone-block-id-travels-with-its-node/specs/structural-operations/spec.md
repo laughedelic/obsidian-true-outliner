@@ -13,8 +13,7 @@ document with it:
 - A node's subtree cover SHALL include its id, so copying or cutting a block selection takes the
   id along.
 - An operation that re-indents or re-encodes a node — indent, outdent, a paste, a conversion
-  between paragraph and list item, unwrapping a list item — SHALL re-indent the id line with the
-  node, to the node's content column when it is a list item and to the node's own column
+  between paragraph and list item — SHALL re-indent the id line with the node, to the node's content column when it is a list item and to the node's own column
   otherwise, so the id is still attached when the result is re-parsed. The exception is a node
   other than a list item that lands inside a list item: Obsidian names the enclosing item there,
   so its id is written at the node's column and re-parses as a misplaced id
@@ -22,6 +21,9 @@ document with it:
 - A split SHALL leave the id attached to the node that keeps the original's first line.
 - A merge SHALL keep the id of whichever of the two nodes carried one, and SHALL be rejected with
   `merge-not-expressible` when both did.
+- Unwrapping an empty list item that carries an id SHALL be rejected with
+  `item-carries-block-id`: the item becomes a blank line, and the id would be left naming
+  whatever ends above it.
 - Where an operation puts a node directly under an attached id, the seam SHALL hold a blank line
   when the id's node is not a list item, since a block directly under the id detaches it; below
   a list item's id, the seam SHALL be the one below a paragraph line of the item, since text
@@ -73,6 +75,10 @@ attached ids are the ones the operation's result states.
 #### Scenario: A merge of two nodes with ids is rejected
 - **WHEN** two paragraphs that both carry attached ids are merged
 - **THEN** the merge is rejected with `merge-not-expressible` and the document is unchanged
+
+#### Scenario: Unwrapping an empty item that carries an id is rejected
+- **WHEN** Enter is pressed on an empty `- ` item with `^x` attached below it
+- **THEN** the operation is rejected with `item-carries-block-id`, and the document is unchanged
 
 #### Scenario: Closure with ids
 - **WHEN** the operation property suites run over generated documents that include attached and

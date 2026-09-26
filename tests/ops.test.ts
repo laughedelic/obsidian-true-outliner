@@ -1158,6 +1158,11 @@ describe('list item unwrap', () => {
       ok: false,
       rejection: { reason: 'cannot-unwrap' },
     });
+    const withId = parse('- a\n- \n\n  ^x\n');
+    expect(unwrapListItem(withId, byLine(withId, '- '))).toMatchObject({
+      ok: false,
+      rejection: { reason: 'item-carries-block-id' },
+    });
   });
 
   // Unwrapping is a removal from the item's own level, so it reaches the same

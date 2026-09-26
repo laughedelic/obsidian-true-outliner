@@ -20,6 +20,7 @@ export type RejectionReason =
   | 'merge-not-expressible'
   | 'insertion-not-expressible'
   | 'cannot-unwrap'
+  | 'item-carries-block-id'
   | 'would-leave-zoom-scope';
 
 export interface Rejection {

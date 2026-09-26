@@ -46,8 +46,9 @@
 ## 4. Operations carry the id
 
 - [x] 4.1 In `src/ops.ts` and `src/reencode.ts`, re-indent `blockId.line` wherever a node's lines are
-      re-indented or re-encoded, including `reindentSubtreeVerbatim`, `reencodeForDestination` and
-      `unwrapListItem`, to the content column for a list item and the node's column otherwise (D4).
+      re-indented or re-encoded, including `reindentSubtreeVerbatim` and `reencodeForDestination`,
+      to the content column for a list item and the node's column otherwise (D4). `unwrapListItem`
+      rejects an item that carries an id with `item-carries-block-id`.
 - [x] 4.2 `splitNode` keeps `blockId` on the first half; `mergeNodes` keeps the one that exists and
       rejects with `merge-not-expressible` when both carry one (D4).
 - [x] 4.3 `needsBlankBetween` asks for a blank line below a non-list-item node with an attached id,

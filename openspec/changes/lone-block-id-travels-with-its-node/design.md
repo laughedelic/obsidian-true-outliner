@@ -92,8 +92,8 @@ comment), repeated for a second boundary.
 Moves, deletions, covers and group forms carry the id with no change, because it is inside the
 node's own span. The paths that rewrite a node's lines each handle it once:
 
-- `reindentSubtreeVerbatim`, the shift functions in `reencode.ts`, `reencodeForDestination` and
-  `unwrapListItem` re-indent `blockId.line` with the node: to the content column when the node is
+- `reindentSubtreeVerbatim`, the shift functions in `reencode.ts` and `reencodeForDestination`
+  re-indent `blockId.line` with the node: to the content column when the node is
   or becomes a list item, to the node's own column otherwise. Gap lines are blanked as every gap
   is.
 - `splitNode` leaves `blockId` on the node that keeps the first line.

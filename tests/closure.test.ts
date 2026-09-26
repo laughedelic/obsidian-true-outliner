@@ -32,6 +32,7 @@ const KNOWN_REASONS = new Set([
   'reorder-not-expressible',
   'would-orphan-children',
   'cannot-unwrap',
+  'item-carries-block-id',
 ]);
 
 /** Pick the nth node (document order) — deterministic target selection. */
