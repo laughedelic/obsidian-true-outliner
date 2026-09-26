@@ -270,7 +270,7 @@ With `lone-block-id-travels-with-its-node` applied, 25 September 2026, Obsidian 
   command on the table writes the table, blank, `^t1`, blank, `Intro.`, and
   `CachedMetadata.blocks.t1` starts on the table's first line; `openLinkText('Note#^t1')` puts the
   caret on the table. On `main` at 42130da the same move writes `^t1` under `Intro.`
-  (`e2e/specs/57-misplaced-block-ids.e2e.ts`, "a link to an attached block id").
+  (`e2e-tests/specs/57-misplaced-block-ids.e2e.ts`, "a link to an attached block id").
 - **A tight seam gains a line.** A node ending in an attached id, landing on a seam with no blank
   line, takes one below its id: Obsidian reads an id with a block directly under it as naming
   only its own line (`^f1`, `^f7`). Moving it back leaves that line with the node it passed, so a
