@@ -119,4 +119,4 @@ The typing rows are unchanged: those edits are not the plugin's, and
 `transaction-classification` requires a within-node edit to land exactly as it would with our
 filter absent. One consequence stands out: after ⏎ at the end of the LAST nested item, typing the
 new item's text still turns `2. q` into `3. q`. Whether outline mode should keep Obsidian's
-renumbering off typing too is a decision of its own, not made here.
+renumbering off typing too is a decision of its own, not made here: [#263](https://github.com/laughedelic/obsidian-true-outliner/issues/263).
