@@ -11,7 +11,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ChangeSet, EditorSelection, EditorState } from '@codemirror/state';
+import { EditorSelection, EditorState } from '@codemirror/state';
 import { history, redo, undo, undoDepth } from '@codemirror/commands';
 import { planKey, plannedCaret, type GrammarKey } from '../src/plugin/grammar';
 import {
