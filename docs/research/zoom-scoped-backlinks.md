@@ -206,3 +206,40 @@ does today, and the control says why the narrower answers are unavailable.
 The drawn comparison lives on a design canvas linked from the change's pull request; the options
 and their trade-offs are recorded here so the decision does not depend on the drawing staying
 reachable.
+
+## The control in the real footer
+
+A on desktop is chosen; D, icon-only, is the candidate for phone width. Both were then put into the
+real footer:
+[`prototypes/zoom-scope-control-probe/scope-control-capture.e2e.ts.txt`](prototypes/zoom-scope-control-probe/scope-control-capture.e2e.ts.txt)
+zooms into `## Current sprint` of a note with five linking sources and rewrites the footer's own
+header into each variant — A's chip and menu under several names for the answers, D's segments
+with two icon sets — in Obsidian 1.13.7, dark and light, on desktop and under the app's own mobile
+emulation. The screenshots are on the same canvas.
+
+| Variant | Footer | Measured |
+| --- | --- | --- |
+| A, the root's name: "Current sprint and below" | 604 px | chip 225 px; header one row |
+| A, a 78-character root name, label capped at 16rem | 604 px | 39% of the label shown |
+| A, "this node and below" / "this node and its children" | 604 px | chip 190 / 229 px |
+| A, "this subtree" / "this branch" | 604 px | chip 130 / 125 px |
+| A's menu, the three names with counts | 604 px | 192–234 × 104 px |
+| A, "Backlinks to" and "this node and below", the chip shrinking first | 330 px | 38% of the label shown ("this n…") |
+| A, "Backlinks" and the same chip | 330 px | 51% shown |
+| A, the chip's glyph alone | 330 px | 40 × 18 px |
+| D, three icons, the header's own button size | 330 px | 20 × 20 px each; header one row |
+| D at a touch size, 2.2em | 330 px | 28 × 28 px each; header 32 px tall |
+| D with a count in each segment | 330 px | 36, 36 and 45 × 20 px |
+
+Every desktop variant keeps the header on one row. At phone width A's words do not survive: with
+the chip allowed to shrink before the title, its label keeps a third to a half of itself, and
+a label cut mid-word names nothing. D's segments are the size of the filter and sort buttons
+beside them (20 px under emulation) and keep the row intact. With the chosen segment marked by
+the hover fill alone, the mark is a faint square that is easy to miss in both themes; in the
+accent colour the chosen one is the first thing seen. Both icon sets keep their shape at 20 px:
+Lucide's `circle-dot`, `list-tree` and `file-text`, and a set drawn from the outline's own
+bullets — a dot, a dot over nested dots, a page.
+
+Every size here is below the 44 px touch target of the platform guidelines, as the header's
+existing buttons already are. Emulation is not a device: the app's mobile font sizes and
+safe-area insets on a phone, and what a tap on a 20 px segment feels like, were not measured.
