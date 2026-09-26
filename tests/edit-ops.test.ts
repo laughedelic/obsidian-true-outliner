@@ -1317,8 +1317,8 @@ describe('a seam is judged on the kind the re-parse will see', () => {
   it('a list item is separated from a sibling its continuation lines would claim', () => {
     // A sibling at or past the item's content column is read as more of the
     // item's text unless its first line opens a block the continuation loop
-    // stops at. No gesture writes a sibling there, so the seam is built
-    // directly and handed to `finalize`, which every operation ends in. What
+    // stops at. The seam is built directly and handed to `finalize`, which
+    // every operation ends in, so each kind is tried in isolation. What
     // is kept is the node, not the sibling relation: a line at the content
     // column has no sibling encoding, and most kinds come back as the item's
     // child.
@@ -1367,6 +1367,30 @@ describe('a seam is judged on the kind the re-parse will see', () => {
       '- item\n  | a |\n  | - |',
       'list-item: - item\n  table: | a |',
     ]);
+  });
+
+  it('deleting the node between a list item and a heading at its content column keeps the heading', () => {
+    // A blank line makes `  ## H` a heading of its own; removing the node
+    // above it leaves the item's own lines directly over it, where the
+    // continuation loop would read the heading, and the paragraph its section
+    // holds, as more of the item's text.
+    const doc = parse('- item\n- other\n\n  ## H\n\nmore\n');
+    const result = deleteSubtrees(doc, [byLine(doc, '- other').id]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('- item\n\n  ## H\n\nmore\n');
+    expect(shape(encode(result.value.doc))).toBe(
+      ['list-item: - item', 'h2: ## H', '  paragraph: more'].join('\n'),
+    );
+  });
+
+  it('deleting a paragraph between a list item and a rule at its content column keeps the rule', () => {
+    const doc = parse('- item\npara\n\n  ---\n');
+    const result = deleteSubtrees(doc, [byLine(doc, 'para').id]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('- item\n\n  ---\n');
+    expect(shape(encode(result.value.doc))).toBe(['list-item: - item', '  hr: ---'].join('\n'));
   });
 
   it('a seam that stays inside the margin is left flush, as it was', () => {
