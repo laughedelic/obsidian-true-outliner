@@ -37,6 +37,7 @@
  */
 
 import { type EditorState,
+  type Annotation,
   ChangeSet,
   EditorSelection,
   Prec,
@@ -69,6 +70,7 @@ import { foldedEntryAt } from "./fold-service";
 import { unfoldEffectsFor } from "./fold-ops";
 import { isNestedEditor } from "./nested-editor";
 import { isOutlineMode } from "./outline-state";
+import { plannedChanges } from "./planned-changes";
 import type { EditorChange } from "./dispatch";
 import {
   abandonEdit,
@@ -191,9 +193,11 @@ function makeHandler(key: GrammarKey) {
     // Building that resulting text is the only reason to apply the change set
     // twice, so it happens only for the operations that state a removal —
     // indent and the moves state none, and they are the keys held down in runs.
-    const annotations = outcome.plan.abandon
-      ? abandonEdit.of(toOffsets(outcome.plan.abandon, ChangeSet.of(changes, doc.length).apply(doc)))
-      : undefined;
+    const changeSet = ChangeSet.of(changes, doc.length);
+    const annotations: Annotation<unknown>[] = [plannedChanges.of(changeSet)];
+    if (outcome.plan.abandon) {
+      annotations.push(abandonEdit.of(toOffsets(outcome.plan.abandon, changeSet.apply(doc))));
+    }
     // A plan states a caret (an offset) or a block cover (a pair). The cover
     // keeps the ORIENTATION the user's own selection had, so a run built by
     // extending upward still grows upward on the next Shift+ArrowUp rather than
@@ -210,7 +214,7 @@ function makeHandler(key: GrammarKey) {
       selection,
       userEvent: outcome.plan.userEvent,
       scrollIntoView: true,
-      ...(annotations ? { annotations } : {}),
+      annotations,
     });
     return true;
   };

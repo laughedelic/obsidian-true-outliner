@@ -59,6 +59,7 @@ import {
   previousNodeInOrder,
 } from '../caret';
 import { parsedDoc } from './parsed-doc';
+import { plannedChanges } from './planned-changes';
 
 /**
  * What one view remembers about the empty place its last structural keypress
@@ -385,6 +386,7 @@ function cancel(view: EditorView, record: CreatedPlace, target: number): void {
     selection: EditorSelection.cursor(caret),
     userEvent: ABANDON_EVENT,
     scrollIntoView: true,
+    annotations: plannedChanges.of(abandon),
   });
 }
 
