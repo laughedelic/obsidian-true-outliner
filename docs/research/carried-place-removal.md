@@ -128,16 +128,50 @@ the document the carrying key produced, by the plan that knows where the place n
 
 ## Removing a carried empty node
 
-The node shapes above, as each stands after its carrying key, handed to `deleteSubtreeGroups`
-with the empty item as the only group and the edit applied to the text (a unit probe on `main` at
-`3c91c9a`). Every result is the document before the key that opened the place, and the two
-ordered runs come out numbered as if the item had never been there. That includes `q`, which the
-Enter had moved to `3.`.
+Two ways of removing the empty item after its carry were probed at unit level through `planKey`,
+on `main` at `3c91c9a`, two-space unit.
 
-| After the carry | After removing the empty item |
+**Deleting the node** (`deleteSubtreeGroups` over the carried document) gives back the pre-Enter
+document only where nothing follows the list and the item has no children. The five shapes this
+note first tried all qualified:
+
+| After the carry | After deleting the empty item |
 | --- | --- |
 | `1. a` / `⏵   1. ` / `2. b` | `1. a` / `2. b` |
 | `1. p` / `   1. a` / `2. ` / `3. q` | `1. p` / `   1. a` / `2. q` |
 | `- one` / `- foo` / `⏵   - ` | `- one` / `- foo` |
 | `- a` / `  - b` / `- ` | `- a` / `  - b` |
 | `- a` / `  - b` / `- ` / `- c` | `- a` / `  - b` / `- c` |
+
+It fails in two common families, both found by review:
+
+- **A blank line after the list.** The Enter gives the new item the list's trailing gap, and
+  deleting the item takes the gap with it. `- foo` / `` / `para` with ⏎ ⇥ becomes `- foo` /
+  `para`, which Markdown reads as one paragraph continuing the item. A loose list becomes tight the
+  same way.
+- **An outdent that adopts siblings.** Outdent re-parents the node's following siblings under it,
+  so a ladder ⏎ ⏎ in the middle of a nested list gives the empty item a child. Deleting the subtree
+  deletes that sibling; dropping only the line leaves the ordered numbering wrong.
+
+**Reverting the carries, then applying the opening removal**, gives back the document before the
+opening Enter exactly, in every shape probed. The carrying key's own reversal, stated as the
+`reverse` form against its result, is composed with the removal the place held before the carry.
+
+| Shape | Keys | Carried | Restored exactly |
+| --- | --- | --- | --- |
+| `- a` / `  - b┃` / `  - c` | ⏎ ⏎ | `- a` / `  - b` / `- ` / `  - c` | yes |
+| `- a` / `  - b┃` / `` / `para` | ⏎ ⏎ | `- a` / `  - b` / `- ` / `` / `para` | yes |
+| `- foo┃` / `` / `para` | ⏎ ⇥ | `- foo` / `  - ` / `` / `para` | yes |
+| `- foo┃` / `` / `- bar` | ⏎ ⇥ | `- foo` / `  - ` / `` / `- bar` | yes |
+| `1. p` / `   1. a┃` / `   2. b` / `2. q` | ⏎ ⇧⇥ | `1. p` / `   1. a` / `2. ` / `   3. b` / `3. q` | yes |
+| `1. a┃` / `2. b` | ⏎ ⇥ | `1. a` / `   2. ` / `2. b` | yes |
+| `## Foo┃` / `body` / `## Bar` / `text` | ⇧⏎ ⇧⇥ | `## Foo` / `body` / `#` / `## Bar` / `text` | yes |
+
+## The nested ordered Enter
+
+In the live editor, ⏎ at the end of `   1. a` in `1. p` / `   1. a` / `2. q` gives
+`   2. ` and turns `2. q` into `3. q`. With `   2. b` after `a`, it gives `   3. b` and `4. q`.
+`planKey`'s own plan for that Enter touches only the inserted line. ⏎ then ↑ in the same shape
+returns `1. p` / `   1. a` / `2. q`, so the renumbering arrives within the transaction the removal
+record is kept for, and the reversal undoes it. Where the renumbering comes from is not located
+here. The removal is correct either way.

@@ -16,17 +16,20 @@ specified behaviour.
 
 - A place that still has a removal record when a key carries it keeps one after the carry. Tab,
   Shift+Tab, the empty-item ladder's outdent and the equivalent commands all carry. Declining the
-  place afterwards removes it exactly as declining it before the carry would have: one ⌫, one
-  Delete, or moving away with nothing typed. Everything the carrying key did stays.
-- The removal is restated against the document the carrying key produced, by the operation that
-  carried it. It is not carried over from the edit the place was opened with.
-- A carried provisional position is removed as a line. A carried EMPTY NODE is removed as a node,
-  whatever its indentation. An ordered run it belonged to is renumbered as if it had never been
-  there.
+  place afterwards removes it, by any gesture that declines a fresh one.
+- A carried provisional position is removed as its line, and what the carrying key did to its item
+  stands. A carried EMPTY NODE is removed by reverting the carries along with it, so the document
+  returns to what it was before the key that opened it. That includes siblings an outdent adopted,
+  runs a carry renumbered, and blank lines around the list.
+- These removals are stated by the operations involved. The one the place was opened with is not
+  simply mapped through the carry.
 - A carry that begins on a place with no removal record creates none. An already-empty item the
   user moved is still left alone.
 - ⌫ on a carried place returns the caret to where the key that opened the place started, as it
-  does for a fresh one.
+  does for a fresh one. That includes a position Shift+Tab re-created, where ⌫ lands in the node
+  below today.
+- Every gesture that declines a fresh place declines a carried one: moving away, ⌫, Delete, Enter
+  on the place, and the bullet drag's pick-up.
 
 ## Capabilities
 
@@ -41,8 +44,8 @@ None.
 
 ## Impact
 
-- `src/plugin/grammar.ts`: a removal form that removes whatever place the caret is on — a line for a
-  position, the node for an empty node. Indent and outdent state it.
+- `src/plugin/grammar.ts`: indent and outdent state their own reversal, and indent its line
+  removal, when they carry a place.
 - `src/plugin/provisional-cleanup.ts`: the recorder keeps a removal record across a carry when one
   was live on the place the carry began on.
 - `src/plugin/keymap.ts` and `src/plugin/main.ts`: both dispatch paths hand the recorder the
@@ -58,5 +61,3 @@ None.
 - The Enter that renumbered a parent's ordered run in the live editor, although its plan does not
   (`docs/research/carried-place-removal`, "Ordered, Enter then Shift+Tab"), is not located or fixed
   here. The abandon only has to leave that run numbered correctly.
-- An empty node that has children is not removed on abandon. Nothing that creates a place creates
-  one with children, and removing its line would re-parent them.
