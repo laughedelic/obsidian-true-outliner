@@ -7,6 +7,8 @@ import { forestCoverOf } from '../src/escalate';
 import { groupRootsByParent } from '../src/operand';
 import { nodeStartLine } from '../src/locate';
 import { applyEdits } from '../src/result';
+import { indentWidth } from '../src/parse';
+import { markerWidthOf } from '../src/reencode';
 import {
   indent,
   indentGroups,
@@ -233,6 +235,23 @@ describe('2.8 group operations uphold closure, totality and minimal edits', () =
     const drifted = parse(['9. L2', '10. L0', '     - L1'].join('\n'));
     expect(firstLinesKeptAbove(doc, ['L2'], drifted)).toBeUndefined();
   });
+
+  /**
+   * A tab after the marker runs to the next tab stop, so the content column
+   * is what moves, not the digit count: `9.⇥` and `10.⇥` both reach column 4
+   * and `- L1` stays; `99.⇥` reaches 4 and `100.⇥` reaches 8, so it moves four.
+   */
+  it('a tab after the marker moves the subtree by its content column', () => {
+    const same = parse(['9.\tL0', '    - L1', '10.\tL2'].join('\n'));
+    const kept = applied(same, 'L2', moveGroupsUp);
+    expect(encode(kept).split('\n')).toEqual(['9.\tL2', '10.\tL0', '    - L1']);
+    expect(firstLinesKeptAbove(same, ['L2'], kept)).toBe(1);
+
+    const wider = parse(['99.\tL0', '    - L1', '100.\tL2'].join('\n'));
+    const moved = applied(wider, 'L2', moveGroupsUp);
+    expect(encode(moved).split('\n')).toEqual(['99.\tL2', '100.\tL0', '        - L1']);
+    expect(firstLinesKeptAbove(wider, ['L2'], moved)).toBe(1);
+  });
 });
 
 /** The document a group operation leaves, with `label`'s node as the operand. */
@@ -244,16 +263,6 @@ function applied(
   const result = op(doc, [[nodeByLabel(doc, label)!.id]]);
   if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
   return result.value.doc;
-}
-
-/** The width of an ordered marker as written on `line`, digits and delimiter. */
-function orderedMarkerWidth(line: string): number {
-  return /^[ \t]*(\d{1,9}[.)])/.exec(line)?.[1]!.length ?? 0;
-}
-
-/** A line's leading whitespace, in characters; the generator indents with spaces. */
-function indentOf(line: string): number {
-  return line.length - line.trimStart().length;
 }
 
 /**
@@ -269,7 +278,8 @@ function indentOf(line: string): number {
  * consecutive is normalized wherever it stands, the operand's own ancestors
  * included. A renumbered marker that changes width moves its item's content
  * column, and its whole subtree moves with it; so a node under ordered items
- * keeps its text and moves by exactly the sum of their width changes.
+ * keeps its text and moves by exactly the sum of their content columns' moves,
+ * and a node under none of them keeps its first line verbatim.
  */
 function firstLinesKeptAbove(
   before: OutlineDoc,
@@ -279,7 +289,8 @@ function firstLinesKeptAbove(
   const firstRootLine = Math.min(
     ...labels.map((label) => nodeStartLine(before, nodeByLabel(before, label)!.id)),
   );
-  // Each node's shift: the width its ordered ancestors' markers gained.
+  // Each node's shift: the columns its ordered ancestors' content columns
+  // moved by, read the way the parser reads them, tab stops included.
   const shift = new Map<number, number>();
   const measure = (nodes: readonly OutlineNode[], inherited: number): void => {
     for (const node of nodes) {
@@ -288,7 +299,7 @@ function firstLinesKeptAbove(
       if (node.listStyle?.type === 'ordered') {
         const renumbered = nodeByLabel(after, labelOf(node)!);
         if (renumbered) {
-          own = orderedMarkerWidth(renumbered.lines[0]!) - orderedMarkerWidth(node.lines[0]!);
+          own = markerWidthOf(renumbered.lines[0]!) - markerWidthOf(node.lines[0]!);
         }
       }
       measure(node.children, inherited + own);
@@ -310,8 +321,9 @@ function firstLinesKeptAbove(
     if (!moved) return undefined;
     const was = node.lines[0]!;
     const is = moved.lines[0]!;
-    if (is.trimStart() !== was.trimStart()) return undefined;
-    if (indentOf(is) !== indentOf(was) + shift.get(node.id)!) return undefined;
+    const by = shift.get(node.id)!;
+    if (by === 0 ? is !== was : is.trimStart() !== was.trimStart()) return undefined;
+    if (indentWidth(is) !== indentWidth(was) + by) return undefined;
     checked++;
   }
   return checked;
