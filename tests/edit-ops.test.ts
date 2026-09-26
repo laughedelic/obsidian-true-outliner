@@ -5,6 +5,7 @@ import { encode } from '../src/encode';
 import { makeNode, treesEqual, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
 import {
   deleteSubtrees,
+  finalize,
   indent,
   insertSubtrees,
   mergeNodes,
@@ -1311,6 +1312,40 @@ describe('a seam is judged on the kind the re-parse will see', () => {
     if (!result.ok) return;
     expect(encode(result.value.doc)).toBe('- top\n  - alpha\n\n  | x |\n  | - |\n\n  - see [[a|b]]\n');
     expect(byLine(result.value.doc, '  - see [[a|b]]').kind).toBe('list-item');
+  });
+
+  it('a list item is separated from a sibling its continuation lines would claim', () => {
+    // A sibling at or past the item's content column is read as more of the
+    // item's text unless its first line opens a block the continuation loop
+    // stops at. No gesture writes a sibling there, so the seam is built
+    // directly and handed to `finalize`, which every operation ends in.
+    const item = () =>
+      makeNode({ kind: 'list-item', lines: ['- item'], listStyle: { type: 'bullet', marker: '-' } });
+    const seam = (next: OutlineNode): string => {
+      const left = item();
+      const result = finalize(parse(''), { preamble: [], children: [left, next] }, left.id);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return '';
+      expect([...walkNodes(result.value.doc)].map((n) => n.lines), next.lines[0]).toEqual([
+        ['- item'],
+        next.lines,
+      ]);
+      return encode(result.value.doc);
+    };
+    // Claimed by the loop, so separated.
+    expect(seam(makeNode({ kind: 'heading', level: 2, lines: ['  ## H'] }))).toBe('- item\n\n  ## H');
+    expect(
+      seam(makeNode({ kind: 'heading', level: 1, setext: true, lines: ['  Title', '  ====='] })),
+    ).toBe('- item\n\n  Title\n  =====');
+    expect(seam(makeNode({ kind: 'hr', lines: ['  ---'] }))).toBe('- item\n\n  ---');
+    expect(seam(makeNode({ kind: 'paragraph', lines: ['  text'] }))).toBe('- item\n\n  text');
+    // Openers the loop stops at are left flush: a separator there would be one
+    // the parse does not need.
+    expect(seam(makeNode({ kind: 'quote', lines: ['  > q'] }))).toBe('- item\n  > q');
+    expect(seam(makeNode({ kind: 'hr', lines: ['  - - -'] }))).toBe('- item\n  - - -');
+    expect(seam(makeNode({ kind: 'table', lines: ['  | a |', '  | - |'] }))).toBe(
+      '- item\n  | a |\n  | - |',
+    );
   });
 
   it('a seam that stays inside the margin is left flush, as it was', () => {
