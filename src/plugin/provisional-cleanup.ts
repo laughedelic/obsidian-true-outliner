@@ -613,9 +613,9 @@ export function carriedRecordOf(view: EditorView, startedOn: number | null): Cre
  * its opening kind and its opening start — with a removal restated for where
  * the place now is: its line, for a place opened as a position; the carry's
  * own reversal composed with the previous removal, for a place opened as a
- * node. Nothing is written when the removal that needs was not stated, or when
- * the pieces do not fit together, which leaves the place standing: the safe
- * direction. Taking this branch first is what keeps an outdent over an opened
+ * node. When the removal that needs was not stated, or the pieces do not fit
+ * together, the dispatch is read as the creating branch reads it, and where
+ * that finds nothing the place stands: the safe direction. Taking this branch first is what keeps an outdent over an opened
  * position from being read as a creation, whose record would carry the
  * outdent's own start.
  *
@@ -640,16 +640,22 @@ export function nextRecords(
         abandon = reversal.compose(carried.record.abandon);
       }
     }
-    return {
-      open,
-      removal: abandon && {
-        depth: undoDepth(state),
-        line: open,
-        startedAt: carried.startedAt,
-        abandon,
-        opened: carried.record.opened,
-      },
-    };
+    if (abandon) {
+      return {
+        open,
+        removal: {
+          depth: undoDepth(state),
+          line: open,
+          startedAt: carried.startedAt,
+          abandon,
+          opened: carried.record.opened,
+        },
+      };
+    }
+    // The removal it needs was not stated, or the pieces did not fit together.
+    // Fall through: where the dispatch also CREATED a place — the ladder's
+    // unwrap, an outdent dissolving an item — its own removal still applies,
+    // which is what it was before carries were recorded at all.
   }
 
   // BOTH must agree, and they are independent by contract: the dispatch
@@ -741,7 +747,13 @@ export function provisionalCleanup(inOutlineMode: (view: EditorView) => boolean)
         // had open, and only when the caret was actually on it when the
         // transaction began. A key pressed anywhere else carries nothing.
         const startedOn = carriedPlace(last.startState, openBefore);
-        const carried = carriedRecord(recordBefore, last.startState, startedOn);
+        // Only an update that IS the carrying dispatch: `recordBefore` belongs
+        // to the update's start, and with an earlier transaction in between
+        // the reversal would compose over a document it was not stated against.
+        const carried =
+          update.transactions.length === 1
+            ? carriedRecord(recordBefore, last.startState, startedOn)
+            : undefined;
         recordDispatch(view, {
           event: last.annotation(Transaction.userEvent) ?? undefined,
           startedOn,

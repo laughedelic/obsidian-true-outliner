@@ -307,6 +307,7 @@ function session(
   text: string,
   at: { line: number; ch: number },
   keys: readonly GrammarKey[],
+  { withholdReversal = false } = {},
 ): { state: EditorState; place: number | null; removal: CreatedPlace | undefined } {
   let state = stateOf(text, at.line, at.ch);
   let place: number | null = null;
@@ -352,7 +353,8 @@ function session(
             },
           }
         : {}),
-      reversal: plan.carryReversal && toSpec(state.doc, plan.carryReversal),
+      reversal:
+        withholdReversal || !plan.carryReversal ? undefined : toSpec(state.doc, plan.carryReversal),
     });
     place = next.open;
     removal = next.removal;
@@ -380,6 +382,17 @@ describe('a carry keeps the removal record, on its own conditions', () => {
     const src = 'para\n  - a\n  - b\n';
     const done = session(src, { line: 1, ch: 5 }, ['split', 'split']);
     expect(done.removal?.opened).toBe('node');
+    expect(abandoned(done)).toBe(src);
+  });
+
+  it('a dissolve whose reversal cannot be composed keeps its own line removal', () => {
+    // The ladder's unwrap at the top level both carries the empty item and
+    // CREATES a gap place. Without a composable reversal it falls back to the
+    // creating record, which is what it had before carries were recorded.
+    const src = '- foo\n';
+    const done = session(src, { line: 0, ch: 5 }, ['split', 'split'], { withholdReversal: true });
+    expect(done.state.doc.toString()).toBe('- foo\n\n');
+    expect(done.removal?.opened).toBe('gap');
     expect(abandoned(done)).toBe(src);
   });
 

@@ -103,7 +103,13 @@ what a carry has since turned it into:
   node's own line or subtree was measured to lose blank lines and to re-parent or delete siblings
   (`docs/research/carried-place-removal`).
 
-This adds to the two removal forms "An unused structural keypress has its place removed" states. Its
+This adds to the two removal forms "An unused structural keypress has its place removed" states,
+and for a place opened as an empty node it takes precedence over the dissolution form. When the
+empty-item ladder dissolves an item that Enter has just made, declining the residue reverts the
+dissolve along with the Enter. The item still does not come back, since it did not exist before
+the Enter, but a sibling the dissolve moved goes back where it was. The dissolution form still
+governs an empty item nothing just opened. Where the reversal cannot be composed with the record
+it follows, the dissolution form applies as before. Its
 removal is still stated by the operations involved and never derived from the resulting document.
 A position's line is stated by the carrying operation against its own result. A node's reversal is
 the carrying operation's own reversal, composed with the removal the place held before that carry.

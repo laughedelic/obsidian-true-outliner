@@ -320,8 +320,7 @@ function notAnOutlineGesture(
  * `abandon-carried-place` closed the one state that briefly had a place record
  * and no removal record — a place a key had CARRIED — by passing the removal
  * record across the carry. A carried place now abandons under these handlers
- * exactly as a fresh one does, so there is no state left where an open place
- * would survive their own selection.
+ * exactly as a fresh one does, wherever its removal could be restated.
  *
  * So this is left as it is. Closing it means giving a provisional position
  * provenance that survives undo and redo, which is a change of its own;
