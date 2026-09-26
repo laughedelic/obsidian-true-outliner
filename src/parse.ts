@@ -266,6 +266,27 @@ function looksLikeTable(lines: readonly string[], i: number): boolean {
 }
 
 /**
+ * Whether `lines[i]` is one more of a list item's own lines, following its
+ * marker line or an earlier one with no blank between: a non-blank line
+ * indented to the item's content column that does not start a nested block
+ * the item's text stops at. Every other line at that column is claimed, a
+ * heading and a rule included. The seam normalization asks this same question
+ * about a node written below a list item, so the two cannot disagree.
+ */
+export function continuesListItem(lines: readonly string[], i: number, contentCol: number): boolean {
+  const line = lines[i];
+  return (
+    line !== undefined &&
+    !isBlank(line) &&
+    indentWidth(line) >= contentCol &&
+    !LIST_ITEM_RE.test(line) &&
+    !FENCE_OPEN_RE.test(line) &&
+    !QUOTE_RE.test(fromMargin(line, contentCol)) &&
+    !looksLikeTable(lines, i)
+  );
+}
+
+/**
  * Would this line terminate an open paragraph by starting another block?
  * `margin` is the content column of the list item the paragraph sits in.
  *
@@ -405,17 +426,7 @@ function segment(lines: readonly string[], start: number): Block[] {
         gap: [],
       };
       i++;
-      // Continuation: non-blank lines indented to the content column that do
-      // not start a nested block themselves (multiline nodes).
-      while (
-        i < lines.length &&
-        !isBlank(lines[i]!) &&
-        indentWidth(lines[i]!) >= marker.contentCol &&
-        !LIST_ITEM_RE.test(lines[i]!) &&
-        !FENCE_OPEN_RE.test(lines[i]!) &&
-        !QUOTE_RE.test(fromMargin(lines[i]!, marker.contentCol)) &&
-        !looksLikeTable(lines, i)
-      ) {
+      while (i < lines.length && continuesListItem(lines, i, marker.contentCol)) {
         block.lines.push(lines[i]!);
         i++;
       }

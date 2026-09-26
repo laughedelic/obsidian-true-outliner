@@ -113,7 +113,7 @@ the root's 4 are `- - -` at column 4, the same #138 row:
 
 | shape | shapes | where |
 | --- | --- | --- |
-| an `hr` or `<div>` directly under an item's marker line, no blank | 74 | a continuation to us; CommonMark interrupts. The latent list-item half of #197 |
+| an `hr` or `<div>` directly under an item's marker line, no blank | 74 | a continuation to us; CommonMark interrupts. The seam loss it caused, the list-item half of #197 (reached by a delete or a drag), is closed by #246; the reading itself stands |
 | `- - -` four or more columns past a margin | 40 | a list item to us; indented code, or a lazy continuation with no blank, to CommonMark. #138 and Q35 |
 | `<div>` at a child column after a blank line | 34 | a paragraph to us, an HTML block to CommonMark; left out above |
 
@@ -154,6 +154,31 @@ The 3 249-pair bare-seam sweep reads 63 wrong pairs on `main` and 63 with the pa
 pairs. Its oracle reads a node below a list item from the item's content column
 (`seam-sweep-margin.test.ts.txt`); read at the root, a node at a child column would be judged by
 a margin the parser no longer uses.
+
+## Measured: a quote at column 0 directly under an item, by reader
+
+Two documents: `- item` / `> q`, and the same with a blank line between the two lines. The four
+readers split one way on the first and agree on the second:
+
+| reader | `- item` / `> q` | `- item` / blank / `> q` |
+| --- | --- | --- |
+| `commonmark` 0.31.2 and `markdown-it` | a top-level quote | a top-level quote |
+| Live Preview | a top-level quote | a top-level quote |
+| `parse` | a top-level quote | a top-level quote |
+| reading mode | a quote aligned with the item | a top-level quote |
+
+The two reference parsers produce byte-identical HTML for both documents (a one-item list, then
+a blockquote). Laziness in CommonMark extends paragraph text only, and a `>` line opens a block
+of its own. Live Preview draws the two documents alike apart from the blank line. Reading mode
+alone reads the flush quote as continuing the item. The two Obsidian rows were observed by hand
+in a real instance (2026-09-26); the rest were run.
+
+We keep the top-level reading. Where the readers disagree we follow the surface being edited (the
+rule `document-tree-mapping` states for `a-marker-needs-a-space-to-be-a-marker`), and Live
+Preview agrees with CommonMark here. Following reading mode would mean adopting lazy continuation,
+which `parse` implements nowhere. The visible cost is confined to reading mode: a quote written
+flush under an item is placed there as part of it, where the outline shows it as the item's
+sibling. Indenting the quote as a child makes all four readers agree.
 
 ## Not measured
 
