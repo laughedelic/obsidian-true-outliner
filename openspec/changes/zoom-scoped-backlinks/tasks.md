@@ -10,13 +10,15 @@
 
 ## 2. Anchors of a parsed document
 
-- [ ] 2.1 Create `src/anchors.ts` with `anchorsOf(doc)` per design D2: headings with their text and
-      level, block ids with their lower-cased key, each with its start line and owning node id, in
-      document order. Verify with `tests/anchors.test.ts` holding the seventeen shapes of
-      `docs/research/zoom-scoped-backlinks` as a table of text → expected start line and owning
-      node kind, plus the heading-text rows (closing hashes, setext, trailing spaces, inline markup
-      kept, an id kept in the text). Negative control: attribute a lone id line to its own
-      paragraph and confirm the nine lone-id rows fail
+- [ ] 2.1 Create `src/anchors.ts` with `anchorsOf(doc)` per design D2, reading attached ids from
+      `OutlineNode.blockId` and misplaced ones from `misplacedBlockIds`: headings with their text
+      and level, block ids with their lower-cased key, each with its start line and owning node id,
+      in document order. Verify with `tests/anchors.test.ts` holding the 68 shapes of the
+      attribution prototype in `docs/research/zoom-scoped-backlinks` as a table of text → expected
+      start line — `^f15` on the paragraph our parser makes of it, as the design's first risk
+      records — plus the heading-text rows (closing hashes, setext, trailing spaces, inline markup
+      kept, an id kept in the text). Negative controls: leave out the list-item lift and confirm
+      `^x8`–`^x10` fail; leave out the run rule and confirm `^y2` fails
 - [ ] 2.2 Add a property to `tests/anchors.test.ts` over `arbTree()` documents with ids appended to
       random lines: every anchor's owning node is `nodeAtLine(doc, line)` for its own start line.
       Negative control: return the lone id line's own line as the start and confirm the property
@@ -96,7 +98,7 @@
 - [ ] 5.1 Add the agreement case of design D9 to `e2e-tests/specs/77-footer-zoom-scope.e2e.ts`:
       for every fixture note carrying headings or block ids, each `getFileCache` heading and block
       starts on the line `anchorsOf` gives the same heading or id. Negative control: attribute a
-      lone id to its own paragraph and confirm the case fails on `Zoom target.md`
+      misplaced id to the paragraph holding it and confirm the case fails on `Zoom target.md`
 
 ## 6. Docs and landing
 
