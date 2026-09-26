@@ -10,14 +10,15 @@
  * keeps a hash of digits alone from being a numeric identifier, which may not
  * start with a zero.
  *
- * The core is the next patch above the released version, so a beta sorts above
- * the release it builds on and below the one that will contain it.
+ * The core is the next patch above the release `git describe` finds, not above
+ * the branch's `manifest.json`: a branch that has already bumped its manifest
+ * for landing would otherwise publish betas that outrank the release they
+ * become.
  *
  * Usage: node scripts/beta-version.ts <branch>, run in a full-history checkout
  * of the commit being built. Prints a `version=` line for $GITHUB_OUTPUT.
  */
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -31,11 +32,11 @@ export const slugify = (name: string): string =>
     .replace(/[^0-9A-Za-z]+/g, '-')
     .replace(/^-+|-+$/g, '') || 'branch';
 
-/** The next patch above the released version — the ceiling a branch sits under. */
+/** The next patch above a released version — the ceiling a branch sits under. */
 export const nextPatch = (version: string): string => {
   const [major, minor, patch] = (version.split('-')[0] ?? '').split('.').map(Number);
   if (patch === undefined || [major, minor, patch].some((part) => !Number.isInteger(part))) {
-    throw new Error(`manifest.json version is not a semver core: ${version}`);
+    throw new Error(`release version is not a semver core: ${version}`);
   }
   return `${major}.${minor}.${patch + 1}`;
 };
@@ -55,18 +56,18 @@ export const betaSlug = (tag: string): string | undefined =>
 
 /**
  * `git describe` against the nearest release tag: `0.13.4-12-g7b57965`, parsed
- * into the commit count and the abbreviated hash. Betas are tags too, and all
+ * into the release, the commit count and the abbreviated hash. Betas are tags too, and all
  * of them carry a hyphen, which releases never do.
  */
-const describe = (): { commits: string; hash: string } => {
+const describe = (): { release: string; commits: string; hash: string } => {
   const out = execFileSync(
     'git',
     ['describe', '--tags', '--long', '--match', '[0-9]*.[0-9]*.[0-9]*', '--exclude', '*-*'],
     { encoding: 'utf8' },
   ).trim();
-  const parts = /-(?<commits>\d+)-g(?<hash>[0-9a-f]+)$/.exec(out)?.groups;
-  if (!parts?.commits || !parts.hash) throw new Error(`unexpected git describe output: ${out}`);
-  return { commits: parts.commits, hash: parts.hash };
+  const parts = /^(?<release>.+)-(?<commits>\d+)-g(?<hash>[0-9a-f]+)$/.exec(out)?.groups;
+  if (!parts?.release || !parts.commits || !parts.hash) throw new Error(`unexpected git describe output: ${out}`);
+  return { release: parts.release, commits: parts.commits, hash: parts.hash };
 };
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
@@ -75,7 +76,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.error('usage: node scripts/beta-version.ts <branch>');
     process.exit(1);
   }
-  const { version } = JSON.parse(readFileSync('manifest.json', 'utf8'));
-  const { commits, hash } = describe();
-  console.log(`version=${nextPatch(version)}-${commits}.g${hash}.${slugify(branch)}`);
+  const { release, commits, hash } = describe();
+  console.log(`version=${nextPatch(release)}-${commits}.g${hash}.${slugify(branch)}`);
 }
