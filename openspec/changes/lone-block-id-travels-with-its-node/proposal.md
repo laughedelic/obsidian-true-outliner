@@ -20,7 +20,8 @@ misplaced, with a correction one press away (`docs/research/lone-block-id`, "Two
   skipped, wherever Obsidian names that same node: a paragraph, heading, table, quote, callout,
   fence, rule or html block outside a list item, when a blank line or the note's end follows the
   id (a block directly under it leaves Obsidian naming only the id's own line, except under a
-  quote); a list item, with the id indented to its content
+  quote or a callout, where the id is a lazy line of it); a list item, with the id indented to
+  its content
   column directly after its own lines; a list item with the id directly under it and no blank
   line. The id and the blank lines before it become part of that node's own span, the way an
   inline ` ^id` is part of its line.

@@ -225,6 +225,16 @@ describe('keys on an attached block id', function () {
     expect((await h.noticeTexts()).length).toBeGreaterThan(0);
   });
 
+  it('moves End and Home along the id\'s own text', async function () {
+    await h.setCursorSettled(6, 1);
+    await browser.keys(Key.End);
+    await browser.pause(100);
+    expect(await h.getCursor()).toEqual({ line: 6, ch: 3 });
+    await browser.keys(Key.Home);
+    await browser.pause(100);
+    expect(await h.getCursor()).toEqual({ line: 6, ch: 0 });
+  });
+
   it('opens a line after the table from Enter at the end of its id', async function () {
     await h.setCursorSettled(6, 3);
     await browser.keys(Key.Enter);

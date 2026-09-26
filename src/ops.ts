@@ -21,7 +21,7 @@
  */
 
 import type { ListStyle, NodeKind, NodePath, OutlineDoc, OutlineNode } from './model';
-import { childrenAt, findPath, isAtom, makeNode, nodeAt, updateSiblings } from './model';
+import { blockIdSpan, childrenAt, findPath, isAtom, makeNode, nodeAt, updateSiblings } from './model';
 import { forEachNodeWithLine, nodeAtLine, nodeStartLine } from './locate';
 import { subtreeCoverOf, type Cover } from './escalate';
 import { posBefore, type LinePos } from './line-pos';
@@ -1717,7 +1717,7 @@ export function splitNode(
     if (!result.ok) return result;
     return accept({
       ...result.value,
-      anchor: { line: startLine + node.lines.length + 1, ch: positionIndent.length },
+      anchor: { line: startLine + node.lines.length + blockIdSpan(node) + 1, ch: positionIndent.length },
     });
   }
 
@@ -2657,6 +2657,9 @@ function dropLoneId(
   const id = (root.lines[0] ?? '').trim();
   const first = host.lines[0] ?? '';
   let written: OutlineNode;
+  // A paragraph inside a list item is the item's content to Obsidian: a line
+  // of it names the item, so the id stays the misplaced paragraph it is.
+  if (host.kind === 'paragraph' && inItem) return undefined;
   if (host.kind === 'paragraph' || host.kind === 'list-item') {
     const pad =
       host.kind === 'list-item'

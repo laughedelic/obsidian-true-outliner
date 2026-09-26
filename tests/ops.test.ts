@@ -1862,6 +1862,19 @@ describe('a dragged misplaced id lands as a line of the node above it', () => {
     expect(out).not.toContain('- ^l1');
   });
 
+  it('keeps an id dropped under a paragraph inside a list item a paragraph of its own', () => {
+    const md = '- a\n\n  inner\n- b\n\n^id\n';
+    const doc = parse(md);
+    const inner = first(doc, '  inner');
+    const item = first(doc, '- a');
+    const id = first(doc, '^id');
+    const result = moveSubtreesTo(doc, [[id.id]], { parentId: item.id, index: item.children.indexOf(inner) + 1 });
+    expect(result.ok).toBe(true);
+    const out = result.ok ? parse(encode(result.value.doc)) : doc;
+    expect(first(out, '  inner').lines).toEqual(['  inner']);
+    expect([...walkNodes(out)].some((node) => node.kind === 'paragraph' && node.lines[0]?.trim() === '^id')).toBe(true);
+  });
+
   it('leaves an id dropped where it already was untouched', () => {
     const md = '- a\n- b\n\n^l1\n\nAfter.\n';
     const doc = parse(md);

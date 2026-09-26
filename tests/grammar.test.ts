@@ -1107,8 +1107,14 @@ describe('grammar planner: keys on an attached block id', () => {
     expect(outcome && 'plan' in outcome && atEnd && 'plan' in atEnd).toBe(true);
     if (outcome && 'plan' in outcome && atEnd && 'plan' in atEnd) {
       expect(applyPlan(md, outcome.plan)).toEqual(applyPlan(md, atEnd.plan));
-      const prose = parse(applyPlan(md, outcome.plan).text).children[0]!;
+      const { text, cursor } = applyPlan(md, outcome.plan);
+      const prose = parse(text).children[0]!;
       expect(prose.blockId?.line).toBe('^p3');
+      // The caret is on the new position below the id, not on the id.
+      const lines = text.split('\n');
+      const caretLine = text.slice(0, cursor).split('\n').length - 1;
+      expect(caretLine).toBeGreaterThan(2);
+      expect(lines[caretLine]).toBe('');
     }
   });
 
