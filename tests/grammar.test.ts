@@ -144,6 +144,17 @@ describe('grammar planner: Enter (split)', () => {
     expect(text).toBe('- alpha\n- \n');
   });
 
+  it('a split that renumbers past a digit boundary keeps a tab-marked item’s sibling out of it', () => {
+    // #227: `c`'s tab runs to column 8, one past `1. d`. Renumbering `9. b` to
+    // `10. b` moves both lines a column; the tab alone would still end at 8,
+    // and `1. d` would become `c`'s child.
+    const src = '8. a\n9. b\n   -\tc\n       1. d\n';
+    const outcome = plan(src, { line: 0, ch: 4 }, 'split');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
+    const { text } = applyPlan(src, outcome.plan);
+    expect(text).toBe('8. a\n9. \n10. b\n    -    c\n        1. d\n');
+  });
+
   it('Enter mid-heading-text splits the title into the heading and a new paragraph child', () => {
     const outcome = plan('# Head\n\nBody.\n', { line: 0, ch: 3 }, 'split');
     if (!outcome || !('plan' in outcome)) throw new Error('expected plan');

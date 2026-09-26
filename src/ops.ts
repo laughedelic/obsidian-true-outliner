@@ -39,6 +39,7 @@ import {
   reorderReparents,
 } from './rules';
 import {
+  carryContentColumn,
   childBaseCol,
   headingAsListItem,
   headingWithLevel,
@@ -2321,7 +2322,9 @@ export function mergeNodes(doc: OutlineDoc, firstId: number): OpResult<OpOutput>
  * `reencodeForDestination` does for a line it rewrites — a pasted `-  a` should
  * not keep the surplus that turns its children into siblings at the new depth
  * (`list-marker-content-column`). A descendant's own marker run is carried as
- * it was.
+ * it was, except where a tab in it would re-expand to another stop at the new
+ * column: there it is written as spaces at the width it had
+ * (`carryContentColumn`).
  */
 export function reindentSubtreeInUnit(
   node: OutlineNode,
@@ -2363,7 +2366,7 @@ function rewriteSubtree(
     ? reprefixAtomLines(node, indentText)
     : node.lines.map((line, i) =>
         i === 0
-          ? indentText + line.slice(from.length)
+          ? carryContentColumn(line, indentText + line.slice(from.length))
           : rewriteOwnLine(line, from, indentText, unit, columnDelta, carry),
       );
   const written: OutlineNode = { ...node, lines };
@@ -2503,14 +2506,16 @@ function reindentSubtreeVerbatim(node: OutlineNode, indentText: string): Outline
     columnDelta,
   );
   const topWs = leadingWhitespace(root.lines[0] ?? '');
-  const swapLine = (line: string): string => {
+  const swapLine = (line: string, atom: boolean): string => {
     if (line.trim() === '') return line;
     const ws = leadingWhitespace(line);
-    return ws.startsWith(topWs) ? indentText + line.slice(topWs.length) : line;
+    if (!ws.startsWith(topWs)) return line;
+    const swapped = indentText + line.slice(topWs.length);
+    return atom ? swapped : carryContentColumn(line, swapped);
   };
   const recur = (n: OutlineNode): OutlineNode => ({
     ...n,
-    lines: n.lines.map(swapLine),
+    lines: n.lines.map((line) => swapLine(line, isAtom(n))),
     children: n.children.map(recur),
   });
   return recur(root);

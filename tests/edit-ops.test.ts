@@ -1604,3 +1604,40 @@ describe('a pasted subtree is written in the document’s own unit (#216)', () =
     expect(encode(result.value.doc)).toBe('1. one\n   - a\n     - b\n- x\n  - y\n');
   });
 });
+
+describe('a subtree written elsewhere keeps a tab-marked item’s content column (#227)', () => {
+  // `-\tn` at column 2: its tab runs one column, to the stop at 4, where `1. m`
+  // and `para of n` sit. Written two columns further right, the same tab would
+  // run to 8 and leave both behind.
+  const doc = '- a\n  1. b\n';
+  const payload = '- p\n  -\tn\n    1. m\n\n    para of n\n';
+  const expected = '- a\n  1. b\n  - p\n    - n\n      1. m\n\n      para of n\n';
+
+  it('a paste', () => {
+    const target = parse(doc);
+    const result = insertSubtrees(target, byLine(target, '  1. b').id, parse(payload).children, 'after');
+    if (!result.ok) throw new Error(result.rejection.reason);
+    expect(encode(result.value.doc)).toBe(expected);
+  });
+
+  it('a code block’s lines are content, and keep their tabs', () => {
+    const target = parse(doc);
+    const code = '- p\n  ```\n  -\tn\n  ```\n';
+    const result = insertSubtrees(target, byLine(target, '  1. b').id, parse(code).children, 'after');
+    if (!result.ok) throw new Error(result.rejection.reason);
+    expect(encode(result.value.doc)).toContain('\n    -\tn\n');
+  });
+
+  it('a drop', () => {
+    const md = `${doc}${payload}`;
+    const source = parse(md);
+    const result = moveSubtreesTo(source, [[byLine(source, '- p').id]], {
+      parentId: byLine(source, '- a').id,
+      index: 1,
+    });
+    if (!result.ok) throw new Error(result.rejection.reason);
+    const text = encode(result.value.doc);
+    expect(applyEdits(md.split('\n'), result.value.edits).join('\n')).toBe(text);
+    expect(text).toBe(expected);
+  });
+});
