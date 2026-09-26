@@ -13,7 +13,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
   schedule:
-    # Sweeps betas whose branch heads no open pull request. Weekly: this only
+    # Sweeps betas of pull requests that are no longer open. Weekly: this only
     # reclaims clutter.
     - cron: "17 4 * * 1"
   workflow_dispatch:
@@ -60,8 +60,9 @@ jobs:
         id: version
         shell: bash
         env:
+          PR: ${{ github.event.pull_request.number }}
           BRANCH: ${{ github.event.pull_request.head.ref }}
-        run: node scripts/beta-version.ts "$BRANCH" >> "$GITHUB_OUTPUT"
+        run: node scripts/beta-version.ts "$PR" "$BRANCH" >> "$GITHUB_OUTPUT"
 
       # Written into the built manifest only. Committing it would move
       # manifest.json, which is what triggers a real release from main.
@@ -99,12 +100,12 @@ jobs:
             $assets
 
       # Only the newest build of a pull request is worth keeping.
-      - name: Drop this branch's older betas
+      - name: Drop this pull request's older betas
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          BRANCH: ${{ github.event.pull_request.head.ref }}
-        run: node scripts/beta-cleanup.ts --branch "$BRANCH" --keep "${{ steps.version.outputs.version }}"
+          PR: ${{ github.event.pull_request.number }}
+        run: node scripts/beta-cleanup.ts --pr "$PR" --keep "${{ steps.version.outputs.version }}"
 
   # A merged or closed pull request takes its betas with it, whether or not its
   # branch is deleted. The scheduled sweep covers anything this misses.
@@ -115,11 +116,11 @@ jobs:
       github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-slim
     steps:
-      # The default branch's scripts: a closed pull request's merge ref may be
-      # gone, and its branch may predate them.
+      # For a closed pull request, the default branch's scripts: its merge ref
+      # may be gone, and its branch may predate them. A sweep runs its own ref's.
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.repository.default_branch || github.ref }}
 
       - uses: actions/setup-node@v7
         with:
@@ -130,8 +131,8 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          BRANCH: ${{ github.event.pull_request.head.ref }}
-        run: node scripts/beta-cleanup.ts --branch "$BRANCH"
+          PR: ${{ github.event.pull_request.number }}
+        run: node scripts/beta-cleanup.ts --pr "$PR"
 
       - name: Delete betas with no open pull request
         if: github.event_name != 'pull_request'
