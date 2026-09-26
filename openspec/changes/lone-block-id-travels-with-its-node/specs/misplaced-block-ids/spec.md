@@ -161,12 +161,13 @@ same reason, and the mark follows the re-parse.
 An id is not a node and has no depth of its own, so a misplaced id's paragraph dragged to a new
 place by its warning glyph SHALL land as a line, never re-encoded into the destination scope's kind
 and never at a depth the destination offers. A lone id pasted as a block SHALL keep its kind
-wherever it lands. It SHALL be written under
-the last line above the destination, at the column of that line's node: a list item's content
-column, the node's own column otherwise. Under a paragraph's or a list item's text it SHALL follow
-that line directly, and under any other block after one blank line, the form a table's or a
-heading's id is read and edited in. Below it, the seam SHALL take the blank line a block directly
-under an attached id needs (`structural-operations`).
+wherever it lands. A dragged id SHALL be written under the last line above the destination, at the
+column of that line's node: a list item's content column, the node's own column otherwise. The
+seam directly above the id's own line is such a destination too, under the node right above it;
+a drop on the seam below the id puts it back. Under a paragraph's or a list item's text it SHALL
+follow that line directly, and under any other block after one blank line, the form a table's or
+a heading's id is read and edited in. Below it, the seam SHALL take the blank line a block
+directly under an attached id needs (`structural-operations`).
 
 The ordinary parse then decides what it is: under a paragraph's or an item's text it is a line of
 that text and names the node as an inline id does; after a heading, table, quote, callout, fence,
@@ -184,6 +185,12 @@ stays a misplaced id naming nothing.
 - **WHEN** a misplaced `^id` is dragged to the seam between `## H` and its first child `- a`
 - **THEN** the note reads `## H`, a blank line, `^id`, a blank line, `- a`; `^id` is attached to the
   heading, and nothing is marked
+
+#### Scenario: Dropping an id right under the item above it makes it a line of the item
+- **WHEN** `^id`, misplaced after `Lead.` and its items `- A` and `- B`, is dragged by its glyph to
+  the seam under `- B`, directly above its own line
+- **THEN** the note reads `Lead.`, `- A`, `- B`, `  ^id`; `^id` is a line of `B`, and nothing is
+  marked
 
 #### Scenario: Dropping an id where nothing is above it keeps it marked
 - **WHEN** a misplaced `^id` is dragged to the top of the note, above `Lead.`
