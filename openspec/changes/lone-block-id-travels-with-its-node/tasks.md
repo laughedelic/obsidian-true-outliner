@@ -102,7 +102,7 @@
 - [x] 6.5 Add Enter and Backspace handling on an `id` line to the keymap (D7), with a test per
       `outline-keyboard-grammar` scenario in `tests/grammar.test.ts`. Negative control: letting
       Enter inside the id split the line fails the refusal case.
-- [x] 6.6 Add `e2e/specs/` coverage beside `57-marker-surplus-space.e2e.ts` for the
+- [x] 6.6 Add `e2e-tests/specs/` coverage beside `57-marker-surplus-space.e2e.ts` for the
       `misplaced-block-ids`, `outline-decorations` and `outline-zoom` scenarios: the mark and the
       glyph appear together and only in outline mode, a press on either opens the menu with the
       rows in order, a correction applies and undoes as one step, the command opens the menu at the
