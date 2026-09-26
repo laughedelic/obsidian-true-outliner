@@ -13,7 +13,7 @@
 
 import type { ListStyle, NodeKind, OutlineDoc, OutlineNode } from './model';
 import { makeNode, walkNodes } from './model';
-import { listAttachesTo } from './rules';
+import { blockIdAttaches, isLoneBlockIdLine, listAttachesTo } from './rules';
 
 export const TAB_WIDTH = 4;
 
@@ -482,6 +482,10 @@ function segment(lines: readonly string[], start: number): Block[] {
 interface MutableNode {
   node: OutlineNode;
   children: MutableNode[];
+  /** Whether a list item is among the node's ancestors. */
+  inListItem?: boolean;
+  /** A list item's content column. */
+  contentCol?: number;
 }
 
 function toNode(m: MutableNode): OutlineNode {
@@ -536,6 +540,35 @@ export function parse(md: string): OutlineDoc {
 
   const container = (): MutableNode => headingStack[headingStack.length - 1]!.entry;
 
+  /** The node attached last: the one whose own lines end right above the
+   * next block, and the only node a lone block id can attach to. */
+  let lastAttached: MutableNode | undefined;
+
+  /** Makes a lone block id part of the node attached just before it. The
+   * blank lines between them move from that node's trailing gap to the id's
+   * own, and the id's trailing gap becomes the node's. */
+  const attachBlockId = (block: Block, next: Block | undefined): boolean => {
+    if (block.kind !== 'paragraph' || block.lines.length !== 1) return false;
+    const line = block.lines[0]!;
+    if (!isLoneBlockIdLine(line)) return false;
+    const nextIsLoneId =
+      next !== undefined && next.kind === 'paragraph' && next.lines.length === 1 && isLoneBlockIdLine(next.lines[0]!);
+    const host = lastAttached;
+    const hostView = host && {
+      node: host.node,
+      inListItem: host.inListItem === true,
+      contentCol: host.contentCol ?? 0,
+    };
+    const closed = next === undefined || block.gap.length > 0;
+    if (!blockIdAttaches(hostView, { indent: block.indent, closed, nextIsLoneId })) return false;
+    host!.node = {
+      ...host!.node,
+      blockId: { gap: host!.node.trailingGap, line },
+      trailingGap: block.gap,
+    };
+    return true;
+  };
+
   const attach = (block: Block): void => {
     const node = makeNode({
       kind: block.kind,
@@ -546,6 +579,7 @@ export function parse(md: string): OutlineDoc {
       trailingGap: block.gap,
     });
     const entry: MutableNode = { node, children: [] };
+    lastAttached = entry;
 
     if (block.kind === 'heading') {
       listStack = [];
@@ -582,6 +616,8 @@ export function parse(md: string): OutlineDoc {
           siblings.push(entry);
         }
       }
+      entry.inListItem = listStack.some((open) => !open.paragraphRoot);
+      entry.contentCol = block.contentCol;
       listStack.push({ entry, contentCol: block.contentCol, indent: block.indent });
       return;
     }
@@ -594,6 +630,7 @@ export function parse(md: string): OutlineDoc {
     }
     const parent = listStack[listStack.length - 1];
     if (parent && block.indent >= parent.contentCol) {
+      entry.inListItem = true;
       parent.entry.children.push(entry);
     } else {
       listStack = [];
@@ -601,7 +638,9 @@ export function parse(md: string): OutlineDoc {
     }
   };
 
-  for (const block of blocks) attach(block);
+  blocks.forEach((block, i) => {
+    if (!attachBlockId(block, blocks[i + 1])) attach(block);
+  });
 
   return { preamble, children: root.children.map(toNode) };
 }

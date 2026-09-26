@@ -21,7 +21,7 @@
  */
 
 import type { ListStyle, NodeKind, NodePath, OutlineDoc, OutlineNode } from './model';
-import { childrenAt, findPath, isAtom, makeNode, nodeAt, updateSiblings } from './model';
+import { blockIdSpan, childrenAt, findPath, isAtom, makeNode, nodeAt, updateSiblings } from './model';
 import { forEachNodeWithLine, nodeAtLine, nodeStartLine } from './locate';
 import { subtreeCoverOf, type Cover } from './escalate';
 import { posBefore, type LinePos } from './line-pos';
@@ -37,6 +37,7 @@ import {
   listAttachesTo,
   nativeContentKind,
   reorderReparents,
+  isLoneBlockIdNode,
 } from './rules';
 import {
   carryContentColumn,
@@ -53,6 +54,8 @@ import {
   rewriteOwnLine,
   shiftBelowMarker,
   shiftSubtree,
+  idFor,
+  withIdLine,
 } from './reencode';
 
 export interface OpOutput {
@@ -392,10 +395,14 @@ function scopeSeparation(
 function needsBlankBetween(prev: OutlineNode, next: OutlineNode, margin: number): boolean {
   const { node: final, margin: finalMargin } = subtreeFinalWithMargin(prev, margin);
   if (final.trailingGap.length > 0) return false;
+  if (final.blockId && final.kind !== 'list-item') return true;
   // Above the seam, the block the leaf's last line lands in; below it, the
   // block the next node's first line opens. For a demoted `html` block those
-  // are different blocks of the same node.
-  const leaf = tailAsWritten(final, finalMargin);
+  // are different blocks of the same node. An item's attached id is a line of
+  // its own text, and takes what a paragraph line would.
+  const leaf = final.blockId
+    ? { kind: 'paragraph' as const, lines: [final.blockId.line] }
+    : tailAsWritten(final, finalMargin);
   const leafKind = leaf.kind;
   const nextKind = kindAsWritten(next, margin);
   if (leafKind === 'paragraph') {
@@ -481,9 +488,10 @@ function normalizeBoundaries(doc: OutlineDoc): OutlineDoc {
       const firstChild = fixed.children[0];
       if (
         firstChild &&
-        fixed.kind === 'list-item' &&
         fixed.trailingGap.length === 0 &&
-        swallowedAsContinuation(kindAsWritten(firstChild, inner))
+        (fixed.kind === 'list-item'
+          ? swallowedAsContinuation(kindAsWritten(firstChild, inner))
+          : fixed.blockId !== undefined)
       ) {
         fixed = { ...fixed, trailingGap: [''] };
       }
@@ -1709,7 +1717,7 @@ export function splitNode(
     if (!result.ok) return result;
     return accept({
       ...result.value,
-      anchor: { line: startLine + node.lines.length + 1, ch: positionIndent.length },
+      anchor: { line: startLine + node.lines.length + blockIdSpan(node) + 1, ch: positionIndent.length },
     });
   }
 
@@ -1797,7 +1805,7 @@ export function unwrapListItem(doc: OutlineDoc, nodeId: number): OpResult<OpOutp
   if (!path) return reject('node-not-found');
   const node = nodeAt(doc, path)!;
   if (node.children.length > 0) return reject('would-orphan-children');
-  if (!itemContentIsEmpty(node)) return reject('cannot-unwrap');
+  if (!itemContentIsEmpty(node) || node.blockId) return reject('cannot-unwrap');
 
   // Captured before the surgery: everything above this line is untouched, so
   // the blank line that replaces the item sits exactly where the item was.
@@ -2151,6 +2159,9 @@ export function mergeNodes(doc: OutlineDoc, firstId: number): OpResult<OpOutput>
 
   if (isAtom(first) || isAtom(second)) return reject('merge-not-expressible');
   if (second.kind === 'heading') return reject('merge-not-expressible');
+  // One node carries at most one id: which of two the merged node keeps is not
+  // ours to decide.
+  if (first.blockId && second.blockId) return reject('merge-not-expressible');
 
   const content = bareContentLines(second);
   let mergedLines: readonly string[];
@@ -2223,6 +2234,7 @@ export function mergeNodes(doc: OutlineDoc, firstId: number): OpResult<OpOutput>
 
   const merged: OutlineNode = {
     ...first,
+    ...(second.blockId ? { blockId: idFor(first, second.blockId) } : {}),
     lines: [...mergedLines],
     trailingGap,
     // Absorbing `first`'s own first child REMOVES it from that child list, so
@@ -2369,7 +2381,10 @@ function rewriteSubtree(
           ? carryContentColumn(line, indentText + line.slice(from.length))
           : rewriteOwnLine(line, from, indentText, unit, columnDelta, carry),
       );
-  const written: OutlineNode = { ...node, lines };
+  // An attached id is one of the node's own lines, never an atom's content.
+  const written = withIdLine({ ...node, lines }, (line) =>
+    rewriteOwnLine(line, from, indentText, unit, columnDelta, carry),
+  );
   const children = layChildren(written, node.children, indentText, unit, carry, (child) =>
     leadingWhitespace(
       rewriteOwnLine(child.lines[0] ?? '', from, indentText, unit, columnDelta, carry),
@@ -2513,11 +2528,15 @@ function reindentSubtreeVerbatim(node: OutlineNode, indentText: string): Outline
     const swapped = indentText + line.slice(topWs.length);
     return atom ? swapped : carryContentColumn(line, swapped);
   };
-  const recur = (n: OutlineNode): OutlineNode => ({
-    ...n,
-    lines: n.lines.map((line) => swapLine(line, isAtom(n))),
-    children: n.children.map(recur),
-  });
+  const recur = (n: OutlineNode): OutlineNode =>
+    withIdLine(
+      {
+        ...n,
+        lines: n.lines.map((line) => swapLine(line, isAtom(n))),
+        children: n.children.map(recur),
+      },
+      (line) => swapLine(line, false),
+    );
   return recur(root);
 }
 
@@ -2597,6 +2616,68 @@ function reencodeHeadingSubtree(node: OutlineNode, delta: number): OutlineNode {
       child.kind === 'heading' ? reencodeHeadingSubtree(child, delta) : child,
     ),
   };
+}
+
+/**
+ * A lone block id moved by itself (`misplaced-block-ids`): an id is not a node,
+ * so it goes under the line above the destination rather than at a depth —
+ * directly under a paragraph's or an item's text, as a line of it, and after a
+ * blank line under any other block, as its attached id. Undefined where no line
+ * can take it that way: the top of the note, a node that already carries an
+ * id, or a block inside a list item, where Obsidian names the item; the
+ * insertion then writes it as the paragraph it is.
+ */
+function dropLoneId(
+  doc: OutlineDoc,
+  afterRemoval: OutlineDoc,
+  root: OutlineNode,
+  destination: MoveDestination,
+  destSiblings: readonly OutlineNode[],
+  movedIds: ReadonlySet<number>,
+): OpResult<OpOutput> | undefined {
+  if (!isLoneBlockIdNode(root) || root.children.length > 0) return undefined;
+  const parentPath = destination.parentId === 'root' ? [] : findPath(afterRemoval, destination.parentId);
+  if (parentPath === undefined) return undefined;
+  const removedAbove = destSiblings
+    .slice(0, destination.index)
+    .filter((sibling) => movedIds.has(sibling.id)).length;
+  const index = destination.index - removedAbove;
+  const siblings = childrenAt(afterRemoval, parentPath);
+  const host =
+    index > 0
+      ? subtreeFinalNode(siblings[index - 1]!)
+      : parentPath.length > 0
+        ? nodeAt(afterRemoval, parentPath)
+        : undefined;
+  if (!host || host.blockId) return undefined;
+  const hostPath = findPath(afterRemoval, host.id)!;
+  const inItem = hostPath
+    .slice(0, -1)
+    .some((_, depth) => nodeAt(afterRemoval, hostPath.slice(0, depth + 1))!.kind === 'list-item');
+  const id = (root.lines[0] ?? '').trim();
+  const first = host.lines[0] ?? '';
+  let written: OutlineNode;
+  // A paragraph inside a list item is the item's content to Obsidian: a line
+  // of it names the item, so the id stays the misplaced paragraph it is.
+  if (host.kind === 'paragraph' && inItem) return undefined;
+  if (host.kind === 'paragraph' || host.kind === 'list-item') {
+    const pad =
+      host.kind === 'list-item'
+        ? leadingWhitespace(first) + ' '.repeat(markerWidthOf(first))
+        : leadingWhitespace(first);
+    written = { ...host, lines: [...host.lines, pad + id] };
+  } else {
+    if (inItem) return undefined;
+    written = { ...host, blockId: { gap: [''], line: leadingWhitespace(first) + id } };
+  }
+  const surgery = replaceNode(afterRemoval, hostPath, written);
+  return finalize(doc, keepDocumentTerminator(doc, surgery), host.id);
+}
+
+function replaceNode(doc: OutlineDoc, path: NodePath, node: OutlineNode): OutlineDoc {
+  return updateSiblings(doc, path.slice(0, -1), (nodes) =>
+    nodes.map((n, i) => (i === path[path.length - 1] ? node : n)),
+  );
 }
 
 /**
@@ -2695,7 +2776,9 @@ export function reencodeBlocksForDestination(
       );
       continue;
     }
-    if (block.kind !== 'paragraph' && block.kind !== 'list-item') {
+    // A lone block id is a line, not a node: it keeps its kind wherever it
+    // lands, where a list item would be an empty bullet carrying the id.
+    if ((block.kind !== 'paragraph' && block.kind !== 'list-item') || isLoneBlockIdNode(block)) {
       written.push(reindentSubtree(block, indentText, unit));
       continue;
     }
@@ -2971,6 +3054,16 @@ export function moveSubtreesTo(
   // child, and the insertion is what writes it as the paragraph's sibling.
   const ordered = [...roots].sort((a, b) => destSiblings.indexOf(a) - destSiblings.indexOf(b));
   const movedIds = new Set(roots.map((root) => root.id));
+  if (roots.length === 1 && destination.level === undefined && isLoneBlockIdNode(roots[0]!)) {
+    const own = destSiblings.indexOf(roots[0]!);
+    const inPlace = own !== -1 && (destination.index === own || destination.index === own + 1);
+    const removed = inPlace ? undefined : removeGroups(doc, groups);
+    const dropped =
+      removed?.ok === true
+        ? dropLoneId(doc, removed.value.surgery, roots[0]!, destination, destSiblings, movedIds)
+        : undefined;
+    if (dropped) return dropped;
+  }
   const staying = destSiblings.filter((node) => !movedIds.has(node.id));
   const aboveCount = destSiblings
     .slice(0, destination.index)

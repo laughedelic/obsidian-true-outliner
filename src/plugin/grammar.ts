@@ -6,7 +6,7 @@
  */
 
 import type { OutlineDoc } from '../model';
-import { isAtom } from '../model';
+import { idLineIndex, isAtom } from '../model';
 import { indentWidth, parse, parseListMarker } from '../parse';
 import {
   contentColumnCh,
@@ -519,6 +519,23 @@ function planOverSelection(
   };
 }
 
+/**
+ * Whether Backspace at `cursor` is refused because it sits at the start of an
+ * attached block id's line (`outline-keyboard-grammar`): every join it could
+ * make either changes which block the id names or stops it being an id.
+ * "Start" is anywhere up to the `^`, since the caret's floor on the line is
+ * there.
+ */
+export function refusesBackspaceOnId(text: string, cursor: EditorPos): boolean {
+  const doc = parse(text);
+  const node = nodeAtLine(doc, cursor.line);
+  if (!node) return false;
+  const idIndex = idLineIndex(node);
+  if (idIndex === undefined || cursor.line !== nodeStartLine(doc, node.id) + idIndex) return false;
+  const line = text.split('\n')[cursor.line] ?? '';
+  return cursor.ch <= line.indexOf('^');
+}
+
 export function planKey(
   text: string,
   cursor: EditorPos,
@@ -573,6 +590,26 @@ export function planKey(
   const nodeStart = nodeStartLine(doc, node.id);
   const onFirstLine = cursor.line === nodeStart;
   const onOwnLines = cursor.line < nodeStart + node.lines.length;
+
+  // An attached block id's line belongs to its node without being any of its
+  // text (`outline-keyboard-grammar`): a break inside it leaves no id, and a
+  // break at its end is a break at the node's content end, so the id stays.
+  const idIndex = idLineIndex(node);
+  if (idIndex !== undefined && cursor.line === nodeStart + idIndex && (key === 'split' || key === 'continue')) {
+    const idText = lines[cursor.line] ?? '';
+    if (key === 'continue' || cursor.ch < idText.length) {
+      return { notice: REJECTION_MESSAGES['cannot-split'] };
+    }
+    if (node.kind === 'paragraph' || node.kind === 'list-item' || node.kind === 'heading') {
+      const textLine = nodeStart + (node.kind === 'heading' && node.setext ? 0 : node.lines.length - 1);
+      const end = { line: textLine, ch: (lines[textLine] ?? '').length };
+      return planKey(text, end, 'split', fallbackIndentUnit, undefined, placeLine, undefined, scope, collapsed);
+    }
+    // Any other block has no content end to split at: a new line past a blank
+    // one, where what is typed starts a block after the node and the id keeps
+    // the blank line below it that it needs.
+    return insertionPlan(lines, { line: cursor.line, ch: idText.length }, '\n\n', 'input.structure.split');
+  }
 
   // Atom interiors are opaque: only whole-atom ops from the first line.
   if (isAtom(node)) {

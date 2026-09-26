@@ -28,7 +28,8 @@
  */
 
 import type { OutlineDoc, OutlineNode } from '../model';
-import { isAtom, ownSpan } from '../model';
+import { blockIdSpan, idLineIndex, isAtom, lastPlaceIndex, ownSpan } from '../model';
+import { misplacedBlockIds } from '../block-ids';
 import { nodeAtLine } from '../locate';
 import { parse } from '../parse';
 import { ownIndentCh } from '../own-indent';
@@ -60,6 +61,12 @@ interface LineDecorationFields {
    * for callers that need to identify it, not consumed by decorations.ts.
    */
   readonly hasNativeMarker: boolean;
+  /**
+   * True on the first line of a paragraph that holds a misplaced block id
+   * (`misplaced-block-ids`): its marker is a warning, drawn whatever
+   * `markerVisibility` says.
+   */
+  readonly misplaced?: boolean;
   /**
    * True for atom nodes (code/table/quote/callout/html/hr). `padding-left`
    * only shifts an element's own *content*, never its own border/background
@@ -132,6 +139,7 @@ interface LineDecorationFields {
 export function decorate(doc: OutlineDoc): LineDecorationFact[] {
   const facts: LineDecorationFact[] = [];
   let current = doc.preamble.length;
+  const misplaced = new Set(misplacedBlockIds(doc).map((m) => m.line));
 
   const walk = (
     node: OutlineNode,
@@ -154,8 +162,26 @@ export function decorate(doc: OutlineDoc): LineDecorationFact[] {
         isListItem,
         supplementalDepth: isListItem ? rootDepth! : 0,
         ...nodeMark(node),
+        ...(i === 0 && misplaced.has(current) ? { misplaced: true } : {}),
         hasChildren: node.children.length > 0,
         indentCh: ownIndentCh(node, node.lines[i]!, underListItem),
+      });
+    }
+    // An attached block id is drawn as one more line of its node, never as
+    // part of an atom's widget: it is a plain line Obsidian renders itself.
+    const idIndex = idLineIndex(node);
+    if (idIndex !== undefined) {
+      facts.push({
+        lineNumber: current + idIndex,
+        depth,
+        isFirstLine: false,
+        hasNativeMarker: false,
+        isAtom: false,
+        isListItem,
+        supplementalDepth: isListItem ? rootDepth! : 0,
+        ...nodeMark(node),
+        hasChildren: node.children.length > 0,
+        indentCh: ownIndentCh(node, node.blockId!.line, underListItem),
       });
     }
     current += ownSpan(node);
@@ -489,13 +515,15 @@ function restoreLine(doc: OutlineDoc, target: number, text: string): OutlineDoc 
 
   const walk = (node: OutlineNode): OutlineNode => {
     const start = current;
-    current += node.lines.length + node.trailingGap.length;
+    current += ownSpan(node);
     const index = target - start;
     const own = index >= 0 && index < node.lines.length;
     const lines = own
       ? node.lines.map((line, i) => (i === index ? text : line))
       : node.lines;
-    return { ...node, lines, children: node.children.map(walk) };
+    const onId = index === idLineIndex(node);
+    const restored = onId ? { ...node, blockId: { ...node.blockId!, line: text } } : node;
+    return { ...restored, lines, children: node.children.map(walk) };
   };
 
   return { ...doc, children: doc.children.map(walk) };
@@ -635,7 +663,6 @@ export function computeLineGuides(
       facts.push({ lineNumber: current + i, guideDepths, listGuideDepths, isGapLine: false });
     }
     current += node.lines.length;
-
     // This node starts owning a guide for its own children from here on —
     // unless it's a list item, which never owns one (see doc comment above).
     const isListItem = node.kind === 'list-item';
@@ -659,6 +686,25 @@ export function computeLineGuides(
     const leaf = node.children.length === 0;
     const gapGuideDepths = leaf ? guideDepths : childGuideDepths;
     const gapListGuideDepths = leaf ? listGuideDepths : childListGuideDepths;
+
+    // An attached block id is one of the node's own lines, with its guides.
+    // The blank lines before it are gap lines like the trailing gap's, and
+    // carry the same depths: a place opened there becomes the node's first
+    // child, and trimming narrows what shows (`trimGapTails`).
+    if (node.blockId) {
+      for (let i = 0; i < node.blockId.gap.length; i++) {
+        facts.push({
+          lineNumber: current + i,
+          guideDepths: gapGuideDepths,
+          listGuideDepths: gapListGuideDepths,
+          isGapLine: true,
+        });
+      }
+      current += node.blockId.gap.length;
+      facts.push({ lineNumber: current, guideDepths, listGuideDepths, isGapLine: false });
+      current += 1;
+    }
+
     for (let i = 0; i < node.trailingGap.length; i++) {
       facts.push({
         lineNumber: current + i,
@@ -1056,8 +1102,9 @@ function chainAtLine(doc: OutlineDoc, cursorLine: number): ChainEntry[] | null {
 
   const walk = (node: OutlineNode, depth: number): void => {
     const firstLine = current;
-    const ownEnd = firstLine + node.lines.length - 1;
-    current += node.lines.length;
+    // An attached block id's line is the node's own last content line.
+    const ownEnd = firstLine + lastPlaceIndex(node);
+    current += node.lines.length + blockIdSpan(node);
     lastContent = ownEnd;
     const gapEnd = current + node.trailingGap.length - 1;
     current += node.trailingGap.length;

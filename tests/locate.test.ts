@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import { parse } from '../src/parse';
 import { encodeLines } from '../src/encode';
-import { ownSpan, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
+import { lineRole, makeNode, ownSpan, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
 import { forEachNodeWithLine, nodeAtLine, nodeStartLine } from '../src/locate';
 import { arbMarkdownText, arbTree } from './generators';
 
@@ -162,3 +162,37 @@ it('a preamble offsets every node position', () => {
   expect(nodeStartLine(doc, first.id)).toBe(doc.preamble.length);
   expect(nodeAtLine(doc, doc.preamble.length - 1)).toBeUndefined();
 });
+
+/** An attached block id sits between a node's own lines and its trailing gap,
+ * and the node's span has to count it for every position after it to be
+ * right — the geometry `docs/research/lone-block-id` rests on. */
+describe('a node with an attached block id', () => {
+  const table = makeNode({
+    kind: 'table',
+    lines: ['| a | b |', '| --- | --- |', '| 1 | 2 |'],
+    blockId: { gap: [''], line: '^t1' },
+    trailingGap: [''],
+  });
+  const outro = makeNode({ kind: 'paragraph', lines: ['Outro.'], trailingGap: [''] });
+  const doc: OutlineDoc = { preamble: [], children: [table, outro] };
+
+  it('spans its lines, the id and the gap before it, and its trailing gap', () => {
+    expect(ownSpan(table)).toBe(6);
+    expect(nodeStartLine(doc, outro.id)).toBe(6);
+    expect(nodeAtLine(doc, 4)).toBe(table);
+    expect(nodeAtLine(doc, 6)).toBe(outro);
+  });
+
+  it('names each line of its span by its role', () => {
+    expect([0, 1, 2, 3, 4, 5].map((i) => lineRole(table, i))).toEqual([
+      'content',
+      'content',
+      'content',
+      'id-gap',
+      'id',
+      'gap',
+    ]);
+    expect([0, 1].map((i) => lineRole(outro, i))).toEqual(['content', 'gap']);
+  });
+});
+

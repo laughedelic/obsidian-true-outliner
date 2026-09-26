@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
-import { treesEqual, walkNodes, type OutlineNode } from '../src/model';
+import { makeNode, treesEqual, walkNodes, type OutlineNode } from '../src/model';
 import { arbMarkdownText, arbTree } from './generators';
 
 describe('byte-identity round-trip: encode(parse(md)) === md', () => {
@@ -30,6 +30,25 @@ describe('byte-identity round-trip: encode(parse(md)) === md', () => {
       fc.property(arbMarkdownText, (md) => encode(parse(md)) === md),
       { numRuns: 2000 },
     );
+  });
+});
+
+describe('an attached block id is emitted between its node and the trailing gap', () => {
+  it('writes the lines, the id with the blank lines before it, the gap, then the children', () => {
+    const doc = {
+      preamble: [],
+      children: [
+        makeNode({
+          kind: 'heading',
+          level: 2,
+          lines: ['## Head'],
+          blockId: { gap: [''], line: '^h2' },
+          trailingGap: [''],
+          children: [makeNode({ kind: 'paragraph', lines: ['body'], trailingGap: [''] })],
+        }),
+      ],
+    };
+    expect(encode(doc)).toBe('## Head\n\n^h2\n\nbody\n');
   });
 });
 

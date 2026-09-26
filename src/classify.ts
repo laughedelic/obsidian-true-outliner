@@ -13,6 +13,7 @@
  */
 
 import type { OutlineDoc } from './model';
+import { lastPlaceIndex, placeLineText } from './model';
 import { isEmptyBodyLine, isEmptyBodyRange, nodeAtLine, nodeStartLine } from './locate';
 import { parse } from './parse';
 import { isContentStartCh, surplusMarkerSpace } from './ops';
@@ -151,6 +152,10 @@ const PLUGIN_OWN_USER_EVENTS: readonly string[] = [
   // and must short-circuit the verdict layer like every other structural
   // dispatch — removing lines would otherwise read as boundary-crossing.
   'input.structure.abandon',
+  // A correction of a misplaced block id (`misplaced-block-ids`): built so its
+  // result re-parses as stated, and by shape a whole-line removal that would
+  // read as boundary-crossing.
+  'input.structure.block-id',
   'move.structure',
   // node-edit-enforcement rewrites (design.md D7a): these carry the SAME
   // short-circuit grammar dispatches already rely on — a rewritten
@@ -386,10 +391,14 @@ function crossesViaChromeDeletion(
     const node = nodeAtLine(doc, span.fromLine);
     if (!node) return false;
     if (nodeAtLine(doc, span.fromLine + 1) !== node) return false; // crossing case is handled above
-    const lastContentLine = nodeStartLine(doc, node.id) + node.lines.length - 1;
-    if (span.fromLine !== lastContentLine) return false; // gap-interior deletion
-    const lastLen = (node.lines[node.lines.length - 1] ?? '').length;
-    return cursor.line === lastContentLine && cursor.ch === lastLen;
+    // The last line of text, or an attached block id's line: either ends a run
+    // of content with the node's own blank lines after it.
+    const start = nodeStartLine(doc, node.id);
+    const candidates = [node.lines.length - 1, lastPlaceIndex(node)];
+    const index = span.fromLine - start;
+    if (!candidates.includes(index)) return false; // gap-interior deletion
+    const lastLen = (placeLineText(node, index) ?? '').length;
+    return cursor.line === span.fromLine && cursor.ch === lastLen;
   }
 
   return false;

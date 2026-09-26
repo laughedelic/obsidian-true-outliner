@@ -3,7 +3,7 @@ import { parse } from '../src/parse';
 import { walkNodes } from '../src/model';
 import { escalateRange } from '../src/escalate';
 import { REJECTION_MESSAGES } from '../src/plugin/messages';
-import { planKey, type GrammarKey, type TxPlan, plannedCaret } from '../src/plugin/grammar';
+import { planKey, refusesBackspaceOnId, type GrammarKey, type TxPlan, plannedCaret } from '../src/plugin/grammar';
 import type { EditorChange } from '../src/plugin/dispatch';
 
 /** Apply a plan's changes (line/ch semantics) to text; return new text + cursor offset. */
@@ -1082,5 +1082,54 @@ describe('grammar planner: structural keys over a block cover', () => {
     if (!forward || !('plan' in forward)) throw new Error('expected a plan');
     if (!backward || !('plan' in backward)) throw new Error('expected a plan');
     expect(backward.plan.changes).toEqual(forward.plan.changes);
+  });
+});
+
+describe('grammar planner: keys on an attached block id', () => {
+  const TABLE = 'Intro.\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n^t1\n\nOutro.\n';
+
+  it('Enter at the end of a table\'s id opens a line after the table, the id still attached', () => {
+    const outcome = plan(TABLE, { line: 6, ch: 3 }, 'split');
+    expect(outcome && 'plan' in outcome).toBe(true);
+    if (outcome && 'plan' in outcome) {
+      const { text, cursor } = applyPlan(TABLE, outcome.plan);
+      expect(text).toBe('Intro.\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n^t1\n\n\n\nOutro.\n');
+      expect(text.slice(0, cursor).split('\n').length - 1).toBe(8);
+      const table = [...walkNodes(parse(text))].find((node) => node.kind === 'table')!;
+      expect(table.blockId?.line).toBe('^t1');
+    }
+  });
+
+  it('Enter at the end of a paragraph\'s id is Enter at the paragraph\'s end', () => {
+    const md = 'Prose.\n\n^p3\n\nNext.\n';
+    const outcome = plan(md, { line: 2, ch: 3 }, 'split');
+    const atEnd = plan(md, { line: 0, ch: 6 }, 'split');
+    expect(outcome && 'plan' in outcome && atEnd && 'plan' in atEnd).toBe(true);
+    if (outcome && 'plan' in outcome && atEnd && 'plan' in atEnd) {
+      expect(applyPlan(md, outcome.plan)).toEqual(applyPlan(md, atEnd.plan));
+      const { text, cursor } = applyPlan(md, outcome.plan);
+      const prose = parse(text).children[0]!;
+      expect(prose.blockId?.line).toBe('^p3');
+      // The caret is on the new position below the id, not on the id.
+      const lines = text.split('\n');
+      const caretLine = text.slice(0, cursor).split('\n').length - 1;
+      expect(caretLine).toBeGreaterThan(2);
+      expect(lines[caretLine]).toBe('');
+    }
+  });
+
+  it('refuses Backspace at the start of an id, and nowhere else', () => {
+    expect(refusesBackspaceOnId(TABLE, { line: 6, ch: 0 })).toBe(true);
+    expect(refusesBackspaceOnId(TABLE, { line: 6, ch: 1 })).toBe(false);
+    expect(refusesBackspaceOnId('- a\n\n  ^x\n', { line: 2, ch: 2 })).toBe(true);
+    expect(refusesBackspaceOnId(TABLE, { line: 8, ch: 0 })).toBe(false);
+    // A misplaced id is a paragraph like any other.
+    expect(refusesBackspaceOnId('- a\n- b\n\n^l1\n', { line: 3, ch: 0 })).toBe(false);
+  });
+
+  it('Enter inside an id, and Shift+Enter anywhere on it, are refused', () => {
+    expect(plan(TABLE, { line: 6, ch: 2 }, 'split')).toEqual({ notice: REJECTION_MESSAGES['cannot-split'] });
+    expect(plan(TABLE, { line: 6, ch: 3 }, 'continue')).toEqual({ notice: REJECTION_MESSAGES['cannot-split'] });
+    expect(plan(TABLE, { line: 6, ch: 0 }, 'continue')).toEqual({ notice: REJECTION_MESSAGES['cannot-split'] });
   });
 });
