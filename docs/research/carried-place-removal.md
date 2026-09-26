@@ -37,7 +37,7 @@ item, where no caret can reach it.
  before     ⇧⏎ ⇥       ↑
 ┆- one     ┆- one     ┆- one
 ┆  - kid   ┆  - kid   ┆  - kid
-┆- foo┃    ┆  - foo   ┆  - fo┃o
+┆- foo┃    ┆  - foo   ┆  - ┃foo
            ┆····┃     ┆····
 ```
 
@@ -61,7 +61,7 @@ its own; only indent has none.
 ```
  before     ⏎ ⇥        ↑
 ┆- one     ┆- one     ┆- one
-┆- foo┃    ┆- foo     ┆- fo┃o
+┆- foo┃    ┆- foo     ┆- foo┃
            ┆⏵   -·┃   ┆⏵   -·
 ```
 
@@ -88,7 +88,7 @@ stays at the top level, between `a`'s parent and `q`, and `q` reads `3.`.
 ```
  before        ⏎              ⇧⇥             ↑
 ┆1. p         ┆1. p          ┆1. p          ┆1. p
-┆   1. a┃     ┆   1. a       ┆   1. a       ┆   1. a┃
+┆   1. a┃     ┆   1. a       ┆   1. a       ┆   1. ┃a
 ┆2. q         ┆   2.·┃       ┆2.·┃          ┆2.·
               ┆3. q          ┆3. q          ┆3. q
 ```
@@ -104,7 +104,7 @@ empty item outdents rather than stacking another. The item it moved stays.
 ```
  before     ⏎          ⏎          ↑
 ┆- a       ┆- a       ┆- a       ┆- a
-┆  - b┃    ┆  - b     ┆  - b     ┆  - b┃
+┆  - b┃    ┆  - b     ┆  - b     ┆  - ┃b
            ┆  -·┃     ┆-·┃       ┆-·
 ```
 
