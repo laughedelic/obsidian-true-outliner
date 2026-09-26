@@ -85,6 +85,8 @@ interface SegmentVariant {
   /** Segment size, in em of the header's font; the sort button's is 1.6. */
   readonly size?: number;
   readonly nodeIcon?: string;
+  /** No totals beside the segments: their counts stand in for them. */
+  readonly hideTotals?: boolean;
 }
 type Variant = ChipVariant | SegmentVariant;
 
@@ -159,11 +161,17 @@ Object.assign(CHOSEN_DESKTOP, {
     nodeIcon: 'locate-fixed', sharedGlyph: true, menu: MENU(['This node', 'This branch', 'Whole note'], 1, ''),
   },
 } satisfies Record<string, ChipVariant>);
-const CHOSEN_NARROW: Record<string, Variant> = Object.fromEntries(
-  NODE_ICONS.map((icon) => [`chosen-seg-${slug(icon)}`, {
-    kind: 'segments', icons: 'lucide', selected: 1, counts: [2, 4, 12], outlined: true, accent: true, nodeIcon: icon,
-  } satisfies SegmentVariant]),
-);
+const CHOSEN_NARROW: Record<string, Variant> = {
+  ...Object.fromEntries(
+    NODE_ICONS.map((icon) => [`chosen-seg-${slug(icon)}`, {
+      kind: 'segments', icons: 'lucide', selected: 1, counts: [2, 4, 12], outlined: true, accent: true, nodeIcon: icon,
+    } satisfies SegmentVariant]),
+  ),
+  'final-seg': {
+    kind: 'segments', icons: 'lucide', selected: 1, counts: [2, 4, 12], outlined: true, accent: true,
+    nodeIcon: 'locate-fixed', hideTotals: true,
+  } satisfies SegmentVariant,
+};
 
 const NARROW: Record<string, Variant> = {
   'd-lucide': { kind: 'segments', icons: 'lucide', selected: 1 },
@@ -340,6 +348,10 @@ async function apply(variant: Variant): Promise<Measure> {
     } else {
       full.style.display = 'none';
       short.textContent = 'Backlinks';
+      if (v.hideTotals) {
+        totalsFull.remove();
+        totalsCompact.remove();
+      }
       const group = document.createElement('div');
       group.setAttribute('role', 'radiogroup');
       group.style.display = 'inline-flex';

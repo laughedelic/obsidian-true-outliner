@@ -171,7 +171,9 @@ in a `radiogroup`, each the header's icon button widened to hold its glyph and c
 one in the accent colour and the group outlined. Both forms are rendered and the container query
 shows one, so the switch follows the footer's width — a narrow desktop pane gets the segments, a
 phone always does — and costs no measurement in code. The segments take their counts from the same
-pass as the menu, and an unavailable one is disabled with the same reason as its title.
+pass as the menu, and an unavailable one is disabled with the same reason as its title. While they
+show, the header's compact totals are hidden: the chosen segment already carries the answer's
+reference count, and the note count left on its own reads as a stray number.
 
 The three glyphs are drawn once and shared by the chip, the menu and the segments: Lucide's
 `locate-fixed` for This node, `list-tree` for This branch and `file-text` for Whole note. They are
@@ -239,8 +241,5 @@ path as today (`scope: null`). Reverting the change restores the note-wide foote
 
 ## Open Questions
 
-- In the narrow form the segments carry each answer's count and the compact totals beside them
-  carry the answer in force's references and notes, so its reference count appears twice. Whether
-  the compact totals drop their first number while the segments show is open.
 - Touch: the segments are 36–45 × 20 px under emulation, the size of the header's existing
   buttons in height. Not measured on a device.
