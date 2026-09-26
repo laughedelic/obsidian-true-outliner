@@ -232,6 +232,12 @@ Two things to settle before fuzziness arrives, recorded so they are not settled 
 - **One grammar across surfaces.** The footer filter, the palette and the in-note filter must
   agree on what a query means; the survey's anti-pattern list has the cost of not doing so.
 
+Both are answered in [search-grammar.md](search-grammar.md), which measures six candidate
+semantics against this corpus: a whole-text subsequence is confirmed vacuous and, less expected,
+unreliable with it; per-word matching with one edit of tolerance wins on selectivity and recall
+together; and the largest single gain turns out to be splitting the query on whitespace, which is
+not a fuzzy rule at all.
+
 ## Plan: changes, dependencies, stacking
 
 Four changes. The dependency test from `AGENTS.md` — overlapping files, or code that reads what
@@ -294,18 +300,23 @@ about to move pays every restack for nothing.
 `ItemView`, and the natural home for the backlinks sidebar pane deferred since D1 in doc 18; the
 two are one surface with two data sources. Not planned further here.
 
-**Later layers**, in no committed order, parked here rather than in new changes: fuzziness with
-quoted exact terms and `-` exclusion; an ancestor operator (`A > B`); ranking; unfolding a hit's
+**Later layers**, in no committed order, parked here rather than in new changes: ranking; unfolding a hit's
 children in the palette; RemNote's Tab-to-descend into a hit's subtree; the `obsidian://search`
-hand-off command for anyone who wants core's operators.
+hand-off command for anyone who wants core's operators. The first two entries this list carried —
+fuzziness with quoted exact terms and `-` exclusion, and an ancestor operator — have left it for
+the `search-query-grammar` change, measured in [search-grammar.md](search-grammar.md).
 
 ## Open questions
 
 1. **The cold sweep.** How long does the first whole-vault `cachedRead` take inside Obsidian on a
    vault of a few thousand notes, and should the palette warm the tree cache at load, at first
    open, or progressively while painting? Decides B's first-paint design.
-2. **Fuzzy semantics over long nodes.** Per-word, first-line, or scored-and-capped. Decides the
-   later engine layer, and the spec wording for A's quoted-term rule.
+2. ~~**Fuzzy semantics over long nodes.** Per-word, first-line, or scored-and-capped. Decides the
+   later engine layer, and the spec wording for A's quoted-term rule.~~ Answered by
+   [search-grammar.md](search-grammar.md): per-word, as a prefix with one edit of tolerance at
+   four characters or more, with a quoted term staying literal. Scoring is rejected there for a
+   structural reason rather than a numeric one — none of the three surfaces has an ordering slot
+   a score could occupy.
 3. **Editing under a filter.** Frozen hit set, or Org's drop-on-edit. Decides C.
 4. **Whether the palette's "this note" scope and the in-note filter are one feature seen from two
    surfaces**, with the palette's scoped mode simply a list view of C's sparse tree. The survey
