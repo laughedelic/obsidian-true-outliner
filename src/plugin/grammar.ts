@@ -747,10 +747,10 @@ export function planKey(
           return planFromOp(
             lines,
             outdented,
-            'input.structure.outdent',
+            STRUCTURAL_DISPATCH.outdent.userEvent,
             { kind: 'derived' },
             doc,
-            'drop-line',
+            STRUCTURAL_DISPATCH.outdent.abandon,
             cursor,
           );
         }
