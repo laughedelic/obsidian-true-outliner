@@ -200,7 +200,7 @@ find out whether a gesture reaches it:
 | group | pairs | through a paste | where it lives |
 | --- | --- | --- | --- |
 | a paragraph dedented to where its text opens a block | 54 | yes | [#198](https://github.com/laughedelic/obsidian-true-outliner/issues/198) |
-| a list item's sibling seam names two of the five kinds its continuation claims | 5 | no | [#197](https://github.com/laughedelic/obsidian-true-outliner/issues/197), its latent half |
+| a list item's sibling seam names two of the five kinds its continuation claims | 5 | no | [#197](https://github.com/laughedelic/obsidian-true-outliner/issues/197), its list-item half; closed by [#246](https://github.com/laughedelic/obsidian-true-outliner/pull/246), where the seam asks the continuation loop's own predicate. No paste reaches it, but a delete or a drag does: removing `- other` from `- item` / `- other` / blank / `  ## H` took the heading into the item |
 | `---` / `---` at the document start | 4 | — | settled in `paste-across-encoding-regimes`: Obsidian reads it the same way |
 
 A fourth group — a table claiming the next line that carries a `|`, 18 pairs on `main` — is

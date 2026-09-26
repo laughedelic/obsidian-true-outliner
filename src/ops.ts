@@ -26,7 +26,15 @@ import { forEachNodeWithLine, nodeAtLine, nodeStartLine } from './locate';
 import { subtreeCoverOf, type Cover } from './escalate';
 import { posBefore, type LinePos } from './line-pos';
 import { encode, encodeLines } from './encode';
-import { parse, indentWidth, kindAsWritten, parseListMarker, tailAsWritten, TAB_WIDTH } from './parse';
+import {
+  continuesListItem,
+  parse,
+  indentWidth,
+  kindAsWritten,
+  parseListMarker,
+  tailAsWritten,
+  TAB_WIDTH,
+} from './parse';
 import type { Edit, OpResult } from './result';
 import { accept, diffLines, reject } from './result';
 import {
@@ -406,12 +414,17 @@ function needsBlankBetween(prev: OutlineNode, next: OutlineNode, margin: number)
       (nextKind === 'hr' && (next.lines[0] ?? '').includes('-'))
     );
   }
+  // A list item's continuation loop claims whatever it does not stop at, so
+  // the seam asks the loop's own question, over the lines `encode` writes
+  // after the next node's first: its own, then its gap, then its first child,
+  // all settled before this seam is judged. A childless one-line node is
+  // followed by a line this pass has yet to decide, so it is read with none,
+  // which can take a table's header row for a claimed line and errs toward a
+  // separator.
   if (leafKind === 'list-item') {
     const contentCol = indentWidth(leaf.lines[0] ?? '') + markerWidthOf(leaf.lines[0] ?? '');
-    return (
-      (nextKind === 'paragraph' || nextKind === 'html') &&
-      indentWidth(next.lines[0] ?? '') >= contentCol
-    );
+    const below = next.trailingGap.length > 0 ? next.trailingGap : next.children[0]?.lines ?? [];
+    return continuesListItem([...next.lines, ...below.slice(0, 1)], 0, contentCol);
   }
   // An HTML block ends at a BLANK LINE, not at its closing tag, so whatever
   // follows one is inside it until a separator says otherwise — whatever kind

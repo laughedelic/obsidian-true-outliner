@@ -5,6 +5,7 @@ import { encode } from '../src/encode';
 import { makeNode, treesEqual, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
 import {
   deleteSubtrees,
+  finalize,
   indent,
   insertSubtrees,
   mergeNodes,
@@ -1311,6 +1312,100 @@ describe('a seam is judged on the kind the re-parse will see', () => {
     if (!result.ok) return;
     expect(encode(result.value.doc)).toBe('- top\n  - alpha\n\n  | x |\n  | - |\n\n  - see [[a|b]]\n');
     expect(byLine(result.value.doc, '  - see [[a|b]]').kind).toBe('list-item');
+  });
+
+  it('a list item is separated from a sibling its continuation lines would claim', () => {
+    // A sibling at or past the item's content column is read as more of the
+    // item's text unless its first line opens a block the continuation loop
+    // stops at. The seam is built directly and handed to `finalize`, which
+    // every operation ends in, so each kind is tried in isolation. What
+    // is kept is the node, not the sibling relation: a line at the content
+    // column has no sibling encoding, and most kinds come back as the item's
+    // child.
+    const item = () =>
+      makeNode({ kind: 'list-item', lines: ['- item'], listStyle: { type: 'bullet', marker: '-' } });
+    const seam = (next: OutlineNode): [string, string] => {
+      const left = item();
+      const result = finalize(parse(''), { preamble: [], children: [left, next] }, left.id);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return ['', ''];
+      expect([...walkNodes(result.value.doc)].map((n) => n.lines), next.lines[0]).toEqual([
+        ['- item'],
+        next.lines,
+      ]);
+      const text = encode(result.value.doc);
+      return [text, shape(text)];
+    };
+    // Claimed by the loop, so separated. A heading closes the item's scope,
+    // as the parse reads one anywhere; the rest nest under the item.
+    expect(seam(makeNode({ kind: 'heading', level: 2, lines: ['  ## H'] }))).toEqual([
+      '- item\n\n  ## H',
+      'list-item: - item\nh2: ## H',
+    ]);
+    expect(
+      seam(makeNode({ kind: 'heading', level: 1, setext: true, lines: ['  Title', '  ====='] })),
+    ).toEqual(['- item\n\n  Title\n  =====', 'list-item: - item\nh1: Title']);
+    expect(seam(makeNode({ kind: 'hr', lines: ['  ---'] }))).toEqual([
+      '- item\n\n  ---',
+      'list-item: - item\n  hr: ---',
+    ]);
+    expect(seam(makeNode({ kind: 'paragraph', lines: ['  text'] }))).toEqual([
+      '- item\n\n  text',
+      'list-item: - item\n  paragraph: text',
+    ]);
+    // Openers the loop stops at are left flush: a separator there would be one
+    // the parse does not need.
+    expect(seam(makeNode({ kind: 'quote', lines: ['  > q'] }))).toEqual([
+      '- item\n  > q',
+      'list-item: - item\n  quote: > q',
+    ]);
+    expect(seam(makeNode({ kind: 'hr', lines: ['  - - -'] }))).toEqual([
+      '- item\n  - - -',
+      'list-item: - item\n  hr: - - -',
+    ]);
+    expect(seam(makeNode({ kind: 'table', lines: ['  | a |', '  | - |'] }))).toEqual([
+      '- item\n  | a |\n  | - |',
+      'list-item: - item\n  table: | a |',
+    ]);
+  });
+
+  it('deleting the node between a list item and a heading at its content column keeps the heading', () => {
+    // A blank line makes `  ## H` a heading of its own; removing the node
+    // above it leaves the item's own lines directly over it, where the
+    // continuation loop would read the heading, and the paragraph its section
+    // holds, as more of the item's text.
+    const doc = parse('- item\n- other\n\n  ## H\n\nmore\n');
+    const result = deleteSubtrees(doc, [byLine(doc, '- other').id]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('- item\n\n  ## H\n\nmore\n');
+    expect(shape(encode(result.value.doc))).toBe(
+      ['list-item: - item', 'h2: ## H', '  paragraph: more'].join('\n'),
+    );
+  });
+
+  it('deleting a paragraph between a list item and a rule at its content column keeps the rule', () => {
+    const doc = parse('- item\npara\n\n  ---\n');
+    const result = deleteSubtrees(doc, [byLine(doc, 'para').id]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('- item\n\n  ---\n');
+    expect(shape(encode(result.value.doc))).toBe(['list-item: - item', '  hr: ---'].join('\n'));
+  });
+
+  it('a line the continuation loop reads as a table header is left flush', () => {
+    // `## H | x` over a delimiter row stops the loop, which reads the pair as
+    // a table start; the main loop then opens the heading first. The row is
+    // the heading's child, so the lookahead is in the tree the seam is judged
+    // on.
+    const doc = parse('- item\n- other\n\n  ## H | x\n  | - |\n');
+    const result = deleteSubtrees(doc, [byLine(doc, '- other').id]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('- item\n  ## H | x\n  | - |\n');
+    expect(shape(encode(result.value.doc))).toBe(
+      ['list-item: - item', 'h2: ## H | x', '  paragraph: | - |'].join('\n'),
+    );
   });
 
   it('a seam that stays inside the margin is left flush, as it was', () => {
