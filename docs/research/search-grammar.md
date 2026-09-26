@@ -13,7 +13,7 @@ six matching semantics as pure functions, `corpus.mjs` parses `test-vault` with 
 parser through esbuild, and `bench.mjs` prints every table below.
 
 ```bash
-node scripts/gen-backlink-hub.mjs
+node scripts/gen-backlink-hub.ts
 node docs/research/prototypes/search-grammar/bench.mjs [--tracked] [--scale 30]
 ```
 

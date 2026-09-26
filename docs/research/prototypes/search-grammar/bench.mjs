@@ -2,7 +2,7 @@
  * Measures the candidate grammars in `candidates.mjs` against the parsed
  * `test-vault`, and prints the tables `docs/research/search-grammar` records.
  *
- *   node scripts/gen-backlink-hub.mjs
+ *   node scripts/gen-backlink-hub.ts
  *   node docs/research/prototypes/search-grammar/bench.mjs
  *
  * Three questions, in order:

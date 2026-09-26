@@ -90,7 +90,7 @@
 
 ## 7. Validation
 
-- [ ] 7.1 `npm run build`, `npm test`, `npm run lint`
+- [ ] 7.1 `npm run typecheck`, `npm test`, `npm run lint`
 - [ ] 7.2 Manual pass in a real vault, on desktop and phone: a two-word query, a quoted phrase, an
       exclusion, a mistyped word, and an `A > B` query, each on the footer of a hub note. Record
       what it did and did not establish in `docs/research/search-grammar`, as the footer content

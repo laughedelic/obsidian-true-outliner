@@ -6,7 +6,7 @@
  * keeps the measurement running against the REAL parse rather than a second
  * reading of markdown written for the occasion.
  *
- * Run `node scripts/gen-backlink-hub.mjs` first: the hub fixture is generated
+ * Run `node scripts/gen-backlink-hub.ts` first: the hub fixture is generated
  * rather than tracked, and it is most of the corpus by node count.
  */
 

@@ -97,7 +97,7 @@ filter as they land — so the grammar is worth getting right once rather than t
   `search-palette` has moved it there); `src/plugin/source-tree-cache.ts`
   (a node's words cached with its tree).
 - **Tests**: `tests/search.test.ts`, `tests/footer-filter.test.ts`,
-  `e2e/specs/77-footer-controls.e2e.ts`.
+  `e2e-tests/specs/77-footer-controls.e2e.ts`.
 - **Docs**: `docs/research/search-grammar` (new, with its harness under
   `docs/research/prototypes/search-grammar/`); `docs/research/search-surfaces` open question 2
   answered and its "later layers" list shortened by the two entries this change takes.
