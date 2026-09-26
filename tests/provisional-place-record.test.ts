@@ -11,10 +11,17 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { EditorSelection, EditorState } from '@codemirror/state';
+import { ChangeSet, EditorSelection, EditorState } from '@codemirror/state';
 import { history, redo, undo, undoDepth } from '@codemirror/commands';
 import { planKey, plannedCaret, type GrammarKey } from '../src/plugin/grammar';
-import { carriedPlace, placeLineAfter, recordablePlace } from '../src/plugin/provisional-cleanup';
+import {
+  carriedPlace,
+  carriedRecord,
+  nextRecords,
+  placeLineAfter,
+  recordablePlace,
+  type CreatedPlace,
+} from '../src/plugin/provisional-cleanup';
 
 /** Two spaces, so the figures below are the widths the documents show. */
 const UNIT = '  ';
@@ -228,16 +235,17 @@ describe('what does NOT leave a place record', () => {
 });
 
 describe('the place record and the removal record keep their own conditions', () => {
-  it('a carrying key leaves a place record and no removal record', () => {
-    // `recordablePlace` answers "was a place CREATED here", and a Tab creates
-    // none. That is what keeps an outdent which merely relocated an
-    // already-empty item from having that item removed out from under the user,
-    // and this change does not widen it.
-    const opened = run('- one\n- foo\n  bar\n', { line: 1, ch: 5 }, ['continue']);
-    const done = press(opened.state, 'indent', opened.place);
-    expect(done).not.toBeNull();
-    expect(recordablePlace(done!.state, done!.event)).toBeNull();
-    expect(placeLineAfter(done!.state, done!.event, opened.place)).toBe(2);
+  it('a carrying key keeps the removal record the place had', () => {
+    // `abandon-carried-place`: the removal record passes on across a carry,
+    // restated for where the place now is. What a carry never does is START
+    // one — `recordablePlace` still answers no for a Tab.
+    const opened = session('- one\n- foo\n  bar\n', { line: 1, ch: 5 }, ['continue']);
+    expect(opened.removal).toBeDefined();
+    const tabbed = session('- one\n- foo\n  bar\n', { line: 1, ch: 5 }, ['continue', 'indent']);
+    expect(recordablePlace(tabbed.state, 'input.structure.indent')).toBeNull();
+    expect(tabbed.place).toBe(2);
+    expect(tabbed.removal?.line).toBe(2);
+    expect(abandoned(tabbed)).toBe('- one\n  - foo\n    bar\n');
   });
 
   it('an outdent that only relocated an already-empty item still creates nothing', () => {
@@ -286,5 +294,136 @@ describe('history movement does not move a place', () => {
     expect(done).not.toBeNull();
     expect(undoDepth(done!.state)).not.toBe(depthAtCreation);
     expect(placeLineAfter(done!.state, done!.event, opened.place)).toBe(2);
+  });
+});
+
+/**
+ * The listener's bookkeeping, with the removal record as well as the place
+ * record: each key reads the record live on the place it began on
+ * (`carriedRecord`, against its START state) and the next records come from
+ * `nextRecords` — the production decisions, not a restatement of them.
+ */
+function session(
+  text: string,
+  at: { line: number; ch: number },
+  keys: readonly GrammarKey[],
+): { state: EditorState; place: number | null; removal: CreatedPlace | undefined } {
+  let state = stateOf(text, at.line, at.ch);
+  let place: number | null = null;
+  let removal: CreatedPlace | undefined;
+  for (const key of keys) {
+    const startedOn = carriedPlace(state, place);
+    const carried = carriedRecord(removal, state, startedOn);
+    const outcome = planKey(
+      state.doc.toString(),
+      caretOf(state),
+      key,
+      UNIT,
+      undefined,
+      place ?? undefined,
+    );
+    if (!outcome || 'notice' in outcome) throw new Error(`${key} declined`);
+    const { plan } = outcome;
+    const toSpec = (doc: EditorState['doc'], changes: typeof plan.changes) =>
+      changes.map((change) => ({
+        from: doc.line(change.from.line + 1).from + change.from.ch,
+        to: doc.line(change.to.line + 1).from + change.to.ch,
+        insert: change.text,
+      }));
+    const start = state;
+    const tr = start.update({
+      changes: toSpec(start.doc, plan.changes),
+      selection: EditorSelection.cursor(plannedCaret(plan)),
+      userEvent: plan.userEvent,
+    });
+    state = tr.state;
+    const before = start.selection.main;
+    const next = nextRecords(state, {
+      event: plan.userEvent,
+      startedOn,
+      stated: plan.abandon && toSpec(state.doc, plan.abandon),
+      startedAt: before.empty ? tr.changes.mapPos(before.head, -1) : undefined,
+      ...(carried
+        ? {
+            carried: {
+              record: carried,
+              startedAt:
+                carried.startedAt === undefined ? undefined : tr.changes.mapPos(carried.startedAt, -1),
+            },
+          }
+        : {}),
+      reversal: plan.carryReversal && toSpec(state.doc, plan.carryReversal),
+    });
+    place = next.open;
+    removal = next.removal;
+  }
+  return { state, place, removal };
+}
+
+function abandoned(done: { state: EditorState; removal: CreatedPlace | undefined }): string {
+  if (!done.removal) throw new Error('no removal record');
+  return done.removal.abandon.apply(done.state.doc).toString();
+}
+
+describe('a carry keeps the removal record, on its own conditions', () => {
+  it('two Tabs keep it, and it removes the position alone', () => {
+    const done = session('- one\n  - kid\n  - sib\n- foo\n', { line: 3, ch: 5 }, [
+      'continue',
+      'indent',
+      'indent',
+    ]);
+    expect(done.state.doc.toString()).toBe('- one\n  - kid\n  - sib\n    - foo\n      \n');
+    expect(abandoned(done)).toBe('- one\n  - kid\n  - sib\n    - foo\n');
+  });
+
+  it('a node the ladder dissolved under a paragraph is reverted by its opening kind', () => {
+    const src = 'para\n  - a\n  - b\n';
+    const done = session(src, { line: 1, ch: 5 }, ['split', 'split']);
+    expect(done.removal?.opened).toBe('node');
+    expect(abandoned(done)).toBe(src);
+  });
+
+  it('a record whose depth does not match the start state is not carried', () => {
+    const opened = session('- one\n- foo\n', { line: 1, ch: 5 }, ['continue']);
+    const record = opened.removal!;
+    expect(carriedRecord(record, opened.state, record.line)).toBe(record);
+    expect(carriedRecord({ ...record, depth: record.depth + 1 }, opened.state, record.line)).toBeUndefined();
+    expect(carriedRecord(record, opened.state, record.line + 1)).toBeUndefined();
+  });
+
+  it('an undo of the carry leaves no record', () => {
+    const tabbed = session('- one\n- foo\n', { line: 1, ch: 5 }, ['continue', 'indent']);
+    const view = {
+      state: tabbed.state,
+      dispatch: (spec: never) => {
+        view.state = view.state.update(spec).state;
+      },
+    };
+    const start = view.state;
+    undo(view as never);
+    const next = nextRecords(view.state, {
+      event: undefined,
+      startedOn: carriedPlace(start, tabbed.place),
+      stated: undefined,
+      startedAt: undefined,
+      carried: { record: tabbed.removal!, startedAt: undefined },
+      reversal: undefined,
+    });
+    expect(next.removal).toBeUndefined();
+  });
+
+  it('Shift+Enter on an empty item opens a second place with its own start', () => {
+    const done = session('- foo\n', { line: 0, ch: 5 }, ['split', 'continue']);
+    const doc = done.state.doc;
+    // The start is the empty item's content, where the Shift+Enter was pressed —
+    // not the end of `- foo`, where the Enter was.
+    expect(done.removal?.startedAt).toBe(doc.line(2).from + 2);
+    expect(abandoned(done)).toBe('- foo\n- \n');
+  });
+
+  it('Shift+Tab over an opened position takes the opening start', () => {
+    const done = session('- a\n  - b\n- c\n', { line: 1, ch: 5 }, ['continue', 'outdent']);
+    expect(done.state.doc.toString()).toBe('- a\n- b\n  \n- c\n');
+    expect(done.removal?.startedAt).toBe(done.state.doc.line(2).to);
   });
 });

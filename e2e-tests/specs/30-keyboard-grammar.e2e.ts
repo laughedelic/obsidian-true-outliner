@@ -918,22 +918,175 @@ describe('keyboard grammar', function () {
     expect({ buffer: await h.getBuffer(), cursor: await h.getCursor() }).toEqual(byKey);
   });
 
-  it('Backspace on a place the outdent command leaves returns where the command started', async function () {
-    // The removal record's other reader: Backspace lands the caret on where
-    // the dispatch STARTED, which the command path maps through its own
-    // changes. Compared against the same steps with Shift+Tab.
+  it('Backspace on a place the outdent command carried returns where the Shift+Enter started', async function () {
+    // The removal record's other reader: Backspace lands the caret where the
+    // key that OPENED the place started — carried through the outdent, on
+    // either path (`abandon-carried-place`). Compared against the same steps
+    // with Shift+Tab.
     await grammarNote('- one\n  - foo\n', 1, '  - foo'.length);
     await h.keys.shiftEnter();
     await h.keys.shiftTab();
     await h.keys.backspace();
     const byKey = { buffer: await h.getBuffer(), cursor: await h.getCursor() };
     expect(byKey.buffer).toBe('- one\n- foo\n');
+    expect(byKey.cursor).toEqual({ line: 1, ch: '- foo'.length });
 
     await grammarNote('- one\n  - foo\n', 1, '  - foo'.length);
     await h.keys.shiftEnter();
     await h.runCommand('outdent-node');
     await h.keys.backspace();
     expect({ buffer: await h.getBuffer(), cursor: await h.getCursor() }).toEqual(byKey);
+  });
+
+  describe('a carried place is declined like a fresh one', function () {
+    // `abandon-carried-place`. A place a structural key carried keeps its
+    // removal record: declining it removes it, and a place opened as an empty
+    // node takes the carries back with it, so the document is what it was
+    // before the key that opened it.
+    type Step = 'shiftEnter' | 'enter' | 'tab' | 'shiftTab' | 'up' | 'backspace';
+    async function press(steps: readonly Step[]): Promise<void> {
+      for (const step of steps) await h.keys[step]();
+    }
+
+    const nodeCases: [string, string, number, number, Step[]][] = [
+      ['a bullet item Tab carried', '- one\n- foo\n', 1, 5, ['enter', 'tab', 'up']],
+      ['an ordered item Tab carried', '1. a\n2. b\n', 0, 4, ['enter', 'tab', 'up']],
+      ['an ordered item Shift+Tab carried into its parent run', '1. p\n   1. a\n2. q\n', 1, 7, ['enter', 'shiftTab', 'up']],
+      [
+        'the same where the parent run crosses a digit boundary',
+        '1. p\n   1. a\n2. b\n3. c\n4. d\n5. e\n6. f\n7. g\n8. h\n9. i\n',
+        1,
+        7,
+        ['enter', 'shiftTab', 'up'],
+      ],
+      ['the ladder', '- a\n  - b\n', 1, 5, ['enter', 'enter', 'up']],
+      ['the ladder with a following sibling', '- a\n  - b\n  - c\n', 1, 5, ['enter', 'enter', 'up']],
+      ['the ladder under a paragraph', 'para\n  - a\n  - b\n', 1, 5, ['enter', 'enter', 'up']],
+      ['a list before a blank line and a paragraph', '- foo\n\npara\n', 0, 5, ['enter', 'tab', 'up']],
+      ['a drafted heading Tab carried', '## Foo\nbody\n## Bar\ntext\n', 0, 6, ['shiftEnter', 'tab', 'up']],
+      // Declined by Backspace: on a line holding only `#`, the arrow keys do not
+      // move the caret at all, so ↑ never leaves the place.
+      ['a drafted heading Shift+Tab carried', '## Foo\nbody\n## Bar\ntext\n', 0, 6, ['shiftEnter', 'shiftTab', 'backspace']],
+    ];
+    for (const [name, doc, line, ch, steps] of nodeCases) {
+      it(`${name}: walking away gives back the document before the opening key`, async function () {
+        await grammarNote(doc, line, ch);
+        await press(steps.slice(0, -1));
+        expect(await h.getBuffer()).not.toBe(doc);
+        await press(steps.slice(-1));
+        expect(await h.getBuffer()).toBe(doc);
+      });
+    }
+
+    it('an ordered item Shift+Tab carried ahead of an adopted sibling ends as the fresh one does', async function () {
+      // With `2. b` after `a`, the Enter itself renumbers the parent's `q`
+      // (#252), and walking away from the FRESH item leaves that renumbering
+      // behind too. The carried item is compared against that control rather
+      // than against the original, which #252 alone keeps it from matching.
+      const src = '1. p\n   1. a\n   2. b\n2. q\n';
+      await grammarNote(src, 1, 7);
+      await press(['enter', 'up']);
+      const fresh = await h.getBuffer();
+
+      await grammarNote(src, 1, 7);
+      await press(['enter', 'shiftTab']);
+      expect(await h.getBuffer()).toContain('\n2. \n');
+      await press(['up']);
+      expect(await h.getBuffer()).toBe(fresh);
+    });
+
+    it('one Backspace removes a position Tab carried', async function () {
+      await grammarNote('- one\n  - kid\n- foo\n', 2, 5);
+      await press(['shiftEnter', 'tab', 'backspace']);
+      expect(await h.getBuffer()).toBe('- one\n  - kid\n  - foo\n');
+      expect(await h.getCursor()).toEqual({ line: 2, ch: '  - foo'.length });
+    });
+
+    it('walking away removes a position one Tab or two carried', async function () {
+      await grammarNote('- one\n  - kid\n- foo\n', 2, 5);
+      await press(['shiftEnter', 'tab', 'up']);
+      expect(await h.getBuffer()).toBe('- one\n  - kid\n  - foo\n');
+
+      await grammarNote('- one\n  - kid\n  - sib\n- foo\n', 3, 5);
+      await press(['shiftEnter', 'tab', 'tab', 'up']);
+      expect(await h.getBuffer()).toBe('- one\n  - kid\n  - sib\n    - foo\n');
+    });
+
+    it('Enter on a carried position moves past it and removes it', async function () {
+      await grammarNote('- one\n  - kid\n- foo\n- bar\n', 2, 5);
+      await press(['shiftEnter', 'tab', 'enter']);
+      expect(await h.getBuffer()).toBe('- one\n  - kid\n  - foo\n- bar\n');
+      expect(await h.getCursor()).toEqual({ line: 3, ch: 2 });
+    });
+
+    it('Backspace after Shift+Tab returns to where the position was opened', async function () {
+      await grammarNote('- a\n  - b\n- c\n', 1, 5);
+      await press(['shiftEnter', 'shiftTab', 'backspace']);
+      expect(await h.getBuffer()).toBe('- a\n- b\n- c\n');
+      expect(await h.getCursor()).toEqual({ line: 1, ch: '- b'.length });
+    });
+
+    it('a second place beside the first is declined on its own', async function () {
+      await grammarNote('- foo\n', 0, 5);
+      await press(['enter', 'shiftEnter']);
+      expect(await h.getBuffer()).not.toBe('- foo\n- \n');
+      await press(['backspace']);
+      expect(await h.getBuffer()).toBe('- foo\n- \n');
+      expect(await h.getCursor()).toEqual({ line: 1, ch: 2 });
+    });
+
+    it('one undo returns to the carried place', async function () {
+      await grammarNote('- one\n  - kid\n- foo\n', 2, 5);
+      await press(['shiftEnter', 'tab']);
+      const carried = await h.getBuffer();
+      await press(['up']);
+      expect(await h.getBuffer()).toBe('- one\n  - kid\n  - foo\n');
+      await h.keys.undo();
+      expect(await h.getBuffer()).toBe(carried);
+    });
+
+    it('a carried place that was typed on is left alone', async function () {
+      await grammarNote('- one\n  - kid\n- foo\n', 2, 5);
+      await press(['shiftEnter', 'tab']);
+      const carried = await h.getBuffer();
+      await h.keys.type('x');
+      await press(['backspace', 'up']);
+      expect(await h.getBuffer()).toBe(carried);
+    });
+  });
+
+  describe('the command path carries a place the way the keys do', function () {
+    it('a position "Indent node" carried is removed on walking away', async function () {
+      await grammarNote('- one\n  - kid\n- foo\n', 2, 5);
+      await h.keys.shiftEnter();
+      await h.keys.tab();
+      await h.keys.up();
+      const byKey = { buffer: await h.getBuffer(), cursor: await h.getCursor() };
+      expect(byKey.buffer).toBe('- one\n  - kid\n  - foo\n');
+
+      await grammarNote('- one\n  - kid\n- foo\n', 2, 5);
+      await h.keys.shiftEnter();
+      await h.runCommand('indent-node');
+      await h.keys.up();
+      expect({ buffer: await h.getBuffer(), cursor: await h.getCursor() }).toEqual(byKey);
+    });
+
+    it('an ordered item "Indent node" carried gives back the document before the Enter', async function () {
+      await grammarNote('1. a\n2. b\n', 0, 4);
+      await h.keys.enter();
+      await h.runCommand('indent-node');
+      await h.keys.up();
+      expect(await h.getBuffer()).toBe('1. a\n2. b\n');
+    });
+
+    it('an item "Outdent node" carried puts back the sibling it adopted', async function () {
+      await grammarNote('- a\n  - b\n  - c\n', 1, 5);
+      await h.keys.enter();
+      await h.runCommand('outdent-node');
+      expect(await h.getBuffer()).not.toBe('- a\n  - b\n  - c\n');
+      await h.keys.up();
+      expect(await h.getBuffer()).toBe('- a\n  - b\n  - c\n');
+    });
   });
 
   it('Mod-A on an interior position abandons the place rather than selecting half a node', async function () {

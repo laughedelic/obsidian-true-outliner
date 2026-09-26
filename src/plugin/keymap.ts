@@ -72,6 +72,7 @@ import { isOutlineMode } from "./outline-state";
 import type { EditorChange } from "./dispatch";
 import {
   abandonEdit,
+  carryReversal,
   advanceFromEmptyPlace,
   cancelOnDelete,
   openPlaceLine,
@@ -189,10 +190,17 @@ function makeHandler(key: GrammarKey) {
     // replacement there.
     //
     // Building that resulting text is the only reason to apply the change set
-    // twice, so it happens only for the operations that state a removal —
-    // indent and the moves state none, and they are the keys held down in runs.
-    const annotations = outcome.plan.abandon
-      ? abandonEdit.of(toOffsets(outcome.plan.abandon, ChangeSet.of(changes, doc.length).apply(doc)))
+    // twice, so it happens only for the operations that state a removal or a
+    // reversal — the moves never do, and indent only when it carries a place,
+    // so a held run of either builds nothing extra.
+    const { abandon, carryReversal: reversal } = outcome.plan;
+    const produced =
+      abandon || reversal ? ChangeSet.of(changes, doc.length).apply(doc) : undefined;
+    const annotations = produced
+      ? [
+          ...(abandon ? [abandonEdit.of(toOffsets(abandon, produced))] : []),
+          ...(reversal ? [carryReversal.of(toOffsets(reversal, produced))] : []),
+        ]
       : undefined;
     // A plan states a caret (an offset) or a block cover (a pair). The cover
     // keeps the ORIENTATION the user's own selection had, so a run built by

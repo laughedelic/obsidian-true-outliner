@@ -26,7 +26,7 @@
 
 ## 2. The recorder keeps the removal across a carry
 
-- [ ] 2.1 Add `carriedRecord(record, startState, startedOn)` to `src/plugin/provisional-cleanup.ts`
+- [x] 2.1 Add `carriedRecord(record, startState, startedOn)` to `src/plugin/provisional-cleanup.ts`
   (D3). Add `opened` to the removal record and `carried` and `reversal` to `DispatchFacts`. Put
   the carrying branch ahead of the creating one in `recordDispatch`, and select its removal by
   `carried.opened` (D4, D5). The listener supplies both
@@ -44,15 +44,15 @@
   - checking the depth against the end state makes the keyboard carry write none;
   - selecting the removal by the kind after the carry breaks the ladder-under-a-paragraph case;
   - running the creating branch first breaks the Shift+Tab start case.
-- [ ] 2.2 Export `carriedRecordOf(view, startedOn)` from `provisional-cleanup.ts` (D3). Supply
+- [x] 2.2 Export `carriedRecordOf(view, startedOn)` from `provisional-cleanup.ts` (D3). Supply
   `carried` and `reversal` from `runOp` in `src/plugin/main.ts`: `carried` read through that export
-  before `editor.transaction`, with `startedAt` mapped through the command's changes. Verify with a
-  unit test that `carriedRecordOf` answers only for the record's line at an unmoved depth, and with
-  the e2e cases in 3.2.
+  before `editor.transaction`, with `startedAt` mapped through the command's changes. Verify with the
+  e2e cases in 3.2. The unit suite has no DOM, so it cannot mount the view `carriedRecordOf` reads
+  (#156). Its gate is `carriedRecord`'s, which 2.1 unit-tests.
 
 ## 3. End to end
 
-- [ ] 3.1 Add e2e cases to `e2e-tests/specs/30-keyboard-grammar.e2e.ts`, one per scenario of "A
+- [x] 3.1 Add e2e cases to `e2e-tests/specs/30-keyboard-grammar.e2e.ts`, one per scenario of "A
   carried place is declined like a fresh one":
   - ⇧⏎ ⇥ ⌫;
   - ⇧⏎ ⇥ ↑, and ⇧⏎ ⇥ ⇥ ↑;
@@ -71,9 +71,16 @@
   - typed then deleted then ↑.
 
   Each node case asserts the document before the opening key byte for byte. Verify in narrow mode
-  on desktop and mobile. Negative control: with 2.1's carrying branch removed, every case except
-  the typed one fails.
-- [ ] 3.2 Add the command-path cases, each compared with its keyboard control in the same test:
+  on desktop and mobile. Negative control: with 2.1's carrying branch removed, every case fails
+  except the typed one and the second-place one, which the creating branch decides.
+
+  Two cases were measured to differ from the plan, and neither is this change's defect:
+  - With `2. b` after the nested `a`, the Enter itself renumbers `q` (#252), and walking away
+    from the FRESH item leaves that renumbering too. That shape is compared against the fresh
+    control. The byte-exact case uses the shape without `b`.
+  - On a line holding only `#`, the arrow keys do not move the caret, so ↑ never leaves a
+    drafted heading Shift+Tab reduced to `#`. That case declines with ⌫.
+- [x] 3.2 Add the command-path cases, each compared with its keyboard control in the same test:
   - ⇧⏎, "Indent node", ↑, against ⇧⏎ ⇥ ↑;
   - ⏎ on an ordered item, "Indent node", ↑, against ⏎ ⇥ ↑, back to the document before the ⏎;
   - ⏎ at a nested item with a following sibling, "Outdent node", ↑, against ⏎ ⇧⇥ ↑.

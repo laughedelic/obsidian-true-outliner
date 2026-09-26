@@ -67,7 +67,7 @@ import { parsedDoc } from './parsed-doc';
  * always safe. That is what makes the guard fail-safe by construction rather
  * than by careful invalidation.
  */
-interface CreatedPlace {
+export interface CreatedPlace {
   /**
    * Undo depth immediately after the creating transaction, as a BACKSTOP for
    * history movement this module never sees — an undo or redo from elsewhere.
@@ -115,6 +115,16 @@ interface CreatedPlace {
    * run puts the original numbers back.
    */
   readonly abandon: ChangeSet;
+  /**
+   * What the place was when it was OPENED — a provisional position or an empty
+   * node — passed on unchanged by every key that carries it. It chooses how a
+   * carried place is removed (`abandon-carried-place` D1): a position by its
+   * line, a node by reverting the carries. The kind AFTER a carry is the wrong
+   * selector: under a paragraph the ladder's outdent dissolves an opened node
+   * into a blank line, and removing only that line would leave the sibling the
+   * outdent moved where it went.
+   */
+  readonly opened: 'gap' | 'node';
 }
 
 const created = new WeakMap<EditorView, CreatedPlace>();
@@ -289,6 +299,28 @@ function isCreatingTransaction(
  * specified (`structural-history-integration`, known limitations).
  */
 export const abandonEdit = Annotation.define<readonly ChangeSpec[]>();
+
+/**
+ * The dispatching operation's own reversal, in the coordinates of the document
+ * its transaction produces — stated by a plan that may be carrying a place
+ * (`TxPlan.carryReversal`). Composed with the removal a place opened as an
+ * empty node held before the carry, it removes that node and everything the
+ * carries did on its way.
+ */
+export const carryReversal = Annotation.define<readonly ChangeSpec[]>();
+
+/**
+ * The events that act ON the place the dispatch began on, and so pass its
+ * removal record on: the carrying keys, and the ladder's unwrap, which turns
+ * the carried empty item itself into a blank line. A key that opens a SECOND
+ * place beside the first — Shift+Enter on an empty item — is not here: its
+ * place is its own, with its own start, and the first one's record ends.
+ */
+const REMOVAL_CARRY_EVENTS: readonly string[] = [
+  'input.structure.indent',
+  'input.structure.outdent',
+  'input.structure.unwrap',
+];
 
 /**
  * The empty place this state's caret is on that `userEvent` could have created,
@@ -536,6 +568,113 @@ export interface DispatchFacts {
   readonly stated: readonly ChangeSpec[] | undefined;
   /** Where the caret was before the dispatch, in the resulting document. */
   readonly startedAt: number | undefined;
+  /**
+   * The removal record that was live on the place the dispatch BEGAN on
+   * (`carriedRecord`), with its `startedAt` mapped through the dispatch's
+   * changes into the resulting document. Absent when there was none.
+   */
+  readonly carried?: { readonly record: CreatedPlace; readonly startedAt: number | undefined };
+  /** The reversal the dispatch stated (`carryReversal`), in the resulting
+   * document. */
+  readonly reversal?: readonly ChangeSpec[] | undefined;
+}
+
+/**
+ * The removal record live on the place a dispatch began on, or `undefined`.
+ *
+ * Checked against the dispatch's START state, and that is the point: by the time
+ * the listener runs, the carry's own history entry has already moved the undo
+ * depth, so asking `liveRecord` there would always refuse.
+ */
+export function carriedRecord(
+  record: CreatedPlace | undefined,
+  startState: EditorState,
+  startedOn: number | null,
+): CreatedPlace | undefined {
+  if (!record || startedOn === null || record.line !== startedOn) return undefined;
+  return undoDepth(startState) === record.depth ? record : undefined;
+}
+
+/**
+ * `carriedRecord` over this view's own record and current state — for the
+ * command path, which reads it before its dispatch, while the view's state is
+ * still the start state. The only way the record leaves this module.
+ */
+export function carriedRecordOf(view: EditorView, startedOn: number | null): CreatedPlace | undefined {
+  return carriedRecord(created.get(view), view.state, startedOn);
+}
+
+/**
+ * The records one dispatch of ours leaves in `state`, the document it
+ * produced: the open place's line, and the removal record, if any.
+ *
+ * Two branches write a removal record, and the order is the point.
+ *
+ * CARRYING comes first: the dispatch began on a place that had a record, acts
+ * on that place, and left the caret on an empty place. The record passes on —
+ * its opening kind and its opening start — with a removal restated for where
+ * the place now is: its line, for a place opened as a position; the carry's
+ * own reversal composed with the previous removal, for a place opened as a
+ * node. Nothing is written when the removal that needs was not stated, or when
+ * the pieces do not fit together, which leaves the place standing: the safe
+ * direction. Taking this branch first is what keeps an outdent over an opened
+ * position from being read as a creation, whose record would carry the
+ * outdent's own start.
+ *
+ * CREATING, as before: the dispatch's plan stated a removal and
+ * `recordablePlace` says the dispatch left a place it could have created.
+ */
+export function nextRecords(
+  state: EditorState,
+  facts: DispatchFacts,
+): { open: number | null; removal: CreatedPlace | undefined } {
+  const open = placeLineAfter(state, facts.event, facts.startedOn);
+  const length = state.doc.length;
+
+  const { carried } = facts;
+  if (carried && open !== null && facts.event !== undefined && REMOVAL_CARRY_EVENTS.includes(facts.event)) {
+    let abandon: ChangeSet | undefined;
+    if (carried.record.opened === 'gap') {
+      abandon = facts.stated ? ChangeSet.of(facts.stated, length) : undefined;
+    } else if (facts.reversal) {
+      const reversal = ChangeSet.of(facts.reversal, length);
+      if (reversal.newLength === carried.record.abandon.length) {
+        abandon = reversal.compose(carried.record.abandon);
+      }
+    }
+    return {
+      open,
+      removal: abandon && {
+        depth: undoDepth(state),
+        line: open,
+        startedAt: carried.startedAt,
+        abandon,
+        opened: carried.record.opened,
+      },
+    };
+  }
+
+  // BOTH must agree, and they are independent by contract: the dispatch
+  // states how to remove a place, this module decides whether one was
+  // left. Neither is evidence for the other — Shift+Tab states a removal
+  // for an outdent that may only have relocated an already-empty item,
+  // and `recordablePlace` is what excludes that. Disagreement means no
+  // cleanup, which leaves the place standing: the safe direction.
+  const place = recordablePlace(state, facts.event);
+  const kind = place ? emptyPlaceAt(state)?.kind : undefined;
+  return {
+    open,
+    removal:
+      facts.stated && place && kind
+        ? {
+            depth: undoDepth(state),
+            line: place.line,
+            startedAt: facts.startedAt,
+            abandon: ChangeSet.of(facts.stated, length),
+            opened: kind,
+          }
+        : undefined,
+  };
 }
 
 /**
@@ -553,24 +692,9 @@ export interface DispatchFacts {
  * it, and one it left was never removed.
  */
 export function recordDispatch(view: EditorView, facts: DispatchFacts): void {
-  const open = placeLineAfter(view.state, facts.event, facts.startedOn);
+  const { open, removal } = nextRecords(view.state, facts);
   if (open !== null) openPlace.set(view, open);
-
-  // BOTH must agree, and they are independent by contract: the dispatch
-  // states how to remove a place, this module decides whether one was
-  // left. Neither is evidence for the other — Shift+Tab states a removal
-  // for an outdent that may only have relocated an already-empty item,
-  // and `recordablePlace` is what excludes that. Disagreement means no
-  // cleanup, which leaves the place standing: the safe direction.
-  const place = recordablePlace(view.state, facts.event);
-  if (facts.stated && place) {
-    created.set(view, {
-      depth: undoDepth(view.state),
-      line: place.line,
-      startedAt: facts.startedAt,
-      abandon: ChangeSet.of(facts.stated, view.state.doc.length),
-    });
-  }
+  if (removal) created.set(view, removal);
 }
 
 /**
@@ -608,20 +732,35 @@ export function provisionalCleanup(inOutlineMode: (view: EditorView) => boolean)
       // or not at all — which is what keeps them from drifting apart while
       // answering different questions.
       const openBefore = openPlace.get(view);
+      const recordBefore = created.get(view);
       created.delete(view);
       openPlace.delete(view);
 
       const last = update.transactions[update.transactions.length - 1];
       if (last) {
         const before = last.startState.selection.main;
+        // The place a CARRYING dispatch could have moved: the one this view
+        // had open, and only when the caret was actually on it when the
+        // transaction began. A key pressed anywhere else carries nothing.
+        const startedOn = carriedPlace(last.startState, openBefore);
+        const carried = carriedRecord(recordBefore, last.startState, startedOn);
         recordDispatch(view, {
           event: last.annotation(Transaction.userEvent) ?? undefined,
-          // The place a CARRYING dispatch could have moved: the one this view
-          // had open, and only when the caret was actually on it when the
-          // transaction began. A key pressed anywhere else carries nothing.
-          startedOn: carriedPlace(last.startState, openBefore),
+          startedOn,
           stated: last.annotation(abandonEdit),
           startedAt: before.empty ? last.changes.mapPos(before.head, -1) : undefined,
+          ...(carried
+            ? {
+                carried: {
+                  record: carried,
+                  startedAt:
+                    carried.startedAt === undefined
+                      ? undefined
+                      : last.changes.mapPos(carried.startedAt, -1),
+                },
+              }
+            : {}),
+          reversal: last.annotation(carryReversal),
         });
       }
       return;
