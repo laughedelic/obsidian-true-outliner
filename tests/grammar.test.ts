@@ -680,6 +680,42 @@ describe('grammar planner: a plan states how to abandon the place it makes', () 
     expect(planOf('- a\n- b\n', { line: 0, ch: 3 }, 'move-down').abandon).toBeUndefined();
   });
 
+  it('a Tab handed a place line states the line removal and its own reversal', () => {
+    // The carry of `abandon-carried-place`: over a place it carries, Tab states
+    // how to remove the place (its line) and how to undo itself.
+    const src = '- one\n  - kid\n- foo\n  \n';
+    const plan = planOf(src, { line: 3, ch: 2 }, 'indent', 3);
+    const after = applyPlan(src, plan).text;
+    expect(after).toBe('- one\n  - kid\n  - foo\n    \n');
+    expect(applyChanges(after, plan.abandon!)).toBe('- one\n  - kid\n  - foo\n');
+    expect(applyChanges(after, plan.carryReversal!)).toBe(src);
+  });
+
+  it('a Tab with no place states neither', () => {
+    const plan = planOf('- one\n- foo\n', { line: 1, ch: 5 }, 'indent');
+    expect(plan.abandon).toBeUndefined();
+    expect(plan.carryReversal).toBeUndefined();
+  });
+
+  it('the ladder’s outdent states its reversal when the item it moves is an open place', () => {
+    const src = '- a\n  - b\n  - \n  - c\n';
+    const plan = planOf(src, { line: 2, ch: 4 }, 'split', 2);
+    expect(plan.userEvent).toBe('input.structure.outdent');
+    const after = applyPlan(src, plan).text;
+    expect(after).toBe('- a\n  - b\n- \n  - c\n');
+    expect(applyChanges(after, plan.carryReversal!)).toBe(src);
+    // Without a place line nothing is carried, and nothing is stated.
+    expect(planOf(src, { line: 2, ch: 4 }, 'split').carryReversal).toBeUndefined();
+  });
+
+  it('Shift+Tab over a place states its reversal beside the line removal', () => {
+    const src = '- top\n  - foo\n    \n';
+    const plan = planOf(src, { line: 2, ch: 4 }, 'outdent', 2);
+    const after = applyPlan(src, plan).text;
+    expect(applyChanges(after, plan.abandon!)).toBe('- top\n- foo\n');
+    expect(applyChanges(after, plan.carryReversal!)).toBe(src);
+  });
+
   it('Shift+Tab states the same form the empty-item ladder does', () => {
     // One operation, two keys. Stating the form by operation is what keeps them
     // agreeing — the consumer keys on where the caret landed, not on the key.

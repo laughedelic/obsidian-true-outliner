@@ -111,8 +111,8 @@ import type { EditorView } from '@codemirror/view';
 import { historyCaretExtension } from './history-caret';
 import { TransactionStats } from './stats';
 import { placeOutline } from './decorate';
-import { openPlaceLine, recordDispatch } from './provisional-cleanup';
-import { abandonEdit, STRUCTURAL_DISPATCH, type StructuralKey } from './grammar';
+import { carriedRecordOf, openPlaceLine, recordDispatch } from './provisional-cleanup';
+import { abandonEdit, dispatchAbandon, STRUCTURAL_DISPATCH, type StructuralKey } from './grammar';
 import { ChangeSet } from '@codemirror/state';
 
 const CONFLICTING_PLUGINS = ['obsidian-outliner', 'obsidian-zoom'];
@@ -1440,18 +1440,21 @@ export default class TrueOutlinerPlugin extends Plugin {
           : { from: outcome.from, to: outcome.to };
       // Read before the dispatch: where the caret started, in the document the
       // changes produce, is what Backspace on a place this leaves returns to.
+      // So is the removal record the place this began on held, read while the
+      // view's state is still the start state its depth is checked against.
       const before = view?.state;
-      const changeSet = before
+      const mapping = before
         ? ChangeSet.of(changesToSpec(before.doc, changes), before.doc.length)
         : undefined;
       const startedAt =
-        before && changeSet && before.selection.main.empty
-          ? changeSet.mapPos(before.selection.main.head, -1)
+        before && mapping && before.selection.main.empty
+          ? mapping.mapPos(before.selection.main.head, -1)
           : undefined;
+      const carried = view ? carriedRecordOf(view, placeLine ?? null) : undefined;
       // `Editor.transaction` cannot carry an annotation, so the change set it is
       // about to dispatch is stated to `planned-changes` against the state it
       // starts from.
-      if (before && changeSet) expectPlanned(before, changeSet);
+      if (before && mapping) expectPlanned(before, mapping);
       editor.transaction({ changes, selection: selectionAfter });
       // What the keymap's dispatch of the same operation carries on the
       // transaction, stated to `provisional-cleanup` after it instead: this
@@ -1462,13 +1465,34 @@ export default class TrueOutlinerPlugin extends Plugin {
         const dispatch = STRUCTURAL_DISPATCH[key];
         const abandon =
           outcome.to === undefined
-            ? abandonEdit(dispatch.abandon, text.split('\n'), outcome.newLines, outcome.from.line)
+            ? abandonEdit(
+                dispatchAbandon(key, placeLine !== undefined),
+                text.split('\n'),
+                outcome.newLines,
+                outcome.from.line,
+              )
             : undefined;
+        const reversal =
+          placeLine === undefined
+            ? undefined
+            : abandonEdit('reverse', text.split('\n'), outcome.newLines, outcome.from.line);
         recordDispatch(view, {
           event: dispatch.userEvent,
           startedOn: placeLine ?? null,
           stated: abandon ? changesToSpec(view.state.doc, abandon) : undefined,
           startedAt,
+          ...(carried && mapping
+            ? {
+                carried: {
+                  record: carried,
+                  startedAt:
+                    carried.startedAt === undefined
+                      ? undefined
+                      : mapping.mapPos(carried.startedAt, -1),
+                },
+              }
+            : {}),
+          reversal: reversal ? changesToSpec(view.state.doc, reversal) : undefined,
         });
       }
     }
