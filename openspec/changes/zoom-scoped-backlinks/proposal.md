@@ -81,7 +81,7 @@ _None._
   `src/plugin/backlinks-footer.ts` (the widget carries the scope; the header control, its menu and
   the empty state), `styles/20-backlinks-footer.css`.
 - **Tests**: `tests/anchors.test.ts`, `tests/footer-filter.test.ts`, a new
-  `e2e/specs/77-footer-zoom-scope.e2e.ts` and its fixtures under `test-vault/Backlinks/`.
+  `e2e-tests/specs/77-footer-zoom-scope.e2e.ts` and its fixtures under `test-vault/Backlinks/`.
 - **Docs**: `docs/research/structured-backlinks` D13 gains a pointer to this change.
 
 ## Sequencing
