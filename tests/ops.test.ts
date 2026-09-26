@@ -548,6 +548,56 @@ describe('sibling reordering', () => {
       const { text } = applyOk(indent, md, '1. p1');
       expect(text).toContain('9. ten\n   - kid\n');
     });
+
+    // A tab after a marker runs to the next tab stop, so a shift that moves the
+    // marker by anything other than a whole stop leaves that item's content
+    // column where it was, or jumps it — and the line under it that sat short
+    // of the column reaches it, or the reverse (#227).
+    it('widening carries the content column of a child marked with a tab', () => {
+      const md = [...RUN.slice(0, 8), '   1. a', '9. b', '   -\tc', '       1. d'].join('\n') + '\n';
+      const { text, doc } = applyOk(outdent, md, '   1. a');
+      expect(parentLineOf(doc, '        1. d')).toBe('10. b');
+      expect(text).toContain('9. a\n10. b\n    -    c\n        1. d\n');
+    });
+
+    it('narrowing carries the content column of a child marked with a tab', () => {
+      const md = ['- x', ...RUN, '10. ten', '    -\tc', '        1. d'].join('\n') + '\n';
+      const { text, doc } = applyOk(indent, md, '1. p1');
+      expect(parentLineOf(doc, '       1. d')).toBe('   -   c');
+      expect(text).toContain('9. ten\n   -   c\n       1. d\n');
+    });
+
+    it('a tab in the indentation stays, and the run after the marker moves', () => {
+      // `\t-\tc` under `9. b`: the marker at 4, its tab running to 8, and `1. d`
+      // at 8 its child. Widening puts the marker at 5 and the column at 9.
+      const md = [...RUN.slice(0, 8), '   1. a', '9. b', '\t-\tc', '        1. d'].join('\n') + '\n';
+      const { text, doc } = applyOk(outdent, md, '   1. a');
+      expect(parentLineOf(doc, '         1. d')).toBe('\t -   c');
+      expect(text).toContain('10. b\n\t -   c\n         1. d\n');
+    });
+
+    // The same tab moves under an indent or an outdent, whose shift is the
+    // unit's width rather than a digit's: two columns move a tab that ran one
+    // column to the stop at 4 onto the stop at 8.
+    it('an indent carries the content column of a child marked with a tab', () => {
+      const { text, doc } = applyOk(indent, '- z\n- a\n  -\tb\n    1. d\n', '- a');
+      expect(parentLineOf(doc, '      1. d')).toBe('    - b');
+      expect(text).toBe('- z\n  - a\n    - b\n      1. d\n');
+    });
+
+    it('an outdent carries the content column of a child marked with a tab', () => {
+      const md = '- z\n  - y\n    - a\n      -\tb\n         1. d\n';
+      const { text, doc } = applyOk(outdent, md, '    - a');
+      expect(parentLineOf(doc, '       1. d')).toBe('    - b');
+      expect(text).toBe('- z\n  - y\n  - a\n    - b\n       1. d\n');
+    });
+
+    it('a tab whose stop a whole-stop shift keeps is kept', () => {
+      // A tab-indented document indents by a whole stop, which moves the tab
+      // after the marker by exactly the shift.
+      const { text } = applyOk(indent, '- z\n- a\n\t-\tb\n\t\t1. d\n', '- a');
+      expect(text).toBe('- z\n\t- a\n\t\t-\tb\n\t\t\t1. d\n');
+    });
   });
 
   it('rejects reorder across the heading/content divide and level mismatch', () => {

@@ -71,6 +71,30 @@ export function leadingWhitespace(line: string): string {
 function shiftLine(line: string, delta: number, keepBlank: boolean): string {
   if (keepBlank && line.trim() === '') return line;
   if (delta === 0) return line;
+  const shifted = shiftIndent(line, delta);
+  return keepBlank ? shifted : carryContentColumn(line, shifted);
+}
+
+/**
+ * A list item's line sets its CONTENT COLUMN as well as its indentation, and a
+ * shift has to move both, or the lines below that sat short of the column
+ * reach it, or the reverse. Spaces after the marker move with it; a tab runs
+ * to the next stop wherever the marker now ends, so a shift by anything other
+ * than a whole stop moves the column by some other amount. There, and only
+ * there, the run after the marker is written as spaces at the width it had.
+ */
+function carryContentColumn(line: string, shifted: string): string {
+  const was = parseListMarker(line);
+  const now = parseListMarker(shifted);
+  const run = MARKER_RUN_RE.exec(shifted);
+  if (!was || !now || !run) return shifted;
+  const target = was.contentCol + indentWidth(shifted) - indentWidth(line);
+  if (now.contentCol === target) return shifted;
+  const markerEnd = indentWidth(shifted) + run[1]!.trimStart().length;
+  return `${run[1]}${' '.repeat(target - markerEnd)}${shifted.slice(run[0].length)}`;
+}
+
+function shiftIndent(line: string, delta: number): string {
   const ws = leadingWhitespace(line);
   if (delta > 0) {
     // Insert AFTER existing leading whitespace: spaces before a tab would
@@ -160,7 +184,8 @@ function reprefixLine(
     const swapped = to + line.slice(from.length);
     const lands = indentWidth(swapped) === Math.max(0, indentWidth(line) + delta);
     if (lands && !addsTabAfterSpace(from, to, ws.slice(from.length))) {
-      return shiftLine(swapped, columnDelta, keepBlank);
+      const shifted = shiftLine(swapped, columnDelta, keepBlank);
+      return keepBlank ? shifted : carryContentColumn(line, shifted);
     }
   }
   return shiftLine(line, delta + columnDelta, keepBlank);
@@ -213,10 +238,10 @@ export function rewriteOwnLine(
   const rest = ws.slice(from.length);
   const swapped = to + line.slice(from.length);
   if ((unit === '\t' || !rest.includes('\t')) && !addsTabAfterSpace(from, to, rest)) {
-    return shiftLine(swapped, columnDelta, false);
+    return carryContentColumn(line, shiftLine(swapped, columnDelta, false));
   }
   const offset = indentWidth(line) - indentWidth(from) + columnDelta;
-  return to + ' '.repeat(Math.max(0, offset)) + line.slice(ws.length);
+  return carryContentColumn(line, to + ' '.repeat(Math.max(0, offset)) + line.slice(ws.length));
 }
 
 /** `reprefixLine` for one atom's lines, whose whitespace is content: a line
