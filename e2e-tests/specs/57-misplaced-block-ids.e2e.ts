@@ -173,6 +173,20 @@ describe('a misplaced block id', function () {
     expect(await h.getLineChildRects(1, MARK)).toHaveLength(0);
   });
 
+  it('lands an id dropped under the item above it as a line of that item', async function () {
+    if (h.IS_MOBILE_RUN) this.skip();
+    const glyph = await markPoint(GLYPH);
+    const b = await h.getLineRect(2);
+    await dragFrom(glyph, [
+      { x: glyph.x, y: glyph.y - 10 },
+      { x: glyph.x + 40, y: b.top + b.height + 2 },
+    ]);
+    await browser.waitUntil(async () => (await h.getBuffer()) === 'Lead.\n- a\n- b\n  ^foo\n\nAfter.\n', {
+      timeout: 2000,
+      timeoutMsg: `the drop wrote ${JSON.stringify(await h.getBuffer())}`,
+    });
+  });
+
   it('opens the menu at the caret from the command, only on a misplaced line', async function () {
     await h.setCursorSettled(0, 2);
     expect(await h.commandAvailable('correct-misplaced-block-id')).toBe(false);

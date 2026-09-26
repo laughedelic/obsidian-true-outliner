@@ -339,7 +339,7 @@ export function dropSeams(
       line: seam.line,
       aboveId: seam.aboveId,
       belowId: seam.belowId,
-      candidates: loneId ? oneDepth(candidates, home) : candidates,
+      candidates: loneId ? oneDepth(candidates) : candidates,
     });
   }
   // The run's lower boundary. The seam walk merged it into the run's top,
@@ -361,17 +361,15 @@ export function dropSeams(
   return out;
 }
 
-/** One of a seam's candidates: the run's own place where the seam is its own,
- * so a drop there stays the no-op it is, and the deepest otherwise. */
-function oneDepth(
-  candidates: readonly DropDestination[],
-  home: { readonly parentId: number | 'root'; readonly index: number } | undefined,
-): DropDestination[] {
-  const own = candidates.find(
-    (c) => home !== undefined && c.parentId === home.parentId && c.index === home.index,
-  );
-  const chosen = own ?? candidates[candidates.length - 1];
-  return chosen ? [chosen] : [];
+/**
+ * A lone id's one candidate at a seam: the deepest, which writes it under the
+ * line right above the seam. At the seam above the id's own line that is the
+ * node above it, not the id's own place: the seam below the id, which offers
+ * nothing, is where a drop puts it back.
+ */
+function oneDepth(candidates: readonly DropDestination[]): DropDestination[] {
+  const deepest = candidates[candidates.length - 1];
+  return deepest ? [deepest] : [];
 }
 
 /**
