@@ -50,7 +50,8 @@
       to the content column for a list item and the node's column otherwise (D4). `unwrapListItem`
       rejects an item that carries an id with `item-carries-block-id`.
 - [x] 4.2 `splitNode` keeps `blockId` on the first half; `mergeNodes` keeps the one that exists and
-      rejects with `merge-not-expressible` when both carry one (D4).
+      rejects with `merge-not-expressible` when both carry one (D4). `splitNode`
+      also keeps an id written directly under a paragraph's or an item's text on the first half.
 - [x] 4.3 `needsBlankBetween` asks for a blank line below a non-list-item node with an attached id,
       and treats a list item's id as a paragraph line; `normalizeBoundaries` gives a non-list-item
       node with an id a blank line before its first child (D4).

@@ -1168,6 +1168,17 @@ describe('grammar planner: keys on an attached block id', () => {
     }
   });
 
+  it('Enter at the end of a lead\'s text keeps the id written directly under it', () => {
+    const md = 'Lead.\n^id1\n- a\n';
+    const outcome = plan(md, { line: 0, ch: 5 }, 'split');
+    expect(outcome && 'plan' in outcome).toBe(true);
+    if (outcome && 'plan' in outcome) {
+      const { text, cursor } = applyPlan(md, outcome.plan);
+      expect(text).toBe('Lead.\n^id1\n- \n- a\n');
+      expect(text.slice(0, cursor)).toBe('Lead.\n^id1\n- ');
+    }
+  });
+
   it('refuses Backspace at the start of an id, and nowhere else', () => {
     expect(refusesBackspaceOnId(TABLE, { line: 6, ch: 0 })).toBe(true);
     expect(refusesBackspaceOnId(TABLE, { line: 6, ch: 1 })).toBe(false);

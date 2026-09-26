@@ -1845,6 +1845,25 @@ describe('an attached block id travels with its node', () => {
     expect(first(out.doc, 'prose.').blockId).toBeUndefined();
   });
 
+  it('keeps an id written directly under the text on the first half of a split', () => {
+    const atEnd = parse('Lead.\n^id1\n- a\n');
+    expect(encode(ok(splitNode(atEnd, first(atEnd, 'Lead.').id, { line: 0, ch: 5 })).doc)).toBe(
+      'Lead.\n^id1\n- \n- a\n',
+    );
+    const inside = parse('Lead.\n^id1\n\nNext.\n');
+    expect(encode(ok(splitNode(inside, first(inside, 'Lead.').id, { line: 0, ch: 2 })).doc)).toBe(
+      'Le\n^id1\n\nad.\n\nNext.\n',
+    );
+    const lines = parse('Lead one\nlead two\n^id5\n');
+    expect(encode(ok(splitNode(lines, first(lines, 'Lead one').id, { line: 0, ch: 8 })).doc)).toBe(
+      'Lead one\n^id5\n\n\nlead two\n',
+    );
+    const item = parse('- a\n  ^x\n- b\n');
+    expect(encode(ok(splitNode(item, first(item, '- a').id, { line: 0, ch: 3 })).doc)).toBe(
+      '- a\n  ^x\n- \n- b\n',
+    );
+  });
+
   it('keeps the one id of a merge and rejects a merge of two', () => {
     const one = parse('- a\n- b\n\n  ^b\n');
     const merged = ok(mergeNodes(one, first(one, '- a').id));

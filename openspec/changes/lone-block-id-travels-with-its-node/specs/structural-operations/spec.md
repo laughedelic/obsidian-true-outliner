@@ -18,7 +18,9 @@ document with it:
   other than a list item that lands inside a list item: Obsidian names the enclosing item there,
   so its id is written at the node's column and re-parses as a misplaced id
   (`misplaced-block-ids`), which offers attaching it to that item.
-- A split SHALL leave the id attached to the node that keeps the original's first line.
+- A split SHALL leave the id attached to the node that keeps the original's first line. So SHALL
+  it an id written directly under a paragraph's or an item's text, which is that node's own last
+  line and names the whole node: a split anywhere above that line keeps it on the first half.
 - A merge SHALL keep the id of whichever of the two nodes carried one, and SHALL be rejected with
   `merge-not-expressible` when both did.
 - Unwrapping an empty list item that carries an id SHALL be rejected with
@@ -71,6 +73,12 @@ attached ids are the ones the operation's result states.
 #### Scenario: A split leaves the id where it was
 - **WHEN** a paragraph with `^p3` attached is split in the middle of its text
 - **THEN** `^p3` is attached to the first half
+
+#### Scenario: Enter at the end of a lead keeps the id written under it
+- **WHEN** Enter is pressed at the end of `Lead.`, with `^id1` directly under it and a list
+  under that
+- **THEN** `^id1` stays directly under `Lead.`, and the new empty item opens below it as the
+  list's first item
 
 #### Scenario: A merge of two nodes with ids is rejected
 - **WHEN** two paragraphs that both carry attached ids are merged

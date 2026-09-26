@@ -96,7 +96,8 @@ node's own span. The paths that rewrite a node's lines each handle it once:
   re-indent `blockId.line` with the node: to the content column when the node is
   or becomes a list item, to the node's own column otherwise. Gap lines are blanked as every gap
   is.
-- `splitNode` leaves `blockId` on the node that keeps the first line.
+- `splitNode` leaves `blockId` on the node that keeps the first line, and with it an id written
+  directly under a paragraph's or an item's text, which is the node's own last line.
 - `mergeNodes` keeps whichever `blockId` exists, and rejects with `merge-not-expressible` when both
   do.
 - Outside a list item, any block directly under an attached id detaches it, so
