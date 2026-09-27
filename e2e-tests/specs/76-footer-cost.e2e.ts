@@ -206,6 +206,8 @@ describe('spike S5: what a hub note costs', function () {
    * the part the reader's typing waits for. `settled` runs on until every
    * group has filled.
    */
+  // Two caps, each with its pairs of keystrokes and the fills after them:
+  // longer than a case's default budget on a CI runner.
   it('measures a keystroke repaint inside a zoomed heading', async function () {
     await h.openNote(HUB);
     await h.setOutlineMode(true);
@@ -238,7 +240,7 @@ describe('spike S5: what a hub note costs', function () {
             requestAnimationFrame(tick);
           });
         const out: { typed: [number, number]; deleted: [number, number] }[] = [];
-        for (let i = 0; i < 8; i++) {
+        for (let i = 0; i < 5; i++) {
           const end = view.editor.getLine(at).length;
           let t0 = performance.now();
           view.editor.replaceRange('x', { line: at, ch: end });
@@ -255,7 +257,7 @@ describe('spike S5: what a hub note costs', function () {
         // keystroke's own cost.
         const plain = view.editor.getValue().split('\n').findIndex((t) => t.startsWith('The severity-first'));
         const baseline: number[] = [];
-        for (let i = 0; i < 8; i++) {
+        for (let i = 0; i < 5; i++) {
           const end = view.editor.getLine(plain).length;
           let t0 = performance.now();
           view.editor.replaceRange('x', { line: plain, ch: end });
@@ -286,5 +288,5 @@ describe('spike S5: what a hub note costs', function () {
       await h.runCommand('zoom-clear');
     }
     await pinBacklinksCapOff();
-  });
+  }).timeout(h.waitBudget(240_000));
 });

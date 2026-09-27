@@ -23,6 +23,7 @@ import {
   clickIn,
   facetOptions,
   groupNames,
+  openFacet,
   openFilters,
   openFooter,
   readStable,
@@ -683,7 +684,7 @@ describe('the footer’s controls', function () {
 
     // Close the kind menu, narrow by a folder, reopen it.
     await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="kind"]`);
-    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="folder"]`);
+    await openFacet('folder');
     await clickIn(`${FOOTER} .to-backlinks-facet-option`);
     const after = await facetOptions('kind');
 

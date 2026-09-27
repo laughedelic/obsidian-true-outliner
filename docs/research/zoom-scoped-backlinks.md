@@ -336,7 +336,7 @@ Typing inside a heading in the zoomed view changes what the footer answers for, 
 repainted on that keystroke. Measured on 27 September 2026 with the `76-footer-cost` harness in the
 Linux container the e2e suite runs in (software rendering, Obsidian 1.13.7), zoomed into
 `## Current sprint` of the hub note `Projects/Aurora Dashboard.md`, 128 sources, eight pairs per
-figure, medians. A character typed at the heading's end stops every `#Current sprint` link from
+figure, medians (the harness takes five now, to fit a mobile-emulation runner's budget). A character typed at the heading's end stops every `#Current sprint` link from
 landing and deleting it brings them back, so the pair repaints once to the empty answer and once to
 the full one:
 
