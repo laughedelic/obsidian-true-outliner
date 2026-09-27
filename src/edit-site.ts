@@ -87,7 +87,7 @@ export function isPlace(node: OutlineNode): boolean {
  * to the re-parse, so its surgery can still hold `### B` under `# A`.
  */
 function renestHeadings(nodes: readonly OutlineNode[]): readonly OutlineNode[] {
-  if (!nodes.some((n) => n.kind === 'heading')) return nodes;
+  if (nestedByLevel(nodes, 0)) return nodes;
   const flat: OutlineNode[] = [];
   const flatten = (node: OutlineNode): void => {
     if (node.kind !== 'heading') {
@@ -115,6 +115,26 @@ function renestHeadings(nodes: readonly OutlineNode[]): readonly OutlineNode[] {
   return root;
 }
 
+/**
+ * Whether every heading already sits where its level puts it: under a heading
+ * of a lower level, after no sibling heading of a lower level, and followed in
+ * its parent's list by headings alone. A parsed tree always is, and most surgeries are.
+ */
+function nestedByLevel(nodes: readonly OutlineNode[], parentLevel: number): boolean {
+  let lastHeading = 0;
+  for (const node of nodes) {
+    if (node.kind === 'heading') {
+      const level = node.level ?? 1;
+      if (level <= parentLevel || (lastHeading > 0 && level > lastHeading)) return false;
+      lastHeading = level;
+      if (!nestedByLevel(node.children, level)) return false;
+    } else if (lastHeading > 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function childMargin(node: OutlineNode, margin: number): number {
   if (node.kind !== 'list-item') return margin;
   return parseListMarker(node.lines[0] ?? '')?.contentCol ?? margin;
@@ -133,7 +153,7 @@ function placements(doc: OutlineDoc): Map<number, Placement> {
     let previous = NONE;
     let head: number | undefined;
     for (const node of nodes) {
-      const item = kindAsWritten(node, margin) === 'list-item';
+      const item = node.kind === 'list-item' && kindAsWritten(node, margin) === 'list-item';
       head = item ? (head ?? node.id) : undefined;
       const lists = item ? new Set([...inherited, head!]) : inherited;
       out.set(node.id, { node, parent, previous, margin, order: order++, lists });
@@ -166,7 +186,10 @@ function judgeSeams(before: OutlineDoc, after: OutlineDoc): JudgedSeam[] {
   const now = [...placements(after).values()];
   const written = (p: Placement): boolean => {
     const was = old.get(p.node.id);
-    return was === undefined || outlineView(was.node, was.margin) !== outlineView(p.node, p.margin);
+    if (was === undefined) return true;
+    // A block the surgery did not rewrite keeps its own lines by reference.
+    if (was.node.lines === p.node.lines && was.node.kind === p.node.kind && was.margin === p.margin) return false;
+    return outlineView(was.node, was.margin) !== outlineView(p.node, p.margin);
   };
   const seams: JudgedSeam[] = [];
   for (let i = 1; i < now.length; i++) {

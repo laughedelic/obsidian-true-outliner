@@ -175,3 +175,20 @@ What each says:
   block. The pass adds to neither, and the restored seams remove some.
 - **The generator writes no #255 shape,** a quote or callout written flush as an item's first child, so that
   exclusion is not exercised here.
+
+## Measured: the pass's cost
+
+On the 2000-line stress note `e2e-tests/specs/62-outline-edit-enforcement.e2e.ts` builds (400 sections and a
+list), a `deleteSubtrees` of one section's paragraph, 200 runs after 20 of warm-up, in vitest on the cloud VM:
+
+| | per operation |
+| --- | --- |
+| without the pass | 1.27 ms |
+| with the pass, first version | 3.5 ms |
+| with the pass | 1.57 ms |
+
+The first version failed the enforcement budget in the real app (4.1 ms and 3.7 ms against 3). It spent its time
+building every block's outline view and re-nesting every heading on both trees. Two shortcuts took it out, and
+neither changes what the pass decides:
+- a block whose lines the surgery kept by reference, at the same margin, has the view it had;
+- a tree whose headings already sit where their levels put them, which every parsed tree does, is not re-nested.
