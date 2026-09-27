@@ -134,6 +134,9 @@
   #264 manual case (`    first` / blank / `    > quote` pasted at the end of `## H` above `below`) and the drag
   case as e2e cases, and run the clipboard and dragging specs in narrow mode. Confirm each fails on the layer
   below.
+  Done: the paste case in `62-outline-edit-enforcement.e2e.ts`, and every buffer assertion the pass changed. Open:
+  the drag case, which needs a drop above a note's first row that the dragging spec's helpers do not reach; its
+  result is pinned through `moveSubtreesTo` in `tests/created-seams.test.ts`.
 - [ ] 5.6 Re-run the seam sweep, the insertion differential and the drag sweep
   (`docs/research/prototypes/seam-differential/`), and record the figures in the note. Verify that no row loses a
   node.
