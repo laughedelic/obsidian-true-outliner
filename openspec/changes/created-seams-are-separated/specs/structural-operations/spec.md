@@ -4,22 +4,20 @@
 A SEAM is the boundary between two blocks: the last content line of the block above it and the first
 content line of the block below it, with whatever blank lines stand between them.
 
-Whether an operation CREATED a seam is read off the note's text before and after the operation,
-aligned line by line, with lines matched where they are unchanged. A seam is created where the
-operation INSERTED text:
-- the seams around a pasted, dropped or moved run
-- every seam inside a pasted payload
-- the seam a removal leaves between the blocks it brings together
-- the new seam between the halves of a split
+An operation CREATES the seams it writes as new boundaries, and states them. Each operation creates
+exactly these:
 
-A seam at the outer edge of text the operation REWROTE in place is not created: it stands where the
-old seam stood. That covers a split's outer edges, a merge's, a type-over's, and a re-indented
-block's. Such a seam is created only when the kind, as written, of the block at that edge changed.
-An indent that turns a paragraph written directly above `> q` into a list item changes what that seam
-means to every reader.
+| operation | seams it creates |
+| --- | --- |
+| an insertion, a paste, a drop, a move to another scope | the run's two outer seams, and every seam inside a pasted payload |
+| a deletion, and the removal half of a move to another scope | the seam that joins the blocks around the removed run |
+| a split, including one that materializes an empty item or heading | the new seam between the halves |
+| a drafted sibling heading | the new heading's two seams |
+| an Enter position | the position's two seams, governed by `outline-keyboard-grammar` |
+| a merge, an indent, an outdent, a same-scope reorder, a lone id's drop | none |
 
-A seam between two blocks whose lines the operation left alone, and that were adjacent before it, is
-the user's. That holds for the seams inside a moved run.
+A type-over creates only the seams inside its payload. Its outer seams stand where the replaced run's
+stood.
 
 A created seam SHALL be written with one blank line. Every reader of the note but our own parse
 continues a line written flush under a quote, a callout or a list item into that block
@@ -41,29 +39,27 @@ Four limits bound it:
   Those seams SHALL be written as `Subtree insertion at a boundary`, `Node split` and the parse require,
   and this rule SHALL NOT add to them. A blank line there makes the list loose in every reader
   (`lazy-continuation-at-seams`, "Measured: loose lists"), and whether a list is tight or loose is the
-  user's to choose.
-
-  The seams between a list and a block outside it are not inside the list: a paragraph or heading
-  directly above the list, and the block directly below the list's last line.
+  user's to choose. The seams between a list and a block outside it are not inside the list: a paragraph
+  or heading directly above the list, and the block directly below the list's last line.
 - **A seam is never widened.** A created seam that already holds one or more blank lines SHALL keep exactly
   what it holds. Only an empty seam gains a line, and it gains one.
-- **A seam the user wrote is not touched.** Such a seam SHALL keep its separation as written, however flush,
-  unless the parse requires a separator there (`Boundary separation is judged on the kind the re-parse will
-  read`). An operation separates nothing it did not create, so an untouched note stays byte-identical.
-- **A block id stays on its block.** An attached block-id line SHALL NOT be separated from the block it
-  names. It is part of that block's encoding, and a separator the rule adds is written after it.
-
-  A lone block-id line the parse reads as a node of its own SHALL stay flush above the block below it,
-  since a blank line there would attach it to the block above and move every reference to it. The one
-  exception is where the parse requires a separator. Above a paragraph, the id line would otherwise join
-  the paragraph's text.
+- **A seam the user wrote is not touched.** No operation creates it, so it SHALL keep its separation as
+  written, however flush, unless the parse requires a separator there (`Boundary separation is judged on the
+  kind the re-parse will read`). An untouched note stays byte-identical.
+- **A blank line never changes what a block is.**
+  - An attached block-id line SHALL NOT be separated from the block it names. It is part of that block's
+    encoding, and the separator is written after it.
+  - A lone block-id line the parse reads as a node of its own SHALL stay flush above the block below it,
+    since a blank line there would attach it to the block above. The parse's own requirements still apply:
+    above a paragraph, the id line would otherwise join the paragraph's text.
+  - No blank line SHALL be written above a block indented four or more columns past its container's margin,
+    which CommonMark would then read as indented code.
 
 The cost of the first limit is that some shapes stay ambiguous inside a tight list. A paragraph written
 directly under a quote, or under a nested item, is continued into that block by reading mode.
 
-A provisional position's lines are gap lines, and its separation is governed by `outline-keyboard-grammar`'s
-provisional-position requirement. This rule adds only to an empty seam, so it never writes beside a
-position.
+`docs/research/created-seam-detection` records the rules for telling created seams apart that were reviewed
+before this one, and the cases each failed on.
 
 #### Scenario: A pasted quote is separated from the paragraph below it
 - **WHEN** `    first` / blank / `    > quote` is pasted at the end of `## H` in a note holding `## H`
@@ -101,21 +97,16 @@ position.
 - **THEN** the merged paragraph sits directly above `# H`
 
 #### Scenario: Typing over a selected block keeps the spacing around it
-- **WHEN** `x` is typed over a selected `para` in `> q` / `para` / `z`, written with no blank lines
-- **THEN** the note reads `> q` / `x` / `z`
-
-#### Scenario: A re-encode that changes a block's kind separates its seam
-- **WHEN** `p2`, written directly above `> q` and after `p1` / blank, is indented under `p1`, so it is written
-  as a list item
-- **THEN** a blank line stands between that list item and `> q`
+- **WHEN** `x` is typed over a selected `para` in `# A` / `para` / `# B`, written with no blank lines
+- **THEN** the note reads `# A` / `x` / `# B`
 
 #### Scenario: A boundary the user wrote is left alone
 - **WHEN** a document contains `> q` directly followed by `body`, and a structural operation runs
   on some unrelated node
 - **THEN** the quote's own lines and trailing gap are byte-identical afterwards
 
-#### Scenario: A seam inside a moved run is left as written
-- **WHEN** a run holding `> q` directly followed by `body` is moved to another position in the same scope
+#### Scenario: A seam inside a run moved to another scope is left as written
+- **WHEN** a run holding `> q` directly followed by `body` is moved under another heading
 - **THEN** `> q` and `body` are still written with no blank line between them
 
 #### Scenario: An existing separated boundary is not widened further
@@ -123,14 +114,19 @@ position.
 - **THEN** the seam holds exactly one blank line afterwards
 
 #### Scenario: A block id stays on its block
-- **WHEN** a paragraph carrying a block id on its own line below it is inserted above a paragraph
-- **THEN** the id's line stays directly under the paragraph it names, and the blank line the seam
-  gains is written below the id
+- **WHEN** a list item carrying an attached block id on its own line is inserted at the root above a
+  paragraph
+- **THEN** the id's line stays directly under the item, and the blank line the seam gains is written
+  below the id
 
 #### Scenario: A lone id line stays flush above the block below it
 - **WHEN** `> q` is deleted from `Lead.` / blank / `^id3` / `> q` / `# H`
 - **THEN** `^id3` stays directly above `# H`, and remains a node of its own rather than attaching to
   `Lead.`
+
+#### Scenario: A block indented four columns is not preceded by a blank line
+- **WHEN** a payload of `para` over `    - a`, a list indented four columns under it, is pasted
+- **THEN** no blank line is written between `para` and `    - a`
 
 ## MODIFIED Requirements
 
@@ -408,8 +404,8 @@ than a terminator, so the question is whether the gap's LAST line is empty.
 The seam a removal leaves between the node above the run and the node below it is created. Outside a
 list it SHALL gain one blank line where it would otherwise be empty, per `A seam an operation creates
 is separated`. When the caller will splice content into the place the removal leaves, that seam is
-not a seam of the result, and the removal SHALL NOT separate it: the gesture is judged as a whole,
-against the text before it.
+not a seam of the result, and the removal SHALL NOT create it: the insertion states the seams it
+creates.
 
 A caller that will splice content into the place the removal leaves — a type-over, or a
 paste onto an empty anchor — SHALL say so, and the terminator SHALL NOT be restored
@@ -795,8 +791,8 @@ the common case, and one rule is better than two that differ by the original's u
 When `remainder` is non-empty it SHALL be removed from the original heading's title, which
 is otherwise unchanged in level, marker and setext-ness. The original's existing CHILDREN
 stay with it: heading scope is positional, so content already under it belongs to it, and
-the new sibling starts empty. The new heading's lines are inserted, so both of its seams are created,
-and each SHALL be separated per `A seam an operation creates is separated`.
+the new sibling starts empty. The operation creates both of the new heading's seams, and each SHALL be
+separated per `A seam an operation creates is separated`.
 
 A node that is not a heading SHALL be rejected with `cannot-split`. The anchor SHALL be
 the new heading's content start.

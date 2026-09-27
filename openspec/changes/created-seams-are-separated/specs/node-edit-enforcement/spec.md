@@ -35,10 +35,9 @@ A pasted run SHALL keep the separation of the boundary it lands in, on both side
 every other seam the paste creates, those inside the payload included, is separated per
 `structural-operations`' `A seam an operation creates is separated`. A TYPE-OVER reaches its destination through
 a deletion, which takes the replaced run's own gap with it, so its replacement SHALL inherit the
-separation that run had rather than whatever gap the payload's own text ended with. A type-over is
-judged as one gesture against the text before it: its payload rewrites the replaced run in place,
-so the seams at the payload's outer edges stay as the user wrote them, unless the kind of the block
-at an edge changed.
+separation that run had rather than whatever gap the payload's own text ended with. A type-over creates
+only the seams inside its payload: its outer seams stand where the replaced run's stood, and keep
+the separation the user wrote there.
 
 A gap the caret was in and that is WIDER than a single blank line SHALL collapse to one with the
 insertion. A structural Enter opens a place there, separated on both sides — which is what makes

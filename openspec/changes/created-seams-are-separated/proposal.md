@@ -10,25 +10,29 @@ structure, and the text it writes has to mean that structure in every view of th
 
 ## What Changes
 
-- **A seam an operation creates outside a list is written with one blank line.** A seam is created where
-  the operation inserted text, judged by aligning the note's lines before and after it:
-  - the seams around a pasted, dropped or moved run, and the seams inside a pasted payload
-  - the seam a deletion leaves between the blocks it brings together
-  - the new seam a split makes
+- **A seam an operation creates outside a list is written with one blank line.** Each operation states the
+  seams it creates, and separates them:
+  - an insertion, paste, drop or move to another scope: the run's two outer seams, and the seams inside a
+    pasted payload
+  - a deletion: the seam that joins the blocks around the removed run
+  - a split: the new seam between the halves
+  - an Enter place: both of its sides
 
-  The seams at the outer edges of text an operation rewrote in place stay the user's, unless the
-  kind of the block at that edge changed. That covers a split's outer seams, a merge's, and a
-  type-over's. This replaces "the minimum the parse requires" as the rule for created seams, and the
-  kind-as-written rules stay as the floor they already are.
+  A merge, an indent or outdent, a same-scope reorder, a type-over's outer seams and a lone id's drop create
+  none. This replaces "the minimum the parse requires" as the rule for those seams, and the kind-as-written
+  rules stay as the floor they already are. The approaches reviewed before this one are recorded in
+  `docs/research/created-seam-detection`.
 - **Inside a list, the rule adds nothing.** Whether a list is tight or loose is the user's, and every seam
   inside a list is written as today (`lazy-continuation-at-seams`, "Measured: loose lists"). The seams
   between a list and the blocks above and below it are outside the list.
-- **A seam the user wrote is not touched.** Two blocks adjacent before the operation, whose lines it left
-  alone, keep their separation as written, however flush.
+- **A seam the user wrote is not touched.** No operation marks it, so it keeps its separation as written,
+  however flush.
 - **A seam is never widened.** Only an empty seam gains a line, and it gains one.
-- **A block id stays on its block,** and a lone id line stays flush above the block below it.
-- **An Enter place is separated on both sides** and always adds its own line. Abandoning a dissolved place
-  leaves the neighbours separated as the rule would. A Shift+Enter place stays adjacent.
+- **A block id stays on its block,** and a lone id line stays flush above the block below it. No blank line
+  is written above a block indented four columns past its margin, which CommonMark would read as code.
+- **An Enter place is separated on both sides outside a list** and always adds its own line. Abandoning a
+  dissolved place leaves the neighbours as the note held them, or separated where that was empty outside a
+  list. A Shift+Enter place stays adjacent.
 - **A move that gains a blank line is still dispatched as a move.**
 - **BREAKING (encoding):** operations that wrote a flush created seam outside a list write a blank line
   there instead. A note is unchanged until an operation touches it, and then only at the seams that
@@ -67,15 +71,14 @@ None.
 ## Impact
 
 - `src/ops.ts`:
-  - `finalize` aligns the result with the document it started from and separates created, empty seams
-    outside a list
-  - `deleteSubtreeGroups` adds no separators when a splice follows
-  - `splitNode`, `insertEmptyBefore`, `unwrapListItem` and `outdentSurgery` write their places separated on
-    both sides
-- A shared line-alignment module, moved out of `src/plugin/dispatch.ts`.
-- `src/enforce.ts`: a type-over and an empty-anchor paste are judged against the text before the gesture.
-- `src/plugin/grammar.ts` (`abandonEdit`), used by the keyboard grammar and the command path in
-  `src/plugin/main.ts`: a dissolved place's stated removal.
+  - each op records the seams it creates on the surgery
+  - `finalize` separates the marked seams that are empty and outside a list
+  - `deleteSubtreeGroups` marks nothing when a splice follows
+  - `splitNode`, `insertEmptyBefore`, `unwrapListItem` and `outdentSurgery` write their places separated
+    on both sides outside a list
+- `src/enforce.ts`: a type-over's insertion marks only its payload's inner seams.
+- `src/plugin/grammar.ts` and `src/plugin/main.ts`: a dissolving op states its own removal, covering the
+  separators it added.
 - `src/plugin/dispatch.ts`: the relocation match sets blank lines aside.
 - Tests: many unit tests pin flush encodings of created seams outside lists, and change with the rule. The e2e
   specs that assert whole buffers across a structural edit change with them.

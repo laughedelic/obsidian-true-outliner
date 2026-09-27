@@ -280,16 +280,17 @@ The two kinds SHALL be distinguishable from the DOCUMENT ALONE, with no editor s
 record of which key was pressed:
 
 - Enter's provisional position SHALL be blank-separated from the content above it and below
-  it, so text typed there parses as a node distinct from both neighbours. That holds wherever the
-  position sits, inside a list too, and even where the blocks around it were written flush: under
-  a quote, a heading or a closing fence, under a list an item has left, and above a flush first
-  child. Every reader but ours continues a line typed flush under a quote or a list item into that
-  block. The keypress always writes the position's own line, and adds a blank line on either side
-  only where that side lacks one.
+  it, so text typed there parses as a node distinct from both neighbours. Outside a list that
+  holds even where the blocks around it were written flush: under a quote, a heading or a closing
+  fence, under a list an item has left, and above a flush first child. Every reader but ours
+  continues a line typed flush under a quote or a list item into that block. The keypress always
+  writes the position's own line, and adds a blank line on either side only where that side lacks
+  one. Inside a list a position keeps the separation the parse requires, which a paragraph under an
+  item needs above it, so a tight list is not loosened by a position after a code or table child.
 - Shift+Enter's provisional position SHALL be ADJACENT to the node above it, so text typed
-  there parses as that node's own continuation line. The separation `structural-operations`
-  writes at a created seam never applies to it: a position's lines are gap lines, and that rule
-  adds only to an empty seam.
+  there parses as that node's own continuation line. No operation creates a seam at a
+  Shift+Enter position, so the separation `structural-operations` writes at a created seam never
+  applies to it.
 
 This is the reason an end-of-node Enter separates its position on both sides rather than reusing
 the single blank line that already separates two nodes. The narrower encoding was evaluated and
