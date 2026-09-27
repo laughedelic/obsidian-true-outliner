@@ -6,6 +6,7 @@ import {
   axesOf,
   NO_FILTER,
   orderAndCap,
+  pruneDeadSelections,
   type ControlsState,
   type SourceRefs,
 } from '../src/plugin/footer-filter';
@@ -651,5 +652,115 @@ describe('the term-active pipeline', () => {
   it('leaves the ordinary pass untouched when the term is empty', () => {
     const state = controls({ cap: 10 });
     expect(termPipeline(THREE_SOURCES, placed, state)).toEqual(applyControls(THREE_SOURCES, state));
+  });
+});
+
+describe('the zoom answer', () => {
+  /** A reference addressing `subpath`, or the whole note when absent. */
+  const at = (kind: ReferenceKind, subpath?: string): BacklinkReference => ({
+    kind,
+    sourcePath: 'unused',
+    line: 0,
+    original: subpath ? `[[Target${subpath}]]` : '[[Target]]',
+    subpath,
+  });
+  const note = (path: string, mtime: number, refs: BacklinkReference[], tags: string[] = []) => ({
+    path,
+    mtime,
+    refs,
+    tags,
+  });
+
+  // Four references land in the zoomed view, two do not, and three address
+  // the note as a whole.
+  const ZOOMED: SourceRefs[] = [
+    note('Daily/2026-07-10.md', 500, [at('anchor', '#^alarm'), at('note')]),
+    note('Notes/Weekly review.md', 400, [at('anchor', '#Current sprint'), at('embed', '#^tri')]),
+    note('Notes/Priya.md', 300, [at('anchor', '#^later')]),
+    note('Archive/Old plan.md', 200, [at('note'), at('note')], ['archived']),
+    note('Notes/Atoms.md', 100, [at('property', '#Current sprint'), at('anchor', '#Backlog')]),
+  ];
+  const BRANCH = new Set(['#^alarm', '#Current sprint', '#^tri']);
+
+  it('totals count only the references the answer admits', () => {
+    const result = applyControls(ZOOMED, controls({ scope: BRANCH }));
+    expect(result.totals).toEqual({ references: 4, notes: 3 });
+    expect(paths(result)).toEqual(['Daily/2026-07-10.md', 'Notes/Weekly review.md', 'Notes/Atoms.md']);
+  });
+
+  it('counts each group by the references it admits', () => {
+    const counts = applyControls(ZOOMED, controls({ scope: BRANCH })).groups.map((g) => g.count);
+    expect(counts).toEqual([1, 2, 1]);
+  });
+
+  it('offers no note kind under a narrow answer', () => {
+    const kinds = axesOf(ZOOMED, controls({ scope: BRANCH })).kinds.map((k) => k.value);
+    expect(kinds).toEqual(['anchor', 'embed', 'property']);
+    expect(axesOf(ZOOMED, controls()).kinds.map((k) => k.value)).toContain('note');
+  });
+
+  it('admits a reference with no subpath only when there is no answer', () => {
+    const wholeNote = [note('Notes/Only whole.md', 1, [at('note'), at('embed'), at('property')])];
+    expect(applyControls(wholeNote, controls({ scope: new Set(['#^x']) })).totals.references).toBe(0);
+    expect(applyControls(wholeNote, controls({ scope: new Set() })).totals.references).toBe(0);
+    expect(applyControls(wholeNote, controls({ scope: null })).totals.references).toBe(3);
+  });
+
+  it('drops out-of-scope references from a placed group', () => {
+    const placed = placedSource('Notes/Rollout log.md', SOURCE_NOTE, [
+      { ...at('anchor', '#^alarm'), line: 2 },
+      { ...at('embed', '#Backlog'), line: 5 },
+      { ...at('property', '#^alarm'), property: 'related' },
+    ]);
+    const admitted = admitReferences(placed, controls({ scope: new Set(['#^alarm']) }));
+    expect(admitted.count).toBe(2);
+    expect(admitted.nodes.size).toBe(1);
+    expect(admitted.properties).toHaveLength(1);
+    expect(admitReferences(placed, controls()).count).toBe(3);
+  });
+
+  it('applies before the cap, so the cap spends its budget on what the answer admits', () => {
+    // Unscoped, a cap of 2 stops at the first group of two references.
+    expect(paths(applyControls(ZOOMED, controls({ cap: 2 })))).toEqual(['Daily/2026-07-10.md']);
+    expect(paths(applyControls(ZOOMED, controls({ cap: 2, scope: BRANCH })))).toEqual([
+      'Daily/2026-07-10.md',
+    ]);
+    expect(paths(applyControls(ZOOMED, controls({ cap: 3, scope: BRANCH })))).toEqual([
+      'Daily/2026-07-10.md',
+      'Notes/Weekly review.md',
+    ]);
+  });
+
+  it('keeps a selection the answer does not carry, listed at zero, and applies it again unscoped', () => {
+    const state = { folders: new Set(['Archive']), kinds: new Set<ReferenceKind>(), tags: new Set(['archived']) };
+    const selected = (scope: ReadonlySet<string> | null): ControlsState =>
+      controls({ folders: state.folders, tags: state.tags, scope });
+
+    // Unscoped: the folder narrows the footer to the whole-note references it holds.
+    pruneDeadSelections(state, ZOOMED);
+    expect(paths(applyControls(ZOOMED, selected(null)))).toEqual(['Archive/Old plan.md']);
+
+    // Zoomed: the answer holds nothing from that folder. The selection is kept,
+    // and the facet still lists it, at zero.
+    pruneDeadSelections(state, ZOOMED);
+    expect(state.folders.has('Archive')).toBe(true);
+    expect(state.tags.has('archived')).toBe(true);
+    const axes = axesOf(ZOOMED, selected(BRANCH));
+    expect(axes.folders.find((f) => f.value === 'Archive')).toEqual({ value: 'Archive', notes: 0 });
+    expect(axes.tags.find((t) => t.value === 'archived')).toEqual({ value: 'archived', notes: 0 });
+
+    // Zoomed out again: it narrows the footer again.
+    expect(paths(applyControls(ZOOMED, selected(null)))).toEqual(['Archive/Old plan.md']);
+  });
+
+  it('does not list an unselected value the answer lacks', () => {
+    const folders = axesOf(ZOOMED, controls({ scope: BRANCH })).folders.map((f) => f.value);
+    expect(folders).toEqual(['Daily', 'Notes']);
+  });
+
+  it('still drops a selection whose value the note no longer has at all', () => {
+    const state = { folders: new Set(['Gone']), kinds: new Set<ReferenceKind>(), tags: new Set<string>() };
+    pruneDeadSelections(state, ZOOMED);
+    expect(state.folders.size).toBe(0);
   });
 });

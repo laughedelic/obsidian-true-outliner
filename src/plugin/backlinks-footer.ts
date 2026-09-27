@@ -76,6 +76,7 @@ import {
   applyControls,
   orderAndCap,
   axesOf,
+  pruneDeadSelections,
   type AdmittedGroup,
   type ControlsResult,
   type ControlsState,
@@ -443,10 +444,9 @@ class FooterController {
     // filtering time would still draw as selected, and would silently
     // reactivate with no action from the reader if it ever reappeared
     // (design Risks: "a selection whose value is absent... is dropped").
-    // `axes` already carries exactly the present values per axis, computed
-    // from the sources rather than from any current selection, which is what
-    // makes it the right thing to prune against.
-    this.pruneDeadSelections(state, axes);
+    // Pruned against the note's whole reference set rather than the answer's,
+    // so zooming in never deletes a selection (zoom-scoped-backlinks D8).
+    pruneDeadSelections(state, sources);
 
     // With no term the controls decide everything BEFORE a source note is
     // read: the folder is part of the path and the kind is on the reference,
@@ -804,31 +804,6 @@ class FooterController {
   }
 
   /**
-   * Removes a selection whose value no longer exists among `axes`' own
-   * values, from the STORED state rather than only from a computation over
-   * it. See the call site's comment for why this has to reach the persisted
-   * Sets and not just discount the value while filtering.
-   *
-   * Covered by a unit test at the model level (`footer-filter.test.ts`, "drops
-   * a selected tag that stops existing") and by a negative control here
-   * (revert this call, the render-layer behaviour it fixes fails) rather than
-   * by a standing e2e case: the one written for it edited a fixture file and
-   * waited on Obsidian's own metadata reindex, which measurably slows deep
-   * into a long test session and made the case flake in the full suite while
-   * passing every time in isolation. Not worth chasing further given the fix
-   * is otherwise fully verified.
-   */
-  private pruneDeadSelections(state: ViewState, axes: FilterAxes): void {
-    const prune = <T>(selected: Set<T>, present: readonly { readonly value: T }[]): void => {
-      const live = new Set(present.map((v) => v.value));
-      for (const value of selected) if (!live.has(value)) selected.delete(value);
-    };
-    prune(state.folders, axes.folders);
-    prune(state.kinds, axes.kinds);
-    prune(state.tags, axes.tags);
-  }
-
-  /**
    * Everything the controls read about this note's references, from the index's
    * cheap half only. No file is read here, which is what lets the cap be
    * applied before `place()`.
@@ -867,6 +842,7 @@ class FooterController {
       search: state.search,
       sort: this.source.backlinksSort,
       cap: OVERALL_CAP_REFERENCES[this.source.backlinksOverallCap] + state.capBonus,
+      scope: null,
     };
   }
 

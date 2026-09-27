@@ -37,7 +37,7 @@
 
 ## 3. The answer in the controls model
 
-- [ ] 3.1 Add `scope: ReadonlySet<string> | null` to `ControlsState` in
+- [x] 3.1 Add `scope: ReadonlySet<string> | null` to `ControlsState` in
       `src/plugin/footer-filter.ts` and apply it at the head of `filterSources`, `presentValues`
       and `admitReferences` (design D1). Verify in `tests/footer-filter.test.ts`: totals under a
       scope count only admitted references; the kind axis offers no `note` under a narrow scope; a
@@ -45,7 +45,7 @@
       references from a placed group; every existing case passes unchanged with `scope: null`.
       Negative control: apply the scope in `filterSources` only and confirm the `admitReferences`
       case fails
-- [ ] 3.2 Keep a selection alive across answers (design D8): offered values are the scoped set's
+- [x] 3.2 Keep a selection alive across answers (design D8): offered values are the scoped set's
       plus any selected value it lacks, at a count of zero, and `pruneDeadSelections` runs against
       the unscoped axes. Verify with a `tests/footer-filter.test.ts` case for a folder that only
       whole-note references carry, selected, then scoped, then unscoped. Negative control: prune
