@@ -1,0 +1,184 @@
+/**
+ * The keyboard grammar, measured: every structural key on every node of every
+ * admissible forest up to N nodes, with the structural effect on the subject
+ * classified from the re-parse. A task-action-grammar reading: how many
+ * distinct effects each key has, and on which features of the context the
+ * effect depends.
+ *
+ * Run: npx tsx keys.ts [maxN]
+ */
+import { parse } from '../../../../src/parse';
+import type { OutlineNode } from '../../../../src/model';
+import { planKey, plannedCaret, type GrammarKey } from '../../../../src/plugin/grammar';
+import { type T, lvl, section } from '../placement-grammar-formalization/grammar';
+
+const maxN = Number(process.argv[2] ?? 3);
+const KEYS: GrammarKey[] = ['split', 'continue', 'indent', 'outdent', 'move-up', 'move-down'];
+
+type Subj = 'heading' | 'paragraph' | 'item' | 'task' | 'code' | 'quote';
+
+/** Writes a forest; the subject (by preorder index) may be written as a task. */
+function write(f: T[], taskAt: number | undefined): { text: string; firstLine: Map<string, number> } {
+  const out: string[] = [];
+  const firstLine = new Map<string, number>();
+  let k = 0;
+  const w = (t: T, col: number): void => {
+    const pad = ' '.repeat(col);
+    const id = `x${k}`;
+    const isTask = taskAt === k;
+    k++;
+    firstLine.set(id, out.length);
+    if (t.l === 'P') out.push(`${pad}${id} text`);
+    else if (t.l === 'I') out.push(`${pad}- ${isTask ? '[ ] ' : ''}${id} text`);
+    else if (t.l === 'C') out.push(pad + '```', pad + `${id} text`, pad + '```');
+    else if (t.l === 'Q') out.push(`${pad}> ${id} text`);
+    else out.push(`${pad}${'#'.repeat(lvl(t.l))} ${id} text`);
+    out.push('');
+    for (const c of t.c) w(c, t.l === 'I' ? col + 2 : col);
+  };
+  for (const t of f) w(t, 0);
+  return { text: out.join('\n'), firstLine };
+}
+
+interface Info {
+  kind: string;
+  depth: number;
+  parent: string;
+  prev: string;
+  task: boolean;
+}
+function index(nodes: readonly OutlineNode[]): Map<string, Info> {
+  const out = new Map<string, Info>();
+  const walk = (ns: readonly OutlineNode[], depth: number, parent: string): void => {
+    ns.forEach((n, i) => {
+      const m = /x\d+/.exec(n.lines.join(' '));
+      const id = m ? m[0] : `new${out.size}`;
+      const kind = n.kind === 'heading' ? `h${n.level}` : n.kind;
+      const prevNode = ns[i - 1];
+      const pm = prevNode ? /x\d+/.exec(prevNode.lines.join(' ')) : null;
+      out.set(id, {
+        kind,
+        depth,
+        parent,
+        prev: prevNode ? (pm ? pm[0] : 'new') : '-',
+        task: n.kind === 'list-item' && /^\s*[-*+] \[.\]/.test(n.lines[0] ?? ''),
+      });
+      walk(n.children, depth + 1, id);
+    });
+  };
+  walk(nodes, 0, 'root');
+  return out;
+}
+
+const subjOf = (t: T, task: boolean): Subj =>
+  t.l[0] === 'h' ? 'heading' : t.l === 'P' ? 'paragraph' : t.l === 'I' ? (task ? 'task' : 'item') : t.l === 'C' ? 'code' : 'quote';
+
+function effect(before: Map<string, Info>, after: Map<string, Info>, id: string): string {
+  const b = before.get(id)!;
+  const a = after.get(id);
+  if (!a) return 'subject merged away';
+  const parts: string[] = [];
+  const dd = a.depth - b.depth;
+  if (dd !== 0) parts.push(`depth ${dd > 0 ? '+' : ''}${dd}`);
+  const kb = b.task ? 'task' : b.kind;
+  const ka = a.task ? 'task' : a.kind;
+  if (kb !== ka) {
+    if (kb.startsWith('h') && ka.startsWith('h')) {
+      const d = Number(ka.slice(1)) - Number(kb.slice(1));
+      parts.push(`level ${d > 0 ? '+' : ''}${d}`);
+    } else parts.push(`becomes ${ka === 'list-item' ? 'a list item' : ka}`);
+  }
+  if (dd === 0 && a.parent !== b.parent) parts.push('new parent');
+  if (dd === 0 && a.parent === b.parent && a.prev !== b.prev) parts.push('reordered');
+  const fresh = [...after.entries()].filter(([k]) => k.startsWith('new'));
+  for (const [, n] of fresh) {
+    const rel = n.parent === id ? 'first child' : n.parent === b.parent || n.parent === a.parent ? 'sibling' : 'elsewhere';
+    const kind = n.task ? 'task' : n.kind.startsWith('h') ? 'heading' : n.kind === 'list-item' ? 'list item' : n.kind;
+    parts.push(`new ${kind} as ${rel}`);
+  }
+  // Other nodes that moved: children re-homed, followers adopted.
+  let moved = 0;
+  for (const [k, n] of before) {
+    if (k === id) continue;
+    const m = after.get(k);
+    if (m && (m.parent !== n.parent || m.depth !== n.depth)) moved++;
+  }
+  if (moved > 0 && dd === 0 && !fresh.length) parts.push('others move');
+  return parts.length ? parts.join(', ') : 'no structural change';
+}
+function normalize(e: string): string {
+  return e.startsWith('refused') ? e : e;
+}
+
+// key -> subject kind -> effect -> count
+const table = new Map<string, Map<Subj, Map<string, number>>>();
+const add = (key: string, s: Subj, e: string): void => {
+  const bySubj = table.get(key) ?? new Map<Subj, Map<string, number>>();
+  table.set(key, bySubj);
+  const byEffect = bySubj.get(s) ?? new Map<string, number>();
+  bySubj.set(s, byEffect);
+  byEffect.set(e, (byEffect.get(e) ?? 0) + 1);
+};
+
+let runs = 0;
+for (let n = 1; n <= maxN; n++) {
+  for (const f of section(n, 0, 0, undefined, Infinity, false)) {
+    const flat: T[] = [];
+    const walk = (ts: T[]): void => ts.forEach((t) => (flat.push(t), walk(t.c)));
+    walk(f);
+    flat.forEach((t, i) => {
+      for (const task of t.l === 'I' ? [false, true] : [false]) {
+        const { text, firstLine } = write(f, task ? i : undefined);
+        const id = `x${i}`;
+        const before = index(parse(text).children);
+        const line = firstLine.get(id)! + (t.l === 'C' ? 0 : 0);
+        const lineText = text.split('\n')[line]!;
+        const end = { line, ch: lineText.length };
+        const mid = { line, ch: lineText.indexOf(' text') };
+        for (const key of KEYS) {
+          for (const [where, cursor] of key === 'split' || key === 'continue' ? ([['end', end], ['mid', mid]] as const) : ([['end', end]] as const)) {
+            runs++;
+            const out = planKey(text, cursor, key);
+            const label = key === 'split' || key === 'continue' ? `${key} (${where})` : key;
+            if (out === null) {
+              add(label, subjOf(t, task), 'left to the editor');
+              continue;
+            }
+            if ('notice' in out) {
+              add(label, subjOf(t, task), `refused: ${out.notice}`);
+              continue;
+            }
+            // apply changes
+            const lines = text.split('\n');
+            const offsets: number[] = [];
+            let acc = 0;
+            for (const l of lines) (offsets.push(acc), (acc += l.length + 1));
+            const off = (p: { line: number; ch: number }): number => (offsets[p.line] ?? 0) + p.ch;
+            let next = text;
+            for (const c of [...out.plan.changes].sort((a, b) => off(b.from) - off(a.from)))
+              next = next.slice(0, off(c.from)) + c.text + next.slice(off(c.to));
+            void plannedCaret;
+            const after = index(parse(next).children);
+            add(label, subjOf(t, task), effect(before, after, id));
+          }
+        }
+      }
+    });
+  }
+}
+
+console.log(`planKey runs: ${runs}`);
+const ALL_KINDS: Subj[] = ['heading', 'paragraph', 'item', 'task', 'code', 'quote'];
+console.log('\nkey | distinct effects | effects shared by every kind that accepts the key');
+for (const [key, bySubj] of table) {
+  const all = new Set<string>();
+  for (const m of bySubj.values()) for (const e of m.keys()) all.add(e);
+  const accepted = ALL_KINDS.filter((k) => [...(bySubj.get(k)?.keys() ?? [])].some((e) => !e.startsWith('refused') && e !== 'left to the editor'));
+  const shared = [...all].filter((e) => !e.startsWith('refused') && accepted.every((k) => bySubj.get(k)?.has(e)));
+  console.log(`${key} | ${all.size} | ${shared.join('; ') || '(none)'}`);
+  console.log(`\n=== ${key}: ${all.size} distinct effects`);
+  for (const [s, m] of bySubj) {
+    const parts = [...m].sort((a, b) => b[1] - a[1]).map(([e, c]) => `${e} (${c})`);
+    console.log(`  ${s}: ${parts.join('; ')}`);
+  }
+}

@@ -1,0 +1,76 @@
+# issue	state	kinds	layer	families	title
+115	open	kind/bug	enforcement	second-writer	Mod-Backspace at the end of a childless paragraph deletes the whole node
+116	closed	kind/bug	text	places	Shift+Enter on a list marker with no trailing space opens a position outside every node
+117	closed	kind/bug	text	columns	A non-list-item child of a list item is indented twice
+118	open	kind/bug	views	-	Under the Minimal theme, indented callouts and code blocks overflow the reading column
+119	closed	kind/bug	interaction	places	Shift+Tab leaves the caret off the provisional position it just moved
+120	open	kind/bug	text	numbering	Renumbering past nine digits re-parses an ordered item as a paragraph
+121	open	kind/bug	views	-	A node holding several references renders one footer row but counts as several
+130	closed	kind/bug	interaction	places	A structural key leaves the caret off a trailing provisional position, and leaves the place its old width
+136	open	kind/bug	text	columns	A block start deeper than three columns parses as a paragraph
+137	open	kind/bug	text	readers	A table written inside a list item is not rendered as a table
+138	open	kind/bug	text	readers	A top-level four-space line gets a paragraph's marker where Obsidian renders code
+140	closed	kind/bug	interaction	columns	The caret jumps a whole indent unit inside a top-level leading run
+142	closed	kind/bug	interaction	places	The place record is single-shot, so a second structural key mistreats the place
+143	closed	kind/bug	views	-	Toggling outline mode jumps the view to the top of a long document
+144	open	kind/bug	views	-	The backlinks footer's controls are below a touch target
+145	open	kind/bug	views	-	A lineage segment is a link that can contain links, which ARIA does not allow
+146	open	kind/bug	interaction	-	Exiting a table's nested editor parks the caret on a gap line for one press
+147	open	kind/bug	interaction	-	Non-Latin IME input right after a block selection loses its first keystroke
+148	open	kind/bug	views	-	A residual flicker on the first switch into block-selection mode
+152	open	kind/bug	interaction	places	A move leaves the caret off the place it carried, stranding it as an unreachable gap
+153	closed	kind/bug	interaction	places	A keypress that carries a place forward leaves no record, so the next one mistreats it
+154	closed	kind/bug	text	columns	An indent writes its unit on the node's first line and spaces on the continuation lines
+155	closed	kind/bug	enforcement	second-writer	Enter inside a quote or callout destroys the node, keeping one character
+156	open	kind/chore	infra	-	A DOM test environment for the view-plugin layer
+157	open	kind/chore	infra	-	Roadmap: the larger pieces still parked in the research notes
+158	closed	kind/bug	text	columns	An atom re-indented past column 3 loses its kind, and in a heading scope takes the next node with it
+159	closed	kind/bug	text	numbering	Inserting a bullet into an ordered run renumbers the tail, rewriting untouched content
+160	closed	kind/bug	text	seams	A structural deletion at the end of a note drops the file's terminating newline
+172	closed	kind/bug	infra	-	e2e: `this.timeout()` inside a case cannot raise its budget — wdio's wrapper fixes it at 60 s before the body runs
+192	closed	kind/bug	enforcement	numbering,second-writer	A structural paste into an ordered run is declined, because Obsidian's own renumbering makes the transaction multi-range
+197	closed	kind/bug	text	seams	A pasted table takes the next line that carries a pipe as one of its rows
+198	open	kind/bug	text	seams	A paragraph pasted from column 4 to the margin becomes the block its text opens, and takes the node below
+199	open	kind/chore	infra	-	The property suite cannot see a seam past the opening margin
+200	open	kind/bug	outline	placement	Outdent refuses a list item that is a heading's direct child, so it cannot be turned into a paragraph
+201	open	kind/feature	interaction	-	Moving nodes on a phone has no gesture: dragging is shelved on touch
+202	open	kind/feature	interaction	-	A task cannot be zoomed from the pointer: its mark is the checkbox
+206	open	kind/bug	outline	placement	Moving a block out from between a paragraph and a list re-parents the list, and the drag preview does not show it
+207	closed	kind/bug	text	block-ids	A block id on its own line is left behind when the block it names moves
+209	open	kind/feature	views	block-ids	Embeds and links to a block anchor show the outline's node, not Obsidian's block
+212	open	kind/bug	infra	-	e2e: a case that outruns its budget keeps driving the editor into the next case
+213	open	kind/bug	text	readers	A line opening with an inline tag or an autolink is read as an HTML block that swallows the list below it
+214	closed	kind/bug	infra	numbering	The group-ops minimal-edit property flags a renumbered item's children, and fails about one run in thirty
+215	open	kind/bug	text	columns	A node converted by an indent moves its children in spaces, whatever the unit
+216	closed	kind/bug	text	columns	A paste keeps the clipboard's own indentation instead of converging on the document's
+217	open	kind/feature	views	-	Searching the outline has no palette: no hit is shown under its lineage or opened zoomed
+218	open	kind/feature	views	-	A search query is one literal substring: two words match only adjacent and in order
+219	open	kind/feature	views	-	A zoomed view's backlinks footer still answers for the whole note
+220	open	kind/feature	views	-	The open note cannot be filtered to the nodes that match a query
+221	open	kind/chore	infra	-	Shipped features have no user-facing documentation
+222	open	kind/feature	views	-	Block markers cannot be turned off or restyled: the icon layer is the one decoration layer with no off switch
+223	open	kind/feature	outline	placement	Moving a node past its last sibling is refused instead of crossing into the parent's sibling
+227	closed	kind/bug	text	numbering	Renumbering moves an item marked with a tab onto another tab stop, and its neighbours re-parent
+228	open	kind/bug	text	numbering	Renumbering treats a change of ordered delimiter as the same list
+229	open	kind/bug	text	readers	A list item indented four columns after a paragraph is read as its list, where Markdown reads more paragraph text
+230	open	kind/feature	text	seams	When may an operation or a paste trim trailing whitespace?
+236	open	kind/chore	infra	-	The tooling could run on Deno, but the directory's release scan expects npm's package.json and lockfile
+237	open	kind/chore	infra	-	The directory's scan reports 43 advisory warnings on our stylesheet and ESLint config
+244	open	kind/bug	text	columns	A pasted subtree moved right loses a tab-indented child: the verbatim fallback puts spaces in front of its tab
+248	closed	kind/bug	interaction	places	A structural command forgets a place it carried, and never removes one it left
+249	closed	kind/bug	interaction	places	A place carried by Tab is not removed when abandoned
+250	open	kind/bug	interaction	undo	A structural command run right after a structural key joins that key's undo step
+252	closed	kind/bug	text	numbering,second-writer	Enter in a nested ordered list renumbers the parent list's next item
+253	open	kind/bug	interaction	places	Tab after Enter at a paragraph's end leaves the blank lines Enter opened
+254	open	kind/feature	interaction	places	Pointer gestures over an open place: drag and zoom follow the abandon rule
+255	open	kind/bug	text	seams	An operation near a list item whose first child is a quote or callout rewrites that child with a blank line above it
+257	open	kind/bug	interaction	places	The caret cannot leave a drafted heading that Shift+Tab reduced to a bare #
+258	open	kind/feature	interaction	-	Enter and Shift+Enter on a heading open a paragraph, never a new heading
+259	closed	kind/bug	views	numbering,second-writer	A command move while zoomed on a nested ordered list is refused as leaving the zoom
+260	closed	kind/bug	text	numbering,second-writer	Deleting a block-selected nested ordered item leaves a blank line and renumbers the parent list
+261	open	kind/bug	text	readers	A lazy continuation line under a list item is read as a node of its own, and moves every block after it
+262	open	kind/bug	text	readers	An ordered item not starting at 1 directly under a text line is read as a list, where Markdown reads more text
+263	open	kind/bug	text	numbering,second-writer	Typing in a list nested three spaces under a number renumbers the list around it
+271	open	kind/bug	text	seams	A seam an operation creates is written flush, so readers that continue lazily merge the two blocks
+272	open	kind/bug	text	seams	Inserting at a tight list's edge copies the gap outside the list into it, and loosens it
+275	open	kind/bug	interaction	undo	A Backspace merge right after typing joins the typing's undo step
