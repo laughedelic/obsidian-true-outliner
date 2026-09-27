@@ -1,0 +1,44 @@
+// Where CommonMark continues a line lazily into the quote, callout or list item
+// above it. Run with `commonmark` 0.31.2 installed: `node commonmark-lazy.mjs`.
+// A `!` marks a cell that stays inside with a blank line between — a real
+// child at the item's content column, not a lazy line.
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const { Parser } = require('commonmark');
+const LEAVES = {
+  'quote': ['> qq', 'qq'], 'callout': ['> [!note] cc\n> body', 'body'], 'quote, empty last': ['> qq\n>', 'qq'],
+  'bullet item': ['- item', 'item'], 'ordered item': ['1. item', 'item'], 'nested item': ['- a\n  - item', 'item'],
+  'item, child para': ['- a\n\n  para', 'para'], 'item in quote': ['> - item', 'item'],
+};
+const NEXT = {
+  'paragraph': ['below', 'below'], 'pipe line': ['aa | bb', 'aa'], '<span> (html 7)': ['<span>zz</span>', 'zz'],
+  '<div> (html 6)': ['<div>zz', 'zz'], '# heading': ['# zz', 'zz'], 'setext pair': ['zz\n===', 'zz'], '---': ['---', null],
+  '- bullet': ['- zz', 'zz'], '2. ordered': ['2. zz', 'zz'], '1. ordered': ['1. zz', 'zz'], 'fence': ['```\nzz\n```', 'zz'],
+  '> quote': ['> zz', 'zz'], 'table': ['| zz |\n| - |', 'zz'], 'indented 4': ['    zz', 'zz'], 'para at col 2': ['  zz', 'zz'],
+};
+function containers(root, word) {
+  const w = root.walker(); let ev;
+  while ((ev = w.next())) {
+    const n = ev.node;
+    if (ev.entering && (n.type === 'text' || n.type === 'html_inline' || n.type === 'code_block' || n.type === 'html_block' || n.type === 'code') && (n.literal || '').includes(word)) {
+      const chain = []; let p = n.parent; while (p) { if (p.type === 'block_quote' || p.type === 'item') chain.push(p); p = p.parent; }
+      return chain;
+    }
+  }
+  return null;
+}
+const out = {};
+for (const [ln, [l, lw]] of Object.entries(LEAVES)) for (const [nn, [n, nw]] of Object.entries(NEXT)) {
+  const judge = (sep) => {
+    const root = new Parser().parse(l + sep + n + '\n');
+    const lc = containers(root, lw); if (!lc || lc.length === 0) return '?';
+    if (nw === null) return '-';
+    const nc = containers(root, nw); if (!nc) return 'gone';
+    return nc.includes(lc[0]) ? 'IN' : '-';
+  };
+  out[nn] ??= {}; out[nn][ln] = judge('\n') + (judge('\n\n') !== '-' ? '!' : '');
+}
+const leaves = Object.keys(LEAVES);
+console.log('| next \\ leaf | ' + leaves.join(' | ') + ' |');
+console.log('|' + ' --- |'.repeat(leaves.length + 1));
+for (const [nn, r] of Object.entries(out)) console.log('| ' + nn + ' | ' + leaves.map((l) => r[l]).join(' | ') + ' |');
