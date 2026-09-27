@@ -1,0 +1,87 @@
+import { describe, it, expect } from 'vitest';
+import * as A from '../zz-src-main/ops';
+import * as B from '../src/ops';
+import { parse, indentWidth } from '../src/parse';
+import { encode } from '../src/encode';
+
+function wsOf(width: number, maxLen = 4): string[] {
+  const out: string[] = [];
+  const rec = (s: string) => {
+    if (indentWidth(s + 'x') === width) out.push(s);
+    if (s.length >= maxLen) return;
+    rec(s + ' '); rec(s + '\t');
+  };
+  rec('');
+  return [...new Set(out)];
+}
+type N = { kind: string; text: string; children: N[] };
+const sh = (n: any): string => `${n.kind}[${n.lines.map((l: string) => l.trim()).filter((l:string)=>l).join('|')}](${n.children.map(sh).join(',')})`;
+function findP(nodes: any[]): any { for (const n of nodes) { if (/^\s*- p$/.test(n.lines[0])) return n; const r = findP(n.children); if (r) return r; } }
+const dests = [
+  { doc: '- a\n  1. b\n', anchor: '  1. b' },
+  { doc: '- a\n', anchor: '- a' },
+  { doc: '- a\n  - b\n    - c\n', anchor: '    - c' },
+  { doc: '- a\n\t- b\n', anchor: '\t- b' },
+  { doc: '- a\n\t- b\n\t\t- c\n', anchor: '\t\t- c' },
+  { doc: '- a\n   - b\n', anchor: '   - b' },
+];
+function byLine(doc: any, line: string): any { let f: any; const w = (ns: any[]) => ns.forEach((n) => { if (n.lines[0] === line) f = n; w(n.children); }); w(doc.children); return f; }
+
+describe('fuzz', () => {
+  it('runs', () => {
+    const prefixes = ['', ' ', '  ', '\t', '   ', '\t '];
+    const stats: Record<string, number> = { cases: 0, aFail: 0, bFail: 0, regress: 0 };
+    const samples: string[] = [];
+    for (const P of prefixes) {
+      const pw = indentWidth(P + 'x');
+      for (const nWs of wsOf(pw + 2)) for (const mWs of wsOf(pw + 4)) for (const paraWs of [P + '  ']) {
+        for (const mid of ['plain', 'code']) {
+        const payloadLines = [P + '- p', '', paraWs + 'para', '', nWs + '- n', mWs + '1. m'];
+        if (mid === 'code') payloadLines.push(mWs + '  x');
+        const payload = payloadLines.join('\n') + '\n';
+        const pp = findP(parse(payload).children);
+        if (!pp) continue;
+        const want = sh(pp);
+        if (!want.includes('list-item[- n](list-item[1. m')) continue;
+        for (const d of dests) {
+          for (const mode of ['paste', 'drop']) {
+            const run = (M: any) => {
+              try {
+                let text: string;
+                if (mode === 'paste') {
+                  const t = parse(d.doc);
+                  const r = M.insertSubtrees(t, byLine(t, d.anchor).id, parse(payload).children, 'after');
+                  if (!r.ok) return 'REJ ' + r.rejection.reason;
+                  text = encode(r.value.doc);
+                } else {
+                  const md = d.doc + payload;
+                  const s = parse(md);
+                  const anc = byLine(s, d.anchor);
+                  // parent of anchor
+                  let parent: any = 'root'; let idx = 0;
+                  const w = (ns: any[], par: any) => ns.forEach((n, i) => { if (n === anc) { parent = par; idx = i + 1; } w(n.children, n); });
+                  w(s.children, 'root');
+                  const pnode = findP(s.children);
+                  if (!pnode) return 'NOP';
+                  const r = M.moveSubtreesTo(s, [[pnode.id]], { parentId: parent === 'root' ? 'root' : parent.id, index: idx });
+                  if (!r.ok) return 'REJ ' + r.rejection.reason;
+                  text = encode(r.value.doc);
+                }
+                const got = findP(parse(text).children);
+                return got ? (sh(got) === want ? 'OK' : 'BAD:' + JSON.stringify(text)) : 'BAD-nop:' + JSON.stringify(text);
+              } catch (e) { return 'ERR ' + e; }
+            };
+            const a = run(A), b = run(B);
+            stats.cases++;
+            if (!a.startsWith('OK') && !a.startsWith('REJ')) stats.aFail++;
+            const opens = payloadLines.every((l) => l === '' || l.startsWith(P)); if (!b.startsWith('OK') && !b.startsWith('REJ')) { stats.bFail++; if (opens) stats.bFailOpens = (stats.bFailOpens||0)+1; } if ((a.startsWith('OK') && !b.startsWith('OK')) || (!b.startsWith('OK') && !b.startsWith('REJ') && opens)) { if (samples.length < 40) samples.push(`${mode} P=${JSON.stringify(P)} dest=${JSON.stringify(d.doc)} payload=${JSON.stringify(payload)}\n  fixed: ${b}\n  main: ${a}`); }
+            if (a.startsWith('OK') && !b.startsWith('OK')) stats.regress++;
+          }
+        }
+        }
+      }
+    }
+    require('node:fs').appendFileSync(process.env.SWEEP_OUT ?? 'sweep.out', JSON.stringify(stats) + '\n');
+    require('node:fs').appendFileSync(process.env.SWEEP_OUT ?? 'sweep.out', samples.join('\n') + '\n');
+  });
+});

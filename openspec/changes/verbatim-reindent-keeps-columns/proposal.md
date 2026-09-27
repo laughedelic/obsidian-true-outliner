@@ -1,0 +1,42 @@
+# Proposal
+
+## Why
+
+A pasted or dropped block that the read-back sends to its own characters (#244) can lose a
+descendant to the wrong parent: a tab past the root's prefix absorbs the new prefix, and a line
+that does not open with the prefix stays behind while the block moves. The requirement says the
+block keeps "its own characters past its root's prefix", which the broken output satisfies
+literally, and says nothing of columns or of lines spelled apart from the root. Measured in
+`docs/research/verbatim-reindent-columns`.
+
+## What Changes
+
+- The fallback of "Subtree insertion at a boundary" moves every line by the width its root moved:
+  the prefix swap where it lands on that column and puts no space in front of a tab, a shift by the
+  width elsewhere, including on lines that do not open with the root's prefix.
+- An atom's first line moves the same way; its other lines take its first line's change of prefix
+  and keep every byte past it.
+
+## Non-goals
+
+- The converged path. `reprefixAtomLines` and `carryWithRoot` have the same unguarded shapes on
+  lines the read-back does not reject; `docs/research/verbatim-reindent-columns`, "Left alone",
+  carries both as candidate issues.
+- The indent/outdent re-encode ("A moved node is written in one indentation"), which already
+  guards its swap.
+
+## Capabilities
+
+### New Capabilities
+
+None.
+
+### Modified Capabilities
+
+- `structural-operations`: "Subtree insertion at a boundary" — the verbatim fallback states the
+  columns its lines land on, and three scenarios pin it.
+
+## Impact
+
+`reindentSubtreeVerbatim` in `src/ops.ts`; `reprefixLine` in `src/reencode.ts` is exported for
+it. Reached from `insertSubtrees` (paste) and `moveSubtreesTo` (drag, cross-scope move).

@@ -61,6 +61,7 @@ import {
   normalizeMarkerRun,
   reencodeForDestination,
   reprefixAtomLines,
+  reprefixLine,
   rewriteOwnLine,
   shiftBelowMarker,
   shiftSubtree,
@@ -2549,21 +2550,36 @@ function reindentSubtreeVerbatim(node: OutlineNode, indentText: string): Outline
     columnDelta,
   );
   const topWs = leadingWhitespace(root.lines[0] ?? '');
-  const swapLine = (line: string, atom: boolean): string => {
-    if (line.trim() === '') return line;
-    const ws = leadingWhitespace(line);
-    if (!ws.startsWith(topWs)) return line;
-    const swapped = indentText + line.slice(topWs.length);
-    return atom ? swapped : carryContentColumn(line, swapped);
+  const delta = indentWidth(indentText) - indentWidth(topWs);
+  // Every line moves by the width the root moved. The prefix swap says it in
+  // the destination's characters where it lands there: past the prefix a tab
+  // re-expands from wherever the new prefix ends, and a space written in front
+  // of it vanishes into its stop.
+  const moveLine = (line: string): string =>
+    line.trim() === '' ? line : reprefixLine(line, topWs, indentText, delta, 0, false);
+  // An atom's lines are content: its first line lands as any line does, and
+  // the others take the same change of prefix with every character past it.
+  const moveAtom = (lines: readonly string[]): string[] => {
+    const first = lines[0] ?? '';
+    const moved = reprefixLine(first, topWs, indentText, delta, 0, true);
+    const from = leadingWhitespace(first);
+    const to = leadingWhitespace(moved);
+    return lines.map((line, i) => {
+      if (i === 0) return moved;
+      if (line.trim() === '') return line;
+      return line.startsWith(from)
+        ? to + line.slice(from.length)
+        : reprefixLine(line, topWs, indentText, delta, 0, true);
+    });
   };
   const recur = (n: OutlineNode): OutlineNode =>
     withIdLine(
       {
         ...n,
-        lines: n.lines.map((line) => swapLine(line, isAtom(n))),
+        lines: isAtom(n) ? moveAtom(n.lines) : n.lines.map(moveLine),
         children: n.children.map(recur),
       },
-      (line) => swapLine(line, false),
+      moveLine,
     );
   return recur(root);
 }
