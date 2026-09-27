@@ -1,0 +1,57 @@
+// Throwaway probe behind docs/research/command-undo-join.md. Copied into
+// e2e-tests/specs/ as 99-probe-undo-join.e2e.ts and run in narrow mode against
+// main's src/plugin/main.ts. Each variant starts from `- one` / `- foo` with the
+// caret at the end of `- foo`, runs its steps, then presses undo once.
+import { browser, expect } from '@wdio/globals';
+import { Key } from 'webdriverio';
+import { obsidianPage } from 'wdio-obsidian-service';
+import * as h from '../helpers.js';
+
+async function note(content: string, line: number, ch: number) {
+  await h.createNote('Scratch/probe.md', content);
+  await h.setOutlineMode(true);
+  await h.setCursor(line, ch);
+}
+
+describe('probe', function () {
+  before(async function () {
+    await obsidianPage.resetVault();
+    await h.resetPluginState();
+  });
+  const variants: Record<string, () => Promise<void>> = {
+    'typing, then runCommand': async () => { await browser.keys('x'); await h.runCommand('move-node-up'); },
+    'typing, then hotkey (separate)': async () => { await browser.keys('x'); await h.keys.moveNodeUp(); },
+    'typing+hotkey one action': async () => {
+      await browser.action('key').down('x').up('x').down(h.PRIMARY_MOD).down(Key.Shift).down(Key.ArrowUp).up(Key.ArrowUp).up(Key.Shift).up(h.PRIMARY_MOD).perform();
+    },
+    'shiftEnter, then runCommand indent': async () => { await h.keys.shiftEnter(); await h.runCommand('indent-node'); },
+    'shiftEnter, then runCommand move-up': async () => { await h.keys.shiftEnter(); await h.runCommand('move-node-up'); },
+    'shiftEnter, then hotkey move-up (separate)': async () => { await h.keys.shiftEnter(); await h.keys.moveNodeUp(); },
+    'shiftEnter+hotkey one action': async () => {
+      await browser.action('key').down(Key.Shift).down(Key.Enter).up(Key.Enter).up(Key.Shift).down(h.PRIMARY_MOD).down(Key.Shift).down(Key.ArrowUp).up(Key.ArrowUp).up(Key.Shift).up(h.PRIMARY_MOD).perform();
+    },
+    'synthetic shiftEnter + command in one execute': async () => {
+      await browser.executeObsidian(({ app, obsidian }) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+        const cm = (view.editor as any).cm;
+        cm.contentDOM.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, shiftKey: true, bubbles: true, cancelable: true }),
+        );
+        (app as any).commands.executeCommandById('true-outliner:indent-node');
+      });
+    },
+  };
+  for (const [name, run] of Object.entries(variants)) {
+    it(name, async function () {
+      await note('- one\n- foo\n', 1, 5);
+      const t0 = Date.now();
+      await run();
+      const dt = Date.now() - t0;
+      const after = await h.getBuffer();
+      await h.keys.undo();
+      const undone = await h.getBuffer();
+      console.log(`PROBE ${name}: ${dt}ms after=${JSON.stringify(after)} undo=${JSON.stringify(undone)}`);
+      expect(true).toBe(true);
+    });
+  }
+});
