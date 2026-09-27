@@ -43,9 +43,11 @@ In words:
   inside a list item a paragraph holds nothing and a list item after it is its sibling.
 - An atom holds nothing, and a paragraph holds only list items, so an atom cannot be a paragraph's
   child.
-- A heading, quote, callout, `hr` or `html` block opens only within three columns of the margin
-  (`OPENING_MARGIN`). Nested past that inside a list, the same line reads as a paragraph
-  ([seams-across-a-re-indent.md](seams-across-a-re-indent.md)); the grammar's kinds are the kinds
+- A block opens only within three columns of its margin (`OPENING_MARGIN`). For a quote, a
+  callout and an `hr` inside a list item the margin is the item's content column (#210); for a
+  heading and an `html` block it stays the note's left edge, so nested inside a list the same line
+  is the item's text or a paragraph (#136,
+  [seams-across-a-re-indent.md](seams-across-a-re-indent.md)). The grammar's kinds are the kinds
   as written, not as intended.
 
 Each rule constrains a sibling list to a regular language over a finite alphabet of child kinds —
