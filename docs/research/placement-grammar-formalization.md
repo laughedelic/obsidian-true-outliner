@@ -19,9 +19,9 @@ list item, a list item carrying a `##` run, code and quote. They write every for
 alphabet leaves out tasks, ordered and `*` markers, `h5` and `h6`, tables, callouts and tight
 lists. The figures are for this alphabet and this writer.
 
-Every reference below was checked for authors, title, venue and year against the publisher's
-listing or the project's own repository. Where we could not confirm a detail of what a paper
-proves, the text says so.
+Every reference below was checked against Crossref's record for its DOI, or against the
+project's own page or repository. What a paper shows is stated as far as its abstract or its
+publisher's page states it; a detail we could not confirm that way is left out.
 
 ## What enumeration shows about the grammar
 
@@ -278,7 +278,7 @@ by hedge automata. XML schema theory ranks their grammars by how a node's type i
   maps every valid input to a valid output is decidable, but non-elementary in general —
   [doi:10.1145/335168.335171](https://doi.org/10.1145/335168.335171).
 - Balmin, Papakonstantinou, Vianu, "Incremental validation of XML documents", ACM TODS 2004 —
-  re-validation after updates in O(m log n) —
+  re-validation after an update without re-checking the whole document —
   [doi:10.1145/1042046.1042050](https://doi.org/10.1145/1042046.1042050).
 - Industrial counterpart: ProseMirror's schema content expressions, regular expressions over child
   node types — [guide](https://prosemirror.net/docs/guide/#schema.content_expressions).
@@ -321,17 +321,15 @@ of all minimal corrections when there is more than one.
   [doi:10.1145/303976.303983](https://doi.org/10.1145/303976.303983).
 - Staworko, Chomicki, "Validity-sensitive querying of XML databases", EDBT workshops 2006 — a
   distance to validity against a DTD, a compact representation of all minimal repairs, and valid
-  answers across them — [doi:10.1007/11896548_16](https://doi.org/10.1007/11896548_16). The
-  details of its edit model and complexity come from secondary descriptions, not from the paper
-  itself.
+  answers across them — [doi:10.1007/11896548_16](https://doi.org/10.1007/11896548_16).
 - Boobna, de Rougemont, "Correctors for XML data", XSym 2004 — a linear-time corrector for
   documents close to their DTD —
   [doi:10.1007/978-3-540-30081-6_8](https://doi.org/10.1007/978-3-540-30081-6_8).
 - Magniez, de Rougemont, "Property testing of regular tree languages", Algorithmica 2007 — the
   exact edit distance with moves is NP-complete on ordered trees —
   [doi:10.1007/s00453-007-9028-3](https://doi.org/10.1007/s00453-007-9028-3).
-- Suzuki, "Finding an optimum edit script between an XML document and a DTD", ACM SAC 2005 —
-  polynomial for costs independent of other nodes, per the abstract —
+- Suzuki, "Finding an optimum edit script between an XML document and a DTD", ACM SAC 2005 — a
+  minimum-cost edit script that makes a document valid against a DTD —
   [doi:10.1145/1066677.1066825](https://doi.org/10.1145/1066677.1066825).
 - Canfield, Xing, "Approximate matching of XML document with regular hedge grammar", Int. J.
   Comput. Math. 2005 — the edit distance from a forest to a hedge grammar —
@@ -419,7 +417,7 @@ Read that way, the laws are properties we either have or do not have yet:
 | GetPut (hippocraticness) | an operation that names the outline as it is writes nothing | stated in `moveSubtreesTo` ("a move that lands the run where it already was produces no edits at all"); not a property |
 | PutGet (correctness) | the note holds the outline the operation named | not yet: properties 2 and 3 of [node-placement-grammar.md](node-placement-grammar.md). D1 to D8 all fail it |
 | Retentiveness | a node the operation did not name keeps its lines verbatim | `tests/closure.test.ts` 5.2 |
-| Edit-lens composition | composing surgeries equals composing operations | the `Surgery` docstring in `src/ops.ts`, checked against `tests/group-oracle.ts` |
+| Edit-lens composition | composing surgeries equals composing operations | holds only while every intermediate tree can be written: [open-questions.md](open-questions.md) Q33 measured 49 disagreements, each a run moved up coming out reversed, and the group forms now act on the whole run; `tests/group-oracle.ts` checks the composition where it holds |
 | Quotient restoration | a move and its reverse restore the note up to layout, where nothing converted or absorbed | not yet. The parallel note's sweep restored 212,499 of 338,119 exactly |
 | Least change | the chosen writing is the cheapest admissible one, and ties are ambiguities | the cost orders above |
 
@@ -660,9 +658,10 @@ What exists:
   restricted HTML nested list in which a heading is a row *type* on an ordinary row. That is the
   `- ## H` reading applied everywhere: the kind is an attribute of an item, never a position.
 - **Workflowy, Dynalist and Roam** publish no formal model.
-- An announced Lean implementation of CommonMark (`lean-markdown`, 2026) claims conformance and
-  an HTML-safety proof. We could not confirm either claim, and neither concerns block trees or
-  round trips.
+- Paul Butcher's [`lean-markdown`](https://github.com/paulbutcher/lean-markdown), announced on
+  the [CommonMark forum](https://talk.commonmark.org/t/a-somewhat-formally-verified-implementation-of-markdown/9108)
+  in August 2026, passes the CommonMark and cmark-gfm test suites and is proved total and
+  HTML-safe. Nothing it proves concerns block trees or round trips.
 
 For the placement question, the useful prior art is the conversions (Org, Grif and Thot) and the
 reading of a heading as an item attribute (Bike), not a formalism.
@@ -722,12 +721,17 @@ changing.
 
 ## Open
 
-- **Whether locality survives the text layer.** The probes write a blank line after every node.
-  In a tight note, a paragraph's continuation lines and the seams between blocks depend on the
-  text around them ([seams-across-a-re-indent.md](seams-across-a-re-indent.md),
-  [paste-across-encoding-regimes.md](paste-across-encoding-regimes.md)). Whether a verdict is still
-  a function of the kind context there is not measured. Spike 1's widened alphabet, which includes
-  tight gaps, is where it would show.
+- **Locality does not survive the text layer.** The probes write a blank line after every node.
+  In a tight note, the seams between blocks depend on the text around them
+  ([seams-across-a-re-indent.md](seams-across-a-re-indent.md),
+  [paste-across-encoding-regimes.md](paste-across-encoding-regimes.md)), and #267's measurements
+  ([lazy-continuation-at-seams.md](lazy-continuation-at-seams.md), on
+  `fix/created-seams-are-separated` until it lands) show three effects no kind context carries: a
+  blank line anywhere inside a list makes the whole list loose, a lone `^id` line attaches to the
+  block above or below depending on the blank lines around it, and a line written flush under a
+  quote, a callout or a list item is continued lazily by CommonMark, reading mode and Live
+  Preview, which do not agree with each other. The grammar here is the outline's; the layout has
+  rules of its own, which [editing-surface-landscape.md](editing-surface-landscape.md) takes up.
 - **Q34** decides whether the attachment rule stays as one of the three pair rules. The absorbing
   answer in the paragraph family, and D5, D6 and A9, depend on it.
 - **Choosing the cost order** is [node-placement-grammar.md](node-placement-grammar.md)'s
