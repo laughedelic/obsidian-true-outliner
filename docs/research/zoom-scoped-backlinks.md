@@ -151,6 +151,14 @@ So on #208's tree the walk to "the block before" described above is no longer ou
 the tree does not settle, the misplaced-id reading does, and the rule of our own shrinks to the
 line an inline id counts on, the list-item lift, the run and the one id a block keeps.
 
+`test-vault/Backlinks/Zoom target.md` carries this corpus below its zoom scenarios: 91 of the 94
+shapes, each in a section of its own under a `######` heading with its ids prefixed by the section's
+number (the three left out need the start or the end of a note to themselves). The e2e agreement
+case in `e2e-tests/specs/77-footer-zoom-scope.e2e.ts` reads Obsidian's metadata for every note in
+the fixture vault that carries a heading or a block id and compares each start line with the one
+`anchorsOf` gives: every heading and every registered id agrees. Attributing a misplaced id to the
+paragraph holding it instead fails 13 ids in that note.
+
 ## What a heading subpath matches
 
 `resolveSubpath(cache, '#…')` against a note with eight headings, two of them duplicates:
@@ -321,3 +329,27 @@ chip grows by 2 px (104 px for "this node", 117 px for "this branch") and the me
 The repeated count was settled by removing the compact totals while the segments show, rather than
 only their first number: a note count on its own beside three reference counts would read as a
 fourth. The desktop header keeps its full totals beside the chip.
+
+## What a keystroke costs while zoomed
+
+Typing inside a heading in the zoomed view changes what the footer answers for, so the footer is
+repainted on that keystroke. Measured on 27 September 2026 with the `76-footer-cost` harness in the
+Linux container the e2e suite runs in (software rendering, Obsidian 1.13.7), zoomed into
+`## Current sprint` of the hub note `Projects/Aurora Dashboard.md`, 128 sources, eight pairs per
+figure, medians. A character typed at the heading's end stops every `#Current sprint` link from
+landing and deleting it brings them back, so the pair repaints once to the empty answer and once to
+the full one:
+
+| | Overall cap 50 | No overall cap |
+| --- | --- | --- |
+| type a character, footer repaints to the empty answer: the keystroke / until every group fills | 40–55 ms / 50–70 ms | 42–43 ms / 51–62 ms |
+| delete it, footer repaints the full answer | 76–102 ms / 292–436 ms | 143–145 ms / 748–832 ms |
+| type on a line whose edit moves no anchor, no repaint | 456 ms | 879 ms |
+
+The same keystroke on that line with no zoom: 80 ms with the footer switched off, 237–270 ms with
+it on and filled (cap 50). So in this container every keystroke in the hub note is several frames
+long before the zoom adds anything, and the rendered footer is most of it; a repaint replaces the
+filled rows with placeholders and costs the keystroke less than a keystroke that leaves the filled
+footer in place. What these figures do not give is the repaint's cost on a machine where a
+keystroke fits in a frame, which is the question the design's risk asks.
+

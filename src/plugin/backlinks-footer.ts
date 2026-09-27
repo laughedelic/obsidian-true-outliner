@@ -46,6 +46,7 @@ import { matchRanges } from '../search';
 import { isOutlineMode } from './outline-state';
 import { nestedEditorField } from './nested-editor';
 import { contentEndAnchor } from './zoom-scope';
+import { zoomAnswerFor, type ZoomAnswer } from './footer-scope';
 import { buildMarkerIcon, buildShapesIcon, FOLDED_NODE_CLASS } from './decorations';
 import { checkboxShapes, markSubject, type HeadingMarkerStyle, type NodeMark } from './marker-shapes';
 import { renderLineageContent } from './lineage-row';
@@ -76,6 +77,7 @@ import {
   applyControls,
   orderAndCap,
   axesOf,
+  inScope,
   pruneDeadSelections,
   type AdmittedGroup,
   type ControlsResult,
@@ -165,6 +167,39 @@ interface ViewState {
   tagQuery: string;
   /** Tranches the reader has asked for, added to the overall cap. */
   capBonus: number;
+  /** What the footer answers for while zoomed, as the reader last chose it
+   * (zoom-scoped-backlinks D5). Written only by the reader's own choices, so a
+   * fallback to a wider answer never overwrites it. */
+  scopeAnswer: ScopeAnswer;
+}
+
+/** The three answers a zoomed footer can give, narrowest first. */
+type ScopeAnswer = 'node' | 'branch' | 'note';
+const SCOPE_ANSWERS: readonly ScopeAnswer[] = ['node', 'branch', 'note'];
+
+/** How each answer is named: in the menu and the segments, and in the chip,
+ * which reads on from "Backlinks to". */
+const SCOPE_NAMES: Record<ScopeAnswer, { readonly entry: string; readonly chip: string }> = {
+  node: { entry: 'This node', chip: 'this node' },
+  branch: { entry: 'This branch', chip: 'this branch' },
+  note: { entry: 'Whole note', chip: 'the whole note' },
+};
+
+const SCOPE_UNAVAILABLE = 'Nothing here has a heading or block id to link to';
+
+/** The zoom's answers for one render pass: which is in force, which are on
+ * offer, and the subpaths each admits (null for Whole note). */
+interface ZoomView {
+  readonly inForce: ScopeAnswer;
+  readonly available: Readonly<Record<ScopeAnswer, boolean>>;
+  readonly scopes: Readonly<Record<ScopeAnswer, ReadonlySet<string> | null>>;
+}
+
+/** How many references each answer would show, and how many the answer in
+ * force admits before any filter — zero there is the empty answer (D7). */
+interface AnswerCounts {
+  readonly counts: Readonly<Record<ScopeAnswer, number>>;
+  readonly admitted: number;
 }
 
 const viewStates = new Map<string, ViewState>();
@@ -205,6 +240,7 @@ function viewStateFor(path: string): ViewState {
       folderQuery: '',
       tagQuery: '',
       capBonus: 0,
+      scopeAnswer: 'branch',
     };
     viewStates.set(path, state);
   }
@@ -234,11 +270,17 @@ class FooterController {
    * `data-focus-key`, and focus follows the key rather than the element.
    */
   private focused: { key: string; caret: number | null } | null = null;
+  /** The zoom this footer answers for, handed over by its widget (D4). */
+  private answer: ZoomAnswer | null;
+  /** The answers of the pass in progress, for the fills that follow it. */
+  private zoom: ZoomView | null = null;
 
   constructor(
     private readonly source: FooterSource,
-    private readonly targetPath: string,
+    readonly targetPath: string,
+    answer: ZoomAnswer | null,
   ) {
+    this.answer = answer;
     // `OWN_CHROME_CLASS`: the footer is view chrome mounted after the content,
     // not a rendering of the last line, and the widget-line patch cannot tell
     // the difference on its own — it works from the document line `posAtDOM`
@@ -370,6 +412,12 @@ class FooterController {
     void this.render();
   };
 
+  /** A new zoom answer for the same note: repainted into the same element. */
+  setAnswer(answer: ZoomAnswer | null): void {
+    this.answer = answer;
+    void this.render();
+  }
+
   destroy(): void {
     this.generation++;
     this.el.doc.removeEventListener('pointerdown', this.closeOnOutsidePress, true);
@@ -434,6 +482,7 @@ class FooterController {
     const generation = ++this.generation;
     const state = viewStateFor(this.targetPath);
     const sources = this.sourceRefs();
+    this.zoom = this.zoomView(state, sources);
     const controls = this.controls(state);
     const axes = axesOf(sources, controls);
     // A selected value that stopped existing is DROPPED, not merely
@@ -455,7 +504,10 @@ class FooterController {
     // it is unchanged by this change (design D1, D2).
     if (controls.search.trim().length === 0) {
       this.placedSources = null;
-      this.paint(generation, state, axes, sources, applyControls(sources, controls));
+      const counts = this.answerCounts(sources, controls, (scope) =>
+        applyControls(sources, { ...controls, scope }).totals.references,
+      );
+      this.paint(generation, state, axes, sources, applyControls(sources, controls), counts);
       return;
     }
 
@@ -469,7 +521,61 @@ class FooterController {
     // the field the reader is typing into is never rebuilt under them.
     const counted = await this.countPlaced(generation, sources, controls);
     if (counted === null) return;
-    this.paint(generation, state, axes, sources, orderAndCap(counted, controls));
+    const placed = [...(this.placedSources?.values() ?? [])];
+    const counts = this.answerCounts(sources, controls, (scope) =>
+      placed.reduce((sum, source) => sum + admitReferences(source, { ...controls, scope }).count, 0),
+    );
+    this.paint(generation, state, axes, sources, orderAndCap(counted, controls), counts);
+  }
+
+  /**
+   * The zoom's answers, from the distinct subpaths among the note's
+   * references, each classified once (design D3, D5). Null with no zoom.
+   *
+   * The answer in force is the reader's choice where the zoom offers it, and
+   * the nearest wider one where it does not.
+   */
+  private zoomView(state: ViewState, sources: readonly SourceRefs[]): ZoomView | null {
+    const answer = this.answer;
+    if (!answer) return null;
+    const node = new Set<string>();
+    const branch = new Set<string>();
+    const seen = new Set<string>();
+    for (const source of sources) {
+      for (const { subpath } of source.refs) {
+        if (subpath === undefined || seen.has(subpath)) continue;
+        seen.add(subpath);
+        const membership = answer.classify(subpath);
+        if (membership === 'node') node.add(subpath);
+        if (membership !== 'outside') branch.add(subpath);
+      }
+    }
+    const available = { node: answer.node, branch: answer.branch, note: true };
+    const wider = SCOPE_ANSWERS.slice(SCOPE_ANSWERS.indexOf(state.scopeAnswer));
+    const inForce = wider.find((a) => available[a]) ?? 'note';
+    return { inForce, available, scopes: { node, branch, note: null } };
+  }
+
+  /** Each answer's count, by the pass that decided this render's own. */
+  private answerCounts(
+    sources: readonly SourceRefs[],
+    controls: ControlsState,
+    count: (scope: ReadonlySet<string> | null) => number,
+  ): AnswerCounts | null {
+    const zoom = this.zoom;
+    if (!zoom) return null;
+    let admitted = 0;
+    for (const source of sources) {
+      for (const ref of source.refs) if (inScope(ref, controls.scope)) admitted++;
+    }
+    return {
+      counts: {
+        node: count(zoom.scopes.node),
+        branch: count(zoom.scopes.branch),
+        note: count(zoom.scopes.note),
+      },
+      admitted,
+    };
   }
 
   /**
@@ -485,7 +591,10 @@ class FooterController {
     sources: readonly SourceRefs[],
     controls: ControlsState,
   ): Promise<AdmittedGroup[] | null> {
-    const admitted = admitByAxes(sources, controls);
+    // While zoomed every answer's count is shown, so every source the axes
+    // admit for the whole note is placed; the answer in force still decides
+    // the groups (design D6).
+    const admitted = admitByAxes(sources, this.zoom ? { ...controls, scope: null } : controls);
     const placedSources = await Promise.all(
       admitted.map((group) => this.source.backlinks.place(this.targetPath, group.path)),
     );
@@ -518,6 +627,7 @@ class FooterController {
     axes: FilterAxes,
     sources: readonly SourceRefs[],
     result: ControlsResult,
+    counts: AnswerCounts | null,
   ): void {
     this.component.unload();
     this.component.load();
@@ -536,10 +646,16 @@ class FooterController {
       GROUP_HEIGHT_CSS[this.source.backlinksGroupHeight],
     );
 
-    this.renderHeader(root, result.totals, state, sources.length > 0);
+    this.renderHeader(root, result.totals, state, sources.length > 0, counts);
     if (state.filtersOpen && sources.length > 0) this.renderFilterRow(root, axes, state);
     this.el.toggleClass('is-dormant', sources.length === 0);
     if (sources.length === 0 || state.collapsed) {
+      this.swap(root);
+      return;
+    }
+
+    if (this.zoom && counts && this.zoom.inForce !== 'note' && counts.admitted === 0) {
+      this.renderEmptyAnswer(root, counts.counts.note);
       this.swap(root);
       return;
     }
@@ -842,7 +958,7 @@ class FooterController {
       search: state.search,
       sort: this.source.backlinksSort,
       cap: OVERALL_CAP_REFERENCES[this.source.backlinksOverallCap] + state.capBonus,
-      scope: null,
+      scope: this.zoom ? this.zoom.scopes[this.zoom.inForce] : null,
     };
   }
 
@@ -883,10 +999,15 @@ class FooterController {
     totals: { references: number; notes: number },
     state: ViewState,
     foldable: boolean,
+    counts: AnswerCounts | null,
   ): void {
     const collapsed = state.collapsed;
     const head = root.createDiv({ cls: 'to-backlinks-head' });
     head.toggleClass('is-collapsed', collapsed);
+    // While zoomed the header names what it counts (zoom-scoped-backlinks D6);
+    // a note with no references keeps the dormant header, zoomed or not.
+    const zoomed = foldable && this.zoom && counts ? { zoom: this.zoom, counts } : null;
+    head.toggleClass('is-zoomed', zoomed !== null);
 
     // The disclosure role lives on this title group, not on `head` itself —
     // `head` also carries the filter and sort buttons once `renderHeaderControls`
@@ -908,22 +1029,31 @@ class FooterController {
     // Two spans, one word each, swapped by the same container query the
     // facets already use — a narrow footer no longer wraps the title onto a
     // second line. Only one of the two is ever visible.
-    title.createSpan({ cls: 'to-backlinks-title to-backlinks-title-full', text: 'Structured backlinks' });
+    title.createSpan({
+      cls: 'to-backlinks-title to-backlinks-title-full',
+      text: zoomed ? 'Backlinks to' : 'Structured backlinks',
+    });
     title.createSpan({ cls: 'to-backlinks-title to-backlinks-title-short', text: 'Backlinks' });
 
+    // Zoomed, the answer's control follows the title and the totals follow
+    // the control, so they leave the title group: the control is a real
+    // button, and the group is a disclosure.
+    const totalsHost = zoomed ? head : title;
+    if (zoomed) this.renderScopeControl(head, state, zoomed.zoom, zoomed.counts);
+
     const refs = `${totals.references} ${totals.references === 1 ? 'reference' : 'references'}`;
-    const counts =
+    const totalsText =
       totals.references > 0
         ? `${refs} · ${totals.notes} ${totals.notes === 1 ? 'note' : 'notes'}`
         : refs;
-    title.createSpan({ cls: 'to-backlinks-totals to-backlinks-totals-full', text: counts });
+    totalsHost.createSpan({ cls: 'to-backlinks-totals to-backlinks-totals-full', text: totalsText });
 
     // The narrow form: both numbers with none of the words, the second one
     // bold so the pair still reads as two different counts rather than one
     // number with a stray dot in it. An icon per count was tried and dropped —
     // this footer already carries a mark for every axis and every kind, and a
     // third vocabulary for the same two numbers was more to parse, not less.
-    const compact = title.createSpan({ cls: 'to-backlinks-totals to-backlinks-totals-compact' });
+    const compact = totalsHost.createSpan({ cls: 'to-backlinks-totals to-backlinks-totals-compact' });
     compact.createSpan({ text: String(totals.references) });
     if (totals.references > 0) {
       compact.createSpan({ text: ' · ' });
@@ -940,6 +1070,167 @@ class FooterController {
       const current = viewStateFor(this.targetPath);
       current.collapsed = !current.collapsed;
       this.foldKeepingPlace();
+    });
+  }
+
+  /**
+   * The answer's control, in both its forms (design D6): a chip naming the
+   * answer, opening a menu of the three, and three segments for a footer too
+   * narrow for the words. Both are built; the container query shows one.
+   */
+  private renderScopeControl(
+    head: HTMLElement,
+    state: ViewState,
+    zoom: ZoomView,
+    counts: AnswerCounts,
+  ): void {
+    const inForce = zoom.inForce;
+    const open = state.openFacet === 'scope';
+    const choose = (answer: ScopeAnswer): void => {
+      const now = viewStateFor(this.targetPath);
+      now.scopeAnswer = answer;
+      now.openFacet = null;
+      // A different set should not stay behind a cap the last one consumed —
+      // the rule every filter change follows.
+      now.capBonus = 0;
+      void this.render();
+    };
+
+    const anchor = head.createDiv({ cls: 'to-backlinks-facet-anchor to-backlinks-scope-anchor' });
+    const chip = anchor.createEl('button', { cls: 'to-backlinks-facet to-backlinks-scope-chip' });
+    chip.type = 'button';
+    chip.dataset.focusKey = 'scope';
+    chip.dataset.answer = inForce;
+    chip.toggleClass('is-active', open);
+    chip.setAttribute('aria-haspopup', 'menu');
+    chip.setAttribute('aria-expanded', String(open));
+    chip.setAttribute('aria-label', `Backlinks to ${SCOPE_NAMES[inForce].chip}`);
+    const mark = chip.createSpan({ cls: 'to-backlinks-facet-mark to-backlinks-scope-mark' });
+    mark.setAttribute('aria-hidden', 'true');
+    // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
+    mark.appendChild(scopeGlyph(inForce));
+    chip.createSpan({ cls: 'to-backlinks-scope-label', text: SCOPE_NAMES[inForce].chip });
+    const caret = chip.createSpan({ cls: 'to-backlinks-facet-mark to-backlinks-scope-caret' });
+    caret.setAttribute('aria-hidden', 'true');
+    // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
+    caret.appendChild(chevronGlyph(true));
+    chip.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const now = viewStateFor(this.targetPath);
+      now.openFacet = open ? null : 'scope';
+      void this.render();
+    });
+
+    if (open) {
+      // The sort menu's shape without its caption: "Backlinks to" before the
+      // chip already says what this chooses.
+      const menu = anchor.createDiv({
+        cls: 'to-backlinks-facet-menu to-backlinks-sort-menu to-backlinks-scope-menu',
+      });
+      menu.setAttribute('role', 'menu');
+      menu.setAttribute('aria-label', 'Backlinks to');
+      const list = menu.createDiv({ cls: 'to-backlinks-facet-list to-backlinks-sort-list' });
+      for (const answer of SCOPE_ANSWERS) {
+        const chosen = answer === inForce;
+        const available = zoom.available[answer];
+        const option = list.createEl('button', {
+          cls: 'to-backlinks-facet-option to-backlinks-sort-option to-backlinks-scope-option',
+        });
+        option.type = 'button';
+        option.dataset.answer = answer;
+        option.dataset.focusKey = 'scope';
+        option.setAttribute('role', 'menuitemradio');
+        option.setAttribute('aria-checked', String(chosen));
+        option.toggleClass('is-selected', chosen);
+        option.disabled = !available;
+        const optionMark = option.createSpan({ cls: 'to-backlinks-facet-mark to-backlinks-scope-mark' });
+        optionMark.setAttribute('aria-hidden', 'true');
+        // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
+        optionMark.appendChild(scopeGlyph(answer));
+        const text = option.createSpan({ cls: 'to-backlinks-scope-text' });
+        text.createSpan({ cls: 'to-backlinks-facet-label', text: SCOPE_NAMES[answer].entry });
+        if (!available) text.createSpan({ cls: 'to-backlinks-scope-reason', text: SCOPE_UNAVAILABLE });
+        option.createSpan({ cls: 'to-backlinks-scope-count', text: String(counts.counts[answer]) });
+        option.addEventListener('click', (event) => {
+          event.stopPropagation();
+          if (available) choose(answer);
+        });
+      }
+    }
+
+    // The narrow form: one segment per answer, a radio group of its own.
+    const group = head.createDiv({ cls: 'to-backlinks-scope-segments' });
+    group.setAttribute('role', 'radiogroup');
+    group.setAttribute('aria-label', 'Backlinks to');
+    const offered = SCOPE_ANSWERS.filter((a) => zoom.available[a]);
+    for (const answer of SCOPE_ANSWERS) {
+      const chosen = answer === inForce;
+      const available = zoom.available[answer];
+      const count = counts.counts[answer];
+      const segment = group.createEl('button', { cls: 'to-backlinks-scope-segment' });
+      segment.type = 'button';
+      segment.dataset.answer = answer;
+      segment.dataset.focusKey = `scope:${answer}`;
+      segment.setAttribute('role', 'radio');
+      segment.setAttribute('aria-checked', String(chosen));
+      segment.setAttribute(
+        'aria-label',
+        `${SCOPE_NAMES[answer].entry}, ${count} ${count === 1 ? 'reference' : 'references'}`,
+      );
+      segment.toggleClass('is-chosen', chosen);
+      segment.disabled = !available;
+      if (!available) segment.title = SCOPE_UNAVAILABLE;
+      // One stop in the tab order, on the answer in force; the arrows move
+      // within the group, as a radio group's do.
+      segment.tabIndex = chosen ? 0 : -1;
+      const segmentMark = segment.createSpan({ cls: 'to-backlinks-scope-mark' });
+      segmentMark.setAttribute('aria-hidden', 'true');
+      // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
+      segmentMark.appendChild(scopeGlyph(answer));
+      segment.createSpan({ cls: 'to-backlinks-scope-count', text: String(count) });
+      segment.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (available) choose(answer);
+      });
+      segment.addEventListener('keydown', (event) => {
+        const step =
+          event.key === 'ArrowRight' || event.key === 'ArrowDown'
+            ? 1
+            : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+              ? -1
+              : 0;
+        if (step === 0) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const at = offered.indexOf(answer);
+        const next = offered[(at + step + offered.length) % offered.length];
+        if (!next || next === answer) return;
+        // Focus moves first, so the repaint hands it to the new answer's segment.
+        group.querySelector<HTMLElement>(`[data-answer="${next}"]`)?.focus();
+        choose(next);
+      });
+    }
+  }
+
+  /**
+   * An answer with nothing in it (design D7): not the dormant footer, which
+   * would say the NOTE has no references, but one line and a way out.
+   */
+  private renderEmptyAnswer(root: HTMLElement, noteReferences: number): void {
+    const empty = root.createDiv({ cls: 'to-backlinks-empty-answer' });
+    empty.createSpan({ cls: 'to-backlinks-empty-line', text: 'Nothing links to this part of the note.' });
+    const widen = empty.createEl('button', { cls: 'to-backlinks-empty-widen' });
+    widen.type = 'button';
+    widen.dataset.focusKey = 'scope-widen';
+    widen.setText(
+      `Show the ${noteReferences} ${noteReferences === 1 ? 'reference' : 'references'} to the whole note`,
+    );
+    widen.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const now = viewStateFor(this.targetPath);
+      now.scopeAnswer = 'note';
+      now.capBonus = 0;
+      void this.render();
     });
   }
 
@@ -2105,6 +2396,10 @@ function propertyGlyph(): SVGSVGElement {
  */
 const liveControllers = new Set<FooterController>();
 
+/** The controller owning each footer element, so a widget that takes over an
+ * element through `updateDOM` takes over its controller with it. */
+const controllerOf = new WeakMap<HTMLElement, FooterController>();
+
 class BacklinksFooterWidget extends WidgetType {
   /** Created on first mount and owned by this widget instance — see
    * `liveControllers` for why it cannot be shared by path. */
@@ -2113,21 +2408,38 @@ class BacklinksFooterWidget extends WidgetType {
   constructor(
     private readonly source: FooterSource,
     private readonly targetPath: string,
+    private readonly answer: ZoomAnswer | null,
   ) {
     super();
   }
 
-  /** Identity is the note, NOT the contents — see the module note on why. */
+  /** Identity is the note and the zoom's KEY, NOT the contents — see the
+   * module note on why. A new key is handed to the same element (`updateDOM`). */
   override eq(other: WidgetType): boolean {
-    return other instanceof BacklinksFooterWidget && other.targetPath === this.targetPath;
+    return (
+      other instanceof BacklinksFooterWidget &&
+      other.targetPath === this.targetPath &&
+      (other.answer?.key ?? null) === (this.answer?.key ?? null)
+    );
   }
 
   toDOM(): HTMLElement {
     if (!this.controller) {
-      this.controller = new FooterController(this.source, this.targetPath);
+      this.controller = new FooterController(this.source, this.targetPath, this.answer);
       liveControllers.add(this.controller);
+      controllerOf.set(this.controller.el, this.controller);
     }
     return this.controller.el;
+  }
+
+  /** The same note under another zoom: the element, its controller, its focus
+   * and its scroll position stay, and only what it answers for changes (D4). */
+  override updateDOM(dom: HTMLElement): boolean {
+    const controller = controllerOf.get(dom);
+    if (!controller || controller.targetPath !== this.targetPath) return false;
+    this.controller = controller;
+    controller.setAnswer(this.answer);
+    return true;
   }
 
   override destroy(): void {
@@ -2152,7 +2464,7 @@ function compute(state: EditorState, source: FooterSource): DecorationSet {
 
   return Decoration.set([
     Decoration.widget({
-      widget: new BacklinksFooterWidget(source, path),
+      widget: new BacklinksFooterWidget(source, path, zoomAnswerFor(state)),
       // `side: 1`. At the END of a line a block widget with a NEGATIVE side
       // sorts inside that line and splits it, leaving an empty second half
       // rendered BELOW the widget — measured, and it is a real line: it takes
@@ -2233,6 +2545,39 @@ function sortGlyph(): SVGSVGElement {
   );
 }
 
+/**
+ * Each zoom answer's mark, shared by the chip, its menu and the segments, and
+ * drawn at one size in all three (design D6): Lucide's `locate-fixed`,
+ * `list-tree` and `file-text`, as Obsidian draws them.
+ */
+function scopeGlyph(answer: ScopeAnswer): SVGSVGElement {
+  const paths: Record<ScopeAnswer, string[]> = {
+    node: [
+      'M2 12h3',
+      'M19 12h3',
+      'M12 2v3',
+      'M12 19v3',
+      'M19 12a7 7 0 1 1-14 0 7 7 0 1 1 14 0',
+      'M15 12a3 3 0 1 1-6 0 3 3 0 1 1 6 0',
+    ],
+    branch: ['M8 5h13', 'M13 12h8', 'M13 19h8', 'M3 10a2 2 0 0 0 2 2h3', 'M3 5v12a2 2 0 0 0 2 2h3'],
+    note: [
+      'M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z',
+      'M14 2v5a1 1 0 0 0 1 1h5',
+      'M10 9H8',
+      'M16 13H8',
+      'M16 17H8',
+    ],
+  };
+  return glyph(24, paths[answer], {
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': '2',
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+  });
+}
+
 /** Reset's mark: a cross, which is what clearing looks like everywhere else. */
 function clearGlyph(): SVGSVGElement {
   return glyph(24, ['M6 6l12 12', 'M18 6L6 18'], {
@@ -2271,7 +2616,7 @@ function ellipsisGlyph(): SVGSVGElement {
 type FacetAxis = 'kind' | 'folder' | 'tag';
 /** Sort is not an axis — it does not filter — but its menu is one of the same
  * set of popovers, so it shares the slot that keeps only one of them open. */
-type OpenPopover = FacetAxis | 'sort';
+type OpenPopover = FacetAxis | 'sort' | 'scope';
 
 /** Everything one facet needs; the axes differ only in these fields. */
 interface FacetSpec {
