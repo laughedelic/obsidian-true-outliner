@@ -1,9 +1,11 @@
 /**
  * The user's changes, with the renumbering Obsidian appends set aside, put
  * through both gates the editor puts them through: classification, then the
- * verdict. Every appended change here is one measured in the app
- * (`docs/research/obsidian-list-renumbering`, "The ranges it appends to a user
- * edit"), written in the start document's offsets.
+ * verdict. The appended changes take the shape measured in the app and read
+ * from Obsidian's own code (`docs/research/obsidian-list-renumbering`, "The
+ * ranges it appends to a user edit"). The rows of that table are used as
+ * measured; the other gestures here apply the same rule to their own lists.
+ * Each is written in the start document's offsets.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -55,14 +57,20 @@ interface Judged {
 }
 
 /** Both gates, on the user's changes, with the caret at `head`. */
-function judge(md: string, changes: ChangeSet, head: number, userEvent: string): Judged {
+function judge(
+  md: string,
+  changes: ChangeSet,
+  head: number,
+  userEvent: string,
+  emptySelectionBefore = true,
+): Judged {
   const startDoc = Text.of(md.split('\n'));
   const kept = userChanges(startDoc, changes);
   const doc = parse(md);
   const spans = changedLineSpansOf(startDoc, kept);
   const cursor = { line: startDoc.lineAt(head).number - 1, ch: head - startDoc.lineAt(head).from };
   const cls = classify(
-    { userEvent, isComposition: false, changedLineSpans: spans, cursorBefore: cursor, emptySelectionBefore: true },
+    { userEvent, isComposition: false, changedLineSpans: spans, cursorBefore: cursor, emptySelectionBefore },
     doc,
   );
   const verdict = computeVerdictForRanges(cls, doc, editFactsOf(startDoc, head, kept));
@@ -228,6 +236,25 @@ describe('other gestures on an item with items after it', () => {
     expect(judged.verdict.kind).toBe(alone.verdict.kind);
   });
 
+  it('a paste over the selected item is judged as the paste alone', () => {
+    const user = { from: at(md, 1, 0), to: at(md, 1, 4), insert: '- x\n- y' };
+    const judged = judge(md, transaction(md, user, appended), at(md, 1, 4), 'input.paste', false);
+    const alone = judge(md, transaction(md, user, []), at(md, 1, 4), 'input.paste', false);
+    expect(judged.changes).toEqual(alone.changes);
+    expect(judged.cls).toBe('boundary-crossing-edit');
+    expect(result(md, judged.verdict)).toBe(result(md, alone.verdict));
+  });
+
+  it('a block sequence pasted at the caret is judged as the paste alone', () => {
+    const src = '1. a\n2. b\n3. c\n';
+    const user = { from: at(src, 1, 4), insert: '\n3. x\n4. y' };
+    const judged = judge(src, transaction(src, user, [renumber(src, 2, 0, '3. ', '5. ')]), at(src, 1, 4), 'input.paste');
+    const alone = judge(src, transaction(src, user, []), at(src, 1, 4), 'input.paste');
+    expect(judged.changes).toEqual(alone.changes);
+    expect(judged.cls).toBe('boundary-crossing-edit');
+    expect(result(src, judged.verdict)).toBe(result(src, alone.verdict));
+  });
+
   it('Delete at the end of the item is judged as the Delete alone', () => {
     const user = { from: at(md, 1, 4), to: at(md, 2, 0) };
     const judged = judge(md, transaction(md, user, [renumber(md, 3, 0, '4. ', '3. ')]), at(md, 1, 4), 'delete.forward');
@@ -295,6 +322,19 @@ describe('what is not an appended renumbering', () => {
   it('recognises the measured shape', () => {
     expect(isMarkerRenumbering(doc, change(2, 0, 4, '2. '))).toBe(true);
     expect(isMarkerRenumbering(doc, change(3, 3, 3, '3. '))).toBe(true);
+  });
+  it('recognises it inside a quote, past the `> `', () => {
+    const quoted = Text.of(['> 1. a', '> 3. c', '']);
+    expect(isMarkerRenumbering(quoted, { fromA: 7 + 2, toA: 7 + 5, insert: '1. ' })).toBe(true);
+  });
+  it('not a change starting inside the number', () => {
+    expect(isMarkerRenumbering(doc, change(2, 1, 3, '2. '))).toBe(false);
+  });
+  it('not a change starting in the indentation', () => {
+    expect(isMarkerRenumbering(doc, change(3, 0, 6, '3. '))).toBe(false);
+  });
+  it('not a change ending past the marker\'s space', () => {
+    expect(isMarkerRenumbering(doc, change(2, 0, 5, '2. '))).toBe(false);
   });
   it('not one digit deleted inside a number', () => {
     expect(isMarkerRenumbering(doc, change(2, 0, 1, ''))).toBe(false);

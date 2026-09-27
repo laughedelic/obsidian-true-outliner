@@ -2,9 +2,9 @@
 
 ### Requirement: A rewritten deletion of an ordered item keeps its own numbers
 A deletion or merge of an ordered list item SHALL receive the same verdict whether or not
-items follow it in its list. Where items follow it, Obsidian's live list renumbering appends new
-numbers for them to the user's transaction (`transaction-classification`, "Multi-range user
-edits receive verdicts"). When the verdict is a `rewrite`, the numbers the note ends with SHALL
+Obsidian's live list renumbering appended new numbers for the items after it to the user's
+transaction (`transaction-classification`, "A transaction is judged on the user's own
+changes"). When the verdict is a `rewrite`, the numbers the note ends with SHALL
 be the ones the structural operation writes (`structural-operations`, "Ordered-run
 renumbering"), and no line outside the runs the operation changes SHALL be renumbered. An edit
 that passes keeps whatever Obsidian appended, as a native edit does.

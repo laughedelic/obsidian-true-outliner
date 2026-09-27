@@ -63,7 +63,9 @@ public API.
 
 A looser rule — any change that leaves the line an ordered item with the same text after the
 marker — would also set aside a user's own Backspace inside `13.` made with a second cursor.
-The strict shape cannot be a keystroke of the user's.
+The strict shape is not a single keystroke of the user's. A paste of `2. ` over an exactly
+selected `3. ` has it, but it is set aside only when another change remains, which takes a
+second cursor.
 
 **Only when another change remains.** A transaction of marker rewrites alone is left whole.
 

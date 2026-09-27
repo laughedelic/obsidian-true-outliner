@@ -100,8 +100,9 @@ transaction, seen by the verdict layer, is the same order.
   so the verdict layer judges it, and the renumbering of a hidden line read as escaping the scope
   ([#259](https://github.com/laughedelic/obsidian-true-outliner/issues/259)). With the restoration
   running before the verdict layer, the escape check sees the move as planned, and the move goes
-  through (e2e `80-outline-zoom`). The transaction is still classified by shape rather than as
-  plugin-own.
+  through (e2e `80-outline-zoom`). The transaction was still classified by shape rather than
+  as plugin-own, because it answered Obsidian's `input.renumber` as its `userEvent`. Since
+  #260 that is read as none, and the command's transaction is `programmatic`.
 - **Typing while zoomed.** A typed character in the last nested item of a zoomed parent makes
   Obsidian renumber the hidden `2. q`, and the zoom clears, as a change outside the scope clears
   it. ⏎ in the same place keeps the zoom.

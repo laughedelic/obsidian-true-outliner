@@ -10,7 +10,8 @@
  * recognised by the one shape they take — a single line's `N<d> `, from where
  * its number starts, replaced by `M<d> ` with a different number and the same
  * delimiter — and set aside before the transaction is classified or judged
- * (`transaction-classification`, "Multi-range user edits receive verdicts").
+ * (`transaction-classification`, "A transaction is judged on the user's own
+ * changes").
  *
  * The changes are read individually, because an appended change can touch the
  * user's: a linewise cut ends at the next line's start, where that line's

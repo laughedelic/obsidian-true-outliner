@@ -321,6 +321,13 @@ describe('node-edit-enforcement: Phase C evidence', function () {
   // (docs/research/obsidian-list-renumbering).
 
   it('Backspace on an emptied middle ordered item removes it, as on the last item', async function () {
+    await outlineNote('1. p\n2. a\n');
+    await h.setCursor(1, '2. a'.length);
+    await browser.keys(Key.Backspace);
+    await browser.keys(Key.Backspace);
+    expect(await h.getBuffer()).toBe('1. p\n');
+    expect(await h.getCursor()).toEqual({ line: 0, ch: '1. p'.length });
+
     await outlineNote('1. p\n2. a\n3. q\n');
     await h.setCursor(1, '2. a'.length);
     await browser.keys(Key.Backspace);
@@ -392,6 +399,7 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     await outlineNote('1. \n2. b\n3. c\n');
     await h.setCursor(0, '1. '.length);
     await browser.keys(Key.Backspace);
+    await h.waitForNotice(REJECTION_MESSAGES['no-following-neighbor']);
     expect(await h.getBuffer()).toBe('1. \n2. b\n3. c\n');
   });
 

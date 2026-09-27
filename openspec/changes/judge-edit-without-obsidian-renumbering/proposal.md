@@ -35,9 +35,9 @@ Obsidian appends, where they sit and which class they give are measured in
   today, and a `veto` dissolves the transaction.
 - **The class ignores Obsidian's `userEvent`.** A dispatch with no `userEvent` of its own
   is classified as if Obsidian's `input.renumber` were absent, so it stays `programmatic`.
-- **Other gestures follow.** A type-over or a paste over a selected item, and ⌦ at the end
-  of an item, go from a native pass to the verdict they get without anything appended,
-  whenever items follow.
+- **Other gestures follow.** A type-over or a paste over a selected item, a paste of a block
+  sequence at the caret, and ⌦ at the end of an item go from a native pass to the verdict they
+  get without anything appended, whenever Obsidian renumbers the items after them.
 - **Effects outside the verdict layer**, for the gestures that are rewritten:
   - While zoomed, such a deletion is now judged on its own edits, so Obsidian's renumbering of a
     hidden line no longer vetoes it as leaving the zoom.
