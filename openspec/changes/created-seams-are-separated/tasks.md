@@ -2,13 +2,13 @@
 
 ## 1. The edit site, as a function of two trees
 
-- [ ] 1.1 Write the outline view of a block (D1): kind as it will re-parse, and content with indentation, list
+- [x] 1.1 Write the outline view of a block (D1): kind as it will re-parse, and content with indentation, list
   marker, ordinal number, heading level and block id set aside, the id wherever it is written. Verify with unit
   tests over every kind, tasks, setext headings and ordered runs included: renumbering, a level shift, a re-indent
   and an id attachment, including `dropLoneId`'s id line, leave the view unchanged; a list item turned paragraph,
   a changed task text or a changed heading title changes it. Negative control: comparing text without indentation fails the renumbering and level-shift
   cases.
-- [ ] 1.2 Index the pre-operation document by node id (D6): each block's view, parent, previous sibling and order.
+- [x] 1.2 Index the pre-operation document by node id (D6): each block's view, parent, previous sibling and order.
   Read the surgery's parents and previous siblings after re-nesting its headings by level.
   Classify each seam of a surgery (D1): written lower block, changed previous sibling, a first child with a new
   parent, written upper block, or blocks not consecutive before. Verify with unit tests over hand-built old/new
