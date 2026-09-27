@@ -18,8 +18,9 @@ structure, and the text it writes has to mean that structure in every view of th
   - a split: the new seam between the halves
   - an Enter place: both of its sides
 
-  A merge, an indent or outdent, a same-scope reorder, a type-over's outer seams and a lone id's drop create
-  none. This replaces "the minimum the parse requires" as the rule for those seams, and the kind-as-written
+  A same-scope reorder and a lone id's drop create none. A merge, an indent or outdent, and a type-over's outer
+  seams create none unless the op changes the kind of the block at that seam, which it then marks. Only
+  structural operations mark seams: a single block pasted natively is outside the rule. This replaces "the minimum the parse requires" as the rule for those seams, and the kind-as-written
   rules stay as the floor they already are. The approaches reviewed before this one are recorded in
   `docs/research/created-seam-detection`.
 - **Inside a list, the rule adds nothing.** Whether a list is tight or loose is the user's, and every seam

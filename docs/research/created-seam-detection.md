@@ -158,7 +158,8 @@ today ("applied by the operation that creates the boundary"). The rule becomes a
 | delete, move out | the seam that joins the blocks around the removed run |
 | split | the new seam between the halves |
 | Enter place | both sides of the place |
-| merge, indent, outdent, same-scope reorder, type-over's outer seams, id drop | none |
+| merge, indent, outdent, type-over's outer seams | none, unless the op changes the kind of the block at that seam |
+| same-scope reorder, id drop | none |
 
 Nothing is inferred, so no op's own way of rewriting a block can be misread. The review cases 2 to 4 failed
 on are each answered by the table:
@@ -167,12 +168,30 @@ on are each answered by the table:
 - a type-over's outer seams are not marked
 - a lone id's drop marks nothing
 
-**Accepted gaps.** Each keeps its content, and each is rarer than the paste, drag and delete cases the rule
-fixes:
-- **An indent or outdent that changes a block's kind next to a flush quote.** The seam is not created, so it
-  stays flush and ambiguous.
-- **A block that comes into a list item's context without its lines changing,** after a delete above it.
+**What the review found.** Most findings were places where the spec text still contradicted the table:
+- a reorder that gained a blank line
+- a list's first item made at a heading's content start
+- places inside lists stated without the list's exception
+- a four-column limit that overrode the parse
+- two paste paths and the group outdent that the marks never reached
+
+Two were real gaps in the table: joins that change a block's kind.
+- **A merge.** ⌫ at the content start of `para` merges it into `- a` above it. The merged block is a list
+  item now, so a `> q` or a table written directly below it reads as the item's text.
+- **A type-over.** `> z` pasted onto an empty `- ` under `- a` takes the empty item's tight seam. That seam
+  was inside the list and now is not.
+
+Both are closed by one addition: **an op that changes a block's kind marks that block's outer seams.** Each
+op knows both kinds at the point it writes the block, so this is the kind check 3 and 4 inferred, now stated
+by the op. It also closes 5's first draft gap, an indent or outdent that converts a block next to a flush
+quote.
+
+**Accepted gaps.** Each keeps its content, and how often each occurs in real notes is unmeasured:
+- **A block that comes into a list item's context without its lines or kind changing,** after a delete above it.
 - **A same-scope reorder,** which keeps its rule that blank lines stay with the positions.
+- **A single block pasted natively,** which never reaches an operation.
+- **A cut and paste versus a move.** A move keeps a run's inner seams, while the same run cut and pasted is a
+  payload, and its flush seams are separated.
 
 The table is the spec. A new op has to state its row, and a missing row reads as "none", which is today's
 behaviour.
@@ -186,7 +205,7 @@ behaviour.
 | 2. id pairs | node ids | no | splits, merges, drafted headings, type-over, lists with code children |
 | 3. ids + lineage + kind | ids, per-op lineage | only with correct lineage | type-over, drafted heading, list separation |
 | 4. line diff | text alignment | yes, except moves | moves, cross-kind joins, remainders, id drops |
-| 5. marking | the op itself | yes, by construction | the accepted gaps above |
+| 5. marking | the op itself, and the kinds it writes | yes, by construction | the accepted gaps above |
 
 ## For another review
 

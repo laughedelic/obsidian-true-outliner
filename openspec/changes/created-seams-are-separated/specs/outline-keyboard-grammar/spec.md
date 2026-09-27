@@ -279,9 +279,9 @@ directions, and each has a shape that reaches it:
 The two kinds SHALL be distinguishable from the DOCUMENT ALONE, with no editor state and no
 record of which key was pressed:
 
-- Enter's provisional position SHALL be blank-separated from the content above it and below
-  it, so text typed there parses as a node distinct from both neighbours. Outside a list that
-  holds even where the blocks around it were written flush: under a quote, a heading or a closing
+- Enter's provisional position SHALL be separated from the content above it and below it so
+  that text typed there parses as a node distinct from both neighbours: blank-separated on both
+  sides outside a list, and as the parse requires inside one. Outside a list that holds even where the blocks around it were written flush: under a quote, a heading or a closing
   fence, under a list an item has left, and above a flush first child. Every reader but ours
   continues a line typed flush under a quote or a list item into that block. The keypress always
   writes the position's own line, and adds a blank line on either side only where that side lacks

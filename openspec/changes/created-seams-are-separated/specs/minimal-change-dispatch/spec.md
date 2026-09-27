@@ -103,7 +103,8 @@ kind at any nesting depth, rather than as a special case at any dispatch site.
   the shift makes one of those lines coincide on both sides
 
 #### Scenario: A move that gains a blank line is still a move
-- **WHEN** a paragraph written directly under a table is moved above it, so the seam between the
-  paragraph and the table is created and gains a blank line
-- **THEN** the dispatched changes remove the paragraph's lines from below the table and insert them
-  above it, with the blank line as an insertion of its own, and no line of the table is rewritten
+- **WHEN** a paragraph is moved from another section to directly above a table, so the seam between
+  the paragraph and the table is created and gains a blank line
+- **THEN** the dispatched changes remove the paragraph's lines from their old place and insert them
+  above the table, with the blank line as an insertion of its own, and no line of the table is
+  rewritten

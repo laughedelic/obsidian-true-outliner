@@ -4,7 +4,7 @@
 A SEAM is the boundary between two blocks: the last content line of the block above it and the first
 content line of the block below it, with whatever blank lines stand between them.
 
-An operation CREATES the seams it writes as new boundaries, and states them. Each operation creates
+A structural operation CREATES the seams it writes as new boundaries, and states them. Each creates
 exactly these:
 
 | operation | seams it creates |
@@ -14,10 +14,19 @@ exactly these:
 | a split, including one that materializes an empty item or heading | the new seam between the halves |
 | a drafted sibling heading | the new heading's two seams |
 | an Enter position | the position's two seams, governed by `outline-keyboard-grammar` |
-| a merge, an indent, an outdent, a same-scope reorder, a lone id's drop | none |
+| a merge, an indent, an outdent, a type-over's outer seams | none, unless it changes a block's kind (below) |
+| a same-scope reorder, a lone id's drop | none |
 
-A type-over creates only the seams inside its payload. Its outer seams stand where the replaced run's
-stood.
+A type-over creates the seams inside its payload. Its outer seams stand where the replaced run's stood.
+
+An operation that changes the kind, as written, of a block it rewrites creates that block's outer seams.
+That covers:
+- a merge whose survivor is of another kind than the block it absorbs
+- a type-over whose payload's edge block is of another kind than the block it replaced
+- an indent or outdent that writes a block as another kind
+
+Such a change alters what the seam means to every reader. A paste of a single childless block that
+reaches the editor natively is not a structural operation and creates no seam.
 
 A created seam SHALL be written with one blank line. Every reader of the note but our own parse
 continues a line written flush under a quote, a callout or a list item into that block
@@ -53,7 +62,8 @@ Four limits bound it:
     since a blank line there would attach it to the block above. The parse's own requirements still apply:
     above a paragraph, the id line would otherwise join the paragraph's text.
   - No blank line SHALL be written above a block indented four or more columns past its container's margin,
-    which CommonMark would then read as indented code.
+    which CommonMark would then read as indented code. The parse's own requirements still apply there, as
+    `Boundary separation is judged on the kind the re-parse will read` states them.
 
 The cost of the first limit is that some shapes stay ambiguous inside a tight list. A paragraph written
 directly under a quote, or under a nested item, is continued into that block by reading mode.
@@ -91,6 +101,15 @@ before this one, and the cases each failed on.
 #### Scenario: A split keeps the seams at the node's outer edges
 - **WHEN** Enter is pressed mid-text in `para text`, written directly between `# H` and `> q`
 - **THEN** the note reads `# H` / `para` / blank / `text` / `> q`
+
+#### Scenario: A merge that changes the block's kind separates the seam below it
+- **WHEN** `para` is merged into `- a` in `- a` / blank / `para` / `> q`, where `para` sits directly above
+  `> q`
+- **THEN** a blank line stands between the merged item and `> q`
+
+#### Scenario: A type-over that changes the kind at its edge separates that seam
+- **WHEN** `> z` / blank / `w` is pasted onto an empty `- ` directly under `- a`
+- **THEN** a blank line stands between `- a` and `> z`
 
 #### Scenario: A merge keeps the seam below the merged node
 - **WHEN** `p2` is merged into `p1` in `p1` / blank / `p2` / `# H`, where `p2` sits directly above `# H`
@@ -467,9 +486,8 @@ or a destination that no longer exists. A rejection SHALL leave the document unt
 A move that begins and ends in ONE scope SHALL be a reorder. The run SHALL keep its own encoding,
 because a run that has not left its scope is already encoded for it, and the blank lines between
 that scope's members SHALL stay with the POSITIONS rather than with the nodes — the last position
-ends the file whichever node occupies it. A seam the reorder creates outside a list that the
-positions leave empty SHALL still gain one blank line, per `A seam an operation creates is
-separated`. Re-encoding such a run against the siblings the removal
+ends the file whichever node occupies it. A reorder creates no seam, per `A seam an operation
+creates is separated`. Re-encoding such a run against the siblings the removal
 leaves behind reads the scope's regime off the very evidence the run was counter-evidence to.
 
 A move whose destination is the run's CURRENT place SHALL produce no document change.
@@ -534,70 +552,11 @@ A move whose destination is the run's CURRENT place SHALL produce no document ch
 - **WHEN** a list item is moved to another position among the same parent's children, in a scope
   whose other members are paragraphs
 - **THEN** it is still a list item, and the blank lines between the scope's members are where they
-  were — a tight list stays tight and the file's terminating newline stays at the end — save for a
-  created seam outside a list that the positions leave empty, which gains one blank line
+  were — a tight list stays tight and the file's terminating newline stays at the end
 
 #### Scenario: A move to the current place changes nothing
 - **WHEN** a run is moved to the destination it already occupies
 - **THEN** the result carries no document change
-
-### Requirement: Sibling reordering
-MoveUp/moveDown SHALL swap a node (with its entire subtree) with its previous/next sibling,
-and SHALL be rejected when no such sibling exists. Node types and encodings are unchanged by
-reordering, except ordered-list markers which are renumbered.
-
-A reorder SHALL be rejected when the swap would place a SECTION-LEVEL list item directly after
-a paragraph sibling. That arrangement has no markdown encoding: a list item whose preceding
-sibling is a paragraph is read as that paragraph's CHILD, so the emitted document says
-something the surgery did not. Since reordering rewrites no node's encoding, refusing is the
-only outcome available to it — the unifying principle's other branch, the minimal encoding of
-the new tree, requires a rewrite this operation does not perform.
-
-The check SHALL cover BOTH nodes the swap relocates, not the subject alone. A swap moves two
-subtrees, and either can come to rest after a paragraph: the subject at its new slot, or the
-displaced sibling at the slot the subject left. Measured, the second case is the whole of move
-up's exposure and none of it is visible to the subject.
-
-"Section level" is the whole of the rule's reach: the attachment it guards against fires only
-among the children of the root or of a heading. Among a list item's own children a paragraph
-does not adopt a following list, so a reorder there is never refused on this ground.
-
-An accepted reorder SHALL leave EVERY node's depth unchanged in the result tree, not only the
-subject's. A reorder permutes two subtrees at one level and moves nothing between levels, so
-any depth change anywhere in the document is an encoding that re-parsed differently from the
-tree the operation built.
-
-#### Scenario: Heading section swap
-- **WHEN** moveUp is applied to `## Budget` preceded by sibling `## Packing`
-- **THEN** the two sections (headings plus all descendant content) swap positions and every
-  moved line is byte-identical to before, merely relocated; a seam the swap creates that would be
-  empty gains one blank line
-
-#### Scenario: A list item refuses to move down past a paragraph
-- **WHEN** moveDown is applied to a top-level list item whose next sibling is a paragraph
-- **THEN** the operation is rejected and the document is unchanged — landing after that
-  paragraph would make the item its child, which is not the sibling swap that was asked for
-
-#### Scenario: A paragraph refuses to move up above a list item
-- **WHEN** moveUp is applied to a top-level paragraph whose previous sibling is a list item
-- **THEN** the operation is rejected, because the list item would be left directly after the
-  paragraph and adopted by it — a node the caller never selected, changing depth
-
-#### Scenario: The displaced sibling is checked, not just the subject
-- **WHEN** a reorder would leave either relocated subtree's root as a section-level list item
-  directly after a paragraph
-- **THEN** the operation is rejected, whichever of the two it is
-
-#### Scenario: A reorder inside a list item is unaffected
-- **WHEN** moveDown is applied to a list item among a list item's own children, past a sibling
-  paragraph there
-- **THEN** the operation is accepted and both nodes keep their depth — a paragraph nested
-  inside a list item does not adopt a following list, so no encoding is lost
-
-#### Scenario: An accepted reorder moves no node between levels
-- **WHEN** any reorder is accepted, in its single-node or group form
-- **THEN** every node in the result document sits at the depth it sat at before, the subject
-  and every bystander alike
 
 ### Requirement: Node split
 `splitNode(doc, nodeId, position)` SHALL resolve a document position within a paragraph,
@@ -629,14 +588,15 @@ SHALL be the inserted empty position, not the node's text. Where the node's SIBL
 scope has an empty markdown encoding, an empty node SHALL be materialized there: a list
 item in the original's marker style, with ordered runs renumbered, or a HEADING at the
 same level. Where it has none — a paragraph — a provisional position SHALL open in the gap
-ABOVE the node as the anchor, blank-separated from the block above it and from the node. The
-position's own line is always written, and a blank line on either side only where that side lacks
-one. A position at the start of a
+ABOVE the node as the anchor. Outside a list it is blank-separated from the block above it and
+from the node; inside one it keeps the separation the parse requires. The position's own line is
+always written, and a blank line on either side only where that side lacks one. A position at the start of a
 CONTINUATION line is an ordinary interior split, not a content start.
 
 An END-of-node split SHALL place its result in the node's CHILD scope when it has
 children and its SIBLING scope when it does not, and SHALL open a provisional position in the
-relevant gap, blank-separated on both sides, whenever that scope's kind has no empty encoding — including the case where
+relevant gap, blank-separated on both sides outside a list and as the parse requires inside one,
+whenever that scope's kind has no empty encoding — including the case where
 the node HAS children and the child scope resolves to `paragraph`. It SHALL NOT fall
 through to the childless sibling path there, which placed the new position after the
 entire subtree: the jump-over-the-subtree shape the content-adjacent rule exists to
@@ -871,5 +831,6 @@ with a paragraph child).
 convention is one case of it. Its claim to be "the one place this codebase widens separation" no longer
 holds.
 **Migration**: The heading's first-child separation, the untouched user boundary and the unwidened gap are
-scenarios of the new requirement. A heading's first paragraph child is separated as before. A heading's
-first list-item child an operation creates is now separated too, since that seam lies outside the list.
+scenarios of the new requirement. A heading's first paragraph child is separated as before. A list inserted as
+a heading's first child is now separated from it too, since that seam lies outside the list and the
+insertion creates it.

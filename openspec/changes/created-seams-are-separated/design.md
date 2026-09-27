@@ -46,10 +46,18 @@ and lies outside a list. An unmarked seam is left to the parse floor, as today.
 | split, including a content-start split that materializes an empty item or heading | the new seam between the halves |
 | drafted sibling heading (Shift+Enter on a heading, until #258 replaces it) | the new heading's two seams |
 | Enter place | both sides of the place (D5) |
-| merge, indent, outdent, same-scope reorder, a type-over's outer seams, a lone id's drop | none |
+| merge, indent, outdent, a type-over's outer seams | none, unless the op changes the kind, as written, of the block at that seam (below) |
+| same-scope reorder, a lone id's drop (its removal included) | none |
 
-A split's and a merge's outer seams stay the user's, as do a moved run's inner seams and a type-over's outer
-seams. The accepted gaps are listed under Risks.
+**An op that changes a block's kind marks that block's outer seams.** A merge whose survivor is of another
+kind than the block it absorbs (`para` merged into `- a` above it), a type-over whose payload's edge block
+is of another kind than the block it replaced, and an indent or outdent that converts a block (a paragraph
+written as a list item under a paragraph) each change what the seam next to that block means to every reader.
+Each op knows both kinds where it writes the block. A seam whose kind nothing changed stays the user's.
+
+A split's and a merge's outer seams otherwise stay the user's, as do a moved run's inner seams and a type-over's
+outer seams. Only STRUCTURAL operations mark seams: a paste of a single childless block that the plugin passes to
+the editor natively is not one. The accepted gaps are listed under Risks.
 
 Alternatives considered: `created-seam-detection` has four, with the review findings against each.
 
@@ -118,14 +126,19 @@ paragraph place under a heading, the line where a heading's own block id is type
 - **A dissolved place,** such as leaving a list. The dissolving op states its removal as the place's line and
   the blank lines it added beside the place, and it knows how many it added. What is left between the
   neighbours is what the note held around the dissolved item. That is the user's, unless it is empty and
-  outside a list: then the dissolve's removal marked it, and it holds one blank line.
+  outside a list: then the dissolve's removal marked it, and it holds one blank line. The abandonment is a
+  byte edit `provisional-cleanup` applies later, without `finalize`, so the op computes it when it opens the
+  place, and states it with the dispatch. Every dissolving path states it: the Enter ladder, Shift+Tab
+  through the group outdent, and the command path.
 
 The carries' `drop-line` abandonments, which remove a place nothing dissolved, are unchanged. The form a
 dissolving op states is its own.
 
 ### D6. Marks travel with the surgery into `finalize`
 
-An op records its marks as `(upper block, lower block)` pairs on the surgery, by node id. The block ids are
+An op records its marks as `(upper block, lower block)` pairs on the surgery, by node id. Every path
+that builds a surgery carries them, including `applyGroups` (the group forms of indent and outdent) and the
+two paste paths that call `finalize` directly (`pasteIntoEmptyBody`, `insertAsOnlyChildren`). The block ids are
 the op's own, known at the point it writes the seam, so nothing is inferred. `finalize` then:
 1. separates each marked pair that is still adjacent and empty
 2. skips a pair that lies inside a list, or falls under D4
@@ -139,7 +152,9 @@ On a parsed tree nothing is marked, so the pass is a no-op there.
   - The deletion marks nothing when a splice follows, and already receives that fact as `spliceFollows`.
   - The insertion marks only the seams inside its payload, not its outer seams, which stand where the
     replaced run's did.
-  - So typing a character over a selected block keeps the user's spacing around it.
+  - So typing a character over a selected block keeps the user's spacing around it. A payload whose edge
+block is of another kind than the block it replaced marks that outer seam, so `> z` pasted onto an empty
+`- ` under `- a` is separated from the list it no longer belongs to.
 - **An Enter over a block selection** (`planOverSelection`) runs a deletion and then the key's op.
   - The deletion marks its join like any deletion.
   - The place the key then opens adds only the blank line the join lacks.
@@ -148,25 +163,30 @@ On a parsed tree nothing is marked, so the pass is a no-op there.
 ### D8. A relocation that gains a blank line is still a relocation
 
 `dispatch.ts` recognises a move only when the lines it removes equal the lines it inserts. A marked seam's
-blank line breaks that equality, and the move would then be dispatched as an in-place rewrite, which
-`minimal-change-dispatch` forbids. The match sets blank lines aside and dispatches the added blank lines as
-insertions of their own.
+blank line breaks that equality, and so does a gap line a cross-scope move takes with its run. The move would
+then be dispatched as an in-place rewrite, which `minimal-change-dispatch` forbids. The match compares the two
+sides with blank lines set aside, and dispatches the blank lines that differ as insertions or deletions of
+their own. It stays a test on the text, as the match is today.
 
 The cases to measure:
-- a paragraph moved above a table it sat flush under
-- a paragraph moved below a table
-- a removal that joins a table and a paragraph, which inserts directly under the table's last row, so the
-  live table widget has to be checked there
+- a paragraph moved from another section to directly above a table
+- a paragraph moved from another section to directly below a table
+- a removal that joins a table and a paragraph, which inserts directly under the table's last row, so the live
+  table widget has to be checked there
 
 ## Risks / Trade-offs
 
-- **Accepted gaps,** each keeping its content, and each rarer than the paste, drag and delete cases the rule
-  fixes (`created-seam-detection`, 5):
-  - **An indent or outdent that changes a block's kind next to a flush quote.** The seam is not marked.
-  - **A block that comes into a list item's context without its lines changing,** after a delete above it.
-  - **A same-scope reorder,** which keeps its rule that blank lines stay with the positions.
-  - **A loose list's dissolved item,** whose abandonment leaves the two blank lines it had around it. The
-    rule does not narrow a gap, and this is today's behaviour.
+- **Accepted gaps,** each keeping its content. How often each occurs in real notes is unmeasured
+  (`created-seam-detection`, "For another review"):
+  - **A block that comes into a list item's context without its lines or kind changing,** after a delete
+    above it.
+  - **A same-scope reorder,** which keeps its rule that blank lines stay with the positions, and marks
+    nothing.
+  - **A native paste of a single childless block,** which never reaches an operation.
+  - **A loose list's dissolved item,** whose abandonment leaves the two blank lines it had around it. The rule
+    does not narrow a gap, and this is today's behaviour.
+  - **A cut and paste versus a move.** A move keeps a moved run's inner seams. The same run cut and pasted is
+    a payload, and its flush seams are separated (D2).
 - **A new op must state its row.** An op that marks nothing leaves every seam to the parse floor, as today. →
   The table lives in the spec, and each op's marks have a test with dropping the mark as the negative control.
 - **Mixed spacing in a tight note.** Seams an operation creates arrive separated, while the user's own stay
