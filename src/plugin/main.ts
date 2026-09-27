@@ -115,6 +115,7 @@ import { placeOutline } from './decorate';
 import { carriedRecordOf, openPlaceLine, recordDispatch } from './provisional-cleanup';
 import { abandonEdit, dispatchAbandon, STRUCTURAL_DISPATCH, type StructuralKey } from './grammar';
 import { ChangeSet } from '@codemirror/state';
+import { isolateHistory } from '@codemirror/commands';
 
 const CONFLICTING_PLUGINS = ['obsidian-outliner', 'obsidian-zoom'];
 
@@ -1454,18 +1455,15 @@ export default class TrueOutlinerPlugin extends Plugin {
     // The same join reaches back to whatever came BEFORE the command. A
     // keypress of ours dispatches its caret with its change, so its event has
     // no `selectionsAfter` either, and CM6 checks only the new change's
-    // `userEvent` — a command run within `newGroupDelay` of such a key merges
-    // into the key's undo step. Re-asserting the current selection first gives
-    // that event its `selectionsAfter`. It shows the current selection against
-    // the current document, so nothing watching sees a caret out of step, and
-    // `filter: false` keeps the enforcement funnel from moving it between the
-    // operand read above and `before` below. It goes before `before` is read:
+    // `userEvent` — an indent run within `newGroupDelay` of such a key merges
+    // into the key's undo step. `isolateHistory` ends that window without
+    // recording anything on the key's event, and carries no selection for
+    // anything watching to react to. It goes before `before` is read:
     // `planned-changes` drops its statement on the next transaction from that
     // state, whatever the transaction is.
     const changes: EditorChange[] = [...outcome.changes];
     if (changes.length > 0) {
-      if (view) view.dispatch({ selection: view.state.selection, filter: false });
-      else editor.setSelections(editor.listSelections());
+      view?.dispatch({ annotations: isolateHistory.of('before') });
       const selectionAfter =
         outcome.to === undefined
           ? { from: outcome.from }

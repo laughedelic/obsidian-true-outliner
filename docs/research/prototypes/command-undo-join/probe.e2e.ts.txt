@@ -30,6 +30,11 @@ describe('probe', function () {
     'shiftEnter+hotkey one action': async () => {
       await browser.action('key').down(Key.Shift).down(Key.Enter).up(Key.Enter).up(Key.Shift).down(h.PRIMARY_MOD).down(Key.Shift).down(Key.ArrowUp).up(Key.ArrowUp).up(Key.Shift).up(h.PRIMARY_MOD).perform();
     },
+    'enter, then runCommand move-up': async () => { await browser.keys(Key.Enter); await h.runCommand('move-node-up'); },
+    'enter, then hotkey move-up (separate)': async () => { await browser.keys(Key.Enter); await h.keys.moveNodeUp(); },
+    'enter+hotkey one action': async () => {
+      await browser.action('key').down(Key.Enter).up(Key.Enter).down(h.PRIMARY_MOD).down(Key.Shift).down(Key.ArrowUp).up(Key.ArrowUp).up(Key.Shift).up(h.PRIMARY_MOD).perform();
+    },
     'synthetic shiftEnter + command in one execute': async () => {
       await browser.executeObsidian(({ app, obsidian }) => {
         const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;

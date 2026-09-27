@@ -17,9 +17,12 @@ event when all of these hold:
 
 A structural command dispatches through `Editor.transaction` with no `userEvent`. A keypress of
 ours dispatches its caret in the same transaction as its change, which leaves its event with no
-`selectionsAfter`. A selection-only transaction afterwards is what fills that slot:
-`addSelection` records the start selection, even an unchanged one, when `selectionsAfter` is
-empty.
+`selectionsAfter`.
+
+Two transactions end that window. A selection-only transaction fills the slot: `addSelection`
+records the start selection, even an unchanged one, when `selectionsAfter` is empty. An
+`isolateHistory` annotation of `before` or `full` resets `prevTime`, so the next change fails the
+`newGroupDelay` test, and records nothing on the previous event.
 
 ## Which sequences join
 
@@ -33,6 +36,9 @@ undo once. "Gap" is the wall time the steps took, measured from the test process
 | ⇧⏎, then "Move node up" by command id | 72 ms | `- foo` / `··` / `- one` | `- one` / `- foo` / `··` | no |
 | ⇧⏎, then the move-up hotkey | 88 ms | `- foo` / `··` / `- one` | `- one` / `- foo` / `··` | no |
 | ⇧⏎ and the move-up hotkey in one WebDriver action | 102 ms | `- foo` / `··` / `- one` | `- one` / `- foo` / `··` | no |
+| ⏎, then "Move node up" by command id | 87 ms | `- one` / `- ` / `- foo` | `- one` / `- foo` / `- ` | no |
+| ⏎, then the move-up hotkey | 87 ms | `- one` / `- ` / `- foo` | `- one` / `- foo` / `- ` | no |
+| ⏎ and the move-up hotkey in one WebDriver action | 61 ms | `- one` / `- ` / `- foo` | `- one` / `- foo` / `- ` | no |
 | `x` typed, then "Move node up" by command id | 70 ms | `- foox` / `- one` | `- one` / `- foox` | no |
 | `x` typed, then the move-up hotkey | 70 ms | `- foox` / `- one` | `- one` / `- foox` | no |
 | `x` and the move-up hotkey in one WebDriver action | 51 ms | `- foox` / `- one` | `- one` / `- foox` | no |
@@ -41,20 +47,27 @@ undo once. "Gap" is the wall time the steps took, measured from the test process
 
 Readings:
 
-- **The indent joins and the move does not.** The move's narrowed change set
-  (`aligned-change-set-narrowing`) touches no position adjacent to the place ⇧⏎ opened, so
-  adjacency fails even inside the window.
+- **The indent joins; the move does not, in the cases measured,** after ⇧⏎ and after ⏎ alike.
+  The likely reason is adjacency: the move's narrowed change set (`aligned-change-set-narrowing`)
+  need not touch the new line. That was not checked, and moves from other shapes were not
+  measured.
 - **Typing does not join in the app,** by either entry point, although a bare CM6 state with
-  the same transactions does join. Something in Obsidian's input path dispatches a selection
-  after the typed change. Which transaction does it was not isolated.
+  the same transactions does join. What in Obsidian's input path keeps them apart was not
+  isolated.
 - **Separate WebDriver calls land well inside the window here,** but nothing holds them there
   on a slower runner. Dispatching the keydown and running the command in one page task holds
   them there by construction: CodeMirror runs a keymap binding on a synthetic `keydown`.
 
 ## With the fix
 
-`runOp` re-asserts the current selection before its dispatch, so the key's event gets its
-`selectionsAfter`. The e2e case `20-structural-commands` "a command run straight after a
-structural key is its own undo step" fails on `main`: one undo gives `- one` / `- foo`. On the
-fix it passes, desktop and mobile emulation: one undo gives `- one` / `- foo` / `··` with the
-caret at line 2, column 2, and a second undo gives `- one` / `- foo`.
+`runOp` dispatches an `isolateHistory` `before` annotation on its own before the command's
+change. It carries no selection, so no selection listener runs and nothing is recorded on the
+key's event. The e2e case `20-structural-commands` "a command run straight after a structural
+key is its own undo step" fails on `main`: one undo gives `- one` / `- foo`. On the fix it
+passes, desktop and mobile emulation: one undo gives `- one` / `- foo` / `··` with the caret at
+line 2, column 2, and a second undo gives `- one` / `- foo`.
+
+A selection-only re-assertion fixes the same case, measured on this branch before the
+annotation replaced it. It also writes the current selection onto the previous event, which
+changes where that event's redo puts the caret when the event was an edit whose caret mapping
+cannot reproduce.
