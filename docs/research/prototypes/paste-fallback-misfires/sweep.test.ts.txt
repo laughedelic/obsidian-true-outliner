@@ -1,0 +1,45 @@
+import { it } from 'vitest';
+import * as F0 from '../zz-f/ops';
+import * as G from '../zz-g/ops';
+import * as MM from '../zz-m/ops';
+import { parse } from '../src/parse';
+import { encode } from '../src/encode';
+import { walkNodes } from '../src/model';
+let seed = 12345;
+const rnd = (n: number) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; };
+const sh = (n: any): string => `${n.kind}[${n.lines.map((l: string) => l.trim().replace(/\s+/g, ' ')).join('|')}](${n.children.map(sh).join(',')})`;
+const byLine = (d: any, l: string) => [...walkNodes(d)].find((n: any) => n.lines[0] === l);
+const dests = [['- a\n  1. b\n', '  1. b'], ['- a\n', '- a'], ['- a\n\t- b\n', '\t- b'], ['- a\n    - b\n', '    - b'], ['- a\n  - b\n    - c\n', '    - c']];
+const pieces = ['- n', '1. m', '> q', '| a |', 'text', '2. x', '- k', '```', 'code'];
+it('sweep', () => {
+  for (const [tabs, F] of [[true, F0], [false, F0]] as const) {
+    seed = 12345;
+    const st: any = { variant: 'fix vs main' + (tabs ? ' tabs' : ' spaces'), payloads: 0, runs: 0, fb: 0, fbFail: 0, fail: 0, fbWithTab: 0 };
+    const samples: string[] = [];
+    for (let t = 0; t < 30000; t++) {
+      const ws = () => { const k = rnd(6); let s = ''; for (let i = 0; i < k; i++) s += tabs && rnd(3) === 0 ? '\t' : ' '; return s; };
+      const lines = ['- p'];
+      const k = 1 + rnd(5);
+      for (let i = 0; i < k; i++) { if (rnd(5) === 0) lines.push(''); lines.push(ws() + pieces[rnd(pieces.length)]); }
+      const payload = lines.join('\n') + '\n';
+      const pp = parse(payload).children;
+      if (pp.length !== 1) continue;
+      if ((payload.match(/```/g) ?? []).length % 2) continue;
+      const want = sh(pp[0]).replace(/^list-item\[[^\]|]*/, '');
+      st.payloads++;
+      for (const [doc, anchor] of dests) {
+        const g = globalThis as any; g.__fb = 0;
+        const d = parse(doc);
+        const r = F.insertSubtrees(d, byLine(d, anchor)!.id, parse(payload).children, 'after');
+        st.runs++;
+        if (!r.ok) continue;
+        const text = encode(r.value.doc);
+        const pn = [...walkNodes(parse(text))].find((n: any) => /- p$/.test(n.lines[0]));
+        const ok = !!pn && sh(pn).replace(/^list-item\[[^\]|]*/, '') === want;
+        if (!ok) { st.fail++; if (g.__fb === 0 && (st.nfs ?? 0) < 2) { st.nfs = (st.nfs ?? 0) + 1; samples.push('NONFB ' + JSON.stringify({ want, got: pn && sh(pn), payload, text })); } }
+        const fbF = g.__fb > 0; g.__fb = 0; { const d2 = parse(doc); MM.insertSubtrees(d2, byLine(d2, anchor)!.id, parse(payload).children, 'after'); } const fbM = g.__fb > 0; if (fbF && !fbM) { st.newFb = (st.newFb ?? 0) + 1; if ((st.nf ?? 0) < 3) { st.nf = (st.nf ?? 0) + 1; samples.push('NEWFB ' + JSON.stringify({ doc, payload, out: text })); } } if (fbF) { st.fb++; if (payload.includes('\t')) st.fbWithTab++; if (!ok) st.fbFail++; if (samples.length < 12) samples.push(JSON.stringify({ doc, payload, conv: g.__fbConv, out: text, ok })); }
+      }
+    }
+    require('node:fs').appendFileSync('/tmp/claude-0/-home-user-obsidian-true-outliner/ec8969fc-18f3-54cf-81ff-87564f580056/scratchpad/sweep4.txt', JSON.stringify(st) + '\n' + samples.sort((a, b) => a.length - b.length).join('\n') + '\n');
+  }
+});

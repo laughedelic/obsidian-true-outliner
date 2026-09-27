@@ -1736,3 +1736,42 @@ describe('a subtree written elsewhere keeps a tab-marked item’s content column
     expect(text).toBe(expected);
   });
 });
+
+describe('a paste spelled in tabs under a space-indented item is written in the document’s unit (#244)', () => {
+  const doc = '- a\n  1. b\n';
+  const paste = (clip: string): string => {
+    const target = parse(doc);
+    const result = insertSubtrees(target, byLine(target, '  1. b').id, parse(clip).children, 'after');
+    if (!result.ok) throw new Error(result.rejection.reason);
+    return encode(result.value.doc);
+  };
+
+  it('a blank line between an item and its first child is read back as it is written', () => {
+    // Read back without that blank line, `para` joined `- p`'s own text, and
+    // the block fell back to its own characters.
+    expect(paste('- p\n\n  para\n\n  - n\n\t1. m\n')).toBe(
+      '- a\n  1. b\n  - p\n\n    para\n\n    - n\n      1. m\n',
+    );
+  });
+
+  it('a child spelled apart from its parent keeps its column past the parent', () => {
+    // `\ttext` is `- n`'s paragraph child at its content column, but opens
+    // with a tab where `- n` opens with two spaces.
+    expect(paste('- p\n  - n\n\t1. m\n\ttext\n')).toBe(
+      '- a\n  1. b\n  - p\n    - n\n      1. m\n      text\n',
+    );
+  });
+
+  it('a drop writes the same', () => {
+    const md = `${doc}- p\n\n  para\n\n  - n\n\t1. m\n`;
+    const source = parse(md);
+    const result = moveSubtreesTo(source, [[byLine(source, '- p').id]], {
+      parentId: byLine(source, '- a').id,
+      index: 1,
+    });
+    if (!result.ok) throw new Error(result.rejection.reason);
+    const text = encode(result.value.doc);
+    expect(applyEdits(md.split('\n'), result.value.edits).join('\n')).toBe(text);
+    expect(text).toBe('- a\n  1. b\n  - p\n\n    para\n\n    - n\n      1. m\n');
+  });
+});

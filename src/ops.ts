@@ -2521,7 +2521,7 @@ function reindentSubtree(node: OutlineNode, indentText: string, unit: string): O
  * the root opens a block as it does in place and every tab after it expands to
  * the stop it reaches there. */
 function readsAsWritten(node: OutlineNode): boolean {
-  const lines = encodeLines({ preamble: [], children: [{ ...node, trailingGap: [] }] });
+  const lines = encodeLines({ preamble: [], children: [stripFinalGap(node)] });
   const prefix = leadingWhitespace(lines[0] ?? '');
   const kept = ' '.repeat(indentWidth(prefix) % TAB_WIDTH);
   const text = lines.map((line) =>

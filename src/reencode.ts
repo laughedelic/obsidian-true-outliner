@@ -248,11 +248,14 @@ function addsTabAfterSpace(from: string, to: string, rest: string): boolean {
  * ends, and a child written one tab past its item's indentation would fall
  * short of the item's content column once the prefix is narrower than a stop.
  *
- * A line that does not open with the node's own indentation goes to `carry`,
- * which moves it with the block it belongs to, as a paste always has. A line
- * the source wrote in a different unit from its node says nothing about where
- * it belongs, and spelling its offset in spaces moved a tab continuation to
- * where `>` opens a quote.
+ * A line at or past the node's indentation that does not open with it, a
+ * child written in another unit from its parent, keeps its offset in columns,
+ * written in spaces after the new indentation. A line short of the node's
+ * indentation, a lazy continuation, goes to `carry`, which moves it with the
+ * block it belongs to. Where an offset kept in spaces lands a line on a block
+ * start the source did not have — a tab continuation two columns in, where
+ * `>` opens a quote — the read-back in `reindentSubtree` sends the block to
+ * its own characters.
  *
  * An atom's lines are content, and go through `reprefixLine` instead.
  */
@@ -265,11 +268,14 @@ export function rewriteOwnLine(
   carry: (line: string) => string,
 ): string {
   const ws = leadingWhitespace(line);
-  if (!ws.startsWith(from)) return carry(line);
-  const rest = ws.slice(from.length);
-  const swapped = to + line.slice(from.length);
-  if ((unit === '\t' || !rest.includes('\t')) && !addsTabAfterSpace(from, to, rest)) {
-    return shiftLine(swapped, columnDelta, false);
+  if (ws.startsWith(from)) {
+    const rest = ws.slice(from.length);
+    const swapped = to + line.slice(from.length);
+    if ((unit === '\t' || !rest.includes('\t')) && !addsTabAfterSpace(from, to, rest)) {
+      return shiftLine(swapped, columnDelta, false);
+    }
+  } else if (line.trim() === '' || indentWidth(ws) < indentWidth(from)) {
+    return carry(line);
   }
   const offset = indentWidth(line) - indentWidth(from) + columnDelta;
   return to + ' '.repeat(Math.max(0, offset)) + line.slice(ws.length);
