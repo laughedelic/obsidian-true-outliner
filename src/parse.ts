@@ -119,12 +119,16 @@ export const OPENING_MARGIN = 3;
  *
  * A setext heading is judged on its UNDERLINE, the line that carries its
  * `^ {0,3}`; every other kind on the line that opens it.
+ *
+ * The same holds the other way: a `paragraph` whose first line opens one of
+ * those blocks within the margin is judged as that block (`promote`).
  */
 export function kindAsWritten(
   node: Pick<OutlineNode, 'kind' | 'lines' | 'setext'>,
   margin = 0,
 ): NodeKind {
   const kind = node.kind;
+  if (kind === 'paragraph') return promote(node.lines[0] ?? '', margin);
   if (kind === 'heading' && node.setext === true) {
     return demote(node.lines[node.lines.length - 1] ?? '', kind, margin);
   }
@@ -145,6 +149,27 @@ function demote(line: string, kind: NodeKind, margin: number): NodeKind {
   if (kind === 'heading' || kind === 'html') margin = 0;
   if (indentWidth(line) - margin <= OPENING_MARGIN) return kind;
   return LIST_ITEM_RE.test(line) ? 'list-item' : 'paragraph';
+}
+
+/**
+ * The block a paragraph's first line opens where it is written, in the order
+ * `segment` tries them. A paragraph past the margin can be written back into
+ * it — a payload copied from inside a list item and pasted at the root, a
+ * child carried out of its item by a move — and there `<!-- c -->` opens an
+ * HTML block that runs to the next blank line, and `> q` a quote that runs on
+ * into a quote below it. A table row, a fence and a list marker have no margin,
+ * so a paragraph never holds one as its first line.
+ *
+ * A setext underline is not looked for: judged as the paragraph above it, a
+ * setext heading takes every separator a heading would, and one more below.
+ */
+function promote(line: string, margin: number): NodeKind {
+  if (ATX_RE.test(line)) return 'heading';
+  const seen = fromMargin(line, margin);
+  if (QUOTE_RE.test(seen)) return CALLOUT_RE.test(seen) ? 'callout' : 'quote';
+  if (HR_RE.test(seen)) return 'hr';
+  if (HTML_OPEN_RE.test(line)) return 'html';
+  return 'paragraph';
 }
 
 /**
@@ -170,7 +195,8 @@ export function tailAsWritten(
   let tail: OutlineNode | undefined;
   // Read from the margin the node's kind was judged at, so the lines below the
   // opening one are measured as the whole document would measure them.
-  const from = node.kind === 'html' || node.kind === 'heading' ? 0 : margin;
+  const fromZero = (k: NodeKind): boolean => k === 'html' || k === 'heading';
+  const from = fromZero(node.kind) || fromZero(kind) ? 0 : margin;
   const own = node.lines.map((line) => fromMargin(line, from));
   for (const block of walkNodes(parse(own.join('\n')))) tail = block;
   if (!tail) return { kind, lines: node.lines };
