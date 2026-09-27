@@ -195,6 +195,9 @@ export function tailAsWritten(
   const kind = kindAsWritten(node, margin);
   if (node.lines.length <= 1) return kind === node.kind ? node : { kind, lines: node.lines };
   if (kind === node.kind && kind !== 'paragraph') return node;
+  if (node.kind === 'paragraph' && kind === 'paragraph' && !node.lines.slice(1).some(mayEndParagraph)) {
+    return node;
+  }
   // Parsed where the document parses them: under a list item whose content
   // column is the margin, or at the root after a paragraph of its own. Each
   // pattern then measures from the column `segment` measures it from, and the
@@ -205,6 +208,15 @@ export function tailAsWritten(
   // no block, and are judged by the line that opens them.
   const tail = blocks.length > 1 ? blocks[blocks.length - 1]! : undefined;
   return tail ?? { kind, lines: node.lines };
+}
+
+/**
+ * Whether a line inside a paragraph could be where the paragraph ends: it
+ * opens with a character one of `startsNewBlock`'s patterns or a setext
+ * underline opens with, or carries a pipe, which is all a table row needs.
+ */
+function mayEndParagraph(line: string): boolean {
+  return /^[ \t]*[#`~>*_=+\-\d]/.test(line) || line.includes('|');
 }
 
 /**

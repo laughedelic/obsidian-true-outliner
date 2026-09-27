@@ -269,6 +269,11 @@ Promoted to an HTML block, `<!-- c -->` over `- x` ran on through the list and t
 `normalizeBoundaries` now asks `needsBlankBetween` of that seam for any parent but a list item,
 whose own rule stands. Found by the implementation review.
 
+The sub-parse is skipped for a paragraph none of whose later lines opens with a character a block
+start or a setext underline opens with, or carries a pipe. Without that check, `finalize` over a
+9 001-line note of headings, two-line paragraphs and lists took 30 ms against `main`'s 18; with it,
+19. Found by the second implementation review.
+
 Promotion also changes structure without losing a node, and none of it is a seam's to prevent:
 - a promoted quote with a continuation line (`> q` / `more`) comes back as a quote and a paragraph;
 - a promoted `# x`, or a paragraph whose second line becomes a setext underline, is a heading and
