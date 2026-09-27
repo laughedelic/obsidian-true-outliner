@@ -58,8 +58,8 @@ inside the moved run existed before and are left as written.
 
 Alternative: treat a payload's adjacent roots as already adjacent, keeping the clipboard's own
 separation. A flush quote over a paragraph in the clipboard would then arrive flush, and ambiguous.
-**This is the one decision the review should confirm**: it is the reading under which the rule and the
-user-written exemption meet at a paste.
+Confirmed in review, over that alternative. This is where the rule and the user-written exemption
+meet at a paste, and the payload's text is the note's new text.
 
 ### D3. A seam a removal leaves is created
 
