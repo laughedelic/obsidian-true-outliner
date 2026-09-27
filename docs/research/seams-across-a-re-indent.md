@@ -255,6 +255,20 @@ demoted `html` block's is, whatever its first line opens. Written into the margi
 quote or callout below it: pasting `    text` / `    > q` before `> [!note] real` gave one quote of
 two lines, the callout's kind gone. Found by the plan review.
 
+That sub-parse reads the lines where the document reads them: after a list item whose content
+column is the margin, or after a root paragraph of its own. Taking the margin off the lines
+instead, as the demotion's first reading did, measures an ATX line and a setext underline from
+the margin where `segment` measures them from column 0, so `    text` / `    # x` under `  - kid`
+read as a paragraph and a heading, and the paragraph below merged into the text. Parsed from line
+0, a promoted `---` / `x` / `...` opened frontmatter and formed no block at all. Both found by the
+implementation review.
+
+A paragraph's first child is judged as a sibling would be. A list after a paragraph is its
+children, and a marker line ends a paragraph, so the seam between them never needed a separator.
+Promoted to an HTML block, `<!-- c -->` over `- x` ran on through the list and the node below it.
+`normalizeBoundaries` now asks `needsBlankBetween` of that seam for any parent but a list item,
+whose own rule stands. Found by the implementation review.
+
 Promotion also changes structure without losing a node, and none of it is a seam's to prevent:
 - a promoted quote with a continuation line (`> q` / `more`) comes back as a quote and a paragraph;
 - a promoted `# x`, or a paragraph whose second line becomes a setext underline, is a heading and

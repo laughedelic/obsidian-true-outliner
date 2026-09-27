@@ -510,6 +510,17 @@ function normalizeBoundaries(doc: OutlineDoc): OutlineDoc {
       ) {
         fixed = { ...fixed, trailingGap: [''] };
       }
+      // Any other parent abuts its first child as a sibling abuts the next: a
+      // paragraph written into the margin as an HTML block runs on through the
+      // list the attachment rule made its children.
+      if (
+        firstChild &&
+        fixed.kind !== 'list-item' &&
+        fixed.trailingGap.length === 0 &&
+        needsBlankBetween({ ...fixed, children: [] }, firstChild, margin)
+      ) {
+        fixed = { ...fixed, trailingGap: [''] };
+      }
       return fixed;
     });
     return out.map((node, i) =>

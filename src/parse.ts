@@ -195,17 +195,16 @@ export function tailAsWritten(
   const kind = kindAsWritten(node, margin);
   if (node.lines.length <= 1) return kind === node.kind ? node : { kind, lines: node.lines };
   if (kind === node.kind && kind !== 'paragraph') return node;
-  let tail: OutlineNode | undefined;
-  // Read from the margin the node's kind was judged at, so the lines below the
-  // opening one are measured as the whole document would measure them.
-  const fromZero = (k: NodeKind): boolean => k === 'html' || k === 'heading';
-  const from = fromZero(node.kind) || fromZero(kind) ? 0 : margin;
-  const own = node.lines.map((line) => fromMargin(line, from));
-  for (const block of walkNodes(parse(own.join('\n')))) tail = block;
-  if (!tail) return { kind, lines: node.lines };
-  // The tail's own lines, as the node writes them rather than as the margin
-  // sees them: a caller measures columns on them.
-  return { ...tail, lines: node.lines.slice(node.lines.length - tail.lines.length) };
+  // Parsed where the document parses them: under a list item whose content
+  // column is the margin, or at the root after a paragraph of its own. Each
+  // pattern then measures from the column `segment` measures it from, and the
+  // lines never open a note, where a `---` would open frontmatter.
+  const context = margin >= 2 ? `${' '.repeat(margin - 2)}- x` : 'x';
+  const blocks = [...walkNodes(parse([context, '', ...node.lines].join('\n')))];
+  // The context's own block is first; with nothing after it the lines formed
+  // no block, and are judged by the line that opens them.
+  const tail = blocks.length > 1 ? blocks[blocks.length - 1]! : undefined;
+  return tail ?? { kind, lines: node.lines };
 }
 
 /**
