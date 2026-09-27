@@ -47,7 +47,7 @@
  */
 
 import type { NodePath, OutlineDoc, OutlineNode } from './model';
-import { childrenAt, findPath, nodeAt, ownSpan } from './model';
+import { childrenAt, findPath, lastPlaceIndex, nodeAt, ownSpan, placeLineText } from './model';
 import { forEachNodeWithLine, nodeAtLine, nodeStartLine } from './locate';
 import {
   isBackward,
@@ -85,8 +85,9 @@ function subtreeCoverEnd(node: OutlineNode, startLine: number): LinePos {
       // trailing whitespace within a "blank" gap line.
       return { line: startLine + ownSpan(node) - 1, ch: 0 };
     }
-    const lastLine = node.lines[node.lines.length - 1] ?? '';
-    return { line: startLine + node.lines.length - 1, ch: lastLine.length };
+    const lastIndex = lastPlaceIndex(node);
+    const lastLine = placeLineText(node, lastIndex) ?? '';
+    return { line: startLine + lastIndex, ch: lastLine.length };
   }
   let line = startLine + ownSpan(node);
   // Preceding siblings must be skipped by their FULL subtree size — a
@@ -331,9 +332,11 @@ export function escalateRange(doc: OutlineDoc, range: LineRange): LineRange {
     // Same node: untouched while both ends stay on the node's own content
     // lines; an end on a trailing gap line escalates to this one node's
     // subtree (the drag-past-the-end-selects-the-node gesture).
+    // An attached block id's line counts as the node's own content; the blank
+    // lines before it are gap, as every blank line a node owns is.
     const start = nodeStartLine(doc, anchorNode.id);
-    const firstGapLine = start + anchorNode.lines.length;
-    if (range.anchor.line < firstGapLine && range.head.line < firstGapLine) return range;
+    const onContent = (line: number): boolean => placeLineText(anchorNode, line - start) !== undefined;
+    if (onContent(range.anchor.line) && onContent(range.head.line)) return range;
     return expandToCover(range, subtreeCoverOf(doc, anchorNode));
   }
 

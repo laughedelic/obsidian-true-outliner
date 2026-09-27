@@ -6,7 +6,8 @@
  */
 
 import type { OutlineDoc } from '../model';
-import { isAtom } from '../model';
+import { findPath, idLineIndex, isAtom, nodeAt } from '../model';
+import { isLoneBlockIdLine } from '../rules';
 import { indentWidth, parse, parseListMarker } from '../parse';
 import {
   contentColumnCh,
@@ -172,6 +173,15 @@ function offsetInNewText(newLines: readonly string[], pos: EditorPos): number {
     offset += (newLines[i] ?? '').length + 1;
   }
   return offset + pos.ch;
+}
+
+/** Whether a list item is among the node's ancestors. */
+function insideListItem(doc: OutlineDoc, nodeId: number): boolean {
+  const path = findPath(doc, nodeId) ?? [];
+  for (let depth = 1; depth < path.length; depth++) {
+    if (nodeAt(doc, path.slice(0, depth))?.kind === 'list-item') return true;
+  }
+  return false;
 }
 
 /**
@@ -348,10 +358,10 @@ export function abandonEdit(
  * `consume` is the horizontal whitespace run immediately after the insertion
  * point, which the split-point whitespace rule drops: it separated two words
  * that are now on different lines and belongs to neither. That makes this a
- * REPLACEMENT rather than a pure insertion, which changes nothing about how the
- * transaction classifies — a single-line change inside one node's own line
- * still cannot cross a boundary — but `classify.ts`'s comment on the generic
- * `input` event is written against the insertion shape, so it says so there.
+ * REPLACEMENT rather than a pure insertion. `rewrite` adds a second change, to
+ * a later line of the same node: an attached id the new line would otherwise
+ * detach. The event it carries is plugin-own (`classify.ts`), so neither shape
+ * is judged as a boundary-crossing edit.
  */
 function insertionPlan(
   lines: readonly string[],
@@ -359,6 +369,9 @@ function insertionPlan(
   text: string,
   userEvent: string,
   consume = 0,
+  /** A later line rewritten in the same edit, in the original's coordinates;
+   * its text may hold more than one line. */
+  rewrite?: { readonly line: number; readonly text: string },
 ): GrammarOutcome {
   const lineText = lines[at.line] ?? '';
   const before = lineText.slice(0, at.ch);
@@ -366,6 +379,13 @@ function insertionPlan(
   const changes: EditorChange[] = [
     { from: at, to: { line: at.line, ch: at.ch + consume }, text },
   ];
+  if (rewrite) {
+    changes.push({
+      from: { line: rewrite.line, ch: 0 },
+      to: { line: rewrite.line, ch: (lines[rewrite.line] ?? '').length },
+      text: rewrite.text,
+    });
+  }
   const inserted = text.split('\n');
   const newCursorLine = at.line + inserted.length - 1;
   const newCh =
@@ -383,6 +403,7 @@ function insertionPlan(
       (inserted.at(-1) ?? '') + tail,
     );
   }
+  if (rewrite) newLines.splice(rewrite.line + inserted.length - 1, 1, ...rewrite.text.split('\n'));
   return {
     plan: {
       changes,
@@ -553,6 +574,39 @@ function planOverSelection(
   };
 }
 
+/**
+ * Whether Backspace at `cursor` is refused because it sits at the start of an
+ * attached block id's line (`outline-keyboard-grammar`): every join it could
+ * make either changes which block the id names or stops it being an id.
+ * "Start" is anywhere up to the `^`, since the caret's floor on the line is
+ * there.
+ */
+export function refusesBackspaceOnId(text: string, cursor: EditorPos, doc: OutlineDoc = parse(text)): boolean {
+  const node = nodeAtLine(doc, cursor.line);
+  if (!node) return false;
+  const idIndex = idLineIndex(node);
+  if (idIndex === undefined || cursor.line !== nodeStartLine(doc, node.id) + idIndex) return false;
+  const line = text.split('\n')[cursor.line] ?? '';
+  return cursor.ch <= line.indexOf('^');
+}
+
+/**
+ * Whether Delete at `cursor` is refused because it sits at the end of the line
+ * directly above an attached block id's line: the join it makes is the one
+ * Backspace at the id's start is refused, and writes the id into that line,
+ * where it is no longer an id — or, after a fence or a table, no longer ends
+ * the block.
+ */
+export function refusesDeleteBeforeId(text: string, cursor: EditorPos, doc: OutlineDoc = parse(text)): boolean {
+  const lines = text.split('\n');
+  const node = nodeAtLine(doc, cursor.line + 1);
+  if (!node) return false;
+  const idIndex = idLineIndex(node);
+  if (idIndex === undefined || cursor.line + 1 !== nodeStartLine(doc, node.id) + idIndex) return false;
+  const above = lines[cursor.line] ?? '';
+  return above.trim() !== '' && cursor.ch >= above.length;
+}
+
 export function planKey(
   text: string,
   cursor: EditorPos,
@@ -607,6 +661,26 @@ export function planKey(
   const nodeStart = nodeStartLine(doc, node.id);
   const onFirstLine = cursor.line === nodeStart;
   const onOwnLines = cursor.line < nodeStart + node.lines.length;
+
+  // An attached block id's line belongs to its node without being any of its
+  // text (`outline-keyboard-grammar`): a break inside it leaves no id, and a
+  // break at its end is a break at the node's content end, so the id stays.
+  const idIndex = idLineIndex(node);
+  if (idIndex !== undefined && cursor.line === nodeStart + idIndex && (key === 'split' || key === 'continue')) {
+    const idText = lines[cursor.line] ?? '';
+    if (key === 'continue' || cursor.ch < idText.length) {
+      return { notice: REJECTION_MESSAGES['cannot-split'] };
+    }
+    if (node.kind === 'paragraph' || node.kind === 'list-item' || node.kind === 'heading') {
+      const textLine = nodeStart + (node.kind === 'heading' && node.setext ? 0 : node.lines.length - 1);
+      const end = { line: textLine, ch: (lines[textLine] ?? '').length };
+      return planKey(text, end, 'split', fallbackIndentUnit, undefined, placeLine, undefined, scope, collapsed);
+    }
+    // Any other block has no content end to split at: a new line past a blank
+    // one, where what is typed starts a block after the node and the id keeps
+    // the blank line below it that it needs.
+    return insertionPlan(lines, { line: cursor.line, ch: idText.length }, '\n\n', 'input.structure.split');
+  }
 
   // Atom interiors are opaque: only whole-atom ops from the first line.
   if (isAtom(node)) {
@@ -873,7 +947,35 @@ export function planKey(
       // whenever the grammar declines — on a gap line reached by a programmatic
       // placement, for instance — and that stock newline would then be recorded
       // as ours and undone when the caret moved.
-      return insertionPlan(lines, at, `\n${prefix}`, 'input.structure.continue', consume);
+      // An id written directly under an item, short of its content column, is
+      // a lazy continuation of the item's text: a blank line above it ends the
+      // text, and the id no longer names the item. Opening an empty line there
+      // writes the id at the content column, where after a blank line it still
+      // does, so it stays with the item while the line is open.
+      const idIndex = idLineIndex(node);
+      const opensBlank = lineText.slice(at.ch + consume).trim() === '';
+      const lazyId =
+        node.kind === 'list-item' && node.blockId?.gap.length === 0 && idIndex !== undefined && opensBlank
+          ? {
+              line: nodeStart + idIndex,
+              text: `${continuationPrefix(node.lines[0] ?? '')}${node.blockId.line.trimStart()}`,
+            }
+          : undefined;
+      // A paragraph outside a list item whose last line is an id: the empty
+      // line leaves the id alone above whatever follows it, and an id with a
+      // block directly under it names only its own line. A blank line below
+      // the id, the one a move writes there, keeps it naming the paragraph.
+      const lastLine = nodeStart + node.lines.length - 1;
+      const idOwnLine =
+        node.kind === 'paragraph' &&
+        opensBlank &&
+        cursor.line === lastLine - 1 &&
+        isLoneBlockIdLine(node.lines[node.lines.length - 1] ?? '') &&
+        (lines[lastLine + 1] ?? '').trim() !== '' &&
+        !insideListItem(doc, node.id)
+          ? { line: lastLine, text: `${lines[lastLine] ?? ''}\n` }
+          : undefined;
+      return insertionPlan(lines, at, `\n${prefix}`, 'input.structure.continue', consume, lazyId ?? idOwnLine);
     }
   }
 }

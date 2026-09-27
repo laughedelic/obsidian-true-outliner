@@ -9,6 +9,7 @@ import {
   nodeContentEnd,
   nodeContentStart,
   nextNodeInOrder,
+  nodeLastPlace,
   planHorizontal,
   previousNodeInOrder,
   resolvePlacement,
@@ -436,3 +437,57 @@ describe('provisional positions', () => {
     expect(resolvePlacement(doc, { line: 2, ch: 0 })).toEqual({ line: 0, ch: 'thought'.length });
   });
 });
+
+/**
+ * An attached block id's line is content for every rule of the caret layer,
+ * and the blank lines before it are gap lines (`content-space-caret`, "An
+ * attached block id's line is content"). Lines of the document below:
+ * 0 `| a | b |`, 1 `| --- | --- |`, 2 `| 1 | 2 |`, 3 blank, 4 `^t1`, 5 blank,
+ * 6 `Outro.`.
+ */
+describe('an attached block id', () => {
+  const md = '| a | b |\n| --- | --- |\n| 1 | 2 |\n\n^t1\n\nOutro.';
+  const doc = parse(md);
+
+  it('is addressable, and the blank line before it is not', () => {
+    expect(isAddressable(doc, { line: 4, ch: 0 })).toBe(true);
+    expect(isAddressable(doc, { line: 4, ch: 3 })).toBe(true);
+    expect(isAddressable(doc, { line: 3, ch: 0 })).toBe(false);
+  });
+
+  it('leaves a placement on it where it is', () => {
+    expect(resolvePlacement(doc, { line: 4, ch: 2 })).toEqual({ line: 4, ch: 2 });
+  });
+
+  it('resolves a placement on the blank line before it to the table above, and after it to the id', () => {
+    expect(resolvePlacement(doc, { line: 3, ch: 0 })).toEqual({ line: 2, ch: 9 });
+    expect(resolvePlacement(doc, { line: 5, ch: 0 })).toEqual({ line: 4, ch: 3 });
+  });
+
+  it('is the node\'s last place', () => {
+    const table = nodeAtLine(doc, 0)!;
+    expect(nodeLastPlace(doc, table)).toEqual({ line: 4, ch: 3 });
+  });
+
+  it('is reached by horizontal motion from both sides, in one press', () => {
+    expect(planHorizontal(doc, { line: 2, ch: 9 }, 'right')).toEqual({ line: 4, ch: 0 });
+    expect(planHorizontal(doc, { line: 4, ch: 0 }, 'left')).toEqual({ line: 2, ch: 9 });
+    expect(planHorizontal(doc, { line: 6, ch: 0 }, 'left')).toEqual({ line: 4, ch: 3 });
+    expect(planHorizontal(doc, { line: 4, ch: 3 }, 'right')).toEqual({ line: 6, ch: 0 });
+  });
+
+  it('stays attached when its own characters are typed', () => {
+    const lines = md.split('\n');
+    lines[4] = '^t1x';
+    const table = parse(lines.join('\n')).children[0]!;
+    expect(table.kind).toBe('table');
+    expect(table.blockId?.line).toBe('^t1x');
+  });
+
+  it('under a list item, stops the caret at its content column', () => {
+    const item = parse('- item a\n\n  ^under-a\n- item b');
+    expect(isAddressable(item, { line: 2, ch: 0 })).toBe(false);
+    expect(resolvePlacement(item, { line: 2, ch: 0 })).toEqual({ line: 2, ch: 2 });
+  });
+});
+

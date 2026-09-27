@@ -719,3 +719,31 @@ describe('resolveDestination', () => {
     expect(resolveDestination(seams, geometry, { x: 0, y: bottom.line * 20 })).toBeUndefined();
   });
 });
+
+describe('dropSeams for a lone block id', () => {
+  it('writes the id under the node right above it from the seam above its own line', () => {
+    const doc = parse('Lead.\n- A\n- B\n\n^id\n');
+    const id = [...walkNodes(doc)].find((node) => node.lines[0] === '^id')!;
+    // The id's own line, which the seam above it sits on.
+    const own = dropSeams(doc, [id]).find((seam) => seam.line === 4)!;
+    expect(own.candidates).toHaveLength(1);
+    const result = moveSubtreesTo(doc, [[id.id]], own.candidates[0]!);
+    expect(result.ok && encode(result.value.doc)).toBe('Lead.\n- A\n- B\n  ^id\n');
+  });
+
+  it('offers one place per seam, and every release writes the id as a line, never an item', () => {
+    const doc = parse('Lead.\n- a\n- b\n  - c\n\n^id\n\nAfter.\n');
+    const id = [...walkNodes(doc)].find((node) => node.lines[0] === '^id')!;
+    const offered = dropSeams(doc, [id]);
+    expect(offered.every((seam) => seam.candidates.length <= 1)).toBe(true);
+    for (const seam of offered) {
+      for (const candidate of seam.candidates) {
+        const result = moveSubtreesTo(doc, [[id.id]], candidate);
+        expect(result.ok).toBe(true);
+        const text = result.ok ? encode(result.value.doc) : '';
+        expect(text).toContain('^id');
+        expect(text).not.toMatch(/[-*+] \^id/);
+      }
+    }
+  });
+});

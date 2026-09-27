@@ -52,9 +52,11 @@ import { EditorView } from '@codemirror/view';
 import { undoDepth } from '@codemirror/commands';
 import { itemContentIsEmpty } from '../ops';
 import { nodeAtLine, nodeStartLine } from '../locate';
+import { placeLineText } from '../model';
 import {
   nextNodeInOrder,
   nodeContentEnd,
+  nodeLastPlace,
   nodeContentStart,
   previousNodeInOrder,
 } from '../caret';
@@ -245,7 +247,8 @@ function emptyPlaceAt(state: EditorState): { line: number; kind: 'gap' | 'node' 
   const node = nodeAtLine(outlineDoc, line);
   if (!node) return null;
   const lineIndex = line - nodeStartLine(outlineDoc, node.id);
-  if (lineIndex >= node.lines.length) return { line, kind: 'gap' };
+  // An attached block id's line is the node's own, not a gap.
+  if (placeLineText(node, lineIndex) === undefined) return { line, kind: 'gap' };
   if (node.kind === 'list-item' && itemContentIsEmpty(node)) return { line, kind: 'node' };
   if (node.kind === 'heading' && headingTitleIsEmpty(node.lines)) return { line, kind: 'node' };
   return null;
@@ -537,6 +540,13 @@ export function cancelOnDelete(view: EditorView, forward: boolean): boolean {
   const node = nodeAtLine(outlineDoc, record.line);
   const offsetOf = (pos: { line: number; ch: number }): number =>
     view.state.doc.line(pos.line + 1).from + pos.ch;
+  // The last place of a node above the place: its attached id's end when the
+  // id is above the place too, and its content end when the place was opened
+  // between the node's text and its id.
+  const lastPlaceAbove = (above: NonNullable<typeof node>) => {
+    const last = nodeLastPlace(outlineDoc, above);
+    return last.line < record.line ? last : nodeContentEnd(outlineDoc, above);
+  };
 
   let target = 0;
   if (forward) {
@@ -544,7 +554,7 @@ export function cancelOnDelete(view: EditorView, forward: boolean): boolean {
     // content start rather than back where the keypress began.
     const next = node ? nextNodeInOrder(outlineDoc, node) : undefined;
     if (next) target = offsetOf(nodeContentStart(outlineDoc, next));
-    else if (node) target = offsetOf(nodeContentEnd(outlineDoc, node));
+    else if (node) target = offsetOf(lastPlaceAbove(node));
   } else if (record.startedAt !== undefined) {
     target = record.startedAt;
   } else if (node) {
@@ -552,7 +562,7 @@ export function cancelOnDelete(view: EditorView, forward: boolean): boolean {
     // caret returns to; an empty NODE place has the node above as its
     // predecessor in document order.
     const above = place.kind === 'gap' ? node : previousNodeInOrder(outlineDoc, node);
-    if (above) target = offsetOf(nodeContentEnd(outlineDoc, above));
+    if (above) target = offsetOf(lastPlaceAbove(above));
   }
   cancel(view, record, target);
   return true;

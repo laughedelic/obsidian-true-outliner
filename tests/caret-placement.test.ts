@@ -18,7 +18,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { parse } from '../src/parse';
-import { walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
+import { ownSpan, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
 import { computeVerdict, type EditFact, type Verdict } from '../src/enforce';
 import { applyEdits } from '../src/result';
 import { planKey, type GrammarKey, plannedCaret } from '../src/plugin/grammar';
@@ -64,7 +64,7 @@ function startLineOf(doc: OutlineDoc, target: OutlineNode): number {
       found = line;
       return;
     }
-    line += node.lines.length + node.trailingGap.length;
+    line += ownSpan(node);
     node.children.forEach(walk);
   };
   doc.children.forEach(walk);

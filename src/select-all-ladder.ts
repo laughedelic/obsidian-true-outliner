@@ -25,7 +25,7 @@
  */
 
 import type { OutlineDoc, OutlineNode } from './model';
-import { childrenAt, findPath, nodeAt } from './model';
+import { childrenAt, findPath, lastPlaceIndex, nodeAt, placeLineText } from './model';
 import { nodeAtLine, nodeStartLine } from './locate';
 import { markerPrefixCh } from './ops';
 import { subtreeCoverOf, type Cover } from './escalate';
@@ -67,10 +67,11 @@ function ownContentCover(doc: OutlineDoc, node: OutlineNode): Cover {
   const start = nodeStartLine(doc, node.id);
   const firstLine = node.lines[0] ?? '';
   const startCh = node.kind === 'list-item' ? markerPrefixCh(firstLine) : 0;
-  const lastLine = node.lines[node.lines.length - 1] ?? '';
+  // An attached block id's line is the node's own content too.
+  const last = lastPlaceIndex(node);
   return {
     start: { line: start, ch: startCh },
-    end: { line: start + node.lines.length - 1, ch: lastLine.length },
+    end: { line: start + last, ch: (placeLineText(node, last) ?? '').length },
   };
 }
 

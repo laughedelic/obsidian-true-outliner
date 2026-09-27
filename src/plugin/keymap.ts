@@ -49,7 +49,8 @@ import { Direction, EditorView, keymap } from "@codemirror/view";
 import { deleteCharBackward } from "@codemirror/commands";
 import { indentUnit, foldedRanges } from "@codemirror/language";
 import { Notice, editorInfoField } from "obsidian";
-import { planKey, type GrammarKey } from "./grammar";
+import { planKey, refusesBackspaceOnId, refusesDeleteBeforeId, type GrammarKey } from "./grammar";
+import { REJECTION_MESSAGES } from "./messages";
 import { nextRungs } from "../select-all-ladder";
 import { contentStartRungs, planDeleteToContentStart } from "../caret-policy";
 import { extendSelections, type ExtendDirection } from "../select-extend";
@@ -57,10 +58,11 @@ import { coveredForestOf } from "../escalate";
 import {
   contentBoundaryCh,
   resolvePlacement,
-  nodeContentEnd,
   nodeContentStart,
+  nodeLastPlace,
   planHorizontal,
 } from "../caret";
+import { lastPlaceIndex, placeLineText } from "../model";
 import type { LinePos } from "../line-pos";
 import { nodeAtLine, nodeStartLine } from "../locate";
 import { linePosToOffset, offsetToLinePos, toLineRange } from "./cm-pos";
@@ -132,11 +134,16 @@ function makeHandler(key: GrammarKey) {
     // child, so there is no sibling encoding to put the new node in. A folded
     // heading opens and splits like any other.
     const foldedEntry = key === "split" ? foldedEntryAt(view.state, fromLine.number - 1) : null;
-    const ownTextEnd = foldedEntry
-      ? view.state.doc.line(foldedEntry.startLine + foldedEntry.node.lines.length).to
-      : -1;
+    // An attached id's line ends the node too: Enter there is Enter at the
+    // text's end (`outline-keyboard-grammar`).
+    const ownEnds = foldedEntry
+      ? [
+          view.state.doc.line(foldedEntry.startLine + foldedEntry.node.lines.length).to,
+          view.state.doc.line(foldedEntry.startLine + lastPlaceIndex(foldedEntry.node) + 1).to,
+        ]
+      : [];
     const collapsed =
-      foldedEntry !== null && planFrom === ownTextEnd && foldedEntry.node.kind !== "heading";
+      foldedEntry !== null && ownEnds.includes(planFrom) && foldedEntry.node.kind !== "heading";
     if (foldedEntry && !collapsed) {
       // Only this node's own fold: unfolding a range that ran to the end of the
       // document took every later fold with it.
@@ -261,7 +268,7 @@ function notAnOutlineGesture(
   if (nodeAtLine(outlineDoc, doc.lineAt(range.head).number - 1) !== node) return false;
 
   const first = nodeStartLine(outlineDoc, node.id);
-  const last = first + node.lines.length - 1;
+  const last = first + lastPlaceIndex(node);
   if (last >= doc.lines) return false; // defensive: stale parse against the live doc
   const from = doc.line(first + 1).from;
   const to = doc.line(last + 1).to;
@@ -655,7 +662,7 @@ function makeHorizontalHandler(direction: "left" | "right") {
       if (nativePos.line === pos.line) {
         const node = nodeAtLine(outlineDoc, pos.line);
         const lineIndex = node ? pos.line - nodeStartLine(outlineDoc, node.id) : 0;
-        const boundary = node ? contentBoundaryCh(node, node.lines[lineIndex] ?? "") : 0;
+        const boundary = node ? contentBoundaryCh(node, placeLineText(node, lineIndex) ?? "") : 0;
         // Never let a visual step land inside chrome; `max` is safe rightward too,
         // since native motion cannot go below the boundary in that direction.
         const ch = Math.max(nativePos.ch, boundary);
@@ -882,7 +889,7 @@ function makeVerticalHandler(forward: boolean) {
         // boundary rather than leaving the caret on its gap.
         dispatchAt(
           forward
-            ? nodeContentEnd(outlineDoc, node)
+            ? nodeLastPlace(outlineDoc, node)
             : nodeContentStart(outlineDoc, node),
         );
         return true;
@@ -893,7 +900,9 @@ function makeVerticalHandler(forward: boolean) {
       node = nextNode;
 
       const lineIndex = line - nodeStartLine(outlineDoc, node.id);
-      if (lineIndex >= node.lines.length) continue; // still a gap (a run of several blank lines)
+      // Still a gap (a run of several blank lines, or the ones before an
+      // attached block id, whose own line is content).
+      if (placeLineText(node, lineIndex) === undefined) continue;
 
       // Real content found, on a line `moveVertically` never itself
       // pointed at -- resolve its column via real rendered coordinates,
@@ -922,7 +931,7 @@ function makeVerticalHandler(forward: boolean) {
         Math.min(Math.max(rawOffset, lineObj.from), lineObj.to),
       );
 
-      const lineText = node.lines[lineIndex] ?? "";
+      const lineText = placeLineText(node, lineIndex) ?? "";
       const boundary = contentBoundaryCh(node, lineText);
       dispatchAt(
         rawPos.ch < boundary ? { line: rawPos.line, ch: boundary } : rawPos,
@@ -997,7 +1006,7 @@ function makeHomeEndHandler(forward: boolean) {
     // so Home/End always move the caret somewhere real.
     const pos = resolvePlacement(outlineDoc, raw);
     const lineIndex = pos.line - nodeStartLine(outlineDoc, node.id);
-    const line = node.lines[lineIndex] ?? "";
+    const line = placeLineText(node, lineIndex) ?? "";
     const rungs = contentStartRungs(node, line, lineIndex === 0);
     const target: LinePos = forward
       ? { line: pos.line, ch: line.length }
@@ -1060,8 +1069,24 @@ export function deleteToContentStart(view: EditorView): boolean {
 function makeCancelHandler(forward: boolean) {
   return (view: EditorView): boolean => {
     if (!outlinePathOf(view)) return false;
-    return cancelOnDelete(view, forward);
+    if (cancelOnDelete(view, forward)) return true;
+    return refuseJoinWithId(view, forward ? refusesDeleteBeforeId : refusesBackspaceOnId);
   };
+}
+
+/** Backspace at the start of an attached block id's line, or Delete at the end
+ * of the line above it: refused with the cue, the document unchanged. */
+function refuseJoinWithId(
+  view: EditorView,
+  refuses: (text: string, cursor: { line: number; ch: number }, doc: ReturnType<typeof parsedDoc>['doc']) => boolean,
+): boolean {
+  const range = view.state.selection.main;
+  if (view.state.selection.ranges.length !== 1 || !range.empty) return false;
+  const line = view.state.doc.lineAt(range.head);
+  const cursor = { line: line.number - 1, ch: range.head - line.from };
+  if (!refuses(view.state.doc.toString(), cursor, parsedDoc(view.state.doc).doc)) return false;
+  new Notice(REJECTION_MESSAGES["merge-not-expressible"], 1500);
+  return true;
 }
 
 export function grammarExtension(): Extension {

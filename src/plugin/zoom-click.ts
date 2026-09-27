@@ -87,6 +87,7 @@ import { OWN_CHROME_CLASS } from './chrome-line';
 import { zoomTo } from './zoom-state';
 import { plannedChanges } from './planned-changes';
 import { isOutlineMode } from './outline-state';
+import { openCorrectionMenuAtMark } from './misplaced-ids';
 
 /**
  * What counts as a node's mark.
@@ -200,9 +201,10 @@ interface MarkPress {
   readonly touch: boolean;
   /** The dwell timer of a touch press, until it fires or the press ends. */
   dwell: number | undefined;
-  /** Whether a release in place zooms. False for a task's checkbox, whose
-   * press was never taken from it. */
-  readonly zooms: boolean;
+  /** What a release in place does: zoom, open the correction menu of a
+   * paragraph whose glyph marks a misplaced block id (`misplaced-block-ids`),
+   * or nothing, for a task's checkbox, whose press was never taken from it. */
+  readonly onRelease: 'zoom' | 'menu' | 'none';
   /** What the drag picked up, once it became one. */
   groups: readonly (readonly number[])[] | undefined;
   /** The tree the whole gesture is resolved against: taken once at the
@@ -720,7 +722,8 @@ class ZoomClickPlugin implements PluginValue {
       return;
     }
     this.clearPreview();
-    if (press.zooms) this.zoomToMark(press.mark);
+    if (press.onRelease === 'zoom') this.zoomToMark(press.mark);
+    else if (press.onRelease === 'menu') openCorrectionMenuAtMark(this.view, press.mark, event);
   }
 
   /**
@@ -1083,7 +1086,7 @@ class ZoomClickPlugin implements PluginValue {
       dragging: false,
       touch: event.pointerType === 'touch',
       dwell: undefined,
-      zooms: false,
+      onRelease: 'none',
       groups: undefined,
       tree: undefined,
       placeLine: undefined,
@@ -1176,7 +1179,7 @@ class ZoomClickPlugin implements PluginValue {
       dragging: false,
       touch: event.pointerType === 'touch',
       dwell: undefined,
-      zooms: true,
+      onRelease: mark.dataset.misplaced !== undefined ? 'menu' : 'zoom',
       groups: undefined,
       tree: undefined,
       placeLine: undefined,

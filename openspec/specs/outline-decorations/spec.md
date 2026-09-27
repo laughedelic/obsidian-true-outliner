@@ -686,6 +686,11 @@ A list item's native marker SHALL be given a visual weight comparable to a synth
 and SHALL take its colour from the same token the synthetic markers use, so a snippet retunes
 both together.
 
+A paragraph holding a misplaced block id (`misplaced-block-ids`) is the one exception to the
+per-kind marker: its marker SHALL be drawn as a warning glyph in the warning colour, in the same
+slot and at the same size, and SHALL be drawn at every `markerVisibility` value. The glyph is the
+misplaced id's, not a new node kind, so the marker still names the node's kind.
+
 #### Scenario: Every eligible kind gets a distinct marker under 'all'
 - **WHEN** `markerVisibility` is `'all'` and a document contains a heading, paragraph, code
   fence, table, callout, quote, HTML block, and horizontal rule
@@ -721,6 +726,12 @@ both together.
 - **WHEN** `markerVisibility` is changed while a note is open in outline mode
 - **THEN** the next render reflects the new setting, including for widget-replaced atoms
   whose decoration output would otherwise be byte-identical across the change
+
+#### Scenario: A misplaced id's paragraph draws the warning glyph
+- **WHEN** a paragraph holding a misplaced `^foo` renders in outline mode, under any
+  `markerVisibility`
+- **THEN** its marker is the warning glyph in the paragraph marker's slot, and the line's text
+  starts where it would under the paragraph's own marker
 
 ### Requirement: A heading's marker can name its level, in a chosen style
 A heading's marker SHALL be drawn as a heading glyph, optionally followed by a digit naming the

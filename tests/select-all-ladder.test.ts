@@ -560,3 +560,10 @@ describe('property: extension and the ladder compose through the selection alone
     expect(ladder).not.toMatch(/from '\.\/select-extend'/);
   });
 });
+
+describe('nextRung: an attached block id is part of its node\'s own content', () => {
+  it('the first rung on a table ends at the end of its attached id', () => {
+    const withId = parse('Intro.\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n^t1\n\nOutro.\n');
+    expect(nextRung(withId, cursor(pos(2, 3)))).toEqual(range(pos(2, 0), pos(6, 3)));
+  });
+});

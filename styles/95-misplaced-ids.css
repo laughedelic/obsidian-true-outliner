@@ -1,0 +1,19 @@
+/*
+ * A misplaced block id (`misplaced-block-ids`, `misplaced-ids.ts`): its text,
+ * highlighted with the theme's highlight background as the surplus marker
+ * space is, and the warning glyph drawn in place of its paragraph's marker.
+ * A press on either opens the correction menu, hence the pointer. The glyph
+ * keeps the warning colour on the caret's own line and its ancestors, where
+ * every other marker takes the accent: it marks a problem, not a position.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .cm-line .to-decor-misplaced-id {
+  background-color: var(--text-highlight-bg);
+  border-bottom: 1px dotted var(--text-warning);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.markdown-source-view.mod-cm6 .cm-content .to-decor-marker-icon[data-misplaced],
+.markdown-source-view.mod-cm6 .cm-content > .cm-line .to-decor-marker-icon[data-misplaced] {
+  color: var(--text-warning);
+}

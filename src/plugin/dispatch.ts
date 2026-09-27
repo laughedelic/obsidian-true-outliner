@@ -498,6 +498,151 @@ function charsTouched(lines: readonly string[], changes: readonly EditorChange[]
 }
 
 /**
+ * Merge, in place, consecutive runs that narrow to the same character
+ * position (`editToChanges`, where the collision is described).
+ */
+function mergeCollidingRuns(
+  lines: readonly string[],
+  insert: readonly string[],
+  runs: ChangedRun[],
+  sides: EditSides,
+): void {
+  for (let i = 1; i < runs.length; ) {
+    const before = changesForRun(lines, insert, runs[i - 1]!, sides).at(-1);
+    const after = changesForRun(lines, insert, runs[i]!, sides)[0];
+    if (before && after && !isAfter(after.from, before.to)) {
+      runs.splice(i - 1, 2, {
+        oldStart: runs[i - 1]!.oldStart,
+        oldEnd: runs[i]!.oldEnd,
+        newStart: runs[i - 1]!.newStart,
+        newEnd: runs[i]!.newEnd,
+      });
+      if (i > 1) i -= 1; // the merged run may now collide with the one before it
+    } else {
+      i += 1;
+    }
+  }
+}
+
+/**
+ * The runs of an edit that changed its line count, read as each line
+ * re-indented in place and the lines left over inserted or deleted: `- A`,
+ * blank, `  ^a`, `  - a` outdented to `A`, blank, `^a`, blank, `- a`, where the
+ * blank line before `- a` is the separator the id needs.
+ *
+ * Read in place as one run, its line counts differ and it narrows to a single
+ * region, carrying a caret anywhere in it to its end; aligned by unique lines,
+ * a child and an outdented grandchild that read the same pair across the
+ * shift. Here a line pairs only with a line of the same text once leading
+ * whitespace and a list marker are set aside, and the pairing that keeps the
+ * most lines, then the fewest characters changed, is taken. The caller weighs
+ * the result against the other readings by the characters each claims.
+ * Undefined for an edit whose counts agree, which is already paired 1:1 in
+ * place, and for a long one.
+ */
+function pairReindentedLines(
+  a: readonly string[],
+  b: readonly string[],
+  offset: number,
+): ChangedRun[] | undefined {
+  if (a.length === b.length || a.length * b.length > MAX_PAIRING_CELLS) return undefined;
+
+  // `rest[i][j]`: the cheapest reading of `a[i..]` against `b[j..]`. A line
+  // left over costs more than any pairing, so pairs are maximised first.
+  const single = (line: string): number => PAIR_PENALTY + line.length + 1;
+  const rest = Array.from({ length: a.length + 1 }, () => new Array<number>(b.length + 1).fill(0));
+  for (let i = a.length - 1; i >= 0; i--) rest[i]![b.length] = rest[i + 1]![b.length]! + single(a[i]!);
+  for (let j = b.length - 1; j >= 0; j--) rest[a.length]![j] = rest[a.length]![j + 1]! + single(b[j]!);
+  for (let i = a.length - 1; i >= 0; i--) {
+    for (let j = b.length - 1; j >= 0; j--) {
+      rest[i]![j] = Math.min(
+        pairCost(a[i]!, b[j]!) + rest[i + 1]![j + 1]!,
+        single(a[i]!) + rest[i + 1]![j]!,
+        single(b[j]!) + rest[i]![j + 1]!,
+      );
+    }
+  }
+
+  // Walk the cheapest path. An unchanged line ends a run, and paired lines
+  // never share a run with lines left over, so every run is 1:1 or one-sided.
+  const runs: ChangedRun[] = [];
+  let open: { run: ChangedRun; paired: boolean } | undefined;
+  const close = (): void => {
+    if (open) runs.push(open.run);
+    open = undefined;
+  };
+  const take = (i: number, j: number, di: number, dj: number): void => {
+    const paired = di === 1 && dj === 1;
+    if (!open || open.paired !== paired) {
+      close();
+      open = { run: { oldStart: offset + i, oldEnd: offset + i, newStart: j, newEnd: j }, paired };
+    }
+    open.run.oldEnd += di;
+    open.run.newEnd += dj;
+  };
+  let i = 0;
+  let j = 0;
+  while (i < a.length || j < b.length) {
+    const here = rest[i]![j]!;
+    if (i < a.length && j < b.length && here === pairCost(a[i]!, b[j]!) + rest[i + 1]![j + 1]!) {
+      if (a[i] === b[j]) close();
+      else take(i, j, 1, 1);
+      i++;
+      j++;
+    } else if (i < a.length && here === single(a[i]!) + rest[i + 1]![j]!) {
+      take(i, j, 1, 0);
+      i++;
+    } else {
+      take(i, j, 0, 1);
+      j++;
+    }
+  }
+  close();
+  return runs;
+}
+
+/**
+ * `changes` with every two that touch joined into one: a line inserted right
+ * before a re-indented one narrows to an insertion at the very position the
+ * re-indent's change starts, and the two are one replacement. Undefined when
+ * two overlap, which no joining makes ascending.
+ */
+function joinTouching(changes: readonly EditorChange[]): EditorChange[] | undefined {
+  const out: EditorChange[] = [];
+  for (const change of changes) {
+    const last = out[out.length - 1];
+    if (last && isAfter(last.to, change.from)) return undefined;
+    if (last && !isAfter(change.from, last.to)) {
+      out[out.length - 1] = { from: last.from, to: change.to, text: last.text + change.text };
+    } else {
+      out.push(change);
+    }
+  }
+  return out;
+}
+
+/** A line's text with its leading whitespace and list marker set aside. */
+const REINDENT_PREFIX_RE = /^[ \t]*(?:(?:[-*+]|\d{1,9}[.)])(?:[ \t]+|$))?/;
+
+/** The characters narrowing `from` to `to` changes, or `Infinity` when `to`
+ * is not `from` re-indented. */
+function pairCost(from: string, to: string): number {
+  if (from === to) return 0;
+  if (from.replace(REINDENT_PREFIX_RE, '') !== to.replace(REINDENT_PREFIX_RE, '')) return Infinity;
+  const shorter = Math.min(from.length, to.length);
+  let prefix = 0;
+  while (prefix < shorter && from[prefix] === to[prefix]) prefix++;
+  let suffix = 0;
+  while (suffix < shorter - prefix && from[from.length - 1 - suffix] === to[to.length - 1 - suffix]) {
+    suffix++;
+  }
+  return from.length + to.length - 2 * (prefix + suffix);
+}
+
+const MAX_PAIRING_CELLS = 65536;
+const PAIR_PENALTY = 1_000_000;
+
+/**
  * Narrow one line-range `Edit` into the smallest set of character-level
  * changes that produce the same result (`minimal-change-dispatch`).
  */
@@ -531,21 +676,7 @@ export function editToChanges(lines: readonly string[], edit: Edit): EditorChang
   // Merging the two runs restores the invariant and stays correct by
   // construction: what separates consecutive runs is matched lines, identical
   // and equally many on both sides, so a merged run spans the same text.
-  for (let i = 1; i < runs.length; ) {
-    const before = changesForRun(lines, edit.insert, runs[i - 1]!, sides).at(-1);
-    const after = changesForRun(lines, edit.insert, runs[i]!, sides)[0];
-    if (before && after && !isAfter(after.from, before.to)) {
-      runs.splice(i - 1, 2, {
-        oldStart: runs[i - 1]!.oldStart,
-        oldEnd: runs[i]!.oldEnd,
-        newStart: runs[i - 1]!.newStart,
-        newEnd: runs[i]!.newEnd,
-      });
-      if (i > 1) i -= 1; // the merged run may now collide with the one before it
-    } else {
-      i += 1;
-    }
-  }
+  mergeCollidingRuns(lines, edit.insert, runs, sides);
 
   // An anchor is a claim that a line SURVIVED — and text identity is only
   // evidence for that claim, never proof, the same lesson `relocates` learned
@@ -613,8 +744,20 @@ export function editToChanges(lines: readonly string[], edit: Edit): EditorChang
 
   // A tie goes to the in-place reading. The alignment is only worth adopting
   // for what it saves, and on equal characters it saves nothing while claiming
-  // a different shape for the same edit.
-  return explains([wholeRun]) <= explains(runs)
+  // a different shape for the same edit. The same holds for the reading that
+  // pairs each line with the one it was re-indented into, when the edit
+  // changed its line count.
+  const inPlaceCost = explains([wholeRun]);
+  const alignedCost = explains(runs);
+  const pairedRuns = pairReindentedLines(lines.slice(edit.fromLine, edit.toLine), edit.insert, edit.fromLine);
+  const pairedFor = (reading: EditSides): EditorChange[] | undefined =>
+    pairedRuns && joinTouching(pairedRuns.flatMap((run) => changesForRun(lines, edit.insert, run, reading)));
+  const pairedExplanation = pairedFor(asExplanation);
+  if (pairedExplanation && charsTouched(lines, pairedExplanation) < Math.min(inPlaceCost, alignedCost)) {
+    const paired = pairedFor(sides);
+    if (paired) return paired;
+  }
+  return inPlaceCost <= alignedCost
     ? changesForRun(lines, edit.insert, wholeRun, sides)
     : runs.flatMap((run) => changesForRun(lines, edit.insert, run, sides));
 }

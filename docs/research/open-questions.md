@@ -1285,7 +1285,7 @@ For a caret on the second one, its own line start IS its block start, so Home st
 correct — there is nothing above to climb to. "Home won't cross the hard break" and "these are two
 blocks, not one" are the same observation. Both shapes are now pinned as e2e C9/C10 so the
 distinction stays visible. Whether an unindented lazy continuation _should_ parse as one node is a
-separate question for the parser, not for this change.
+separate question for the parser, not for this change; #261 tracks it.
 
 ### UNRESOLVED: the multiline Home report persists on Obsidian 1.13, not reproducible on 1.12.7
 

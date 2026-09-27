@@ -3,14 +3,14 @@ import fc from 'fast-check';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
 import { applyEdits } from '../src/result';
-import { treesEqual, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
+import { idLineIndex, ownSpan, treesEqual, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
 import { computeVerdict, computeVerdictForRanges, type EditFact, type Verdict } from '../src/enforce';
 import {
   coveredSubtreeRoots,
   escalateRange,
   subtreeCoverOf,
 } from '../src/escalate';
-import { nodeAtLine } from '../src/locate';
+import { nodeAtLine, nodeStartLine } from '../src/locate';
 import { classify, type TransactionClass, type TransactionFacts } from '../src/classify';
 import { arbTree } from './generators';
 import { rangesEqual } from '../src/line-pos';
@@ -569,7 +569,7 @@ describe('computeVerdictForRanges: multi-range structural deletion (D2/D3)', () 
     // the deleted subtrees' own lines gone — no more, no less (which is
     // exactly "no orphaned nodes, no leftover gap lines" would show up as).
     const subtreeLineCount = (node: OutlineNode): number =>
-      node.lines.length + node.trailingGap.length + node.children.reduce((sum, c) => sum + subtreeLineCount(c), 0);
+      ownSpan(node) + node.children.reduce((sum, c) => sum + subtreeLineCount(c), 0);
     /** The node whose own gap ends a subtree — where a terminator would sit. */
     const deepestLast = (node: OutlineNode): OutlineNode => {
       const last = node.children[node.children.length - 1];
@@ -921,13 +921,22 @@ describe('computeVerdict: deletion of a mixed-depth forest cover (selection-as-s
         // the end takes it and the deletion puts it back on the node that now
         // ends the document (#160). A note that ended in a newline still does,
         // unless the deletion left no node at all.
-        const expected =
-          survivors.length > 0 &&
-          lines[lines.length - 1] === '' &&
-          survivors[survivors.length - 1] !== ''
-            ? [...survivors, ''].join('\n')
-            : survivors.join('\n');
-        return applyVerdict(text, verdict) === expected;
+        const terminate = (kept: string[]): string =>
+          kept.length > 0 && lines[lines.length - 1] === '' && kept[kept.length - 1] !== ''
+            ? [...kept, ''].join('\n')
+            : kept.join('\n');
+        const applied = applyVerdict(text, verdict);
+        if (applied === terminate(survivors)) return true;
+        // One more exception: a list item's attached id right above the span.
+        // Text directly under an id joins it, so the deletion keeps one blank
+        // line of the span as the id's separator.
+        const above = nodeAtLine(d, lo.line - 1);
+        const aboveId = above ? idLineIndex(above) : undefined;
+        const idAbove =
+          above?.kind === 'list-item' &&
+          aboveId !== undefined &&
+          nodeStartLine(d, above.id) + aboveId === lo.line - 1;
+        return idAbove && applied === terminate([...survivors.slice(0, lo.line), '', ...survivors.slice(lo.line)]);
       }),
       { numRuns: 400 },
     );
@@ -1286,6 +1295,22 @@ describe('a paste on the blank line under a node lands in it', () => {
     expect(verdict.kind).toBe('rewrite');
     if (verdict.kind !== 'rewrite') return;
     expect(encode(verdict.after)).toBe('- one\n- a\n\n- b\n- three\n');
+  });
+
+  it('the blank lines above a pasted attached id are written empty too', () => {
+    const inserted = pasteThroughBothGates(
+      '- one\n\t- a\n\t- b\n', pos(1, 4), pos(1, 4), '- p\n  \n  ^idp\n- s\n',
+    );
+    expect(inserted.kind).toBe('rewrite');
+    if (inserted.kind !== 'rewrite') return;
+    expect(encode(inserted.after)).toBe('- one\n\t- a\n\t- p\n\n\t  ^idp\n\t- s\n\t- b\n');
+
+    const md = '- one\n- two\n- three\n';
+    const edit: EditFact = { from: pos(1, 0), to: pos(1, '- two'.length), insert: 'Para\n\t\n^idp\n\n- b\n' };
+    const typedOver = computeVerdict('boundary-crossing-edit', parse(md), edit);
+    expect(typedOver.kind).toBe('rewrite');
+    if (typedOver.kind !== 'rewrite') return;
+    expect(encode(typedOver.after)).toBe('- one\n- Para\n\n  ^idp\n\n  - b\n- three\n');
   });
 
   it('a gap the payload lands PAST is left alone', () => {

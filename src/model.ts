@@ -49,9 +49,23 @@ export interface OutlineNode {
    * lines, or the atom's full block.
    */
   readonly lines: readonly string[];
+  /**
+   * A block id written on a line of its own that names this node
+   * (`docs/research/lone-block-id`): the blank lines between the node's own
+   * lines and the id, then the id's line, both verbatim. It is part of the
+   * node the way an inline ` ^id` is, and is emitted between `lines` and
+   * `trailingGap`, so the trailing gap stays the separation after everything
+   * the node owns.
+   */
+  readonly blockId?: BlockIdLines;
   /** Blank lines that follow this node's lines, verbatim. */
   readonly trailingGap: readonly string[];
   readonly children: readonly OutlineNode[];
+}
+
+export interface BlockIdLines {
+  readonly gap: readonly string[];
+  readonly line: string;
 }
 
 export interface OutlineDoc {
@@ -88,7 +102,52 @@ export function isAtom(node: OutlineNode): boolean {
  * children is its own first child.
  */
 export function ownSpan(node: OutlineNode): number {
-  return node.lines.length + node.trailingGap.length;
+  return node.lines.length + blockIdSpan(node) + node.trailingGap.length;
+}
+
+/** The lines an attached block id takes in its node's own span: the blank
+ * lines before it and its own line. */
+export function blockIdSpan(node: OutlineNode): number {
+  return node.blockId ? node.blockId.gap.length + 1 : 0;
+}
+
+/**
+ * What a line of a node's OWN span is, by its index into that span:
+ * the node's content, the blank lines before an attached block id, the id's
+ * line, or the trailing gap. The one place that boundary is drawn, so every
+ * walker that tells content from gap agrees on where an id sits.
+ */
+export type LineRole = 'content' | 'id-gap' | 'id' | 'gap';
+
+export function lineRole(node: OutlineNode, index: number): LineRole {
+  if (index < node.lines.length) return 'content';
+  const idGap = node.blockId?.gap.length ?? 0;
+  if (node.blockId && index < node.lines.length + idGap) return 'id-gap';
+  if (node.blockId && index === node.lines.length + idGap) return 'id';
+  return 'gap';
+}
+
+/** The index of an attached block id's line in its node's own span. */
+export function idLineIndex(node: OutlineNode): number | undefined {
+  return node.blockId ? node.lines.length + node.blockId.gap.length : undefined;
+}
+
+/** The index of the node's last line the caret may stand on: its attached
+ * id's line where it has one, its last content line otherwise. */
+export function lastPlaceIndex(node: OutlineNode): number {
+  return idLineIndex(node) ?? node.lines.length - 1;
+}
+
+/**
+ * The text of a line of the node's own span the caret may stand on — a
+ * content line or an attached id's line — or `undefined` for a blank line
+ * before the id or in the trailing gap.
+ */
+export function placeLineText(node: OutlineNode, index: number): string | undefined {
+  const role = lineRole(node, index);
+  if (role === 'content') return node.lines[index];
+  if (role === 'id') return node.blockId!.line;
+  return undefined;
 }
 
 /** Path from the root to a node: indices into successive `children` arrays. */
@@ -168,6 +227,8 @@ export function treesEqual(a: OutlineDoc, b: OutlineDoc): boolean {
     JSON.stringify(x.listStyle ?? null) === JSON.stringify(y.listStyle ?? null) &&
     x.lines.length === y.lines.length &&
     x.lines.every((line, i) => line === y.lines[i]) &&
+    (x.blockId?.line ?? null) === (y.blockId?.line ?? null) &&
+    JSON.stringify(x.blockId?.gap ?? null) === JSON.stringify(y.blockId?.gap ?? null) &&
     x.trailingGap.length === y.trailingGap.length &&
     x.trailingGap.every((line, i) => line === y.trailingGap[i]) &&
     x.children.length === y.children.length &&

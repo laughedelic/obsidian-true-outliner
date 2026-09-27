@@ -12,7 +12,7 @@
  */
 
 import type { OutlineDoc, OutlineNode } from './model';
-import { childrenAt, findPath, nodeAt } from './model';
+import { blockIdSpan, childrenAt, findPath, lastPlaceIndex, nodeAt, placeLineText } from './model';
 import { forEachNodeWithLine, isEmptyBodyRange, nodeAtLine, nodeStartLine } from './locate';
 import { childBaseCol } from './reencode';
 import { TAB_WIDTH } from './parse';
@@ -216,9 +216,11 @@ function recognizeMergeIntent(
 
   // Delete at a node's last content character, reaching through its own
   // trailing gap (or directly at a zero-gap boundary), cursor at content
-  // end.
+  // end. An attached block id's line is the node's last content where it has
+  // one; deleting from the text above the id reaches only the blank lines
+  // before it, which is chrome editing inside the node.
   if (before !== undefined && posEq(edit.cursorBefore, edit.from)) {
-    const lastContentLine = nodeStartLine(doc, before.id) + before.lines.length - 1;
+    const lastContentLine = nodeStartLine(doc, before.id) + lastPlaceIndex(before);
     if (edit.from.line === lastContentLine) return before.id;
   }
 
@@ -226,7 +228,7 @@ function recognizeMergeIntent(
   // shape — both sides content, zero gap — so cursor-less callers keep the
   // old, conservative behavior.
   if (edit.cursorBefore === undefined && before !== undefined && afterIsNodeStart) {
-    const lastContentLine = nodeStartLine(doc, before.id) + before.lines.length - 1;
+    const lastContentLine = nodeStartLine(doc, before.id) + lastPlaceIndex(before);
     if (edit.from.line === lastContentLine && before.trailingGap.length === 0) {
       return before.id;
     }
@@ -360,8 +362,9 @@ function endOfInsertedRun(
     return seen < payloadNodes;
   });
   if (!last) return firstBlockAnchor;
-  const lastLine = last.node.lines[last.node.lines.length - 1] ?? '';
-  return { line: last.startLine + last.node.lines.length - 1, ch: lastLine.length };
+  const lastIndex = lastPlaceIndex(last.node);
+  const lastLine = placeLineText(last.node, lastIndex) ?? '';
+  return { line: last.startLine + lastIndex, ch: lastLine.length };
 }
 
 /** How many nodes a parsed payload carries, its descendants included — the
@@ -445,8 +448,8 @@ function deleteAndSplice(
 }
 
 /**
- * The blocks a pasted payload parses to, with every blank line between them
- * written empty. A clipboard from another app or another vault carries its own
+ * The blocks a pasted payload parses to, with every blank line between them,
+ * and between a node and its attached id, written empty. A clipboard from another app or another vault carries its own
  * indentation on its blank lines as well, and a blank line's whitespace says
  * nothing: carried over, it leaves lines of stray spaces or tabs between the
  * pasted nodes, in a unit the note does not use, which the outline gives no
@@ -458,6 +461,7 @@ function payloadBlocks(text: string): readonly OutlineNode[] {
   const blank = (node: OutlineNode): OutlineNode => ({
     ...node,
     trailingGap: node.trailingGap.map(() => ''),
+    ...(node.blockId ? { blockId: { ...node.blockId, gap: node.blockId.gap.map(() => '') } } : {}),
     children: node.children.map(blank),
   });
   return parse(text).children.map(blank);
@@ -586,7 +590,7 @@ function pasteAnchor(
   readonly fillsGap: boolean;
 } {
   const start = nodeStartLine(doc, node.id);
-  const gapIndex = start < 0 ? -1 : at.line - (start + node.lines.length);
+  const gapIndex = start < 0 ? -1 : at.line - (start + node.lines.length + blockIdSpan(node));
   const inGap = gapIndex >= 0 && gapIndex < node.trailingGap.length;
   const first = node.children[0];
   if (!first || start < 0) return { anchor: node, position: 'after', fillsGap: inGap };

@@ -3,7 +3,7 @@ import { parse } from '../src/parse';
 import { walkNodes } from '../src/model';
 import { escalateRange } from '../src/escalate';
 import { REJECTION_MESSAGES } from '../src/plugin/messages';
-import { planKey, type GrammarKey, type TxPlan, plannedCaret } from '../src/plugin/grammar';
+import { planKey, refusesBackspaceOnId, refusesDeleteBeforeId, type GrammarKey, type TxPlan, plannedCaret } from '../src/plugin/grammar';
 import type { EditorChange } from '../src/plugin/dispatch';
 
 /** Apply a plan's changes (line/ch semantics) to text; return new text + cursor offset. */
@@ -1132,5 +1132,126 @@ describe('grammar planner: structural keys over a block cover', () => {
     if (!forward || !('plan' in forward)) throw new Error('expected a plan');
     if (!backward || !('plan' in backward)) throw new Error('expected a plan');
     expect(backward.plan.changes).toEqual(forward.plan.changes);
+  });
+});
+
+describe('grammar planner: keys on an attached block id', () => {
+  const TABLE = 'Intro.\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n^t1\n\nOutro.\n';
+
+  it('Enter at the end of a table\'s id opens a line after the table, the id still attached', () => {
+    const outcome = plan(TABLE, { line: 6, ch: 3 }, 'split');
+    expect(outcome && 'plan' in outcome).toBe(true);
+    if (outcome && 'plan' in outcome) {
+      const { text, cursor } = applyPlan(TABLE, outcome.plan);
+      expect(text).toBe('Intro.\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n^t1\n\n\n\nOutro.\n');
+      expect(text.slice(0, cursor).split('\n').length - 1).toBe(8);
+      const table = [...walkNodes(parse(text))].find((node) => node.kind === 'table')!;
+      expect(table.blockId?.line).toBe('^t1');
+    }
+  });
+
+  it('Enter at the end of a paragraph\'s id is Enter at the paragraph\'s end', () => {
+    const md = 'Prose.\n\n^p3\n\nNext.\n';
+    const outcome = plan(md, { line: 2, ch: 3 }, 'split');
+    const atEnd = plan(md, { line: 0, ch: 6 }, 'split');
+    expect(outcome && 'plan' in outcome && atEnd && 'plan' in atEnd).toBe(true);
+    if (outcome && 'plan' in outcome && atEnd && 'plan' in atEnd) {
+      expect(applyPlan(md, outcome.plan)).toEqual(applyPlan(md, atEnd.plan));
+      const { text, cursor } = applyPlan(md, outcome.plan);
+      const prose = parse(text).children[0]!;
+      expect(prose.blockId?.line).toBe('^p3');
+      // The caret is on the new position below the id, not on the id.
+      const lines = text.split('\n');
+      const caretLine = text.slice(0, cursor).split('\n').length - 1;
+      expect(caretLine).toBeGreaterThan(2);
+      expect(lines[caretLine]).toBe('');
+    }
+  });
+
+  it('Enter at the end of a lead\'s text keeps the id written directly under it', () => {
+    const md = 'Lead.\n^id1\n- a\n';
+    const outcome = plan(md, { line: 0, ch: 5 }, 'split');
+    expect(outcome && 'plan' in outcome).toBe(true);
+    if (outcome && 'plan' in outcome) {
+      const { text, cursor } = applyPlan(md, outcome.plan);
+      expect(text).toBe('Lead.\n^id1\n- \n- a\n');
+      expect(text.slice(0, cursor)).toBe('Lead.\n^id1\n- ');
+    }
+  });
+
+  it('Shift+Enter above an item\'s lazy id writes the id at the content column', () => {
+    const md = '- zero\n- one\n^abc\n- two\n';
+    const outcome = plan(md, { line: 1, ch: 5 }, 'continue');
+    expect(outcome && 'plan' in outcome).toBe(true);
+    if (outcome && 'plan' in outcome) {
+      const { text, cursor } = applyPlan(md, outcome.plan);
+      expect(text).toBe('- zero\n- one\n  \n  ^abc\n- two\n');
+      expect(text.slice(0, cursor)).toBe('- zero\n- one\n  ');
+      const one = parse(text).children.find((node) => node.lines[0] === '- one')!;
+      expect(one.blockId?.line).toBe('  ^abc');
+      expect(applyChanges(text, outcome.plan.abandon!)).toBe(md);
+    }
+    const mid = plan('- one two\n^abc\n', { line: 0, ch: 5 }, 'continue');
+    expect(mid && 'plan' in mid).toBe(true);
+    if (mid && 'plan' in mid) {
+      expect(applyPlan('- one two\n^abc\n', mid.plan).text).toBe('- one\n  two\n^abc\n');
+    }
+  });
+
+  it('Shift+Enter above a paragraph\'s id line keeps a blank line below the id', () => {
+    const md = 'Lead.\n^id1\n- a\n';
+    const outcome = plan(md, { line: 0, ch: 5 }, 'continue');
+    expect(outcome && 'plan' in outcome).toBe(true);
+    if (outcome && 'plan' in outcome) {
+      const { text, cursor } = applyPlan(md, outcome.plan);
+      expect(text).toBe('Lead.\n\n^id1\n\n- a\n');
+      expect(text.slice(0, cursor)).toBe('Lead.\n');
+      const lead = parse(text).children[0]!;
+      expect(lead.blockId?.line).toBe('^id1');
+      expect(lead.children.map((node) => node.lines[0])).toEqual(['- a']);
+      expect(applyChanges(text, outcome.plan.abandon!)).toBe(md);
+    }
+    // With a blank line already below the id, nothing is added.
+    const closed = plan('Lead.\n^id1\n\nNext.\n', { line: 0, ch: 5 }, 'continue');
+    expect(closed && 'plan' in closed).toBe(true);
+    if (closed && 'plan' in closed) {
+      expect(applyPlan('Lead.\n^id1\n\nNext.\n', closed.plan).text).toBe('Lead.\n\n^id1\n\nNext.\n');
+    }
+    // A line opened higher up leaves the id directly under the text: nothing is added.
+    const higher = plan('A\nB\n^id\n- x\n', { line: 0, ch: 1 }, 'continue');
+    expect(higher && 'plan' in higher).toBe(true);
+    if (higher && 'plan' in higher) {
+      expect(applyPlan('A\nB\n^id\n- x\n', higher.plan).text).toBe('A\n\nB\n^id\n- x\n');
+    }
+  });
+
+  it('refuses Delete at the end of the line directly above an id, and nowhere else', () => {
+    // The join would write the id into the line above: into a fence's closing
+    // line, a table's last row, a quote's line or an item's text.
+    expect(refusesDeleteBeforeId('```\ncode\n```\n^c\n\nAfter.\n', { line: 2, ch: 3 })).toBe(true);
+    expect(refusesDeleteBeforeId('| a |\n| - |\n^t\n', { line: 1, ch: 5 })).toBe(true);
+    expect(refusesDeleteBeforeId('> q\n^q\n', { line: 0, ch: 3 })).toBe(true);
+    expect(refusesDeleteBeforeId('- one\n^abc\n- two\n', { line: 0, ch: 5 })).toBe(true);
+    // Not inside the line, not on a blank line above the id, not above an id
+    // that is a paragraph's own line.
+    expect(refusesDeleteBeforeId('- one\n^abc\n', { line: 0, ch: 3 })).toBe(false);
+    expect(refusesDeleteBeforeId('Para.\n\n^p\n', { line: 1, ch: 0 })).toBe(false);
+    expect(refusesDeleteBeforeId('Para.\n\n^p\n', { line: 0, ch: 5 })).toBe(false);
+    expect(refusesDeleteBeforeId('Lead.\n^id\n- a\n', { line: 0, ch: 5 })).toBe(false);
+  });
+
+  it('refuses Backspace at the start of an id, and nowhere else', () => {
+    expect(refusesBackspaceOnId(TABLE, { line: 6, ch: 0 })).toBe(true);
+    expect(refusesBackspaceOnId(TABLE, { line: 6, ch: 1 })).toBe(false);
+    expect(refusesBackspaceOnId('- a\n\n  ^x\n', { line: 2, ch: 2 })).toBe(true);
+    expect(refusesBackspaceOnId(TABLE, { line: 8, ch: 0 })).toBe(false);
+    // A misplaced id is a paragraph like any other.
+    expect(refusesBackspaceOnId('- a\n- b\n\n^l1\n', { line: 3, ch: 0 })).toBe(false);
+  });
+
+  it('Enter inside an id, and Shift+Enter anywhere on it, are refused', () => {
+    expect(plan(TABLE, { line: 6, ch: 2 }, 'split')).toEqual({ notice: REJECTION_MESSAGES['cannot-split'] });
+    expect(plan(TABLE, { line: 6, ch: 3 }, 'continue')).toEqual({ notice: REJECTION_MESSAGES['cannot-split'] });
+    expect(plan(TABLE, { line: 6, ch: 0 }, 'continue')).toEqual({ notice: REJECTION_MESSAGES['cannot-split'] });
   });
 });
