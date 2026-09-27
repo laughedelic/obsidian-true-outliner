@@ -28,13 +28,13 @@ import { indentUnit } from '@codemirror/language';
 import { Notice } from 'obsidian';
 import type { OutlineDoc } from '../model';
 import { encodeLines } from '../encode';
-import { classify, type ChangedLineSpan, type TransactionFacts } from '../classify';
+import { classify, type TransactionFacts } from '../classify';
 import { escalateRanges, type Cover } from '../escalate';
 import { rangesEqual } from '../line-pos';
 import { clampRange } from '../zoom';
 import { resolvePlacement, resolveMarkerPlacement } from '../caret';
 import { linePosToOffset, offsetToLinePos, toLineRange } from './cm-pos';
-import { computeVerdictForRanges, type EditFact, type RewriteVerdict } from '../enforce';
+import { computeVerdictForRanges, type RewriteVerdict } from '../enforce';
 import type { RejectionReason } from '../result';
 import { applyEdits } from '../result';
 import { editsToChangeSpec } from './dispatch';
@@ -44,6 +44,7 @@ import { parsedDoc } from './parsed-doc';
 import { zoomScope } from './zoom-scope';
 import { escapesZoom } from './zoom-enforce';
 import { isNestedTransaction } from './nested-editor';
+import { changedLineSpansOf, editFactsOf, userChanges, userEventOf } from './user-changes';
 import type { TransactionStats } from './stats';
 
 export interface ClassificationSource {
@@ -53,55 +54,6 @@ export interface ClassificationSource {
 /** Carries a veto's rejection reason to the update listener (design.md D6):
  * the filter attaches it, never shows the cue itself. */
 export const vetoEffect = StateEffect.define<RejectionReason>();
-
-/** Old-document (`tr.startState.doc`) line spans touched by this
- * transaction's changes — inclusive on both ends (classify.ts's
- * convention). A pure insertion (fromA === toA) only ever touches the one
- * line it lands on. Also carries the two Phase C facts classify.ts needs to
- * recognize boundary shapes a line-only span can't (node-edit-enforcement
- * D4/D5): the inserted text itself, and whether this change deletes
- * exactly one line-break character. */
-function collectChangedLineSpans(tr: Transaction): ChangedLineSpan[] {
-  const spans: ChangedLineSpan[] = [];
-  tr.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
-    const fromLineObj = tr.startState.doc.lineAt(fromA);
-    const toLineObj = tr.startState.doc.lineAt(Math.max(fromA, toA - 1));
-    const insertedText = tr.newDoc.sliceString(fromB, toB);
-    const deletesLineBoundary = toA === fromA + 1 && fromLineObj.to === fromA;
-    spans.push({
-      fromLine: fromLineObj.number - 1,
-      toLine: toLineObj.number - 1,
-      insertedText,
-      deletesLineBoundary,
-      fromCh: fromA - fromLineObj.from,
-      toCh: toA - toLineObj.from,
-      rangeEnd: offsetToLinePos(tr.startState.doc, toA),
-    });
-  });
-  return spans;
-}
-
-/**
- * ALL of the transaction's changes, each in old-document `LinePos`
- * coordinates, for the verdict layer (`EditFact`). `fix-orphan-gap-on-node-
- * deletion` D2 lifts the original single-change-range restriction: every
- * range is now collected, and `computeVerdictForRanges` decides per-range
- * whether the shapes it sees are enforceable, falling back to `pass` for
- * anything it doesn't model.
- */
-function collectEditFacts(tr: Transaction): EditFact[] {
-  const facts: EditFact[] = [];
-  const cursorBefore = offsetToLinePos(tr.startState.doc, tr.startState.selection.main.head);
-  tr.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
-    facts.push({
-      from: offsetToLinePos(tr.startState.doc, fromA),
-      to: offsetToLinePos(tr.startState.doc, toA),
-      insert: tr.newDoc.sliceString(fromB, toB),
-      cursorBefore,
-    });
-  });
-  return facts;
-}
 
 /** Character offset of a `{line, ch}` position in a freshly-built lines
  * array (the NEW document a rewrite's edits produce) — no `Text` instance
@@ -260,9 +212,12 @@ export function transactionFilterExtension(
     if (isNestedTransaction(tr)) return tr;
 
     const start = performance.now();
-    const userEvent = tr.annotation(Transaction.userEvent);
+    const userEvent = userEventOf(tr.annotation(Transaction.userEvent));
     const isComposition = tr.isUserEvent('input.type.compose');
-    const changedLineSpans = collectChangedLineSpans(tr);
+    // The user's own changes, with the renumbering Obsidian appends set aside
+    // (user-changes.ts): the class and the verdict are both judged on these.
+    const changes = userChanges(tr.startState.doc, tr.changes);
+    const changedLineSpans = changedLineSpansOf(tr.startState.doc, changes);
     const { doc: outlineDoc } = parsedDoc(tr.startState.doc);
 
     const cursorBefore = offsetToLinePos(
@@ -295,7 +250,7 @@ export function transactionFilterExtension(
       const placed = resolveForeignCursors(outlineDoc, tr.startState.doc, tr);
       if (placed) result = [tr, { selection: placed }];
     } else if (cls === 'boundary-crossing-edit') {
-      const edits = collectEditFacts(tr);
+      const edits = editFactsOf(tr.startState.doc, tr.startState.selection.main.head, changes);
       // Public CM6 facet, same as keymap.ts's grammar path — Obsidian sets
       // it from "Indent using tabs", so a structural rewrite that has to
       // materialize brand-new indentation (paste/type-over with no

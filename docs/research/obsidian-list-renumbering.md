@@ -93,14 +93,16 @@ transaction, seen by the verdict layer, is the same order.
   pure deletion, and the edit passes natively. Selecting `   2. b` in `1. p` / `   1. a` /
   `   2. b` / `   3. c` / `2. q` and pressing ⌫ gives `   1. a` / blank / `   2. c` / `3. q`.
   Unchanged by the restoration, which covers only transactions this plugin planned.
-  Filed as [#260](https://github.com/laughedelic/obsidian-true-outliner/issues/260).
+  Filed as [#260](https://github.com/laughedelic/obsidian-true-outliner/issues/260), measured
+  below under "The ranges it appends to a user edit".
 - **A command move while zoomed** on the parent of a nested ordered list was vetoed as leaving the
   zoom: Obsidian's appended `userEvent: 'input.renumber'` is the command transaction's first one,
   so the verdict layer judges it, and the renumbering of a hidden line read as escaping the scope
   ([#259](https://github.com/laughedelic/obsidian-true-outliner/issues/259)). With the restoration
   running before the verdict layer, the escape check sees the move as planned, and the move goes
-  through (e2e `80-outline-zoom`). The transaction is still classified by shape rather than as
-  plugin-own.
+  through (e2e `80-outline-zoom`). The transaction was still classified by shape rather than
+  as plugin-own, because it answered Obsidian's `input.renumber` as its `userEvent`. Since
+  #260 that is read as none, and the command's transaction is `programmatic`.
 - **Typing while zoomed.** A typed character in the last nested item of a zoomed parent makes
   Obsidian renumber the hidden `2. q`, and the zoom clears, as a change outside the scope clears
   it. ⏎ in the same place keeps the zoom.
@@ -132,3 +134,85 @@ The typing rows are unchanged: those edits are not the plugin's, and
 filter absent. One consequence stands out: after ⏎ at the end of the LAST nested item, typing the
 new item's text still turns `2. q` into `3. q`. Whether outline mode should keep Obsidian's
 renumbering off typing too is a decision of its own, not made here: [#263](https://github.com/laughedelic/obsidian-true-outliner/issues/263).
+
+## The ranges it appends to a user edit
+
+Measured 27 September 2026 on Obsidian 1.13.7 (desktop, Linux), through the e2e harness, on
+`main` at `04879ad`, for [#260](https://github.com/laughedelic/obsidian-true-outliner/issues/260).
+Each transaction that reached the view was recorded by wrapping `EditorView.update`, with every
+change range in start-document coordinates. Two gestures on the middle item `b`: a selection of
+its whole line followed by ⌫ (outline mode's ⇧↓ gives the same selection on a tight list), and ⌫
+⌫ at the end of its text, which empties it and then deletes its marker's space. Outline mode on,
+unless a row says otherwise; `┆` marks a column's left edge, `⏵` a tab.
+
+| List | Gesture | The user's range | Ranges Obsidian appends |
+| --- | --- | --- | --- |
+| `1. a` / `2. b` / `3. c` / `4. d` | line, ⌫ | `2. b` → nothing | `3. ` → `2. ` at ch 0, `4. ` → `3. ` at ch 0 |
+| same | ⌫ ⌫ | ` ` → nothing, ch 2 | the same two |
+| `1. p` / `┆  1. a` / `┆  2. b` / `┆  3. c` / `2. q` | line, ⌫ | `   2. b` → nothing | `3. ` → `2. ` at ch 3, and `2. q`'s `2. ` → `3. ` at ch 0 |
+| same | ⌫ ⌫ | ` ` → nothing, ch 5 | the same two |
+| the same, four spaces | line, ⌫ | `    2. b` → nothing | `3. ` → `2. ` at ch 4; `2. q` untouched |
+| the same, `⏵` | ⌫ ⌫ | ` ` → nothing, ch 3 | `3. ` → `2. ` at ch 1 |
+| `1) a` / `2) b` / `3) c` | line, ⌫ | `2) b` → nothing | `3) ` → `2) ` at ch 0 |
+| `8. a` / `9. b` / `10. c` / `11. d` | line, ⌫ | `9. b` → nothing | `10. ` → `9. ` at ch 0, `11. ` → `10. ` at ch 0 |
+| `> 1. a` / `> 2. b` / `> 3. c` | line, ⌫ | `> 2. b` → nothing | `3. ` → `1. ` at ch 2 |
+| `1. a` / blank / `2. b` / blank / `3. c` | line, ⌫ | `2. b` → nothing | none |
+| same, ⇧↓ selecting `2. b` and the line break after it | ⌫ | `2. b⏎` → nothing | `3. ` → `2. ` at ch 0 of `3. c` |
+
+Outline mode off gives the same appended ranges for the same user range.
+
+More gestures, the same way:
+
+| List | Gesture | The user's range | Ranges Obsidian appends |
+| --- | --- | --- | --- |
+| `1. p` / `┆  1. ab` / `2.·` | ⌫ at the end of `ab` | `b` → nothing | `1. ` → `2. ` at ch 3 of the SAME line, and `2. ` → `3. ` at ch 0 |
+| `1. ab` / `5.·` / `6. c` | ⌫ at the end of `ab` | `b` → nothing | `5. ` → `2. `, `6. ` → `3. ` |
+| `1. a` / `2. b` / `3. c` | ⌘X with the caret in `b` (a linewise cut) | `2. b⏎` → nothing | `3. ` → `2. ` at ch 0 of the next line, touching the user's range |
+| `1. [ ] a` / `2. [ ] b` / `3. [ ] c` | line, ⌫ | `2. [ ] b` → nothing | `3. ` → `2. ` at ch 0 |
+| same | ⌫ ⌫ | ` ` → nothing, ch 6 | none |
+| `1.⏵a` / `2.⏵b` / `3.⏵c` | line, ⌫, and ⌫ ⌫ | as above | none |
+| `1.··a` / `2.··b` / `3.··c` | ⌫ ⌫ | ` ` → nothing, ch 3 | none |
+
+**The shape.** Every appended range covers one line's marker number, its delimiter and the one
+space after it, from the column the number starts at: past the line's indentation and any `> `.
+It replaces them with a new number, the same delimiter and the same space. The number's width can
+change, as `10. ` → `9. ` shows. A marker followed by a tab or by surplus spaces was never
+renumbered in these gestures.
+
+The same shape is what the filter's code writes. In 1.13.7's `app.js` it matches each line
+against `/^([>\s]*)(([*+-] |(\d+)([.)] ))(?:\[(.)\] )?)?/`. It replaces the number, the
+delimiter and the space, from the end of the container prefix, whenever `String(n)` differs
+from the number's text. So `02. ` → `2. ` is a renumbering as well. It returns
+`[tr, {changes, sequential: true, userEvent: 'input.renumber'}]`, with the changes in the
+offsets of the document the user's edit produced.
+
+**Where it sits.** An appended range can be on the line the user edited, as the typing rows of
+"Where it fires" already show, and it can touch the user's range: the linewise cut ends at the
+next line's start, which is where that line's marker begins. CM6's `iterChangedRanges` joins
+touching ranges unless asked for them individually, so the enforcement filter received the cut as
+one range, `2. b⏎3. ` → `2. `, crossing two nodes. The verdict layer read that as a type-over and
+rewrote it, and on `main` the cut leaves `1. a` / `2.·`: `c` is gone.
+
+**What the verdict layer does with it on `main`.** Every other row with an appended range reaches
+`computeVerdictForRanges` as several ranges, one of which is not a pure deletion, so the whole
+transaction passes. The result is the native edit plus Obsidian's numbers: the line selection
+leaves an empty line where `b` was; ⌫ ⌫ leaves `2.`, a bare marker that `bare-marker-is-a-paragraph`
+reads as a paragraph, with `c` beneath it. On the three-column list `2. q` becomes `3. q` as well.
+The rows with nothing appended reach the layer as one range and are enforced as the same range is
+anywhere else.
+
+**Which class the appended ranges give.** Usually none, but not always. A range that stays inside
+one marker crosses no node boundary, deletes no line break and inserts no block. On an empty item,
+though, the marker IS the whole line, and `isExactSubtreeCoverDeletion` reads a range covering it
+as an exact subtree cover without asking whether it inserts anything. In the `2.·` rows above the
+appended range therefore makes a ⌫ inside `ab` `boundary-crossing-edit`. On `main` the verdict for
+it is still `pass`, because the multi-range rule declines the insertion. But judging the user's
+range alone under the class the appended range gave would delete the whole of `ab`. So the class
+has to be computed from the user's ranges too.
+
+**Which `userEvent` the transaction answers.** A combined transaction answers `userEvent` from
+its first annotation. After a user's edit that is the user's. After a dispatch with no
+`userEvent` of its own — `Editor.transaction`, which this plugin's structural commands use, or
+another plugin's edit — it is Obsidian's `input.renumber`. Such a dispatch is `programmatic`
+when nothing is appended, and is classified by shape when something is. A single-line deletion inside a quote, as in the
+`> ` row, is `within-node-edit` and never reaches the verdict layer.
