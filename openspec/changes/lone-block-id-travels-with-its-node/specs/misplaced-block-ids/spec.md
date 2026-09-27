@@ -141,7 +141,13 @@ The edits:
 - `Separate from the line below` SHALL insert an empty line after the id's line.
 
 After each edit the id is either attached, or not an id the parse keeps as misplaced for the
-same reason, and the mark follows the re-parse.
+same reason, and the mark follows the re-parse. A correction is a planned structural edit: the
+numbers of an ordered list it writes into SHALL be the ones it planned, whatever Obsidian's live
+list renumbering appends to the transaction.
+
+#### Scenario: A correction keeps the numbers of an ordered list
+- **WHEN** `^foo`, misplaced under `   1. a` nested in `1. p`, with `2. q` below, is attached to `a`
+- **THEN** the note reads `1. p`, `   1. a ^foo`, `2. q`, with its numbers unchanged
 
 #### Scenario: Attaching to the lead paragraph
 - **WHEN** `Attach to “Lead.”` is chosen for `Lead.`, `- a`, `- b`, `  - c`, blank, `^foo`

@@ -7,7 +7,7 @@
  * writes are `block-ids.ts`'s; this module only draws and dispatches.
  */
 
-import { type EditorState, type Extension, RangeSetBuilder, Text } from '@codemirror/state';
+import { ChangeSet, type EditorState, type Extension, RangeSetBuilder, Text } from '@codemirror/state';
 import {
   Decoration,
   type DecorationSet,
@@ -29,6 +29,7 @@ import { editsToChanges } from './dispatch';
 import { isNestedEditor } from './nested-editor';
 import { isOutlineMode } from './outline-state';
 import { parsedDoc } from './parsed-doc';
+import { plannedChanges } from './planned-changes';
 
 export const MISPLACED_ID_CLASS = 'to-decor-misplaced-id';
 
@@ -140,14 +141,20 @@ export function openCorrectionMenuAtCaret(view: EditorView): boolean {
 export function applyCorrection(view: EditorView, correction: BlockIdCorrection): void {
   const lines = view.state.doc.toString().split('\n');
   const doc = view.state.doc;
-  const changes = editsToChanges(lines, correction.edits).map((change) => ({
-    from: doc.line(change.from.line + 1).from + change.from.ch,
-    to: doc.line(change.to.line + 1).from + change.to.ch,
-    insert: change.text,
-  }));
+  const changes = ChangeSet.of(
+    editsToChanges(lines, correction.edits).map((change) => ({
+      from: doc.line(change.from.line + 1).from + change.from.ch,
+      to: doc.line(change.to.line + 1).from + change.to.ch,
+      insert: change.text,
+    })),
+    doc.length,
+  );
   const after = Text.of(applyEdits(lines, correction.edits));
+  // Planned like every structural edit: Obsidian's list renumbering may not
+  // rewrite the numbers of the list an attach writes into (`planned-changes`).
   view.dispatch({
     changes,
+    annotations: plannedChanges.of(changes),
     selection: { anchor: linePosToOffset(after, correction.caret) },
     scrollIntoView: true,
     userEvent: BLOCK_ID_USER_EVENT,

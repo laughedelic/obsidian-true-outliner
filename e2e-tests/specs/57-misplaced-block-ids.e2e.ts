@@ -137,6 +137,22 @@ describe('a misplaced block id', function () {
     expect(await h.getBuffer()).toBe(DOC);
   });
 
+  it('keeps the numbers of the list a correction writes into', async function () {
+    // Obsidian's list renumbering reads `   1. a` as a sibling of `1. p`. The
+    // note is written as a file rather than as an edit, which the renumbering
+    // would rewrite before the correction ran.
+    const ORDERED = '1. p\n   1. a\n\n   ^foo\n2. q\n';
+    await h.createNote(NOTE, ORDERED);
+    await h.openNote(NOTE);
+    await browser.pause(150);
+    expect(await h.getBuffer()).toBe(ORDERED);
+    await pressCentre(3, MARK);
+    await waitForMenu();
+    await chooseRow('Attach to “a”');
+    await browser.waitUntil(async () => (await h.getBuffer()) !== ORDERED, { timeout: 2000 });
+    expect(await h.getBuffer()).toBe('1. p\n   1. a ^foo\n2. q\n');
+  });
+
   it('drags its paragraph from a glyph press that moves, opening no menu', async function () {
     // The pointer gesture cannot be aimed at a mark under mobile emulation.
     if (h.IS_MOBILE_RUN) this.skip();

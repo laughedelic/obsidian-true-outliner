@@ -118,7 +118,9 @@
 - [x] 6.8 Carry an attached id through the paths `main` gained after the rebase: a paste writes the
       blank lines before an id empty (`payloadBlocks`), and Delete on a place with nothing below
       returns the caret to the end of the id above it (`cancelOnDelete`, `nodeLastPlace`), each
-      with a case that fails without the fix.
+      with a case that fails without the fix. A correction states its planned changes, so
+      Obsidian's list renumbering keeps the numbers it wrote (`planned-changes`), with an e2e case
+      that fails without it.
 - [x] 6.9 Shift+Enter that opens an empty line above an item's lazy id writes the id at the
       content column, so the id stays attached while the line is open and through a move, with a
       unit and an e2e case that fail without the change. For a paragraph outside a list item that
