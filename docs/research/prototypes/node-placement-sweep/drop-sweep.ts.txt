@@ -137,7 +137,13 @@ for (const text of texts) {
               const afterLabel = !beforeNode && c.index > 0 ? labelOf(origKids[c.index - 1]!) : undefined;
               const anchor = anchorLabel ? nodeByLabel(rdoc, anchorLabel) : afterLabel ? nodeByLabel(rdoc, afterLabel) : undefined;
               if (anchor) {
-                const payload = parse(encode({ preamble: [], children: [run] })).children;
+                // The clipboard holds the run at its own margin: its root's indentation is taken off every line.
+                const ws = /^[ \t]*/.exec(run.lines[0]!)![0];
+                const payloadText = encode({ preamble: [], children: [run] })
+                  .split('\n')
+                  .map((line) => (line.startsWith(ws) ? line.slice(ws.length) : line.trimStart()))
+                  .join('\n');
+                const payload = parse(payloadText).children;
                 const pasted = insertSubtrees(rdoc, anchor.id, payload, anchorLabel ? 'before' : 'after');
                 if (!pasted.ok) {
                   bump(`drop-vs-paste:paste-refused:${runTag}->${writtenTag}:${pasted.rejection.reason}`, `${JSON.stringify(text)} run=${runLabel} dest=${targetLabel}@${c.index}`);
