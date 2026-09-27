@@ -1450,8 +1450,20 @@ export default class TrueOutlinerPlugin extends Plugin {
     // userEvent already fails CM6's `joinableUserEvent` test. Guarded by a unit
     // test on that CM6 behaviour in tests/minimal-change-history.test.ts and by
     // 20-structural-commands' "one undo step each way".
+    //
+    // The same join reaches back to whatever came BEFORE the command. A
+    // keypress of ours dispatches its caret with its change, so its event has
+    // no `selectionsAfter` either, and CM6 checks only the new change's
+    // `userEvent` — a command run within `newGroupDelay` of such a key merges
+    // into the key's undo step, and so does one run straight after typing.
+    // Re-asserting the current selection first gives that event its
+    // `selectionsAfter`. It shows the current selection against the current
+    // document, so nothing watching sees a caret out of step. It goes before
+    // `before` is read: `planned-changes` drops its statement on the next
+    // transaction from that state, whatever the transaction is.
     const changes: EditorChange[] = [...outcome.changes];
     if (changes.length > 0) {
+      editor.setSelections(editor.listSelections());
       const selectionAfter =
         outcome.to === undefined
           ? { from: outcome.from }

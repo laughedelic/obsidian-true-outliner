@@ -232,7 +232,8 @@ describe('a selection-only transaction keeps adjacent changes in separate undo s
  * caret with its change, so its event has no `selectionsAfter` either, and CM6
  * checks only the NEW change's `userEvent`. A command run right after the key
  * joins the key's event unless the current selection is re-asserted first —
- * which is what `runOp` does before its dispatch.
+ * which is what `runOp` does before its dispatch. Typing before the command
+ * leaves the same shape.
  */
 describe('a selection-only transaction before a command keeps it apart from the key before it', () => {
   const DOC = '- one\n- foo\n';
@@ -251,14 +252,32 @@ describe('a selection-only transaction before a command keeps it apart from the 
       userEvent: 'input.structure.newline',
     }).state;
     if (reassertFirst) state = state.update({ selection: state.selection }).state;
-    state = state.update({
+    return state.update({
       changes: [
         { from: 6, insert: '  ' },
         { from: 12, insert: '  ' },
       ],
       selection: EditorSelection.cursor(18),
     }).state;
-    return state;
+  }
+
+  /** Typing `x` at the end of `- foo`, then a move up as `Editor.transaction` dispatches it. */
+  function typingThenCommand(reassertFirst: boolean): EditorState {
+    let state = EditorState.create({
+      doc: DOC,
+      selection: EditorSelection.cursor(11),
+      extensions: [history()],
+    });
+    state = state.update({
+      changes: { from: 11, insert: 'x' },
+      selection: EditorSelection.cursor(12),
+      userEvent: 'input.type',
+    }).state;
+    if (reassertFirst) state = state.update({ selection: state.selection }).state;
+    return state.update({
+      changes: { from: 0, to: 12, insert: '- foox\n- one' },
+      selection: EditorSelection.cursor(2),
+    }).state;
   }
 
   it('with the re-assertion, one undo reverts only the command', () => {
@@ -270,6 +289,19 @@ describe('a selection-only transaction before a command keeps it apart from the 
 
   it('WITHOUT it, the key and the command merge into a single undo step', () => {
     const view = makeView(keyThenCommand(false));
+    undo(view);
+    expect(view.state.doc.toString()).toBe(DOC);
+  });
+
+  it('typing before the command is kept apart the same way', () => {
+    const view = makeView(typingThenCommand(true));
+    expect(view.state.doc.toString()).toBe('- foox\n- one\n');
+    undo(view);
+    expect(view.state.doc.toString()).toBe('- one\n- foox\n');
+  });
+
+  it('WITHOUT it, the command takes the typing with it', () => {
+    const view = makeView(typingThenCommand(false));
     undo(view);
     expect(view.state.doc.toString()).toBe(DOC);
   });
