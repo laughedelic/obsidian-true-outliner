@@ -47,7 +47,8 @@ kind at any nesting depth, rather than as a special case at any dispatch site.
 - **WHEN** a paragraph or list item shorter than the table is moved up or down past it, in a
   document where the table is rendered by the host's live table widget
 - **THEN** the dispatched change set contains one deletion of the moved node's lines and one
-  insertion of them on the other side, no change range covers or enters any of the table's
+  insertion of them on the other side, plus an insertion of its own for each blank line a seam at the
+  edit site gains, no change range covers or enters any of the table's
   lines, and the table's header, separator, and body rows remain contiguous in the resulting
   document
 

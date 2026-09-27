@@ -49,8 +49,13 @@ block whose first line is below it (its LOWER block).
 
 A block is WRITTEN when it is new, or when what the outline shows of it changed:
 - its kind as it will re-parse (`kindAsWritten` at its new margin)
-- its content, with indentation, list marker, ordinal number and block id set aside
-- for a heading, its level relative to the heading it sits under
+- its content, with indentation, list marker, ordinal number, a heading's level and a block id set aside. The id
+  is set aside wherever it is written: attached, trailing the text, or as a line of the block's own, which is
+  where `dropLoneId` writes it.
+
+A heading's level is left out because it only decides where the heading sits, and its parent and previous sibling
+state that. A relative level would be undefined for a heading at the root, and a level-skip outdent (`# Log` /
+`### Monday` to `## Monday`) changes it while the outline stays the same.
 
 An operation's EDIT SITE is every seam where:
 - **the lower block was written,** its previous sibling changed, or it has no previous sibling and its parent
@@ -71,7 +76,7 @@ What that gives, all without a per-operation rule:
 | move, including a same-scope reorder | the seams at the run's old and new places; none inside the run, at any depth |
 | split, merge, type-over | every seam around the rewritten and new blocks |
 | indent, outdent | the seams around every block the op re-parented or converted, and around the block that takes its place |
-| heading level shift | the seams around the heading it re-parents; none around the headings below it |
+| heading level shift | the seams around a heading whose section changes; none around the headings below it, and none for a shift that keeps every section |
 | lone-id drop | the seam the id line leaves; none around the block that takes the id |
 
 **Why the outline and not the text.** Some operations rewrite text they derive from position rather than from
@@ -81,7 +86,7 @@ what the user asked for:
   below the list gains a line, and `para`, which CommonMark and reading mode both draw inside item `c`, leaves the
   item two items away from the deletion.
 - **Level shifts.** Tab on `## B` rewrites every heading below it. Judged on text, every seam in the section gains
-  a line.
+  a line. Judged on relative level, a root-level `## Budget` shifted under `## Packing` still counts as written.
 - **Id drops.** `dropLoneId` rewrites its host's lines. Judged on text, the host's seam with the list below it
   gains the line `misplaced-block-ids` forbids.
 
@@ -124,7 +129,8 @@ rule separates them: a paragraph or heading directly above the list, and the blo
 last line.
 
 Accepted cost: a paragraph written directly under a quote, or under a nested item, stays ambiguous when both are
-inside a tight list.
+inside a tight list. Items with different bullet characters (`- a` / `* b`) count as one list here, though
+CommonMark reads two; either way a blank line between them would loosen what the user wrote.
 
 ### D4. What the rule never does
 
@@ -140,10 +146,19 @@ inside a tight list.
 
 ### D5. Places are left as they are
 
-A provisional position is not a block. Its lines are gap text, which already fills the seam it stands in, so the
-rule never adds to that seam. An operation that dissolves an item leaves an empty paragraph node as its residue;
-the pass skips it, and judges nothing across it. Every place is therefore written exactly as today, and its
-abandonment is unchanged.
+A PLACE is what a keypress opens for text the user is about to type:
+- a provisional position, whose lines are gap text that already fills the seam it stands in
+- an empty list item or heading an operation opens: Enter's `- `, the empty heading at a heading's content start,
+  and Shift+Enter's empty drafted heading
+- the empty paragraph node an operation leaves where it dissolved an item
+
+The pass writes nothing beside a place and judges no seam across one. Every place is therefore written exactly
+as today, and its abandonment is unchanged.
+
+Treating an empty item as a block would break that. Enter at the end of `- a` above a flush `> q` opens `- `,
+whose seam with `> q` would be separated. A second Enter then dissolves the item into a position in a seam that
+already holds a blank line, and leaving it removes the position's line only, so one Enter-and-leave gesture would
+add a line to the note. Measured in review.
 
 Where a place is written flush today, typed text can read as a lazy continuation: under a quote, above a
 heading's flush first child, and under a list an item has left. Those are the places' own change, which waits on
@@ -156,6 +171,11 @@ the places half of an earlier draft of this change did not work as written (`cre
 order of blocks. It walks the surgery's seams, and separates each empty seam at the edit site outside a list that
 D4 does not exempt, before the parse floor runs. It needs no second encode: the old view is read from the old
 tree.
+
+Parents and previous siblings are read after re-nesting the surgery's headings by level, as the re-parse will.
+A heading op rewrites levels only (`headingLevelSurgery`) and leaves the hierarchy to the re-parse, so the
+surgery's own tree still has `### B` under `# A` after Tab on `## B`. Judged on that tree, the seam above `### B`
+is missed and the seams a shift re-parents are misread.
 
 Identity is sound here because every caller passes the document the surgery was built from, and ids are never
 reused:
@@ -178,8 +198,10 @@ change when lines repeat, and costs an encode per operation (`created-seam-detec
   - Typing a character over a selected block therefore separates it from flush neighbours outside a list. That
     is accepted, because the block is new.
 - **An Enter over a block selection** (`planOverSelection`) runs a deletion and then the key's op.
-  - The deletion separates its join like any deletion.
-  - The place the key then opens is written as today, in a seam that now holds a blank line.
+  - The deletion separates nothing, as when a splice follows: the place the key opens stands in the join.
+  - The place is written as today. Were the join separated first, the place would widen it to three blank lines,
+    and two would stay below the text typed there (measured in review).
+  - Abandoning the place leaves the join as the deletion wrote it, flush. That is the places change's to settle.
 
 ### D8. A group operation has one edit site
 

@@ -2,24 +2,28 @@
 
 ## 1. The edit site, as a function of two trees
 
-- [ ] 1.1 Write the outline view of a block (D1): kind as it will re-parse, content with indentation, list marker,
-  ordinal number and block id set aside, and a heading's level relative to the heading it sits under. Verify with
-  unit tests over every kind, tasks, setext headings and ordered runs included: renumbering, a level shift, a
-  re-indent and an id attachment leave the view unchanged, and a changed marker kind, task text or heading
-  title changes it. Negative control: comparing text without indentation fails the renumbering and level-shift
+- [ ] 1.1 Write the outline view of a block (D1): kind as it will re-parse, and content with indentation, list
+  marker, ordinal number, heading level and block id set aside, the id wherever it is written. Verify with unit
+  tests over every kind, tasks, setext headings and ordered runs included: renumbering, a level shift, a re-indent
+  and an id attachment, including `dropLoneId`'s id line, leave the view unchanged; a list item turned paragraph,
+  a changed task text or a changed heading title changes it. Negative control: comparing text without indentation fails the renumbering and level-shift
   cases.
 - [ ] 1.2 Index the pre-operation document by node id (D6): each block's view, parent, previous sibling and order.
+  Read the surgery's parents and previous siblings after re-nesting its headings by level.
   Classify each seam of a surgery (D1): written lower block, changed previous sibling, a first child with a new
   parent, written upper block, or blocks not consecutive before. Verify with unit tests over hand-built old/new
   pairs:
   - a moved run of several roots keeps its inner seams, and its edges are at the edit site
   - a re-indent that changes a block's kind puts its seams at the edit site
   - deleting `1. a` from `1. a` / `2. b` / `3. c` / `para` puts no seam around `para` at the edit site
-  - Tab on `## B` puts only the seam above `### B` at the edit site
+  - Tab on `## B`, through `indent`, puts only the seam above `### B` at the edit site, and so does Tab on a
+    root-level `## Budget` under `## Packing`
+  - a level-skip outdent puts no seam at the edit site
   - a lone-id drop puts no seam around its host at the edit site
   - `finalize(doc, doc)`'s pair has no seam at the edit site
 
-  Negative controls: counting any new parent fails the first, and judging on text fails the third and fourth.
+    Negative controls: counting any new parent fails the first, judging on text fails the third and fourth, and
+  reading the hierarchy off the surgery's own tree fails the fourth.
 
 ## 2. The seam oracle, measured on today's operations
 
@@ -46,7 +50,7 @@
   - one inside a list is unchanged
   - one below a lone id line is unchanged
   - one above a block indented four columns is unchanged, unless the parse requires it
-  - one beside a dissolved item's empty residue is unchanged
+    - one beside a dissolved item's empty residue, an empty `- ` or an empty drafted heading is unchanged
 
   Negative control: separating every seam at the edit site fails each.
 - [ ] 3.2 Verify the pass is a no-op on parsed trees, with a property over generated documents that
@@ -75,9 +79,10 @@
   - Enter mid-text in `para text` between `# H` and `> q`
   - `para` merged into `- a` above a flush `> q`
   - Shift+Tab on `  > q` under `- b`
-  - the drafted sibling heading
+    - a sibling heading carrying a remainder, with the original's first child written flush
 
-  Negative control: judging only new blocks as written fails the merge and the outdent.
+  Negative control: dropping the view clause, so that a block is written only when it is new, fails the upper
+  seam of the `para text` split and the heading split.
 - [ ] 4.3 Remove `splitNode`'s own heading-child separator (`separateFromHeading`), which the pass now provides.
   Verify with the heading-split scenario. Negative control: with both removed, the child is written flush.
 - [ ] 4.4 Verify the limits as unit tests:
@@ -93,9 +98,11 @@
   - `x` typed over a selected `para` in `# A` / `para` / `# B` gives `# A` / blank / `x` / blank / `# B`
   - a type-over of `- b` in `- a` / `- b` / `> q` with `- x` / `- y` leaves `- a` / `- x` flush
   - `> z` / blank / `w` pasted onto an empty `- ` under `- a` is separated from `- a`
-  - a paste onto a place leaves exactly one blank line above the pasted content
+    - a paste onto a place leaves exactly one blank line above the pasted content
+  - Enter over a block-selected `para` in `# A` / `para` / `# B` writes the place as today, and typing on it leaves
+    one blank line below the text
 
-  Negative control: letting the deletion separate its join fails the second.
+    Negative control: letting the deletion separate its join fails the second and the last.
 - [ ] 4.6 Verify the narrowed indent-unit round trip: a list item's subtree copied and pasted back after itself is
   still byte-identical in every unit the existing scenario covers. Negative control: applying the pass inside
   lists fails it for a subtree with a flush child block.

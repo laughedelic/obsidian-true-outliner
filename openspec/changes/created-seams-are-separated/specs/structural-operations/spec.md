@@ -5,13 +5,13 @@ A SEAM is the boundary between two blocks: the last content line of the block ab
 the first content line of the block below it (its LOWER block), with whatever blank lines stand between them.
 
 A block is judged on what the outline shows of it, not on its text. A block is WRITTEN by an operation when it is
-new, or when any of these changed:
-- its kind as it will re-parse
-- its content, with indentation, list marker, ordinal number and block id set aside
-- for a heading, its level relative to the heading it sits under
+new, or when its kind as it will re-parse or its content changed. Content sets aside indentation, list marker,
+ordinal number, a heading's level, and a block id, whether attached, trailing its text or on a line of its own
+within the block. A heading's level decides only where it sits, which its parent and previous sibling state.
 
 Renumbering an ordered run, shifting a section's heading levels, re-indenting a run and attaching a block id
-therefore write no block.
+therefore write no block. Parents and previous siblings are those of the note the operation writes, with each
+heading's section read off the levels as the re-parse reads it, not those of the tree the operation assembled.
 
 A structural operation's EDIT SITE is every seam where:
 - the lower block was written, its previous sibling changed, or it has no previous sibling and its parent
@@ -64,9 +64,9 @@ Four limits bound it:
 The cost of the first limit is that some shapes stay ambiguous inside a tight list. A paragraph written directly
 under a quote, or under a nested item, is continued into that block by reading mode.
 
-A provisional position is not a block, and neither is the empty line an operation leaves where it dissolved a
-node. A seam is judged between the blocks on either side of one, and the rule writes nothing beside it: its lines
-are the ones `outline-keyboard-grammar`'s `Provisional positions` states. `docs/research/created-seam-detection`
+A PLACE is not a block: a provisional position, an empty list item or heading an operation opens, or the empty
+line an operation leaves where it dissolved a node. The rule writes nothing beside a place and judges no seam
+across one: its lines are the ones `outline-keyboard-grammar`'s `Provisional positions` states. `docs/research/created-seam-detection`
 records the other rules for deciding which seams an operation owns that were reviewed, and the cases each failed
 on.
 
@@ -132,6 +132,15 @@ on.
   blank lines
 - **THEN** the note reads `# A` / `## B0` / blank / `### B` / `text` / `#### C` / `body`
 
+#### Scenario: A level shift at the root writes only the heading it moves
+- **WHEN** Tab is pressed on `## Budget` in `## Packing` / `x` / `## Budget` / `### Transport` / `bus`, written
+  with no blank lines
+- **THEN** the note reads `## Packing` / `x` / blank / `### Budget` / `#### Transport` / `bus`
+
+#### Scenario: A level-skip outdent writes no block
+- **WHEN** Shift+Tab is pressed on `### Monday` in `# Log` / `### Monday` / `text`, written with no blank lines
+- **THEN** the note reads `# Log` / `## Monday` / `text`
+
 #### Scenario: A seam away from the edit site is left alone
 - **WHEN** a document contains `> q` directly followed by `body`, and a structural operation runs
   on some unrelated node
@@ -170,7 +179,7 @@ on.
 ### Requirement: Heading indent and outdent shift levels
 Indent on a heading SHALL increase its level by one and outdent SHALL decrease it by one,
 rewriting the heading markers of the node and its entire heading subtree (level shift is
-recursive), touching only heading-marker characters, save for the blank line an empty seam gains at its edit site (`A seam at an operation's edit site is separated`): the heading it moves has a new parent or previous sibling, and the headings below it keep their level relative to the heading they sit under. The tree SHALL re-derive from the new
+recursive), touching only heading-marker characters, save for the blank line an empty seam gains at its edit site (`A seam at an operation's edit site is separated`): a heading whose section changes has a new parent or previous sibling, and a level shift alone writes no block. The tree SHALL re-derive from the new
 levels. Indent SHALL be rejected at h6; outdent SHALL be rejected at h1.
 
 #### Scenario: Demote with subtree
@@ -317,8 +326,9 @@ newline SHALL NOT be given one — and a gap line carrying whitespace is content
 than a terminator, so the question is whether the gap's LAST line is empty.
 
 The seam a removal leaves between the node above the run and the node below it is at its edit site.
-Outside a list it SHALL gain one blank line where it would otherwise be empty, per `A seam at an operation's edit site is separated`. When the caller will splice content into the place the removal leaves, that seam is
-not a seam of the result, and the removal SHALL NOT separate it: the insertion's edit site decides.
+Outside a list it SHALL gain one blank line where it would otherwise be empty, per `A seam at an operation's edit site is separated`. When the caller will splice content into the place the removal leaves, or open a place in it, that seam is
+not a seam of the result, and the removal SHALL NOT separate it: the insertion's edit site decides, or the place
+is written as `outline-keyboard-grammar`'s `Provisional positions` states.
 
 A caller that will splice content into the place the removal leaves — a type-over, or a
 paste onto an empty anchor — SHALL say so, and the terminator SHALL NOT be restored
@@ -646,21 +656,26 @@ the common case, and one rule is better than two that differ by the original's u
 When `remainder` is non-empty it SHALL be removed from the original heading's title, which
 is otherwise unchanged in level, marker and setext-ness. The original's existing CHILDREN
 stay with it: heading scope is positional, so content already under it belongs to it, and
-the new sibling starts empty. Both of the new heading's seams are at the operation's edit site, and each
-SHALL be separated per `A seam at an operation's edit site is separated`.
+the new sibling starts empty. An empty new heading is a place, written as today. A new heading carrying a
+remainder is a block, and so is the original it was cut from: the seams around both are at the operation's edit
+site, and each SHALL be separated per `A seam at an operation's edit site is separated`.
 
 A node that is not a heading SHALL be rejected with `cannot-split`. The anchor SHALL be
 the new heading's content start.
 
 #### Scenario: A sibling heading is created empty
 - **WHEN** the operation runs on `## Foo` with an empty remainder
-- **THEN** `## ` follows it as a sibling at level 2, separated by a blank line from the section
-  above it and from what follows, `## Foo` keeps its children, and the anchor is the new
-  heading's content start
+- **THEN** `## ` follows it as a sibling at level 2, `## Foo` keeps its children, and the
+  anchor is the new heading's content start
 
 #### Scenario: A remainder moves to the sibling
 - **WHEN** the operation runs on `## Foo bar` with the remainder `bar`
 - **THEN** the original becomes `## Foo ` and the sibling is `## bar`
+
+#### Scenario: A remainder's heading is separated, and so is the original's first child
+- **WHEN** the operation runs on `## Foo bar` with the remainder `bar`, where `## Foo bar` is written directly
+  above its child `text`
+- **THEN** the note reads `## Foo ` / blank / `text` / blank / `## bar`
 
 #### Scenario: A setext original produces an ATX sibling
 - **WHEN** the operation runs on a setext heading underlined `====`

@@ -348,6 +348,23 @@ took their recommendations:
 - **A seam oracle comes first,** and its count of seams separated where no reader continues decides alternative
   B before the change lands.
 
+**What the review of the revision found.** Nothing against the design; the classifier held on every delta
+scenario the review ran through the ops, and it could not build a seam a reader newly continues that the rule
+misses. It found where the text did not yet say what the design meant:
+- **Heading ops leave the hierarchy to the re-parse.** `headingLevelSurgery` rewrites levels only, so after Tab on
+  `## B` the surgery still has `### B` under `# A`. Parents and previous siblings are now read after re-nesting
+  the surgery's headings by level.
+- **A relative heading level is undefined at the root,** and a level-skip outdent changes it while the outline
+  stays the same. The view now leaves a heading's level out; the parent and previous sibling carry it.
+- **`dropLoneId` writes the id as a line of the host's text,** so the view sets an id aside wherever it is written.
+- **An empty item a key opens is a place.** Treated as a block, Enter at the end of `- a` above a flush `> q`
+  separated `- ` from `> q`; a second Enter dissolved it into a seam that now held a blank line, and leaving
+  removed only the position's line. Empty items and headings a key opens are now places, written as today.
+- **Enter over a block selection widened a separated join to three blank lines.** The deletion now separates
+  nothing when a place follows, as when a splice does.
+- Smaller: a negative control that could not fail, the original heading's seams when Shift+Enter carries a
+  remainder, and a dispatch scenario that still counted one insertion.
+
 ## Comparison
 
 | | decides by | stays correct when an op rewrites a block | failed on |
@@ -359,7 +376,7 @@ took their recommendations:
 | 4. line diff | text alignment | yes, except moves | moves, cross-kind joins, remainders, id drops |
 | 5. marking | a per-op table | yes, by construction | ops that move a block across a list's edge |
 | 6. edit site | which blocks the op wrote, by id, within the changed text | yes, by construction | text-derived rewrites, multi-root moves, id drops, repeated text, group forms, places |
-| 6, revised | which blocks' outlines the op changed, by id, for the whole gesture | yes, by construction | under review; the oracle checks it |
+| 6, revised | which blocks' outlines the op changed, by id, for the whole gesture | yes, by construction | none in review; the oracle checks it |
 
 ## A step back: what the reviews were about
 

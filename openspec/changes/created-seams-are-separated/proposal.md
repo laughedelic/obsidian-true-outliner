@@ -13,9 +13,9 @@ structure, and the text it writes has to mean that structure in every view of th
 - **A seam at an operation's edit site, outside a list, is written with one blank line.** The edit site is every
   seam next to a block the operation wrote, and every seam that joins blocks the operation brought together. That
   is decided the same way for every structural operation, on what the outline shows of each block:
-  - A block is written when it is new, or when its kind, its content or its heading level relative to its parent
-    changed. Content sets aside indentation, list marker, ordinal number and block id, so renumbering, a level
-    shift, a re-indent and an id attachment write no block.
+    - A block is written when it is new, or when its kind or its content changed. Content sets aside indentation,
+    list marker, ordinal number, heading level and block id, so renumbering, a level shift, a re-indent and an id
+    attachment write no block.
   - A seam is also at the edit site when its lower block's previous sibling changed, or its parent did where it
     has no previous sibling.
 
@@ -55,14 +55,13 @@ None.
   - boundary separation takes the edit-site rule, replacing "SHALL NOT widen beyond what the parse requires"
   - the heading-first-child convention is folded into the rule
   - the insertion's indent-unit round trip narrows to the payload's own lines
-  - the insertion, deletion, move, merge, reorder, heading-shift, outdent and sibling-heading requirements state
-    the rule for the seams they make
+    - the insertion, deletion, move, merge, reorder, heading-shift, outdent and sibling-heading requirements state
+    the rule for the seams they make; an empty heading or item a key opens is a place, written as today
   - closure counts the rule's blank lines among the lines an operation requires
   - the group forms equal their sequential composition with blank lines set aside, and take one edit site for
     the gesture
 - `outline-keyboard-grammar`:
-  - a setext heading's split remainder is separated from it
-  - Shift+Enter's drafted sibling heading is separated from the section above it, until #258 replaces it
+    - a setext heading's split remainder is separated from it
 - `node-edit-enforcement`:
   - a paste keeps the destination's separation inside a list, and separates every other seam at its edit site
   - a type-over's payload is separated from flush neighbours outside a list
