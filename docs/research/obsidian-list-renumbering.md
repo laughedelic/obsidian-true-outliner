@@ -160,14 +160,32 @@ unless a row says otherwise; `┆` marks a column's left edge, `⏵` a tab.
 
 Outline mode off gives the same appended ranges for the same user range.
 
+More gestures, the same way:
+
+| List | Gesture | The user's range | Ranges Obsidian appends |
+| --- | --- | --- | --- |
+| `1. p` / `┆  1. ab` / `2.·` | ⌫ at the end of `ab` | `b` → nothing | `1. ` → `2. ` at ch 3 of the SAME line, and `2. ` → `3. ` at ch 0 |
+| `1. ab` / `5.·` / `6. c` | ⌫ at the end of `ab` | `b` → nothing | `5. ` → `2. `, `6. ` → `3. ` |
+| `1. a` / `2. b` / `3. c` | ⌘X with the caret in `b` (a linewise cut) | `2. b⏎` → nothing | `3. ` → `2. ` at ch 0 of the next line, touching the user's range |
+| `1. [ ] a` / `2. [ ] b` / `3. [ ] c` | line, ⌫ | `2. [ ] b` → nothing | `3. ` → `2. ` at ch 0 |
+| same | ⌫ ⌫ | ` ` → nothing, ch 6 | none |
+| `1.⏵a` / `2.⏵b` / `3.⏵c` | line, ⌫, and ⌫ ⌫ | as above | none |
+| `1.··a` / `2.··b` / `3.··c` | ⌫ ⌫ | ` ` → nothing, ch 3 | none |
+
 **The shape.** Every appended range covers one line's marker number, its delimiter and the one
 space after it, from the column the number starts at: past the line's indentation and any `> `.
 It replaces them with a new number, the same delimiter and the same space. The number's width can
-change, as `10. ` → `9. ` shows. No appended range ever touched a line the user's range touched,
-and none ever sat against it: a line's marker starts at its indentation, and the user's range
-ended at the end of the line above, or at a line start with a blank line between.
+change, as `10. ` → `9. ` shows. A marker followed by a tab or by surplus spaces was never
+renumbered in these gestures.
 
-**What the verdict layer does with it on `main`.** Every row with an appended range reaches
+**Where it sits.** An appended range can be on the line the user edited, as the typing rows of
+"Where it fires" already show, and it can touch the user's range: the linewise cut ends at the
+next line's start, which is where that line's marker begins. CM6's `iterChangedRanges` joins
+touching ranges unless asked for them individually, so the enforcement filter received the cut as
+one range, `2. b⏎3. ` → `2. `, crossing two nodes. The verdict layer read that as a type-over and
+rewrote it, and on `main` the cut leaves `1. a` / `2.·`: `c` is gone.
+
+**What the verdict layer does with it on `main`.** Every other row with an appended range reaches
 `computeVerdictForRanges` as several ranges, one of which is not a pure deletion, so the whole
 transaction passes. The result is the native edit plus Obsidian's numbers: the line selection
 leaves an empty line where `b` was; ⌫ ⌫ leaves `2.`, a bare marker that `bare-marker-is-a-paragraph`
@@ -175,8 +193,12 @@ reads as a paragraph, with `c` beneath it. On the three-column list `2. q` becom
 The rows with nothing appended reach the layer as one range and are enforced as the same range is
 anywhere else.
 
-**Which class the appended ranges give.** None. A range that stays on one line and inside a marker
-crosses no node boundary, deletes no line break, inserts no block, and covers no subtree, so it
-never makes a transaction `boundary-crossing-edit` on its own. The class a transaction gets is the
-user's range's. A single-line deletion inside a quote, as in the `> ` row, is `within-node-edit`,
-so that transaction never reaches the verdict layer, with or without the appended range.
+**Which class the appended ranges give.** Usually none, but not always. A range that stays inside
+one marker crosses no node boundary, deletes no line break and inserts no block. On an empty item,
+though, the marker IS the whole line, and `isExactSubtreeCoverDeletion` reads a range covering it
+as an exact subtree cover without asking whether it inserts anything. In the `2.·` rows above the
+appended range therefore makes a ⌫ inside `ab` `boundary-crossing-edit`. On `main` the verdict for
+it is still `pass`, because the multi-range rule declines the insertion. But judging the user's
+range alone under the class the appended range gave would delete the whole of `ab`. So the class
+has to be computed from the user's ranges too. A single-line deletion inside a quote, as in the
+`> ` row, is `within-node-edit` and never reaches the verdict layer.
