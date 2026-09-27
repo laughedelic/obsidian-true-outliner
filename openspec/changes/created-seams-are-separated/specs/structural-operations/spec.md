@@ -1,75 +1,62 @@
 ## ADDED Requirements
 
-### Requirement: A seam an operation creates is separated
-A SEAM is the boundary between two blocks: the last content line of the block above it and the first
-content line of the block below it, with whatever blank lines stand between them.
+### Requirement: A seam at an operation's edit site is separated
+A SEAM is the boundary between two blocks: the last content line of the block above it (its UPPER block) and
+the first content line of the block below it (its LOWER block), with whatever blank lines stand between them.
 
-A structural operation CREATES the seams it writes as new boundaries, and states them. Each creates
-exactly these:
+A structural operation's EDIT SITE is every seam, inside or at an edge of the text the operation changed, where:
+- the lower block was WRITTEN: it is new, its text (compared without indentation) or its kind as written
+  changed, or it has a new parent or a new previous sibling;
+- the upper block was WRITTEN: it is new, or its text or its kind as written changed; or
+- the two blocks were not consecutive before the operation, so something that stood between them was removed
+  or moved away.
 
-| operation | seams it creates |
-| --- | --- |
-| an insertion, a paste, a drop, a move to another scope | the run's two outer seams, and every seam inside a pasted payload |
-| a deletion, and the removal half of a move to another scope | the seam that joins the blocks around the removed run |
-| a split, including one that materializes an empty item or heading | the new seam between the halves |
-| a drafted sibling heading | the new heading's two seams |
-| an Enter position | the position's two seams, governed by `outline-keyboard-grammar` |
-| a merge, an indent, an outdent, a type-over's outer seams | none, unless it changes a block's kind (below) |
-| a same-scope reorder, a lone id's drop | none |
+A block whose own lines, parent and previous sibling are unchanged is not written, even when an ancestor of it
+moved: a moved subtree's inner seams are not at the edit site, and only the seams at its edges are. Every block
+of a pasted payload is new, so every seam inside the payload is at the edit site. A paste of a single childless
+block that reaches the editor natively is not a structural operation.
 
-A type-over creates the seams inside its payload. Its outer seams stand where the replaced run's stood.
-
-An operation that changes the kind, as written, of a block it rewrites creates that block's outer seams.
-That covers:
-- a merge whose survivor is of another kind than the block it absorbs
-- a type-over whose payload's edge block is of another kind than the block it replaced
-- an indent or outdent that writes a block as another kind
-
-Such a change alters what the seam means to every reader. A paste of a single childless block that
-reaches the editor natively is not a structural operation and creates no seam.
-
-A created seam SHALL be written with one blank line. Every reader of the note but our own parse
+A seam at the edit site SHALL be written with one blank line. Every reader of the note but our own parse
 continues a line written flush under a quote, a callout or a list item into that block
-(`docs/research/lazy-continuation-at-seams`), and a blank line settles every reader. So the rule
-separates every created seam rather than the ones some reader would continue: a writer that knew which
-lines each reader continues would need that table kept current for every reader.
+(`docs/research/lazy-continuation-at-seams`), and a blank line settles every reader. So the rule separates every
+seam at the edit site rather than the ones some reader would continue: a writer that knew which lines each reader
+continues would need that table kept current for every reader.
 
 Four limits bound it:
 
 - **Inside a list the rule adds nothing.** A LIST is a maximal run of adjacent sibling list items under one
-  parent, judged by kind as written, whatever their markers. A seam is INSIDE A LIST when its lower block
-  is one of the list's items or lies inside one, and its upper block lies inside the same list. That
-  covers:
+  parent, judged by kind as written, whatever their markers. A seam is INSIDE A LIST when its lower block is one
+  of the list's items or lies inside one, and its upper block lies inside the same list. That covers:
   - an item and its child blocks
   - two child blocks of one item
   - an item's last block and the next item
   - an item and its nested list
 
-  Those seams SHALL be written as `Subtree insertion at a boundary`, `Node split` and the parse require,
-  and this rule SHALL NOT add to them. A blank line there makes the list loose in every reader
-  (`lazy-continuation-at-seams`, "Measured: loose lists"), and whether a list is tight or loose is the
-  user's to choose. The seams between a list and a block outside it are not inside the list: a paragraph
-  or heading directly above the list, and the block directly below the list's last line.
-- **A seam is never widened.** A created seam that already holds one or more blank lines SHALL keep exactly
-  what it holds. Only an empty seam gains a line, and it gains one.
-- **A seam the user wrote is not touched.** No operation creates it, so it SHALL keep its separation as
-  written, however flush, unless the parse requires a separator there (`Boundary separation is judged on the
-  kind the re-parse will read`). An untouched note stays byte-identical.
+  Those seams SHALL be written as `Subtree insertion at a boundary`, `Node split` and the parse require, and this
+  rule SHALL NOT add to them. A blank line there makes the list loose in every reader
+  (`lazy-continuation-at-seams`, "Measured: loose lists"), and whether a list is tight or loose is the user's to
+  choose. The seams between a list and a block outside it are not inside the list: a paragraph or heading
+  directly above the list, and the block directly below the list's last line.
+- **A seam is never widened.** A seam at the edit site that already holds one or more blank lines SHALL keep
+  exactly what it holds. Only an empty seam gains a line, and it gains one.
+- **A seam away from the edit site is not touched.** It SHALL keep its separation as written, however flush,
+  unless the parse requires a separator there (`Boundary separation is judged on the kind the re-parse will
+  read`).
 - **A blank line never changes what a block is.**
   - An attached block-id line SHALL NOT be separated from the block it names. It is part of that block's
     encoding, and the separator is written after it.
-  - A lone block-id line the parse reads as a node of its own SHALL stay flush above the block below it,
-    since a blank line there would attach it to the block above. The parse's own requirements still apply:
-    above a paragraph, the id line would otherwise join the paragraph's text.
-  - No blank line SHALL be written above a block indented four or more columns past its container's margin,
-    which CommonMark would then read as indented code. The parse's own requirements still apply there, as
-    `Boundary separation is judged on the kind the re-parse will read` states them.
+  - A lone block-id line the parse reads as a node of its own SHALL stay flush above the block below it, since a
+    blank line there would attach it to the block above. The parse's own requirements still apply: above a
+    paragraph, the id line would otherwise join the paragraph's text.
+  - No blank line SHALL be written above a block indented four or more columns past its container's margin, which
+    CommonMark would then read as indented code. The parse's own requirements still apply there too.
 
-The cost of the first limit is that some shapes stay ambiguous inside a tight list. A paragraph written
-directly under a quote, or under a nested item, is continued into that block by reading mode.
+The cost of the first limit is that some shapes stay ambiguous inside a tight list. A paragraph written directly
+under a quote, or under a nested item, is continued into that block by reading mode.
 
-`docs/research/created-seam-detection` records the rules for telling created seams apart that were reviewed
-before this one, and the cases each failed on.
+A provisional position's lines are gap lines, not a block, and its separation is governed by
+`outline-keyboard-grammar`'s provisional-position requirement. `docs/research/created-seam-detection` records the
+other rules for deciding which seams an operation owns that were reviewed, and the cases each failed on.
 
 #### Scenario: A pasted quote is separated from the paragraph below it
 - **WHEN** `    first` / blank / `    > quote` is pasted at the end of `## H` in a note holding `## H`
@@ -98,38 +85,39 @@ before this one, and the cases each failed on.
 - **WHEN** a heading is split mid-title and the remainder becomes a paragraph child
 - **THEN** a blank line separates the heading from that child
 
-#### Scenario: A split keeps the seams at the node's outer edges
+#### Scenario: A split separates the blocks it wrote
 - **WHEN** Enter is pressed mid-text in `para text`, written directly between `# H` and `> q`
-- **THEN** the note reads `# H` / `para` / blank / `text` / `> q`
+- **THEN** the note reads `# H` / blank / `para` / blank / `text` / blank / `> q`
 
-#### Scenario: A merge that changes the block's kind separates the seam below it
-- **WHEN** `para` is merged into `- a` in `- a` / blank / `para` / `> q`, where `para` sits directly above
-  `> q`
+#### Scenario: A merge separates the merged block from its flush neighbours
+- **WHEN** `para` is merged into `- a` in `- a` / blank / `para` / `> q`, where `para` sits directly above `> q`
 - **THEN** a blank line stands between the merged item and `> q`
 
-#### Scenario: A type-over that changes the kind at its edge separates that seam
-- **WHEN** `> z` / blank / `w` is pasted onto an empty `- ` directly under `- a`
-- **THEN** a blank line stands between `- a` and `> z`
-
-#### Scenario: A merge keeps the seam below the merged node
-- **WHEN** `p2` is merged into `p1` in `p1` / blank / `p2` / `# H`, where `p2` sits directly above `# H`
-- **THEN** the merged paragraph sits directly above `# H`
-
-#### Scenario: Typing over a selected block keeps the spacing around it
+#### Scenario: A type-over separates its payload
 - **WHEN** `x` is typed over a selected `para` in `# A` / `para` / `# B`, written with no blank lines
-- **THEN** the note reads `# A` / `x` / `# B`
+- **THEN** the note reads `# A` / blank / `x` / blank / `# B`
 
-#### Scenario: A boundary the user wrote is left alone
+#### Scenario: An outdent that takes a quote out of a list separates it from the list
+- **WHEN** Shift+Tab is pressed on `  > q`, the last child of `  - b` in `- a` / `  - b` / `  > q`
+- **THEN** the quote is written at the root with a blank line between `  - b` and `> q`
+
+#### Scenario: A reorder separates the flush seams at the moved block's edges
+- **WHEN** `## Budget` is moved up past `## Packing` in `## Packing` / `x` / `## Budget` / `y`, written with no
+  blank lines
+- **THEN** the note reads `## Budget` / `y` / blank / `## Packing` / `x`, and `## Budget` stays directly above
+  `y`
+
+#### Scenario: A seam away from the edit site is left alone
 - **WHEN** a document contains `> q` directly followed by `body`, and a structural operation runs
   on some unrelated node
 - **THEN** the quote's own lines and trailing gap are byte-identical afterwards
 
-#### Scenario: A seam inside a run moved to another scope is left as written
-- **WHEN** a run holding `> q` directly followed by `body` is moved under another heading
+#### Scenario: A seam inside a moved run is left as written
+- **WHEN** a run holding `> q` directly followed by `body` is moved under another heading at the same depth
 - **THEN** `> q` and `body` are still written with no blank line between them
 
 #### Scenario: An existing separated boundary is not widened further
-- **WHEN** an operation creates a seam that already holds one blank line
+- **WHEN** an operation's edit site includes a seam that already holds one blank line
 - **THEN** the seam holds exactly one blank line afterwards
 
 #### Scenario: A block id stays on its block
@@ -167,11 +155,9 @@ its new column makes it. Measured, a `quote` needs no separator before a paragra
 paragraph it becomes at column 4 does: the two nodes come back as one, and the payload the
 operation inserted is a node short.
 
-This rule decides what the PARSE requires at a seam, and it is the floor under every seam. A seam
-the operation did not create, such as one inside a moved run whose column the move changed, is
-separated exactly when this rule requires it, and so is every seam inside a list. A seam the
-operation created outside a list is separated whatever the parse requires, per `A seam an
-operation creates is separated`, and this rule is not what decides it there.
+This rule decides what the PARSE requires at a seam, and it is the floor under every seam. A seam away from the operation's edit site, such as one inside a moved run whose column the move changed,
+is separated exactly when this rule requires it, and so is every seam inside a list. A seam at the edit
+site outside a list is separated whatever the parse requires, per `A seam at an operation's edit site is separated`, and this rule is not what decides it there.
 
 Within that floor the rule both adds and removes separators, for one reason in both directions:
 the rule that applies is the rule for the node the document will contain. Where that node claims
@@ -225,8 +211,7 @@ table leaves a list item or a paragraph carrying a wikilink alias to be read as 
 
 #### Scenario: A seam inside the margin is unchanged
 - **WHEN** the same payload lands in a scope whose content sits at column 0
-- **THEN** the quote is still a quote, and the blank line below it is the one the created-seam
-  rule writes, not one this rule requires
+- **THEN** the quote is still a quote, and the blank line below it is the one the edit-site rule writes, not one this rule requires
 
 #### Scenario: An atom at a list item's child column keeps its kind across the seam
 - **WHEN** a payload of `## H` over `---` is pasted after `  - two` below `- one`, so the rule is
@@ -248,8 +233,7 @@ indentation plus one unit, padded with spaces to the parent's content column whe
 the unit falls short of it, which is what an indent writes there. The unit is the
 one an indent reads from the document, falling back to the editor's own setting. A
 payload the document itself wrote in that unit SHALL come back with its own lines byte-identical;
-only a created seam between its blocks outside a list may gain a blank line, per `A seam an
-operation creates is separated`.
+only a seam between its blocks outside a list may gain a blank line, per `A seam at an operation's edit site is separated`.
 
 A node's own lines below its first, and a child that is not a list item, SHALL keep
 their offset from the node's indentation, written after its new indentation: the
@@ -290,9 +274,9 @@ SHALL be that scope's own separation: the parent's trailing gap, or the boundary
 root. A copied gap line SHALL be written as an EMPTY line, a place line's own indentation saying
 nothing where it is copied to.
 
-Both seams an insertion makes are created. Inside a list the carried separation is the seam's whole
-separation, so a destination with none gains none there. At every other seam a destination with no
-separation gains one blank line, per `A seam an operation creates is separated`, and a carried
+Both seams an insertion makes are at its edit site. Inside a list the carried separation is the seam's
+whole separation, so a destination with none gains none there. At every other seam a destination with no
+separation gains one blank line, per `A seam at an operation's edit site is separated`, and a carried
 separation of one or more blank lines stands as it is. A blank line the PARSE requires is added by
 the boundary normalization every operation runs, independently of both.
 
@@ -420,11 +404,9 @@ already owns. It SHALL be restored and never invented — a note written without
 newline SHALL NOT be given one — and a gap line carrying whitespace is content rather
 than a terminator, so the question is whether the gap's LAST line is empty.
 
-The seam a removal leaves between the node above the run and the node below it is created. Outside a
-list it SHALL gain one blank line where it would otherwise be empty, per `A seam an operation creates
-is separated`. When the caller will splice content into the place the removal leaves, that seam is
-not a seam of the result, and the removal SHALL NOT create it: the insertion states the seams it
-creates.
+The seam a removal leaves between the node above the run and the node below it is at its edit site.
+Outside a list it SHALL gain one blank line where it would otherwise be empty, per `A seam at an operation's edit site is separated`. When the caller will splice content into the place the removal leaves, that seam is
+not a seam of the result, and the removal SHALL NOT separate it: the insertion's edit site decides.
 
 A caller that will splice content into the place the removal leaves — a type-over, or a
 paste onto an empty anchor — SHALL say so, and the terminator SHALL NOT be restored
@@ -486,8 +468,9 @@ or a destination that no longer exists. A rejection SHALL leave the document unt
 A move that begins and ends in ONE scope SHALL be a reorder. The run SHALL keep its own encoding,
 because a run that has not left its scope is already encoded for it, and the blank lines between
 that scope's members SHALL stay with the POSITIONS rather than with the nodes — the last position
-ends the file whichever node occupies it. A reorder creates no seam, per `A seam an operation
-creates is separated`. Re-encoding such a run against the siblings the removal
+ends the file whichever node occupies it. A reorder's edit site is the seams at the moved run's edges, per
+`A seam at an operation's edit site is separated`: the positions' blank lines stay, and an empty seam there
+gains one. Re-encoding such a run against the siblings the removal
 leaves behind reads the scope's regime off the very evidence the run was counter-evidence to.
 
 A move whose destination is the run's CURRENT place SHALL produce no document change.
@@ -513,8 +496,7 @@ A move whose destination is the run's CURRENT place SHALL produce no document ch
 
 #### Scenario: Gaps are repaired on both sides
 - **WHEN** a run is moved out from between two siblings and into a destination between two others
-- **THEN** the place it left and the place it arrived at are each separated per `A seam an
-  operation creates is separated` — no blank line is doubled, and a list's own separation is
+- **THEN** the place it left and the place it arrived at are each separated per `A seam at an operation's edit site is separated` — no blank line is doubled, and a list's own separation is
   neither added to nor lost
 
 #### Scenario: Ordered runs renumber on both sides
@@ -739,6 +721,120 @@ and the per-kind whitespace difference were found in the same pass.)*
   heading, it does not become part of the remainder or get treated as a
   continuation line of the title
 
+### Requirement: Adjacent-node merge
+A `mergeNodes` operation SHALL join a node (`first`) with its immediately following
+content-space neighbor (`second`) under a per-kind algebra, appending `second`'s
+content directly to the end of `first`'s content — never leaving a continuation-line
+remnant standing where the old separation was — consuming `first`'s trailing gap,
+and re-parenting `second`'s children under the merged node. Joins that would absorb
+a heading (and thereby its section's positional anchor), involve an atom on either
+side, or produce markdown that re-parses to a different structure than the merged
+tree SHALL be rejected with a typed reason.
+
+The merged node's seams are at the operation's edit site, per `A seam at an operation's edit site is
+separated`: one that is empty and lies outside a list gains one blank line, whichever gap the rules below
+leave it.
+
+When `first` is a heading, the merged node's trailing gap SHALL instead be whichever
+of `first`'s or `second`'s own trailing gap has MORE lines, rather than
+unconditionally `second`'s. A heading's own gap is its established separation from
+its content — a section-level property, not a property of whichever node happened to
+be absorbed — and SHALL NOT be silently shrunk merely because the absorbed node's own
+gap happened to be smaller (e.g. two adjacent list items needing no separation from
+each other). This preserves the ordinary (non-heading `first`) convention unchanged:
+only a heading `first` triggers the comparison, and even then `second`'s gap still
+wins whenever it is the longer of the two (e.g. when `second` is the document's own
+terminal node and carries the file's trailing-newline representation).
+
+*(Amended 2026-07-21 from the original conservative table, per the real-vault manual
+pass: cross-kind content joins ARE the expected behavior — a list item's text merges
+into its parent paragraph — and children re-parent rather than reject, matching
+content-space outliner semantics. See node-edit-enforcement's chrome-transparency
+requirement.)*
+
+*(Amended 2026-07-24, found via manual testing of the heading-Enter-splits-paragraph
+change: merging content into a heading then later splitting back out was silently
+shrinking the heading's own gap to whatever the absorbed node's gap happened to be —
+root cause predates that change, surfaced by it.)*
+
+Re-parented children's indentation SHALL be shifted to match the merged node's ACTUAL
+child indentation — sampled from a real surviving sibling child when one exists —
+rather than an assumed marker-width-aligned column formula. Many documents (tab-
+indented ones especially) indent children further than the formula assumes (e.g. a
+full tab past the marker rather than exactly its width), and shifting by the wrong
+delta corrupts a pure-tab-indented subtree with spaces at the fractional remainder.
+
+"Immediately following content-space neighbor" is the node's document-order
+successor: its own first child if it has one, else its next sibling, else the
+nearest ancestor's next sibling (`rawSuccessorPath`) — the same node whose content
+begins nearest below `first`'s content end, regardless of intervening gap lines.
+
+Preconditions checked before the kind table: no following neighbor at all (last
+node in the document) rejects with `no-following-neighbor`.
+
+The per-kind merge table (rows = `first`, columns = `second`), pinned by
+implementation and exercised by the property suite:
+
+| First ＼ Second | paragraph / list-item | heading | atom |
+|---|---|---|---|
+| **paragraph / list-item** | join: `second`'s first content line (its list marker stripped, and a TASK marker with it) appends to `first`'s last content line; `second`'s continuation lines become `first`-kind continuations; `first` keeps its own kind and marker; `second`'s children re-parent under the merged node at `second`'s former position, re-encoded for the new scope | reject `merge-not-expressible` — absorbing a heading destroys its section's positional anchor | reject `merge-not-expressible` — atoms are opaque units |
+| **heading** | join iff `second`'s content is a single line: it appends to the heading's text line, and `second`'s children re-parent as section children; multi-line content rejects `merge-not-expressible` (a markdown heading cannot hold continuation lines) | reject `merge-not-expressible` | reject `merge-not-expressible` |
+| **atom** | reject `merge-not-expressible` | reject `merge-not-expressible` | reject `merge-not-expressible` |
+
+#### Scenario: Paragraph merge appends at content end
+- **WHEN** `mergeNodes` joins two paragraphs separated by a blank gap line
+- **THEN** the result is one paragraph node whose last content line is the direct
+  concatenation of the two texts, the gap is gone, and all other lines are
+  byte-identical, save for a blank line an empty seam at the merged node's edges gains outside a list
+
+#### Scenario: Cross-kind join keeps the survivor's encoding
+- **WHEN** `mergeNodes` joins a paragraph with its first child list item
+- **THEN** the item's text (marker stripped) appends to the paragraph's text, the
+  merged node stays a paragraph, and the item's children re-parent under it
+
+#### Scenario: Children re-parent instead of rejecting
+- **WHEN** `mergeNodes` absorbs a node that has children of its own
+- **THEN** those children keep their order and relative structure under the merged
+  node, re-encoded for the new scope, and the result re-parses to exactly that tree
+
+#### Scenario: Single-line content joins a heading
+- **WHEN** `mergeNodes` joins a heading with a following single-line paragraph
+- **THEN** the paragraph's text appends to the heading's title line; a multi-line
+  paragraph in the same position is rejected with `merge-not-expressible`
+
+#### Scenario: A heading absorbing content keeps its OWN gap when it is the longer one
+- **WHEN** a heading with a real blank-line gap before its content absorbs a child
+  whose own trailing gap is empty (e.g. the child was itself tightly adjacent to a
+  following sibling)
+- **THEN** the merged heading's trailing gap is the heading's own original gap, not
+  the absorbed child's — whatever follows stays separated from the heading exactly
+  as it was before the merge
+
+#### Scenario: A heading absorbing its own terminal child still keeps that child's gap
+- **WHEN** a heading with NO gap of its own absorbs a child that is the document's
+  own last node (whose trailing gap carries the file's trailing-newline
+  representation)
+- **THEN** the merged heading's trailing gap is the absorbed child's (the longer of
+  the two), unchanged from before this amendment
+
+#### Scenario: Tab-indented grandchildren survive a merge without space corruption
+- **WHEN** `mergeNodes` absorbs a list item whose own children are indented a full
+  tab past the marker (not exactly the marker's own width), and those children have
+  further-nested tab-indented children of their own
+- **THEN** every re-parented line's indentation is shifted by whole tab units to
+  match the merged node's real child column — no line ends up with a mix of spaces
+  and tabs, and every re-parented node still parses as the same kind it was before
+
+A task marker on the ABSORBED node SHALL be stripped along with its list marker. It states
+something about a node that is ceasing to exist, and carrying it into the survivor's text
+produces a literal `[ ]` mid-line — neither a checkbox nor anything the user wrote. The
+SURVIVOR keeps its own marker, task marker included, exactly as it keeps its own kind.
+
+#### Scenario: An absorbed task item's box goes with its marker
+- **WHEN** `- [ ] bar` is merged into `- [x] foo`
+- **THEN** the result is `- [x] foobar` — the survivor's own box is unchanged and no `[ ]`
+  appears in its text
+
 ### Requirement: Sibling heading creation
 `insertSiblingHeading(doc, nodeId, remainder)` SHALL insert a heading at the SAME LEVEL
 as an existing heading, directly after it, carrying `remainder` as its title — the
@@ -751,8 +847,8 @@ the common case, and one rule is better than two that differ by the original's u
 When `remainder` is non-empty it SHALL be removed from the original heading's title, which
 is otherwise unchanged in level, marker and setext-ness. The original's existing CHILDREN
 stay with it: heading scope is positional, so content already under it belongs to it, and
-the new sibling starts empty. The operation creates both of the new heading's seams, and each SHALL be
-separated per `A seam an operation creates is separated`.
+the new sibling starts empty. Both of the new heading's seams are at the operation's edit site, and each
+SHALL be separated per `A seam at an operation's edit site is separated`.
 
 A node that is not a heading SHALL be rejected with `cannot-split`. The anchor SHALL be
 the new heading's content start.
@@ -827,8 +923,8 @@ with a paragraph child).
 ## REMOVED Requirements
 
 ### Requirement: An operation that creates a heading's first paragraph child separates them
-**Reason**: `A seam an operation creates is separated` states the rule for every created seam, and this
-convention is one case of it. Its claim to be "the one place this codebase widens separation" no longer
+**Reason**: `A seam at an operation's edit site is separated` states the rule for every seam an operation
+writes, and this convention is one case of it. Its claim to be "the one place this codebase widens separation" no longer
 holds.
 **Migration**: The heading's first-child separation, the untouched user boundary and the unwidened gap are
 scenarios of the new requirement. A heading's first paragraph child is separated as before. A list inserted as

@@ -288,9 +288,7 @@ record of which key was pressed:
   one. Inside a list a position keeps the separation the parse requires, which a paragraph under an
   item needs above it, so a tight list is not loosened by a position after a code or table child.
 - Shift+Enter's provisional position SHALL be ADJACENT to the node above it, so text typed
-  there parses as that node's own continuation line. No operation creates a seam at a
-  Shift+Enter position, so the separation `structural-operations` writes at a created seam never
-  applies to it.
+  there parses as that node's own continuation line. A Shift+Enter position is gap lines, not a block, and is never at an edit site, so the separation `structural-operations` writes at an edit site never applies to it.
 
 This is the reason an end-of-node Enter separates its position on both sides rather than reusing
 the single blank line that already separates two nodes. The narrower encoding was evaluated and

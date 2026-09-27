@@ -3,8 +3,9 @@
 ### Requirement: A relocation is dispatched as a relocation
 An operation that MOVES lines rather than rewriting them in place SHALL be dispatched as the
 removal of those lines from their old position and their insertion at the new one, wherever the
-narrowing can tell the rearranged blocks apart. A blank line a created seam gains
-(`structural-operations`' `A seam an operation creates is separated`) SHALL be dispatched as an insertion of its own. It does not make the move a
+narrowing can tell the rearranged blocks apart. A blank line the edit site gains
+(`structural-operations`' `A seam at an operation's edit site is separated`), and a gap line a move takes with its run, SHALL be dispatched as an insertion
+or a deletion of its own. It does not make the move a
 rewrite: the moved lines are still the lines the move removed.
 
 Two things follow, and they hold to different strengths. First, unconditionally: no dispatched
@@ -103,8 +104,7 @@ kind at any nesting depth, rather than as a special case at any dispatch site.
   the shift makes one of those lines coincide on both sides
 
 #### Scenario: A move that gains a blank line is still a move
-- **WHEN** a paragraph is moved from another section to directly above a table, so the seam between
-  the paragraph and the table is created and gains a blank line
+- **WHEN** a paragraph is moved from another section to directly above a table, so the seam between the paragraph and the table is at the edit site and gains a blank line
 - **THEN** the dispatched changes remove the paragraph's lines from their old place and insert them
   above the table, with the blank line as an insertion of its own, and no line of the table is
   rewritten

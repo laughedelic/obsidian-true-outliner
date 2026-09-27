@@ -2,7 +2,7 @@
 
 `created-seams-are-separated` writes one blank line at every seam an operation creates outside a list
 (`lazy-continuation-at-seams` has the why). That rule needs an answer to one question: which seams did
-this operation create? Five answers were proposed and reviewed before one was kept. This note records
+this operation create? Six answers were proposed and reviewed in turn. This note records
 each answer, what the reviews found against it, and why it was dropped or kept, so the comparison can be
 re-run from another angle.
 
@@ -196,6 +196,52 @@ quote.
 The table is the spec. A new op has to state its row, and a missing row reads as "none", which is today's
 behaviour.
 
+**What the second review found.** The table held, and the gaps were the same kind of case each time: an op that
+moves a block across a list's edge, or changes what the block above a seam can swallow, without the table naming
+that seam.
+- **⇧⇥ on `  > q` under `  - b`** outdents the quote to the root, directly under the list, and reading mode draws it
+  inside `- b`. A drag producing the same tree is separated, and the outdent is not.
+- **A split with a list donor.** Enter mid-title in `# Hello world` above a quote and a list makes the remainder
+  `- world`, and the quote below it is left flush.
+- **Block-id corrections.** "Remove the id" and "attach to `b`" join a quote to a list item.
+- **The same structure spaced by gesture.** Enter at the end of `# H` and Enter at the content start of `- a` both
+  give `# H` / `- ` / `- a`, and the table spaced them differently.
+- **The kind clause was too broad.** It fired when a paragraph absorbed a list item, the case 4 already recorded as
+  firing on joins no reader continues.
+- **A false premise.** The parse floor is not a no-op on parsed notes: it separates a flush quote, callout or rule
+  under a list item on any operation (#255).
+
+## 6. By edit site: every seam next to what the operation wrote
+
+The second review's cases share one property: the op rewrote a block, or moved something away from between two
+blocks, and the seam next to that went unnamed. So the rule names the seams by that property instead of by op. A
+seam is at the EDIT SITE when either:
+- its lower block was written (new, its text or kind changed, or a new parent or previous sibling)
+- its upper block was written (new, or its text or kind changed)
+- its two blocks were not consecutive before
+
+Every seam at the edit site outside a list is separated.
+
+This judges BLOCKS by node id, and a block's identity survives every surgery. What 2 and 3 judged was seam pairs,
+which a split or a merge rearranges without moving the seam. A moved subtree's inner blocks keep their lines,
+parent and previous sibling, so its inner seams are not at the edit site. A split, a merge and a type-over now
+separate their outer seams, which 3 to 5 had tried to keep the user's. That was accepted in review: changes next to
+the edit site are expected, and seams away from it stay as written.
+
+A bound limits the damage a renewed id could do: a seam counts only inside, or at an edge of, the text the op
+changed. A surgery built from a fresh parse can then separate nothing outside the lines it touched.
+
+What it closes, by construction:
+- **5's list-edge cases.** The outdented quote, the donor split's `- world` and the corrected id's block are all
+  written blocks.
+- **The gesture split.** The new `- ` is written either way.
+- **The kind clause,** which a written block's changed text or kind now covers.
+
+What it leaves:
+- **A single block pasted natively,** which never reaches an operation.
+- **Shapes inside a tight list.**
+- **#255.** The floor's own rewrite stays, and the change's byte-identical claims exclude it.
+
 ## Comparison
 
 | | decides by | stays correct when an op rewrites a block | failed on |
@@ -205,7 +251,8 @@ behaviour.
 | 2. id pairs | node ids | no | splits, merges, drafted headings, type-over, lists with code children |
 | 3. ids + lineage + kind | ids, per-op lineage | only with correct lineage | type-over, drafted heading, list separation |
 | 4. line diff | text alignment | yes, except moves | moves, cross-kind joins, remainders, id drops |
-| 5. marking | the op itself, and the kinds it writes | yes, by construction | the accepted gaps above |
+| 5. marking | a per-op table | yes, by construction | ops that move a block across a list's edge |
+| 6. edit site | which blocks the op wrote, by id, within the changed text | yes, by construction | under review |
 
 ## For another review
 

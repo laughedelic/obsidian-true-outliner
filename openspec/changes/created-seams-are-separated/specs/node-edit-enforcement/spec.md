@@ -32,18 +32,16 @@ such choice to express, the column there being a position in the node's text.
 
 A pasted run SHALL keep the separation of the boundary it lands in, on both sides of itself, per
 `structural-operations`' rule for a subtree insertion: inside a list that separation stands, and
-every other seam the paste creates, those inside the payload included, is separated per
-`structural-operations`' `A seam an operation creates is separated`. A TYPE-OVER reaches its destination through
+every other seam at the paste's edit site, those inside the payload included, is separated per
+`structural-operations`' `A seam at an operation's edit site is separated`. A TYPE-OVER reaches its destination through
 a deletion, which takes the replaced run's own gap with it, so its replacement SHALL inherit the
-separation that run had rather than whatever gap the payload's own text ended with. A type-over creates
-only the seams inside its payload: its outer seams stand where the replaced run's stood, and keep
-the separation the user wrote there.
+separation that run had rather than whatever gap the payload's own text ended with. A type-over's payload
+is new, so its outer seams and the seams inside it are at its edit site, as for any insertion.
 
 A gap the caret was in and that is WIDER than a single blank line SHALL collapse to one with the
 insertion. A structural Enter opens a place there, separated on both sides — which is what makes
 the place parse as a node rather than a continuation line — and the paste that fills the place
-consumes it. A gap of one SHALL be left as it is, and a gap of none is separated only as the
-created-seam rule requires. This is chrome maintenance, not an editing semantic: the resulting tree
+consumes it. A gap of one SHALL be left as it is, and a gap of none is separated only as the edit-site rule requires. This is chrome maintenance, not an editing semantic: the resulting tree
 is the same either way.
 
 *(Amendment 2026-09-16, `paste-lands-where-it-is-pointed`: the cross-regime case was assumed by
@@ -147,10 +145,10 @@ above the pasted content.)*
 - **THEN** the pasted subtrees are re-indented to the replaced item's own depth —
   never left at the pasted content's own original depth
 
-#### Scenario: Typing over a selected block keeps the spacing around it
+#### Scenario: Typing over a selected block separates it from flush neighbours
 - **WHEN** a single character is typed over a block-selected paragraph written with no blank line
   above or below it, between two non-list blocks
-- **THEN** the typed paragraph is written with no blank line above or below it
+- **THEN** the typed paragraph is separated by a blank line from each of them
 
 ### Requirement: Deleting across boundaries removes whole subtrees with their gaps
 A user deletion (or type-over) whose change range crosses node boundaries, OR whose
@@ -192,7 +190,7 @@ places a merge's caret.)*
   subtrees separated by a blank gap line
 - **THEN** both subtrees and their trailing gap lines are removed, and the remaining
   neighbors are direct siblings with no leftover blank lines from the deleted nodes; where the
-  seam between them lies outside a list and holds none, it gains one, per `structural-operations`' `A seam an operation creates is separated`
+  seam between them lies outside a list and holds none, it gains one, per `structural-operations`' `A seam at an operation's edit site is separated`
 
 #### Scenario: Deleting a multi-range selection of exact covers
 - **WHEN** the user deletes a selection of two ranges, each exactly covering a whole
