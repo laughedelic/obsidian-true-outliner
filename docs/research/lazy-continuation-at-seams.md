@@ -86,9 +86,39 @@ means, so it is not a seam to separate.
 ## What follows
 
 A blank line settles every row: with one, all readers agree on every pair measured. A blank line
-also never changes our own tree. `para` / `- a`, `# H` / `text`, `- a` / `  - b`, `- a` / `- b` and a
+also leaves our own tree as it was, with one exception: a lone block-id line. `Lead.` / blank /
+`^id3` / `> q` reads `^id3` as a node of its own, since it sits flush above a block. With a blank
+line below it instead, it attaches to `Lead.`, and the references to it move with it. `para` / `- a`, `# H` / `text`, `- a` / `  - b`, `- a` / `- b` and a
 fence / `text` each parse to the same tree with and without one.
 
-It does change one thing other readers show: a blank line between list items makes the list LOOSE
-in CommonMark and in reading mode, so each item renders as a spaced paragraph. The same holds
-between an item and its nested list. Tight and loose lists are a distinction the writer keeps.
+It does change one thing: whether a list is TIGHT or LOOSE. A list is loose when a blank line
+separates two of its items, or two blocks inside one item. That includes an item's text and a code
+block, quote or nested list under it, and such a block and the next item.
+
+## Measured: loose lists
+
+The same documents in `commonmark` and in reading mode (`prototypes/lazy-continuation/loose-lists.e2e.ts.txt`).
+In reading mode, the positions are the items' measured tops in the default theme.
+
+| document | CommonMark | reading mode markup | reading mode item tops |
+| --- | --- | --- | --- |
+| `- a` / `- b` / `- c` | tight | items hold bare text | 154, 181, 207 |
+| `- a` / blank / `- b` / blank / `- c` | loose | each item's text in a `<p>` | 154, 181, 207 |
+| `- a` / 2 blanks / `- b` / 3 blanks / `- c` | loose | each item's text in a `<p>` | 154, 181, 207 |
+| `- a` / `- b` / fence under `b` / `- c` | tight | bare text | 154, 181, 255 |
+| the same with a blank line above and below the fence | loose | each item's text in a `<p>` | 154, 181, 255 |
+| `- a` / `  > q` / `- b` | tight | bare text | 154, 237 |
+| the same with a blank line above the quote | loose | each item's text in a `<p>` | 154, 237 |
+
+Reading mode builds the loose list CommonMark describes, and the default theme draws it tight: those
+`<p>` elements have no margin, so every item lands where it would in a tight list. Looseness is in
+the document's structure, and the default theme hides it. A theme, a CSS snippet, Publish, an export
+or another application can show it, and Live Preview and the outline show the blank lines themselves.
+
+markdownlint's MD031, "Fenced code blocks should be surrounded by blank lines", applies inside list
+items by default. Its `list_items` option turns that off, which its documentation says "helps when
+creating tight lists that contain code fences". It meets the same trade-off from the other side.
+
+Keeping a list's looseness therefore leaves one shape ambiguous. A quote and a paragraph are both
+children of an item in a tight list, and the paragraph is written directly under the quote: reading
+mode continues it into the quote. Separating them would make the whole list loose.

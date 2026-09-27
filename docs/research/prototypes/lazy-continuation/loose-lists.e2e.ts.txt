@@ -1,0 +1,41 @@
+import { browser } from '@wdio/globals';
+import { obsidianPage } from 'wdio-obsidian-service';
+import { appendFileSync } from 'node:fs';
+import * as h from '../helpers.js';
+const NOTE = 'Scratch/loose-probe.md';
+const out = (s: string) => appendFileSync(process.env.LOOSE_OUT ?? '/tmp/loose.jsonl', s + '\n');
+const DOCS: Record<string, string> = {
+  'tight, code child': '- a\n- b\n  ```ts\n  foo()\n  ```\n- c\n',
+  'code child with blanks': '- a\n- b\n\n  ```ts\n  foo()\n  ```\n\n- c\n',
+  'tight items': '- a\n- b\n- c\n',
+  'one blank between items': '- a\n\n- b\n\n- c\n',
+  'several blanks between items': '- a\n\n\n- b\n\n\n\n- c\n',
+  'quote child tight': '- a\n  > q\n- b\n',
+  'quote child with blank': '- a\n\n  > q\n- b\n',
+};
+describe('loose lists in reading mode', function () {
+  before(async function () { await obsidianPage.resetVault(); await h.resetPluginState(); });
+  it('measures', async function () {
+    this.timeout(300000);
+    for (const [name, md] of Object.entries(DOCS)) {
+      await h.createNote(NOTE, md);
+      await h.setOutlineMode(false);
+      await h.setViewMode('preview');
+      await browser.pause(400);
+      const r = await browser.executeObsidian(({ app, obsidian }) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+        const root = view.previewMode.containerEl;
+        const lis = [...root.querySelectorAll('li')];
+        const tops = lis.map((li) => Math.round(li.getBoundingClientRect().top));
+        return {
+          ul: root.querySelector('ul')?.outerHTML.replace(/\s+/g, ' ').slice(0, 400),
+          pInLi: lis.some((li) => li.querySelector(':scope > p')),
+          liTops: tops,
+          liMarginsP: lis.map((li) => { const p = li.querySelector(':scope > p'); return p ? getComputedStyle(p).marginBottom : null; }),
+        };
+      });
+      await h.setViewMode('source', false);
+      out(JSON.stringify({ name, ...r }));
+    }
+  });
+});
