@@ -47,16 +47,19 @@ undo once. "Gap" is the wall time the steps took, measured from the test process
 
 Readings:
 
-- **The indent joins; the move does not, in the cases measured,** after ⇧⏎ and after ⏎ alike.
-  The likely reason is adjacency: the move's narrowed change set (`aligned-change-set-narrowing`)
-  need not touch the new line. That was not checked, and moves from other shapes were not
-  measured.
-- **Typing does not join in the app,** by either entry point, although a bare CM6 state with
-  the same transactions does join. What in Obsidian's input path keeps them apart was not
-  isolated.
+- **The indent joins after ⇧⏎; no measured move or typing sequence joins.** Why each of those
+  stays apart was not established by measurement. A bare CM6 model driven by our planners
+  suggests two different reasons: after ⇧⏎ and after typing the move's narrowed change set
+  (`aligned-change-set-narrowing`) is not adjacent to the key's change, and after ⏎ the key's
+  own caret is recorded by `history-caret` before a separate-task command arrives. The same
+  model predicts a join for typing followed by an adjacent command, such as `x` at the end of
+  `- foo` then "Move node down" over `- bar`. Not measured.
 - **Separate WebDriver calls land well inside the window here,** but nothing holds them there
   on a slower runner. Dispatching the keydown and running the command in one page task holds
-  them there by construction: CodeMirror runs a keymap binding on a synthetic `keydown`.
+  them there by construction: CodeMirror runs a keymap binding on a synthetic `keydown`. The
+  same task also runs before any microtask the key queues, so for a key whose caret
+  `history-caret` records it shows a join that separate gestures would not. ⇧⏎'s caret is not
+  recorded, so the case chosen is not affected.
 
 ## With the fix
 
