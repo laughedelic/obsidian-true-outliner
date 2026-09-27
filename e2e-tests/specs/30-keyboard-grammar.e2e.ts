@@ -994,8 +994,7 @@ describe('keyboard grammar', function () {
       ['the ladder under a paragraph', 'para\n  - a\n  - b\n', 1, 5, ['enter', 'enter', 'up']],
       ['a list before a blank line and a paragraph', '- foo\n\npara\n', 0, 5, ['enter', 'tab', 'up']],
       ['a drafted heading Tab carried', '## Foo\nbody\n## Bar\ntext\n', 0, 6, ['shiftEnter', 'tab', 'up']],
-      // Declined by Backspace: on a line holding only `#`, the arrow keys do not
-      // move the caret at all, so ↑ never leaves the place.
+      // Declined by Backspace; the arrow keys are the case below.
       ['a drafted heading Shift+Tab carried', '## Foo\nbody\n## Bar\ntext\n', 0, 6, ['shiftEnter', 'shiftTab', 'backspace']],
     ];
     for (const [name, doc, line, ch, steps] of nodeCases) {
@@ -1039,6 +1038,18 @@ describe('keyboard grammar', function () {
         expect(await h.getBuffer()).toBe(src);
         expect((await h.getCursor()).line).toBe(line);
       }
+    });
+
+    it('Shift+Tab on an empty heading written in the note keeps its space, and the arrows still move', async function () {
+      // The same level shift without a place, which #258 leaves as the only way
+      // to reach it: a bare `#` with the caret after it opens the tag suggester.
+      await grammarNote('## Foo\n## \n## Bar\n', 1, 3);
+      await press(['shiftTab']);
+      expect(await h.getBuffer()).toBe('## Foo\n# \n## Bar\n');
+      expect(await h.getCursor()).toEqual({ line: 1, ch: 2 });
+      expect(await suggesterOpen()).toBe(false);
+      await browser.keys(Key.ArrowDown);
+      expect((await h.getCursor()).line).toBe(2);
     });
 
     it('one Backspace removes a position Tab carried', async function () {

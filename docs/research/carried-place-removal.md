@@ -210,5 +210,9 @@ Two shapes behave as the table does not predict, and neither is this change's:
   the Enter's renumbering of the parent run is not part of the removal its plan states (#252). That
   renumbering was Obsidian's, and since #252's fix both return the source
   (`docs/research/obsidian-list-renumbering`).
-- **On a line holding only `#`,** which ⇧⇥ leaves from a drafted `## `, the arrow keys do not move the
-  caret, so ↑ never leaves the place. ⌫ removes it.
+- **On a line holding only `#`,** which ⇧⇥ used to leave from a drafted `## `, the arrow keys did not
+  move the caret, so ↑ never left the place, and only ⌫ removed it. Our keymap never saw the key:
+  the level shift wrote the bare `#` with the caret after it, Obsidian's tag suggester opened
+  there, and the suggester took ↑ and ↓. Measured in 1.13.7 through the e2e harness, with a
+  `.suggestion-container` open and the motion probe counting no press. The shift now keeps the
+  space, `# ` with the caret after it, and nothing opens (#257).

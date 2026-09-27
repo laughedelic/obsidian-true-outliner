@@ -418,6 +418,10 @@ const ATX_RE = /^( {0,3})(#{1,6})([ \t]*)(.*)$/;
 /**
  * A heading's lines at a new level. Setext headings are rewritten to ATX
  * whenever the level changes (an op-touched line; still lossless).
+ *
+ * An empty title keeps whatever followed its `#` run. `## ` shifted to a bare
+ * `#` left the caret right after the `#`, where Obsidian's tag suggester opens
+ * and takes the arrow keys (#257).
  */
 export function headingWithLevel(node: OutlineNode, level: number): OutlineNode {
   const marker = '#'.repeat(level);
@@ -428,7 +432,7 @@ export function headingWithLevel(node: OutlineNode, level: number): OutlineNode 
   } else {
     const match = ATX_RE.exec(node.lines[0] ?? '');
     const text = match ? match[4]! : (node.lines[0] ?? '').trim();
-    lines = [text === '' ? marker : `${marker} ${text}`];
+    lines = [text === '' ? `${marker}${match?.[3] ?? ''}` : `${marker} ${text}`];
   }
   const result: OutlineNode = { ...node, level, lines };
   delete (result as { setext?: unknown }).setext;

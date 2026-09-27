@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { markerWidth, normalizeMarkerRun, reencodeForDestination, shiftSubtree } from '../src/reencode';
+import { headingWithLevel, markerWidth, normalizeMarkerRun, reencodeForDestination, shiftSubtree } from '../src/reencode';
 import { indentWidth, parse } from '../src/parse';
 import { walkNodes, type OutlineNode } from '../src/model';
 
@@ -213,5 +213,23 @@ describe('the prefix swap never puts a space in front of a tab that had none', (
     const node = parse('- a\n  \t  b\n').children[0]!;
     const out = reencodeForDestination(node, undefined, '\t');
     expect(out.lines).toEqual(['\t- a', '\t  \t  b']);
+  });
+});
+
+describe('headingWithLevel keeps what follows an empty title\'s marker (#257)', () => {
+  function heading(line: string): OutlineNode {
+    const node = parse(`${line}\n`).children[0]!;
+    expect(node.kind).toBe('heading');
+    return node;
+  }
+
+  it.each([
+    ['## ', 1, '# '],
+    ['## ', 3, '### '],
+    ['##', 1, '#'],
+    ['##\t', 1, '#\t'],
+    ['## Foo', 1, '# Foo'],
+  ])('%j at level %i is %j', (line, level, expected) => {
+    expect(headingWithLevel(heading(line), level).lines).toEqual([expected]);
   });
 });
