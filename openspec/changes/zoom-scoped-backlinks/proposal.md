@@ -93,7 +93,7 @@ Stacks on `fix/lone-block-id-travels-with-its-node`
 [#207](https://github.com/laughedelic/obsidian-true-outliner/issues/207). This change reads what it
 adds: a lone id that names one of our nodes is part of that node, and every other lone id carries
 the reading its mark shows. Where an id belongs then follows from which node holds it, or from
-that reading, with two rules of our own left over (design D2).
+that reading, with three rules of our own left over (design D2).
 
 At the file level the code also overlaps the open draft `feat/search-palette`
 ([#95](https://github.com/laughedelic/obsidian-true-outliner/pull/95)), which edits

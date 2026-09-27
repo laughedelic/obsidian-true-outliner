@@ -93,6 +93,8 @@ tree as `document-tree-mapping` builds it, attached block ids included:
   nothing else or is not an id;
 - the last of a run of lone block ids, which neither attaches nor is misplaced, to the node it
   would belong to were the ids before it absent;
+- of several block ids one node holds outside a list item, the last to that node, and every other
+  to no node, because a block outside a list item keeps only the last id written for it;
 - any other block id, to the node holding it — ending one of its lines, as a line of it, or
   attached to it — except that an id held by anything other than a list item, inside a list item,
   belongs to the nearest list item holding it, because no id names a block inside a list item.
@@ -134,6 +136,13 @@ metadata says it begins.
 - **THEN** the reference is admitted by This node
 - **WHEN** the note is instead zoomed into the paragraph `inner prose ^x8`
 - **THEN** the reference is not admitted by This node or by This branch
+
+#### Scenario: Of two ids on one block, the last names it
+
+- **WHEN** the paragraph `Lead. ^k3` is followed by a blank line and a line holding only `^k4`,
+  sources link to `[[Note#^k3]]` and to `[[Note#^k4]]`, and the note is zoomed into the paragraph
+- **THEN** the link to `^k4` is admitted by This node, and the link to `^k3` is admitted by neither
+  This node nor This branch
 
 #### Scenario: An edit counts before the note is saved
 

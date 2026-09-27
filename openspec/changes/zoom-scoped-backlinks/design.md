@@ -68,12 +68,13 @@ It reads the tree `lone-block-id-travels-with-its-node`
 ([#208](https://github.com/laughedelic/obsidian-true-outliner/pull/208)) builds: an attached id is
 part of its node (`OutlineNode.blockId`), and every lone id that does not attach is a paragraph
 whose reading `misplacedBlockIds` (`src/block-ids.ts`) already gives — the item it names, the
-whole list, its own line, nothing, or not an id. What is left of our own is two rules Obsidian was
-measured to follow and #208 has no need for: an id held inside a list item by anything but an item
-names the nearest item, and the last of a run of lone ids is read as if the others were absent.
-The spec states the whole as "An anchor belongs to the node where what it names begins";
-`docs/research/zoom-scoped-backlinks`, "The same attribution on the tree #208 builds", runs it
-over 68 shapes, and 68 of 69 ids start on Obsidian's line. A heading's text is its line after
+whole list, its own line, nothing, or not an id. What is left of our own is three rules Obsidian
+was measured to follow and #208 has no need for: an id held inside a list item by anything but an
+item names the nearest item, the last of a run of lone ids is read as if the others were absent,
+and outside a list item a node holding several ids is named by the last of them alone, the others
+naming nothing. The spec states the whole as "An anchor belongs to the node where what it names
+begins"; `docs/research/zoom-scoped-backlinks`, "The same attribution on the tree #208 builds",
+runs it over 87 shapes, and 106 of 107 ids start on Obsidian's line. A heading's text is its line after
 the marker, with closing hashes removed and trimmed, or the first line of a setext heading. A
 block id is `^` followed by letters, digits and dashes, ending a line after whitespace or standing
 alone on it.

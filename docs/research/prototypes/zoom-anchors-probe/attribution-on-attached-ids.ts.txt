@@ -71,7 +71,7 @@ function firstItemOfList(placed: readonly Placed[], last: Placed): OutlineNode {
 }
 
 /** Parts of the rule to leave out, for the negative controls:
- * DROP=lift,readings,block-below,run node /tmp/attribution.mjs */
+ * DROP=lift,readings,block-below,run,superseded node /tmp/attribution.mjs */
 declare const process: { env: Record<string, string | undefined> };
 const drop = new Set((process.env.DROP ?? '').split(',').filter(Boolean));
 
@@ -83,7 +83,13 @@ export function attribute(md: string): Record<string, number | null> {
   const misplaced = new Map(misplacedBlockIds(doc).map((m) => [m.line, m]));
   const out: Record<string, number | null> = {};
   placed.forEach((p, index) => {
-    for (const id of idsHeld(p.node)) {
+    const held = idsHeld(p.node);
+    // Outside a list item a block keeps one id, the last written; Obsidian registers no other.
+    const outsideItems = p.node.kind !== 'list-item' && !nearestItem(p);
+    const superseded = outsideItems && !drop.has('superseded') ? held.slice(0, -1) : [];
+    for (const id of superseded) out[id] = null;
+    for (const id of held) {
+      if (superseded.includes(id)) continue;
       const marked = drop.has('readings') ? undefined : misplaced.get(p.start);
       let owner: OutlineNode | null;
       if (marked) {
@@ -183,6 +189,27 @@ const shapes: Array<[string, string, Record<string, number | null>]> = [
   ['item, id, ordered item directly under', '- a\n^g5\n1. b\n', { g5: 0 }],
   ['item, blank, id, text directly under', '- a\n\n  ^g6\nText.\n', { g6: null }],
   ['item, id, continuation directly under', '- a\n^g7\n  more\n', { g7: null }],
+  // docs/research/lone-block-id, "Two ids in a row" (#208, 27 September 2026)
+  ['table, blank, id, blank, id', '| a | b |\n| --- | --- |\n| 1 | 2 |\n\n^t1\n\n^t2\n', { t1: null, t2: 0 }],
+  ['quote, lazy id, blank, id', '> q\n^n5\n\n^n6\n', { n5: null, n6: 0 }],
+  ['heading, id directly under, blank, id', '## H\n^n9\n\n^n10\n', { n9: null, n10: 0 }],
+  ['paragraph, id directly under, blank, id', 'Lead.\n^n15\n\n^n16\n\nAfter.\n', { n15: null, n16: 0 }],
+  ['paragraph with an inline id, blank, id', 'Lead. ^k3\n\n^k4\n\nAfter.\n', { k3: null, k4: 0 }],
+  ['item, blank, indented id, blank, id at column 0', '- a\n\n  ^n1\n\n^n2\n', { n1: 0, n2: 0 }],
+  ['item, lazy id, blank, id at column 0', '- a\n^n3\n\n^n4\n', { n3: 0, n4: 0 }],
+  ['two items, indented id under the last, blank, id', '- b\n- a\n\n  ^n7\n\n^n8\n', { n7: 1, n8: 0 }],
+  ['nested item, its id, then the parent item id', '- a\n  - c\n\n    ^n11\n\n  ^n12\n', { n11: 1, n12: 0 }],
+  ['item, blank, two indented ids in a row', '- a\n\n  ^n13\n\n  ^n14\n', { n13: 0, n14: null }],
+  ['item, blank, id, blank, id, next item', '- a\n\n  ^p5\n\n  ^p6\n- b\n', { p5: 0, p6: null }],
+  ['item, blank, id, child, blank, id', '- a\n\n  ^p1\n  - c\n\n  ^p2\n', { p1: 0, p2: null }],
+  ['item, lazy id, child, blank, id', '- a\n^p3\n  - c\n\n  ^p4\n', { p3: 0, p4: null }],
+  ['item, id at content column directly under, blank, id', '- a\n  ^p7\n\n  ^p8\n', { p7: 0, p8: null }],
+  ['item, lazy id, blank, indented id', '- a\n^p9\n\n  ^p10\n', { p9: 0, p10: null }],
+  ['item with an inline id, blank, indented id', '- a ^k1\n\n  ^k2\n', { k1: 0, k2: null }],
+  // docs/research/zoom-scoped-backlinks, "Two ids on one block"
+  ['paragraph with an inline id, id directly under', 'Lead. ^k5\n^k6\n\nAfter.\n', { k5: null, k6: 0 }],
+  ['heading with an inline id, blank, id', '## H ^k7\n\n^k8\n\nAfter.\n', { k7: null, k8: 0 }],
+  ['quote with an inline id, blank, id', '> q ^k9\n\n^k10\n\nAfter.\n', { k9: null, k10: 0 }],
 ];
 
 let agree = 0;

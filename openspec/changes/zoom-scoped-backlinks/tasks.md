@@ -13,12 +13,13 @@
 - [ ] 2.1 Create `src/anchors.ts` with `anchorsOf(doc)` per design D2, reading attached ids from
       `OutlineNode.blockId` and misplaced ones from `misplacedBlockIds`: headings with their text
       and level, block ids with their lower-cased key, each with its start line and owning node id,
-      in document order. Verify with `tests/anchors.test.ts` holding the 68 shapes of the
+      in document order. Verify with `tests/anchors.test.ts` holding the 87 shapes of the
       attribution prototype in `docs/research/zoom-scoped-backlinks` as a table of text → expected
       start line — `^f15` on the paragraph our parser makes of it, as the design's first risk
       records — plus the heading-text rows (closing hashes, setext, trailing spaces, inline markup
       kept, an id kept in the text). Negative controls: leave out the list-item lift and confirm
-      `^x8`–`^x10` fail; leave out the run rule and confirm `^y2` fails
+      `^x8`–`^x10` fail; leave out the run rule and confirm `^y2` fails; name every id a node
+      holds and confirm `^k3` fails
 - [ ] 2.2 Add a property to `tests/anchors.test.ts` over `arbTree()` documents with ids appended to
       random lines: every anchor's owning node is `nodeAtLine(doc, line)` for its own start line.
       Negative control: return the lone id line's own line as the start and confirm the property
