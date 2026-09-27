@@ -650,6 +650,47 @@ describe('sibling reordering', () => {
  * already there and no two runs met — and five operations break one of those
  * two conditions, each rewriting a marker ABOVE the operand.
  */
+describe('a relocation that starts a new list numbers it from 1', () => {
+  it('an indent under an item with no ordered children, in every unit', () => {
+    for (const [unit, child] of [['\t', '\t'], ['    ', '    '], ['  ', '   ']] as const) {
+      const doc = parse('1. a\n2. b\n3. c\n');
+      const result = indent(doc, byLine(doc, '2. b'), unit);
+      if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+      expect([unit, encode(result.value.doc)]).toEqual([unit, `1. a\n${child}1. b\n2. c\n`]);
+    }
+  });
+
+  it('an indent that joins an existing child list takes its numbering', () => {
+    expect(applyOk(indent, '1. a\n   1. x\n2. b\n', '2. b').text).toBe('1. a\n   1. x\n   2. b\n');
+  });
+
+  it('an outdent landing where no ordered run is', () => {
+    expect(applyOk(outdent, '- p\n  1. a\n  2. b\n- q\n', '  2. b').text).toBe(
+      '- p\n  1. a\n1. b\n- q\n',
+    );
+  });
+
+  it('siblings an outdent adopts become a new child list', () => {
+    expect(applyOk(outdent, '- p\n  1. a\n  2. b\n  3. c\n', '  1. a').text).toBe(
+      '- p\n1. a\n   1. b\n   2. c\n',
+    );
+  });
+
+  it('a drag to another level', () => {
+    const doc = parse('1. a\n2. b\n3. c\n- d\n');
+    const result = moveSubtreesTo(doc, [[byLine(doc, '3. c')]], { parentId: byLine(doc, '- d'), index: 0 });
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    expect(encode(result.value.doc)).toBe('1. a\n2. b\n- d\n  1. c\n');
+  });
+
+  it('control: pasted blocks keep the numbers the clipboard held', () => {
+    const doc = parse('- a\n');
+    const result = insertSubtrees(doc, byLine(doc, '- a'), parse('3. x\n4. y\n').children, 'after');
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    expect(encode(result.value.doc)).toBe('- a\n3. x\n4. y\n');
+  });
+});
+
 describe('an arriving number does not become the run’s start', () => {
   it('an outdenting item takes the next number in the run it joins', () => {
     // The reported shape. `1. L2` carries its nested `1.` up to a top-level run
@@ -825,9 +866,10 @@ describe('an arriving number does not become the run’s start', () => {
   it('a removal still recovers the start it lost', () => {
     // The negative control the split rule has to leave standing: here the
     // members that carried the start are GONE, so the fragment is a remainder
-    // and reads the run's own start rather than its own numbers.
+    // and reads the run's own start rather than its own numbers. `eight` starts
+    // a new list under `- p`, which is numbered from 1.
     const { text } = applyOk(indent, '- p\n8. eight\n9. nine\n', '8. eight');
-    expect(text).toBe('- p\n  8. eight\n8. nine\n');
+    expect(text).toBe('- p\n  1. eight\n8. nine\n');
   });
 
   it('a fragment that also JOINS another run is back under the join rule', () => {

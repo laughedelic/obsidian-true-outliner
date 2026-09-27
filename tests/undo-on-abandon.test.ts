@@ -645,8 +645,8 @@ describe('a carried empty node is removed by reverting its carries', () => {
     ['the ladder before a blank line and a paragraph', '- a\n  - b\n\npara\n', [1, 5], ['split', 'split'], '- a\n  - b\n- \n\npara\n'],
     ['Tab before a blank line and a paragraph', '- foo\n\npara\n', [0, 5], ['split', 'indent'], '- foo\n  - \n\npara\n'],
     ['Tab in a loose list', '- foo\n\n- bar\n', [0, 5], ['split', 'indent'], '- foo\n  - \n\n- bar\n'],
-    ['Shift+Tab into the parent run', '1. p\n   1. a\n   2. b\n2. q\n', [1, 7], ['split', 'outdent'], '1. p\n   1. a\n2. \n   3. b\n3. q\n'],
-    ['Tab in an ordered run', '1. a\n2. b\n', [0, 4], ['split', 'indent'], '1. a\n   2. \n2. b\n'],
+    ['Shift+Tab into the parent run', '1. p\n   1. a\n   2. b\n2. q\n', [1, 7], ['split', 'outdent'], '1. p\n   1. a\n2. \n   1. b\n3. q\n'],
+    ['Tab in an ordered run', '1. a\n2. b\n', [0, 4], ['split', 'indent'], '1. a\n   1. \n2. b\n'],
     ['a drafted heading, Shift+Tab', '## Foo\nbody\n## Bar\ntext\n', [0, 6], ['continue', 'outdent'], '## Foo\nbody\n#\n## Bar\ntext\n'],
     ['Tab then Shift+Tab', '- a\n- b\n', [1, 3], ['split', 'indent', 'outdent'], '- a\n- b\n- \n'],
   ];

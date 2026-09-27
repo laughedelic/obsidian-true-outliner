@@ -76,6 +76,7 @@ import { BUILD_STAMP } from 'virtual:build-stamp';
 import { decorationsExtension, type MarkerVisibility } from './decorations';
 import { drawHeadingMarkerPreview } from './heading-marker-preview';
 import { transactionFilterExtension } from './transaction-filter';
+import { expectPlanned, forgetPlanned, plannedChangesExtension } from './planned-changes';
 import { viewRegistryExtension } from './view-registry';
 import { zoomStateExtension } from './zoom-state';
 import { guideHoverExtension } from './guide-hover';
@@ -453,6 +454,11 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.registerEditorExtension(grammarExtension());
     this.registerEditorExtension(decorationsExtension(this));
     this.registerEditorExtension(transactionFilterExtension(this, this.stats));
+    // Puts back what Obsidian's live list renumbering changes in a transaction
+    // this plugin planned. AFTER `foldCarryExtension` and the transaction
+    // filter, because filters run from the last registered to the first: the
+    // restoration has to land before either of them reads the change.
+    this.registerEditorExtension(plannedChangesExtension());
     // Registered LAST among the decoration producers: it is the only block
     // decoration here, and keeping it last means any interaction with the
     // established layers is attributable to it rather than to ordering.
@@ -1446,7 +1452,12 @@ export default class TrueOutlinerPlugin extends Plugin {
           ? mapping.mapPos(before.selection.main.head, -1)
           : undefined;
       const carried = view ? carriedRecordOf(view, placeLine ?? null) : undefined;
+      // `Editor.transaction` cannot carry an annotation, so the change set it is
+      // about to dispatch is stated to `planned-changes` against the state it
+      // starts from.
+      if (before && mapping) expectPlanned(before, mapping);
       editor.transaction({ changes, selection: selectionAfter });
+      if (before) forgetPlanned(before);
       // What the keymap's dispatch of the same operation carries on the
       // transaction, stated to `provisional-cleanup` after it instead: this
       // dispatch has no `userEvent` to recognise it by, so the listener has

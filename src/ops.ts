@@ -641,15 +641,18 @@ function renumberRuns(
  * stand: the members carrying them are gone, members from elsewhere have
  * arrived beside them, or there is no room left below them.
  *
- * A run with NO member from `before` has no start to recover — an inserted
- * sequence landing where no run was — and keeps the lowest number its own
- * members carry. That fallback is deliberately the older policy, so a
- * mis-routed call degrades to what this file did before rather than to a third
- * rule.
+ * A run with NO member from `before` has no start to recover — a sequence
+ * landing where no run was. What it starts at depends on where it came from,
+ * which `newRun` states. A RELOCATED node (an indent, an outdent, a drag to
+ * another level) starts a new list, and a new list is numbered from `1.`: the
+ * number it carried belonged to the list it left. PASTED blocks keep the lowest
+ * number their own members carry, since that numbering is what the clipboard
+ * held.
  */
 function renumberOrderedAgainst(
   before: readonly OutlineNode[],
   after: readonly OutlineNode[],
+  newRun: 'own' | 'from-one' = 'own',
 ): readonly OutlineNode[] {
   interface Membership {
     /** Which run of `before` this node belonged to. */
@@ -686,7 +689,7 @@ function renumberOrderedAgainst(
   const stillHere = new Set(after.map((node) => node.id));
   return renumberRuns(after, (run) => {
     const knownIndex = run.findIndex((node) => memberOf.has(node.id));
-    if (knownIndex === -1) return lowestNumber(run);
+    if (knownIndex === -1) return newRun === 'from-one' ? 1 : lowestNumber(run);
     const member = memberOf.get(run[knownIndex]!.id)!;
     // Only a member left OUTSIDE this fragment says the run was divided. A
     // permutation WITHIN a run moves its members past one another without
@@ -935,11 +938,11 @@ function indentSurgery(
     // The destination's own children, before `moved` joins them. `moved`
     // carries the number it had at the level it came from, which is not this
     // run's to inherit.
-    renumberOrderedAgainst(nodes, [
-      ...nodes.slice(0, insertIndex),
-      moved,
-      ...nodes.slice(insertIndex),
-    ]),
+    renumberOrderedAgainst(
+      nodes,
+      [...nodes.slice(0, insertIndex), moved, ...nodes.slice(insertIndex)],
+      'from-one',
+    ),
   );
   return accept({ doc: surgery, subjectId: moved.id });
 }
@@ -1036,7 +1039,7 @@ function outdentSurgery(
     }
     // The node's own children, before the adopted siblings join them: those
     // arrive from the level above carrying its numbers.
-    moved = { ...moved, children: renumberOrderedAgainst(ownChildren, children) };
+    moved = { ...moved, children: renumberOrderedAgainst(ownChildren, children, 'from-one') };
   }
 
   let surgery = updateSiblings(doc, parentPath, (nodes) =>
@@ -1047,11 +1050,11 @@ function outdentSurgery(
   surgery = updateSiblings(surgery, grandPath, (nodes) =>
     // The grandparent's children, before `moved` lands among them. Untouched by
     // the departure above, which edited a different level.
-    renumberOrderedAgainst(nodes, [
-      ...nodes.slice(0, parentIndex + 1),
-      moved,
-      ...nodes.slice(parentIndex + 1),
-    ]),
+    renumberOrderedAgainst(
+      nodes,
+      [...nodes.slice(0, parentIndex + 1), moved, ...nodes.slice(parentIndex + 1)],
+      'from-one',
+    ),
   );
   return accept({ doc: surgery, subjectId: moved.id });
 }
@@ -2774,6 +2777,7 @@ function spliceAtIndex(
   fallbackIndentUnit?: string,
   inheritedSeparation?: readonly string[],
   level?: number,
+  newRun: 'own' | 'from-one' = 'own',
 ): OpResult<{ readonly surgery: OutlineDoc; readonly firstId: number }> {
   if (parsedBlocks.length === 0) return reject('empty-selection');
   const parent = parentPath.length === 0 ? 'root' : nodeAt(doc, parentPath);
@@ -2874,11 +2878,11 @@ function spliceAtIndex(
     // `nodes` is the destination list before the paste. The pasted blocks come
     // from parsed markdown with numbering of their own, which does not become
     // the start of a run that was already here.
-    return renumberOrderedAgainst(nodes, [
-      ...withAbove.slice(0, insertIndex),
-      ...finalReencoded,
-      ...withAbove.slice(insertIndex),
-    ]);
+    return renumberOrderedAgainst(
+      nodes,
+      [...withAbove.slice(0, insertIndex), ...finalReencoded, ...withAbove.slice(insertIndex)],
+      newRun,
+    );
   });
   return accept({ surgery, firstId: finalReencoded[0]!.id });
 }
@@ -3043,6 +3047,7 @@ export function moveSubtreesTo(
     inferIndentUnit(doc, fallbackIndentUnit),
     undefined,
     destination.level,
+    'from-one',
   );
   if (!spliced.ok) return spliced;
 

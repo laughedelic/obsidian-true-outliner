@@ -37,6 +37,7 @@
  */
 
 import { type EditorState,
+  type Annotation,
   ChangeSet,
   EditorSelection,
   Prec,
@@ -69,6 +70,7 @@ import { foldedEntryAt } from "./fold-service";
 import { unfoldEffectsFor } from "./fold-ops";
 import { isNestedEditor } from "./nested-editor";
 import { isOutlineMode } from "./outline-state";
+import { plannedChanges } from "./planned-changes";
 import type { EditorChange } from "./dispatch";
 import {
   abandonEdit,
@@ -194,14 +196,13 @@ function makeHandler(key: GrammarKey) {
     // reversal — the moves never do, and indent only when it carries a place,
     // so a held run of either builds nothing extra.
     const { abandon, carryReversal: reversal } = outcome.plan;
-    const produced =
-      abandon || reversal ? ChangeSet.of(changes, doc.length).apply(doc) : undefined;
-    const annotations = produced
-      ? [
-          ...(abandon ? [abandonEdit.of(toOffsets(abandon, produced))] : []),
-          ...(reversal ? [carryReversal.of(toOffsets(reversal, produced))] : []),
-        ]
-      : undefined;
+    const changeSet = ChangeSet.of(changes, doc.length);
+    const produced = abandon || reversal ? changeSet.apply(doc) : undefined;
+    const annotations: Annotation<unknown>[] = [plannedChanges.of(changeSet)];
+    if (produced) {
+      if (abandon) annotations.push(abandonEdit.of(toOffsets(abandon, produced)));
+      if (reversal) annotations.push(carryReversal.of(toOffsets(reversal, produced)));
+    }
     // A plan states a caret (an offset) or a block cover (a pair). The cover
     // keeps the ORIENTATION the user's own selection had, so a run built by
     // extending upward still grows upward on the next Shift+ArrowUp rather than
@@ -218,7 +219,7 @@ function makeHandler(key: GrammarKey) {
       selection,
       userEvent: outcome.plan.userEvent,
       scrollIntoView: true,
-      ...(annotations ? { annotations } : {}),
+      annotations,
     });
     return true;
   };

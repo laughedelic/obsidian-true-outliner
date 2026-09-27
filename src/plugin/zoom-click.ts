@@ -44,7 +44,7 @@
  */
 
 import { ViewPlugin, type EditorView, type PluginValue, type ViewUpdate } from '@codemirror/view';
-import type { Extension } from '@codemirror/state';
+import { ChangeSet, type Extension } from '@codemirror/state';
 import { reresolveZoom, resolveZoom, type ZoomScope } from '../zoom';
 import { dragOperand } from '../operand';
 import { nodeAtLine } from '../locate';
@@ -85,6 +85,7 @@ import { guideHoverField, setGuideHover, type GuideHover } from './guide-hover';
 import { isNestedEditor } from './nested-editor';
 import { OWN_CHROME_CLASS } from './chrome-line';
 import { zoomTo } from './zoom-state';
+import { plannedChanges } from './planned-changes';
 import { isOutlineMode } from './outline-state';
 
 /**
@@ -784,14 +785,16 @@ class ZoomClickPlugin implements PluginValue {
       this.view.dispatch({ selection });
       return true;
     }
+    const changes = ChangeSet.of(changesToSpec(before, outcome.changes), before.length);
     this.view.dispatch({
-      changes: changesToSpec(before, outcome.changes),
+      changes,
       selection,
       // The same annotation the keyboard path's own moves carry, which is what
       // makes this one undo step rather than one joined to whatever preceded
       // it.
       userEvent: 'move.structure',
       scrollIntoView: true,
+      annotations: plannedChanges.of(changes),
     });
     return true;
   }

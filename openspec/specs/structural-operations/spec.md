@@ -597,8 +597,14 @@ can no longer be measured, and its subtree is re-indented to a column it never h
 the closure this requirement demands, broken. Leaving the run keeps it, since those markers
 parsed already.
 
-A run with NO member present beforehand — an inserted sequence landing where no ordered run
-was — has no start to recover, and SHALL keep the lowest number its own members carry.
+A run with NO member present beforehand — a sequence landing where no ordered run was — has no
+start to recover, and what it starts at depends on where it came from. A run of RELOCATED nodes
+(the arrival side of an indent or an outdent, siblings an outdent adopts into the outdented
+node's own child list, and a drag that lands under another parent or at another level) starts a
+new list, and SHALL be numbered from `1.`: the numbers its members carry belonged to the list
+they left, and a new list rendered from one of them reads as a list that starts part-way. A run of PASTED blocks SHALL keep the lowest
+number its own members carry, since that numbering is what the clipboard held. A child list a
+merge adopts moves as one unit, the list it was, and SHALL keep its own numbers too.
 
 A merge is covered by the general rule in all three of its shapes, and none of them is saved
 by the survivor keeping its index. Absorbing a non-ordered node standing between two runs
@@ -699,6 +705,26 @@ renumbers only the members that follow what moved.
 - **WHEN** `insertSubtrees` places a parsed `3. x` / `4. y` after the `- b` of `- a` / `- b`
   / `- c`, so the inserted run has no ordered member from the destination list
 - **THEN** the inserted items read `3. x` / `4. y`
+
+#### Scenario: An indent that starts a new child list numbers it from one
+- **WHEN** `indent` is applied to `2. b` in `1. a` / `2. b` / `3. c`, in a vault indenting with
+  a tab, four spaces or two spaces
+- **THEN** `b` reads `1. b` as the first child of `1. a`, and the item left behind reads `2. c`
+
+#### Scenario: Siblings an outdent adopts into a new child list number it from one
+- **WHEN** `outdent` is applied to `1. a` in `- p` / `  1. a` / `  2. b` / `  3. c` (the three
+  items children of `- p`), where `a` has no children of its own
+- **THEN** the adopted siblings read `1. b` / `2. c` under `1. a`
+
+#### Scenario: Enter on an empty item that leaves its list starts a new one
+- **WHEN** Enter on the empty `4.` of `- p` / `  3. a` / `  4.` outdents it to the root, where no
+  ordered run is
+- **THEN** it reads `1.`
+
+#### Scenario: A drag under another parent that starts a new list numbers it from one
+- **WHEN** `moveSubtreesTo` moves `3. c` of `1. a` / `2. b` / `3. c` / `- d` to be the first
+  child of `- d`
+- **THEN** `c` reads `1. c`
 
 #### Scenario: A reorder that splits a run leaves the tail on the run's own start
 - **WHEN** `moveUp` is applied to the `- x` of `1. a` / `2. b` / `- x` / `5. c`, cutting `2. b`

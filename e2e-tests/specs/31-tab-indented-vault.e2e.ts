@@ -85,6 +85,14 @@ describe('a tab-indented vault: every line a node owns takes the tab', function 
     expect(await h.getBuffer()).toBe('- top\n\t- sib\n\t- foo\n\t  bar\n\t  - kid\n');
   });
 
+  it('Tab into a new sublist numbers it from 1, and Obsidian leaves it there', async function () {
+    await outlineNote('1. a\n2. b\n3. c\n', 1, 4);
+    await h.keys.tab();
+    expect(await h.getBuffer()).toBe('1. a\n\t1. b\n2. c\n');
+    await h.keys.shiftTab();
+    expect(await h.getBuffer()).toBe('1. a\n2. b\n3. c\n');
+  });
+
   it('one undo restores the note an indent rewrote', async function () {
     const before = '- top\n\t- sib\n- foo\n  bar\n  - kid\n';
     await outlineNote(before, 2, 5);

@@ -185,4 +185,22 @@ describe('folds through edits', () => {
     // what it hides — nothing about the hidden content changed.
     expect(await foldedLineRanges()).toEqual([{ from: 0, to: 2 }]);
   });
+
+  it('a structural key leaves a fold closed when Obsidian renumbers the lines it hides', async () => {
+    // Nested three columns under `1. `, which Obsidian's own renumbering reads
+    // as siblings of the parent: it rewrites `q`'s hidden children, and the fold
+    // is judged on the document the key planned, not on those rewrites.
+    await h.createNote(NOTE, '1. p\n   1. a\n   2. b\n2. q\n   1. c\n   2. d\n');
+    await h.openNote(NOTE);
+    await h.setOutlineMode(true);
+    await clearFolds();
+    await h.setCursorSettled(3, 4);
+    await h.runCommand('fold-node');
+    expect(await foldedLineRanges()).toEqual([{ from: 3, to: 5 }]);
+
+    await h.setCursorSettled(1, 7);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('1. p\n   1. a\n   2. \n   3. b\n2. q\n   1. c\n   2. d\n');
+    expect(await foldedLineRanges()).toEqual([{ from: 4, to: 6 }]);
+  });
 });
