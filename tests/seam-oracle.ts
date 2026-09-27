@@ -255,7 +255,9 @@ function cmBlocks(text: string): { type: string; from: number; to: number; fence
  * rows beyond it (`lazy-continuation-at-seams`, "Measured: CommonMark").
  */
 function continued(seam: Seam, lines: readonly string[], blocks: ReturnType<typeof cmBlocks>): boolean {
-  if (blocks.some((b) => b.from <= seam.upperLine && b.to >= seam.lowerLine)) return true;
+  // A `list` holding both lines is two lists CommonMark joins across blank
+  // lines, not a line continued: its items are its own.
+  if (blocks.some((b) => b.type !== 'list' && b.from <= seam.upperLine && b.to >= seam.lowerLine)) return true;
   if (seam.lowerLine !== seam.upperLine + 1) return false;
   const next = (lines[seam.lowerLine] ?? '').trimStart();
   if (seam.upperInItem && (next.startsWith('<div') || next.startsWith('>'))) return true;
@@ -288,6 +290,8 @@ export interface Tally {
   awayIdFloor: number;
   /** Seams at the edit site outside a list that are written flush. */
   flushAtSite: number;
+  /** …of which no reader continues: the lines the narrower rule would not write. */
+  flushUnneeded: number;
   /** Seams at the edit site outside a list. */
   siteSeams: number;
   examples: Record<string, string[]>;
@@ -307,6 +311,7 @@ export function emptyTally(): Tally {
     indentedCode: 0,
     awayIdFloor: 0,
     flushAtSite: 0,
+    flushUnneeded: 0,
     siteSeams: 0,
     examples: {},
   };
@@ -400,8 +405,11 @@ export function tallyOne(
     if (site.has(seam.lower.id)) {
       if (seam.inList) continue;
       tally.siteSeams++;
-      if (seam.lowerLine === seam.upperLine + 1) tally.flushAtSite++;
-      if (continued(seam, lines, blocks)) {
+      const flush = seam.lowerLine === seam.upperLine + 1;
+      if (flush) tally.flushAtSite++;
+      if (!continued(seam, lines, blocks)) {
+        if (flush) tally.flushUnneeded++;
+      } else {
         const exempt =
           isLoneBlockIdLine(seam.upper.lines.at(-1)!) ||
           /^( {4,}|\t)/.test(lines[seam.lowerLine] ?? '') ||

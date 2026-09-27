@@ -14,8 +14,8 @@
  */
 
 import type { OutlineDoc, OutlineNode } from './model';
-import { kindAsWritten, parseListMarker } from './parse';
-import { isLoneBlockIdLine } from './rules';
+import { indentWidth, kindAsWritten, parseListMarker } from './parse';
+import { isLoneBlockIdLine, isLoneBlockIdNode } from './rules';
 
 /** Where a block sits in the note the re-parse will read. */
 interface Placement {
@@ -26,6 +26,8 @@ interface Placement {
   readonly margin: number;
   /** Position in document order. */
   readonly order: number;
+  /** The lists this block is an item of or lies inside, each named by its first item. */
+  readonly lists: ReadonlySet<number>;
 }
 
 /** The root's id in `Placement.parent`, and "none" in `Placement.previous`. */
@@ -68,7 +70,7 @@ export function outlineView(node: OutlineNode, margin: number): string {
  * rule writes nothing beside one and judges no seam across one.
  */
 export function isPlace(node: OutlineNode): boolean {
-  if (node.blockId !== undefined || node.children.length > 0) return false;
+  if (node.blockId !== undefined) return false;
   if (node.kind === 'paragraph') return node.lines.every((line) => line.trim() === '');
   if (node.kind === 'list-item') {
     return node.lines.length === 1 && EMPTY_ITEM_RE.test(node.lines[0]!);
@@ -122,37 +124,51 @@ function childMargin(node: OutlineNode, margin: number): number {
 function placements(doc: OutlineDoc): Map<number, Placement> {
   const out = new Map<number, Placement>();
   let order = 0;
-  const walk = (nodes: readonly OutlineNode[], parent: number, margin: number): void => {
+  const walk = (
+    nodes: readonly OutlineNode[],
+    parent: number,
+    margin: number,
+    inherited: ReadonlySet<number>,
+  ): void => {
     let previous = NONE;
+    let head: number | undefined;
     for (const node of nodes) {
-      out.set(node.id, { node, parent, previous, margin, order: order++ });
-      walk(node.children, node.id, childMargin(node, margin));
+      const item = kindAsWritten(node, margin) === 'list-item';
+      head = item ? (head ?? node.id) : undefined;
+      const lists = item ? new Set([...inherited, head!]) : inherited;
+      out.set(node.id, { node, parent, previous, margin, order: order++, lists });
+      walk(node.children, node.id, childMargin(node, margin), lists);
       previous = node.id;
     }
   };
-  walk(renestHeadings(doc.children), NONE, 0);
+  walk(renestHeadings(doc.children), NONE, 0, new Set());
   return out;
 }
 
+interface JudgedSeam {
+  readonly upper: Placement;
+  readonly lower: Placement;
+  /** The upper block's placement before the operation, when the seam is away from the edit site. */
+  readonly away: Placement | undefined;
+}
+
 /**
- * The ids of the blocks whose seam above them is at the edit site of the
- * operation that turned `before` into `after`. A seam is at the edit site when:
+ * Every seam of `after` that lies beside no place, judged against `before`. A
+ * seam is at the edit site when:
  *
  * - its lower block is new, its view changed, its previous sibling changed, or
  *   it has no previous sibling and its parent changed;
  * - its upper block is new or its view changed; or
  * - its two blocks were not consecutive in `before`.
- *
- * A seam beside a place is never at the edit site.
  */
-export function editSite(before: OutlineDoc, after: OutlineDoc): ReadonlySet<number> {
+function judgeSeams(before: OutlineDoc, after: OutlineDoc): JudgedSeam[] {
   const old = placements(before);
   const now = [...placements(after).values()];
   const written = (p: Placement): boolean => {
     const was = old.get(p.node.id);
     return was === undefined || outlineView(was.node, was.margin) !== outlineView(p.node, p.margin);
   };
-  const site = new Set<number>();
+  const seams: JudgedSeam[] = [];
   for (let i = 1; i < now.length; i++) {
     const upper = now[i - 1]!;
     const lower = now[i]!;
@@ -165,7 +181,56 @@ export function editSite(before: OutlineDoc, after: OutlineDoc): ReadonlySet<num
       (lower.previous === NONE && wasLower!.parent !== lower.parent) ||
       written(upper) ||
       wasUpper!.order + 1 !== wasLower!.order;
-    if (atSite) site.add(lower.node.id);
+    seams.push({ upper, lower, away: atSite ? undefined : wasUpper });
   }
-  return site;
+  return seams;
+}
+
+/** The ids of the blocks whose seam above them is at the edit site of the
+ * operation that turned `before` into `after`. */
+export function editSite(before: OutlineDoc, after: OutlineDoc): ReadonlySet<number> {
+  return new Set(judgeSeams(before, after).filter((s) => !s.away).map((s) => s.lower.node.id));
+}
+
+/**
+ * `surgery` with every empty seam at the edit site outside a list separated by
+ * one blank line, and every seam away from it written with the blank lines it
+ * had in `before`. A seam beside a place is left as the operation wrote it.
+ *
+ * Three seams at the edit site stay as they are, because a blank line there
+ * would change what a block is: one inside a list, which it would loosen; one
+ * below a lone block-id line, which it would attach to the block above; and one
+ * above a block four columns past its margin, which CommonMark would read as
+ * indented code. The parse's own separators are added afterwards, by
+ * `finalize`'s boundary normalization.
+ */
+export function separateEditSite(
+  before: OutlineDoc,
+  surgery: OutlineDoc,
+  /** False for an operation that opens a place in a gap: the seam holding it is
+   * away from the edit site, and its lines are the place's. */
+  restore = true,
+): OutlineDoc {
+  const gaps = new Map<number, readonly string[]>();
+  for (const { upper, lower, away } of judgeSeams(before, surgery)) {
+    const gap = upper.node.trailingGap;
+    if (away) {
+      if (restore && away.node.trailingGap.join('\n') !== gap.join('\n')) {
+        gaps.set(upper.node.id, away.node.trailingGap);
+      }
+      continue;
+    }
+    if (gap.length > 0) continue;
+    if ([...upper.lists].some((list) => lower.lists.has(list))) continue;
+    if (isLoneBlockIdNode(upper.node)) continue;
+    if (indentWidth(lower.node.lines[0] ?? '') - lower.margin >= 4) continue;
+    gaps.set(upper.node.id, ['']);
+  }
+  if (gaps.size === 0) return surgery;
+  const rewrite = (nodes: readonly OutlineNode[]): readonly OutlineNode[] =>
+    nodes.map((node) => {
+      const gap = gaps.get(node.id);
+      return { ...node, ...(gap ? { trailingGap: gap } : {}), children: rewrite(node.children) };
+    });
+  return { ...surgery, children: rewrite(surgery.children) };
 }

@@ -95,7 +95,20 @@ describe('5.2 minimal edits', () => {
 });
 
 describe('5.3 inverse laws', () => {
-  it('heading indent∘outdent is identity away from the bounds', () => {
+  // An indent's edit site gains a blank line at a flush seam outside a list,
+  // which the outdent back does not take away (`structural-operations`, "A
+  // seam at an operation's edit site is separated"). The laws hold with blank
+  // lines set aside, and the tree is the same.
+  const sameAsideBlanks = (a: string, b: string): boolean => {
+    const content = (text: string): string => text.split('\n').filter((l) => l !== '').join('\n');
+    const shape = (text: string): string =>
+      JSON.stringify(parse(text).children, (key, value: unknown) =>
+        key === 'id' || key === 'trailingGap' ? undefined : value,
+      );
+    return content(a) === content(b) && shape(a) === shape(b);
+  };
+
+  it('heading indent∘outdent is identity away from the bounds, blank lines aside', () => {
     fc.assert(
       fc.property(arbTree(), (doc) => {
         const source = encode(doc);
@@ -115,7 +128,7 @@ describe('5.3 inverse laws', () => {
           if (candidates.length !== 1) continue;
           const restored = outdent(indented.value.doc, candidates[0]!.id);
           if (!restored.ok) return false;
-          if (encode(restored.value.doc) !== source) return false;
+          if (!sameAsideBlanks(encode(restored.value.doc), source)) return false;
         }
         return true;
       }),
@@ -123,7 +136,7 @@ describe('5.3 inverse laws', () => {
     );
   });
 
-  it('top-level paragraph indent∘outdent restores the document byte-identically', () => {
+  it('top-level paragraph indent∘outdent restores the document, blank lines aside', () => {
     fc.assert(
       fc.property(arbTree(), (doc) => {
         const source = encode(doc);
@@ -141,7 +154,7 @@ describe('5.3 inverse laws', () => {
           if (moved.length !== 1) continue;
           const restored = outdent(indented.value.doc, moved[0]!.id);
           if (!restored.ok) return false;
-          if (encode(restored.value.doc) !== source) return false;
+          if (!sameAsideBlanks(encode(restored.value.doc), source)) return false;
         }
         return true;
       }),

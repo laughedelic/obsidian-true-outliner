@@ -10,7 +10,7 @@ import { applications, emptyTally, firstSeamContinued, generateNotes, tallyOne }
  * `finalize`'s encode: the last encode an operation runs is of the tree it
  * wrote, with the surgery's node ids.
  */
-const encoded = vi.hoisted(() => ({ last: undefined as OutlineDoc | undefined }));
+const encoded = vi.hoisted(() => ({ last: undefined as OutlineDoc | undefined, pass: true }));
 vi.mock('../src/encode', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/encode')>();
   return {
@@ -22,9 +22,20 @@ vi.mock('../src/encode', async (importOriginal) => {
   };
 });
 
+/** The edit-site pass, switched off to measure today's operations. */
+vi.mock('../src/edit-site', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/edit-site')>();
+  return {
+    ...actual,
+    separateEditSite: (before: OutlineDoc, surgery: OutlineDoc) =>
+      encoded.pass ? actual.separateEditSite(before, surgery) : surgery,
+  };
+});
+
 const NOTES = Number(process.env.SEAM_ORACLE_NOTES ?? 60);
 
-function sweep(seed: number) {
+function sweep(seed: number, pass: boolean) {
+  encoded.pass = pass;
   const tally = emptyTally();
   for (const note of generateNotes(seed, NOTES, 8)) {
     const doc = parse(note);
@@ -76,15 +87,28 @@ describe('the reader model', () => {
 });
 
 describe('the seam oracle', () => {
-  it('measures every structural operation over generated notes', () => {
-    const tally = sweep(1);
-    if (process.env.SEAM_ORACLE_OUT) writeFileSync(process.env.SEAM_ORACLE_OUT, JSON.stringify(tally, null, 2));
-    expect(tally.accepted).toBeGreaterThan(0);
-    // Expected failures on today's operations, closed by the edit-site pass
-    // (tasks 3.1 and 5.2 of `created-seams-are-separated`): seams at the edit
-    // site that a reader continues, and seams away from it that a move rewrote.
-    expect(tally.continuedAtSite).toBeGreaterThan(0);
-    expect(tally.awayChanged).toBeGreaterThan(0);
-    expect(tally.indentedCode).toBe(0);
+  const today = sweep(1, false);
+  const passed = sweep(1, true);
+  if (process.env.SEAM_ORACLE_OUT) {
+    writeFileSync(process.env.SEAM_ORACLE_OUT, JSON.stringify({ today, passed }, null, 2));
+  }
+
+  it('finds seams at the edit site that a reader continues without the pass', () => {
+    expect(today.continuedAtSite).toBeGreaterThan(0);
+    expect(today.awayChanged).toBeGreaterThan(0);
+  });
+
+  it('leaves no seam at the edit site that a reader continues', () => {
+    expect(passed.continuedAtSite).toBe(0);
+  });
+
+  it('leaves every seam away from the edit site as written, save what the parse requires', () => {
+    expect(passed.awayChanged).toBe(passed.awayFloor + passed.away255 + passed.awayIdFloor);
+  });
+
+  it('turns no list tight or loose, moves no id and writes no indented code that today does not', () => {
+    expect(passed.looseFlips).toBeLessThanOrEqual(today.looseFlips);
+    expect(passed.idMoves).toBeLessThanOrEqual(today.idMoves);
+    expect(passed.indentedCode).toBe(0);
   });
 });

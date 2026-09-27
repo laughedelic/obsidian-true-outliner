@@ -136,9 +136,11 @@ describe('paragraph/list reparenting', () => {
   it('outdent keeps the subtree attached via the attachment rule', () => {
     const src = '# Notes\n\nPara.\n\n- x\n  - y\n';
     const { text, doc } = applyOk(outdent, src, '- x');
-    // No blank between x and its child list needed: a bullet line always
-    // starts a new block, and the attachment rule claims it as x's child.
-    expect(text).toBe('# Notes\n\nPara.\n\nx\n- y\n');
+    // No blank between x and its child list is needed to parse: a bullet line
+    // always starts a new block, and the attachment rule claims it as x's
+    // child. `x` is rewritten as a paragraph directly above a list, a seam at
+    // the edit site outside the list, so it gains one.
+    expect(text).toBe('# Notes\n\nPara.\n\nx\n\n- y\n');
     const notes = doc.children[0]!;
     const x = notes.children[1]!;
     expect(x.kind).toBe('paragraph');
@@ -699,7 +701,9 @@ describe('an arriving number does not become the run’s start', () => {
     // The reported shape. `1. L2` carries its nested `1.` up to a top-level run
     // that starts at 2, and the run renumbered itself from the arrival.
     const { text } = applyOk(outdent, '- L0\n2. L1\n   1. L2\n      - L3\n# L4\n', '   1. L2');
-    expect(text).toBe('- L0\n2. L1\n3. L2\n   - L3\n# L4\n');
+    // `# L4` gains `3. L2` as its previous sibling, so the seam below the list
+    // is at the edit site and separated.
+    expect(text).toBe('- L0\n2. L1\n3. L2\n   - L3\n\n# L4\n');
   });
 
   it('an indenting item takes the next number in the run it joins', () => {
@@ -1048,7 +1052,8 @@ describe('which regime a payload lands in is read from the nearest sibling', () 
     // Unchanged, and the reason the scan looks for both: where the neighbours
     // are headings the payload is landing among sections, not among rows.
     expect(pasted('# One\n\n### Three\n\n### Four\n', '### Three')).toBe(
-      '# One\n\n### Three\n\n### Notes\nbody\n\n### Four\n',
+      // Every block of a payload is new, so its own seams are separated.
+      '# One\n\n### Three\n\n### Notes\n\nbody\n\n### Four\n',
     );
   });
 
@@ -1057,7 +1062,7 @@ describe('which regime a payload lands in is read from the nearest sibling', () 
     // end the scan. A heading beside a paragraph is the shape "same depth,
     // different kinds" already covers, and nothing measured asks to change it.
     expect(pasted('## H\n\npara one\n\npara two\n', 'para one')).toBe(
-      '## H\n\npara one\n\n### Notes\nbody\n\npara two\n',
+      '## H\n\npara one\n\n### Notes\n\nbody\n\npara two\n',
     );
   });
 
@@ -1086,7 +1091,8 @@ describe('which regime a payload lands in is read from the nearest sibling', () 
   });
 
   it('a scope with no sibling of either kind still reads the parent', () => {
-    expect(pasted('para\n', 'para')).toBe('para\n# Notes\nbody\n');
+    // Both the payload's edge and its own seam are at the edit site.
+    expect(pasted('para\n', 'para')).toBe('para\n\n# Notes\n\nbody\n');
   });
 });
 
@@ -1190,7 +1196,8 @@ describe('sibling heading creation', () => {
 
   it('moves a remainder to the sibling', () => {
     const { text } = siblingOk('## Foo bar\n', '## Foo bar', 'bar');
-    expect(text).toBe('## Foo \n## bar\n');
+    // The remainder's heading is a written block, separated from the original.
+    expect(text).toBe('## Foo \n\n## bar\n');
   });
 
   it('a setext original keeps its underline; the sibling is ATX', () => {
@@ -1765,6 +1772,18 @@ describe('moveSubtreesTo', () => {
         if (!back.ok) return KNOWN_MOVE_REASONS.has(back.rejection.reason);
         const returned = encode(back.value.doc);
         if (returned === before) return true;
+        // A move's edge seams are at its edit site: a flush one outside a list
+        // gains a blank line the trip back does not take away, and the join it
+        // leaves takes the gap of the position it closes, while the seams the
+        // run passed keep their own (`structural-operations`, "A seam at an
+        // operation's edit site is separated"). The trip returns every other
+        // line, and the same tree.
+        const content = (text: string): string => text.split('\n').filter((l) => l !== '').join('\n');
+        const shape = (text: string): string =>
+          JSON.stringify(parse(text).children, (key, value: unknown) =>
+            key === 'id' || key === 'trailingGap' ? undefined : value,
+          );
+        if (content(returned) === content(before) && shape(returned) === shape(before)) return true;
         // An attached id outside a list item needs a blank line below it,
         // which a tight seam did not have. Whichever node of the scope ends in
         // one — the run, the node it landed under, or the one that took its

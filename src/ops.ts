@@ -26,6 +26,7 @@ import { forEachNodeWithLine, nodeAtLine, nodeStartLine } from './locate';
 import { subtreeCoverOf, type Cover } from './escalate';
 import { posBefore, type LinePos } from './line-pos';
 import { encode, encodeLines } from './encode';
+import { separateEditSite } from './edit-site';
 import {
   continuesListItem,
   parse,
@@ -155,8 +156,20 @@ export function finalize(
    * Defaults to `subjectId` alone, which is what every single-node operation
    * means by it. */
   spanIds?: readonly number[],
+  /**
+   * How the seams are written (`structural-operations`, "A seam at an
+   * operation's edit site is separated"): `edit-site` separates the edit site
+   * and restores every other seam; `place` is for an operation that opens a
+   * place in a gap, whose lines stay the place's; `none` is for a removal whose
+   * join a caller will fill, a splice or the place a key opens there.
+   */
+  seams: 'edit-site' | 'place' | 'none' = 'edit-site',
 ): OpResult<OpOutput> {
-  const normalized = normalizeBoundaries(surgery);
+  // The edit site's separators first, so the parse floor sees the seams as the
+  // result will hold them.
+  const normalized = normalizeBoundaries(
+    seams === 'none' ? surgery : separateEditSite(oldDoc, surgery, seams === 'edit-site'),
+  );
   const text = encode(normalized);
   const lines = text === '' ? [] : text.split('\n');
   // A subject that is not in `normalized` is a caller bug, not a position: it
@@ -1494,7 +1507,7 @@ function insertEmptyBefore(
   } else {
     surgery = { ...doc, preamble: [...doc.preamble, positionIndent, ''] };
   }
-  const result = finalize(doc, surgery, node.id);
+  const result = finalize(doc, surgery, node.id, undefined, 'place');
   if (!result.ok) return result;
   // `finalize` anchored on the node itself, whose start line has moved down by
   // exactly the two lines inserted directly above it.
@@ -1751,7 +1764,7 @@ export function splitNode(
         i === index ? { ...n, trailingGap: ['', positionIndent, ...n.trailingGap] } : n,
       ),
     );
-    const result = finalize(doc, surgery, nodeId);
+    const result = finalize(doc, surgery, nodeId, undefined, 'place');
     if (!result.ok) return result;
     return accept({
       ...result.value,
@@ -2089,6 +2102,9 @@ export function deleteSubtreeGroups(
   doc: OutlineDoc,
   groups: readonly (readonly number[])[],
   spliceFollows = false,
+  /** Whether the seam the removal joins is separated: not when a splice or a
+   * key's place will fill it. */
+  separateJoin = !spliceFollows,
 ): OpResult<OpOutput> {
   const removal = removeGroups(doc, groups);
   if (!removal.ok) return removal;
@@ -2130,7 +2146,7 @@ export function deleteSubtreeGroups(
 
   // `undefined` is the honest answer when nothing in scope survived: `finalize`
   // anchors at the scope's own start rather than inventing a node.
-  return finalize(doc, surgery, subject?.id);
+  return finalize(doc, surgery, subject?.id, undefined, separateJoin ? 'edit-site' : 'none');
 }
 
 /**

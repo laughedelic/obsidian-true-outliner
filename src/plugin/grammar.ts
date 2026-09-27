@@ -489,7 +489,9 @@ function planOverSelection(
   const forest = coveredForestOf(doc, { anchor: from, head: to });
   if (forest) {
     const groups = groupRootsByParent(forest.roots);
-    const deletion = deleteSubtreeGroups(doc, groups);
+    // The key opens a place in the join, so the deletion leaves it as the
+    // place will need it.
+    const deletion = deleteSubtreeGroups(doc, groups, false, false);
     if (deletion.ok) {
       const afterDelete = applyEdits(lines, deletion.value.edits);
       const { caret } = planCaret(

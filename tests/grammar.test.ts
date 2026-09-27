@@ -333,7 +333,9 @@ describe('grammar planner: Shift+Enter on a heading drafts the next one', () => 
     const src = '## Foo bar\n';
     const outcome = plan(src, { line: 0, ch: 7 }, 'continue');
     if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
-    expect(applyPlan(src, outcome.plan).text).toBe('## Foo \n## bar\n');
+    // The remainder's heading is a written block, so its seam with the
+    // original is at the edit site and separated.
+    expect(applyPlan(src, outcome.plan).text).toBe('## Foo \n\n## bar\n');
   });
 
   it('a setext underline produces an ATX sibling too', () => {
@@ -601,7 +603,9 @@ describe('grammar planner: splitting a line a Shift+Enter just made', () => {
     const direct = plan(src, { line: 0, ch: 4 }, 'split');
     if (!direct || !('plan' in direct)) throw new Error('expected a plan');
     expect(viaTwoKeys).toBe(applyPlan(src, direct.plan).text);
-    expect(viaTwoKeys).toBe('para\n- text\n- child\n');
+    // `para` is rewritten and `- text` is new, and a paragraph directly above a
+    // list is outside it, so that seam is at the edit site and separated.
+    expect(viaTwoKeys).toBe('para\n\n- text\n- child\n');
   });
 });
 
