@@ -315,6 +315,12 @@ rather than decided here. The task's mark is nevertheless a
 DRAG source, which costs the checkbox nothing: its claim is on the click, not on the press
 (docs/research/node-drag-and-drop).
 
+A paragraph holding a MISPLACED BLOCK ID is the other exception: its mark is the warning glyph
+`misplaced-block-ids` draws, and a press released on it without passing the drag threshold opens
+that capability's correction menu instead of zooming. A press on it that moves past the threshold
+is still a drag. The paragraph SHALL remain zoomable by the command, the context menu, and a
+hotkey.
+
 The click SHALL NOT also do what a click there would otherwise do: it SHALL NOT place the caret,
 begin a selection, or fold the node. The caret SHALL move to the new zoom root, since the node
 clicked is usually not the node the caret was in.
@@ -361,6 +367,10 @@ piece of work.
 #### Scenario: A modified click is not this gesture
 - **WHEN** the user clicks a marker with the platform's primary modifier held
 - **THEN** no zoom happens
+
+#### Scenario: A misplaced id's glyph opens its corrections instead
+- **WHEN** the user clicks the warning glyph beside a misplaced `^foo` without moving the pointer
+- **THEN** the correction menu opens and the view does not zoom
 
 ### Requirement: A zoom leaves the view at the top and the caret visible inside the scope
 
