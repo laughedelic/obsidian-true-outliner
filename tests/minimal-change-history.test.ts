@@ -227,6 +227,54 @@ describe('a selection-only transaction keeps adjacent changes in separate undo s
   });
 });
 
+/**
+ * The same join, reached from the other side: a KEYPRESS of ours dispatches its
+ * caret with its change, so its event has no `selectionsAfter` either, and CM6
+ * checks only the NEW change's `userEvent`. A command run right after the key
+ * joins the key's event unless the current selection is re-asserted first —
+ * which is what `runOp` does before its dispatch.
+ */
+describe('a selection-only transaction before a command keeps it apart from the key before it', () => {
+  const DOC = '- one\n- foo\n';
+  const OPENED = '- one\n- foo\n  \n';
+
+  /** Shift+Enter as the keymap dispatches it, then an indent as `Editor.transaction` does. */
+  function keyThenCommand(reassertFirst: boolean): EditorState {
+    let state = EditorState.create({
+      doc: DOC,
+      selection: EditorSelection.cursor(11),
+      extensions: [history()],
+    });
+    state = state.update({
+      changes: { from: 11, insert: '\n  ' },
+      selection: EditorSelection.cursor(14),
+      userEvent: 'input.structure.newline',
+    }).state;
+    if (reassertFirst) state = state.update({ selection: state.selection }).state;
+    state = state.update({
+      changes: [
+        { from: 6, insert: '  ' },
+        { from: 12, insert: '  ' },
+      ],
+      selection: EditorSelection.cursor(18),
+    }).state;
+    return state;
+  }
+
+  it('with the re-assertion, one undo reverts only the command', () => {
+    const view = makeView(keyThenCommand(true));
+    expect(view.state.doc.toString()).toBe('- one\n  - foo\n    \n');
+    undo(view);
+    expect(view.state.doc.toString()).toBe(OPENED);
+  });
+
+  it('WITHOUT it, the key and the command merge into a single undo step', () => {
+    const view = makeView(keyThenCommand(false));
+    undo(view);
+    expect(view.state.doc.toString()).toBe(DOC);
+  });
+});
+
 describe('known residual: outdent cursor drift when the cursor sits inside the removed marker', () => {
   it('the first undo/redo cycle is exact; the second undo lands one character off', () => {
     // '- alpha' / '\t- beta': cursor at the absolute start of '\t- beta'

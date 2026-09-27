@@ -359,6 +359,22 @@ describe('structural commands', function () {
     expect(await h.getCursor()).toEqual(keyboardCaret);
   });
 
+  it('a command run straight after a structural key is its own undo step', async function () {
+    // A keypress of ours dispatches its caret with its change, so its history
+    // entry has no `selectionsAfter`, and CM6 joins the command's
+    // `userEvent`-less change into it when the two land within
+    // `newGroupDelay`. No pause between the key and the command: that window is
+    // the case.
+    const opened = '- one\n- foo\n  \n';
+    await outlineNote('- one\n- foo\n', 1, '- foo'.length);
+    await h.keys.shiftEnter();
+    await h.runCommand('indent-node');
+    expect(await h.getBuffer()).not.toBe(opened);
+
+    await h.keys.undo();
+    expect(await h.getBuffer()).toBe(opened);
+  });
+
   it('indent via the palette leaves a blank line the user AUTHORED alone', async function () {
     // The other half of the same rule: with no place recorded, a gap line is a
     // gap. The caret sits between two paragraphs and only the paragraph that
