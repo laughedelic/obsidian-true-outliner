@@ -93,7 +93,8 @@ transaction, seen by the verdict layer, is the same order.
   pure deletion, and the edit passes natively. Selecting `   2. b` in `1. p` / `   1. a` /
   `   2. b` / `   3. c` / `2. q` and pressing ⌫ gives `   1. a` / blank / `   2. c` / `3. q`.
   Unchanged by the restoration, which covers only transactions this plugin planned.
-  Filed as [#260](https://github.com/laughedelic/obsidian-true-outliner/issues/260).
+  Filed as [#260](https://github.com/laughedelic/obsidian-true-outliner/issues/260), measured
+  below under "The ranges it appends to a user edit".
 - **A command move while zoomed** on the parent of a nested ordered list was vetoed as leaving the
   zoom: Obsidian's appended `userEvent: 'input.renumber'` is the command transaction's first one,
   so the verdict layer judges it, and the renumbering of a hidden line read as escaping the scope
@@ -132,3 +133,50 @@ The typing rows are unchanged: those edits are not the plugin's, and
 filter absent. One consequence stands out: after ⏎ at the end of the LAST nested item, typing the
 new item's text still turns `2. q` into `3. q`. Whether outline mode should keep Obsidian's
 renumbering off typing too is a decision of its own, not made here: [#263](https://github.com/laughedelic/obsidian-true-outliner/issues/263).
+
+## The ranges it appends to a user edit
+
+Measured 27 September 2026 on Obsidian 1.13.7 (desktop, Linux), through the e2e harness, on
+`main` at `04879ad`, for [#260](https://github.com/laughedelic/obsidian-true-outliner/issues/260).
+Each transaction that reached the view was recorded by wrapping `EditorView.update`, with every
+change range in start-document coordinates. Two gestures on the middle item `b`: a selection of
+its whole line followed by ⌫ (outline mode's ⇧↓ gives the same selection on a tight list), and ⌫
+⌫ at the end of its text, which empties it and then deletes its marker's space. Outline mode on,
+unless a row says otherwise; `┆` marks a column's left edge, `⏵` a tab.
+
+| List | Gesture | The user's range | Ranges Obsidian appends |
+| --- | --- | --- | --- |
+| `1. a` / `2. b` / `3. c` / `4. d` | line, ⌫ | `2. b` → nothing | `3. ` → `2. ` at ch 0, `4. ` → `3. ` at ch 0 |
+| same | ⌫ ⌫ | ` ` → nothing, ch 2 | the same two |
+| `1. p` / `┆  1. a` / `┆  2. b` / `┆  3. c` / `2. q` | line, ⌫ | `   2. b` → nothing | `3. ` → `2. ` at ch 3, and `2. q`'s `2. ` → `3. ` at ch 0 |
+| same | ⌫ ⌫ | ` ` → nothing, ch 5 | the same two |
+| the same, four spaces | line, ⌫ | `    2. b` → nothing | `3. ` → `2. ` at ch 4; `2. q` untouched |
+| the same, `⏵` | ⌫ ⌫ | ` ` → nothing, ch 3 | `3. ` → `2. ` at ch 1 |
+| `1) a` / `2) b` / `3) c` | line, ⌫ | `2) b` → nothing | `3) ` → `2) ` at ch 0 |
+| `8. a` / `9. b` / `10. c` / `11. d` | line, ⌫ | `9. b` → nothing | `10. ` → `9. ` at ch 0, `11. ` → `10. ` at ch 0 |
+| `> 1. a` / `> 2. b` / `> 3. c` | line, ⌫ | `> 2. b` → nothing | `3. ` → `1. ` at ch 2 |
+| `1. a` / blank / `2. b` / blank / `3. c` | line, ⌫ | `2. b` → nothing | none |
+| same, ⇧↓ selecting `2. b` and the line break after it | ⌫ | `2. b⏎` → nothing | `3. ` → `2. ` at ch 0 of `3. c` |
+
+Outline mode off gives the same appended ranges for the same user range.
+
+**The shape.** Every appended range covers one line's marker number, its delimiter and the one
+space after it, from the column the number starts at: past the line's indentation and any `> `.
+It replaces them with a new number, the same delimiter and the same space. The number's width can
+change, as `10. ` → `9. ` shows. No appended range ever touched a line the user's range touched,
+and none ever sat against it: a line's marker starts at its indentation, and the user's range
+ended at the end of the line above, or at a line start with a blank line between.
+
+**What the verdict layer does with it on `main`.** Every row with an appended range reaches
+`computeVerdictForRanges` as several ranges, one of which is not a pure deletion, so the whole
+transaction passes. The result is the native edit plus Obsidian's numbers: the line selection
+leaves an empty line where `b` was; ⌫ ⌫ leaves `2.`, a bare marker that `bare-marker-is-a-paragraph`
+reads as a paragraph, with `c` beneath it. On the three-column list `2. q` becomes `3. q` as well.
+The rows with nothing appended reach the layer as one range and are enforced as the same range is
+anywhere else.
+
+**Which class the appended ranges give.** None. A range that stays on one line and inside a marker
+crosses no node boundary, deletes no line break, inserts no block, and covers no subtree, so it
+never makes a transaction `boundary-crossing-edit` on its own. The class a transaction gets is the
+user's range's. A single-line deletion inside a quote, as in the `> ` row, is `within-node-edit`,
+so that transaction never reaches the verdict layer, with or without the appended range.
