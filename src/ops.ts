@@ -2381,9 +2381,8 @@ export function reindentSubtreeInUnit(
 
 /**
  * How a line that does not open with its own node's indentation moves: with
- * the block, by the swap of the block root's own prefix for its new one that
- * `reindentSubtreeVerbatim` makes, and as it was where it does not open with
- * that either. Keeping such a line where it stood while the block moved right
+ * the block, by the swap of the block root's own prefix for its new one, and as
+ * it was where it does not open with that either. Keeping such a line where it stood while the block moved right
  * left a lazy `> q` one column into its item instead of eight, where it opens a
  * quote.
  */
@@ -2557,26 +2556,29 @@ function reindentSubtreeVerbatim(node: OutlineNode, indentText: string): Outline
   // of it vanishes into its stop.
   const moveLine = (line: string): string =>
     line.trim() === '' ? line : reprefixLine(line, topWs, indentText, delta, 0, false);
-  // An atom's lines are content: its first line lands as any line does, and
-  // the others take the same change of prefix with every character past it.
-  const moveAtom = (lines: readonly string[]): string[] => {
-    const first = lines[0] ?? '';
-    const moved = reprefixLine(first, topWs, indentText, delta, 0, true);
+  // A fence's or an HTML block's lines are content: its first line lands as
+  // any line does, and the others take the same change of prefix with every
+  // character past it. A quote's, a callout's or a table's leading whitespace
+  // is structure, and each of its lines lands as any line does.
+  const moveAtom = (n: OutlineNode): string[] => {
+    const lands = (line: string): string =>
+      line.trim() === '' ? line : reprefixLine(line, topWs, indentText, delta, 0, true);
+    if (n.kind !== 'code' && n.kind !== 'html') return n.lines.map(lands);
+    const first = n.lines[0] ?? '';
+    const moved = lands(first);
     const from = leadingWhitespace(first);
     const to = leadingWhitespace(moved);
-    return lines.map((line, i) => {
+    return n.lines.map((line, i) => {
       if (i === 0) return moved;
-      if (line.trim() === '') return line;
-      return line.startsWith(from)
-        ? to + line.slice(from.length)
-        : reprefixLine(line, topWs, indentText, delta, 0, true);
+      if (line.trim() === '' || !line.startsWith(from)) return lands(line);
+      return to + line.slice(from.length);
     });
   };
   const recur = (n: OutlineNode): OutlineNode =>
     withIdLine(
       {
         ...n,
-        lines: isAtom(n) ? moveAtom(n.lines) : n.lines.map(moveLine),
+        lines: isAtom(n) ? moveAtom(n) : n.lines.map(moveLine),
         children: n.children.map(recur),
       },
       moveLine,

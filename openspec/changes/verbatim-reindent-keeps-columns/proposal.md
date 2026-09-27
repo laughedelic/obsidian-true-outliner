@@ -14,13 +14,14 @@ literally, and says nothing of columns or of lines spelled apart from the root. 
 - The fallback of "Subtree insertion at a boundary" moves every line by the width its root moved:
   the prefix swap where it lands on that column and puts no space in front of a tab, a shift by the
   width elsewhere, including on lines that do not open with the root's prefix.
-- An atom's first line moves the same way; its other lines take its first line's change of prefix
-  and keep every byte past it.
+- A fenced or HTML block's first line moves the same way; its other lines take its first line's
+  change of prefix and keep every byte past it. A quote's, a callout's and a table's lines move
+  as any line does.
 
 ## Non-goals
 
-- The converged path. `reprefixAtomLines` and `carryWithRoot` have the same unguarded shapes on
-  lines the read-back does not reject; `docs/research/verbatim-reindent-columns`, "Left alone",
+- The converged path. `reprefixAtomLines` loses a fence's tab there, and `carryWithRoot` leaves a
+  line spelled apart from its root behind; `docs/research/verbatim-reindent-columns`, "Left alone",
   carries both as candidate issues.
 - The indent/outdent re-encode ("A moved node is written in one indentation"), which already
   guards its swap.

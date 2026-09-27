@@ -1795,6 +1795,18 @@ describe('a verbatim re-indent keeps a tab-indented descendant’s column (#244)
     );
   });
 
+  it('a quote’s lines are structure, and each lands on the column the block moved it to', () => {
+    // Kept byte for byte past `  `, `\t> b` would put its `>` four columns
+    // past the content column, and the quote would end at `> a`.
+    const target = parse(doc);
+    const clip = '- p\n\n  para\n\n  > a\n  \t> b\n';
+    const result = insertSubtrees(target, byLine(target, '  1. b').id, parse(clip).children, 'after');
+    if (!result.ok) throw new Error(result.rejection.reason);
+    expect(encode(result.value.doc)).toBe(
+      '- a\n  1. b\n  - p\n\n    para\n\n    > a\n  \t  > b\n',
+    );
+  });
+
   it('a code block under the tab-indented item lands with it', () => {
     const target = parse(doc);
     const clip = `${payload}\t   \`\`\`\n\t   \tcode\n\t   \`\`\`\n`;

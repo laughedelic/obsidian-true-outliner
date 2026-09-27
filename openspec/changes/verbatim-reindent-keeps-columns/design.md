@@ -19,9 +19,12 @@ the bytes inside an atom.
   line that does not open with the prefix. Guarding only lines that open with the prefix was
   measured and rejected: it leaves a line spelled apart behind, and breaks blocks where the two
   sets of lines had stayed in step.
-- **An atom moves by its first line's prefix.** The first line goes through `reprefixLine`; the
-  others take `from → to` of that line's own leading whitespace, byte-exact past it. Sending
-  content lines through the guarded swap rewrote a Makefile recipe's tab.
+- **A fence or an HTML block moves by its first line's prefix.** The first line goes through
+  `reprefixLine`; the others take `from → to` of that line's own leading whitespace, byte-exact
+  past it. Sending content lines through the guarded swap rewrote a Makefile recipe's tab.
+- **A quote, a callout, a table and a rule move line by line** through `reprefixLine`, as
+  `reprefixAtomLines` moves them on the converged path. Their leading whitespace is structure; kept
+  byte for byte, a tab after the quote's prefix absorbed the move and split the quote.
 - **Blank lines stay as they are**, as before: `reprefixLine` would pad a whitespace-only line.
 - **No spec change to the indent requirement.** Its guard is the model; the fallback's sentence is
   what gains the columns.

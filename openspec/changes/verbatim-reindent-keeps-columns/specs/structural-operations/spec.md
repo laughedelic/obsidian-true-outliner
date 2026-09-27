@@ -29,12 +29,15 @@ offset from the paragraph, since it attaches by adjacency at any column.
 
 A block whose lines, so written and read back on their own, parse as a different tree
 from the block's own SHALL instead keep its own characters past its root's prefix,
-re-rooted at the destination depth. Every line of such a block SHALL move by the width its
-root moved, whether or not it opens with the root's prefix, and SHALL be written with the
+re-rooted at the destination depth. Every non-blank line of such a block SHALL move by the width
+its root moved, whether or not it opens with the root's prefix, and SHALL be written with the
 destination's prefix in place of the root's wherever that lands on the same column and puts no
-space in front of a tab that had none; elsewhere the line SHALL be shifted by the width. An
-atom's first line SHALL move the same way, and its other lines SHALL take the same change of
-prefix its first line took, keeping every character past it.
+space in front of a tab that had none; elsewhere the line SHALL be shifted by the width. A blank
+line SHALL be left as it is. A fenced block's or an HTML block's first line SHALL move the same
+way, and each of its other lines that opens with the first line's indentation SHALL take the same
+change of indentation, keeping every character past it; its other lines move as any line does. A
+quote's, a callout's and a table's leading whitespace is structure, and each of their lines SHALL
+move as any line does.
 
 When a block's kind converts for its destination, its own lines SHALL be converted as
 before, and its children SHALL be written in the document's unit: under a paragraph at the
@@ -127,6 +130,12 @@ blank to parse, so the separation a reader sees there is this one.
 - **WHEN** a block kept in its own characters holds a fenced block whose code line opens with
   its fence's indentation followed by a tab, and the block moves by less than a tab stop
 - **THEN** the code line is written with the fence's new indentation followed by that same tab
+
+#### Scenario: A quote kept in its own characters stays one quote
+- **WHEN** a block kept in its own characters holds a quote whose second line opens with the
+  quote's indentation followed by a tab, and the block moves by less than a tab stop
+- **THEN** that line's `>` lands on the column the block moved it to, and the quote keeps both
+  lines
 
 #### Scenario: A list pasted after a paragraph converts with its list in the unit
 - **WHEN** a list in any spelling is pasted at the end of a paragraph in a tab-indented vault

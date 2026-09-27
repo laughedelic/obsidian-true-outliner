@@ -9,6 +9,9 @@
   change of prefix; verify the fence-under-`1. m` case passes (negative control: on `main` the
   fence lands two columns short) and the Makefile-tab case keeps `    \techo` (negative control:
   routing content lines through `reprefixLine` writes `  \t  echo`)
+- [x] 1.2a Move a quote's, a callout's and a table's lines each through `reprefixLine`; verify
+  the quote-continuation case passes (negative control: keeping them byte for byte past the first
+  line's prefix writes `    \t> b` and splits the quote)
 - [x] 1.3 Add the mixed-prefix case, a descendant not opening with the root's `\t`; verify it
   passes (negative control: on `main` `- n` stays at column 6 while `- p` moves left)
 - [x] 1.4 Run both sweeps in `docs/research/prototypes/verbatim-reindent-columns/`; verify zero
