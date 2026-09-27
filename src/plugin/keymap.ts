@@ -1078,13 +1078,13 @@ function makeCancelHandler(forward: boolean) {
  * of the line above it: refused with the cue, the document unchanged. */
 function refuseJoinWithId(
   view: EditorView,
-  refuses: (text: string, cursor: { line: number; ch: number }) => boolean,
+  refuses: (text: string, cursor: { line: number; ch: number }, doc: ReturnType<typeof parsedDoc>['doc']) => boolean,
 ): boolean {
   const range = view.state.selection.main;
   if (view.state.selection.ranges.length !== 1 || !range.empty) return false;
   const line = view.state.doc.lineAt(range.head);
   const cursor = { line: line.number - 1, ch: range.head - line.from };
-  if (!refuses(view.state.doc.toString(), cursor)) return false;
+  if (!refuses(view.state.doc.toString(), cursor, parsedDoc(view.state.doc).doc)) return false;
   new Notice(REJECTION_MESSAGES["merge-not-expressible"], 1500);
   return true;
 }

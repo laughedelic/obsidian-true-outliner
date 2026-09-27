@@ -581,8 +581,7 @@ function planOverSelection(
  * "Start" is anywhere up to the `^`, since the caret's floor on the line is
  * there.
  */
-export function refusesBackspaceOnId(text: string, cursor: EditorPos): boolean {
-  const doc = parse(text);
+export function refusesBackspaceOnId(text: string, cursor: EditorPos, doc: OutlineDoc = parse(text)): boolean {
   const node = nodeAtLine(doc, cursor.line);
   if (!node) return false;
   const idIndex = idLineIndex(node);
@@ -598,8 +597,7 @@ export function refusesBackspaceOnId(text: string, cursor: EditorPos): boolean {
  * where it is no longer an id — or, after a fence or a table, no longer ends
  * the block.
  */
-export function refusesDeleteBeforeId(text: string, cursor: EditorPos): boolean {
-  const doc = parse(text);
+export function refusesDeleteBeforeId(text: string, cursor: EditorPos, doc: OutlineDoc = parse(text)): boolean {
   const lines = text.split('\n');
   const node = nodeAtLine(doc, cursor.line + 1);
   if (!node) return false;
