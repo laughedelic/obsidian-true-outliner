@@ -243,6 +243,97 @@ What it leaves:
 - **Shapes inside a tight list.**
 - **#255.** The floor's own rewrite stays, and the change's byte-identical claims exclude it.
 
+**What the review found.** The review ran each scenario's starting note through `parse`, the ops and `planKey`.
+The "D1" columns below apply the rule by hand to today's surgeries.
+
+The classifier's own gaps:
+- **A run of several roots moved to another parent is separated between its roots.** Its second root has a new
+  parent, so it counts as written. That contradicts D1's own table and the moved-run scenario:
+  ```
+   before    D1 as written    the scenario
+  ┆## A     ┆## A            ┆## A
+  ┆> q      ┆                ┆
+  ┆body     ┆## B            ┆## B
+  ┆         ┆text            ┆text
+  ┆## B     ┆                ┆
+  ┆text     ┆> q             ┆> q
+            ┆                ┆body
+            ┆body
+  ```
+  A new parent written only where the block has no previous sibling would close it.
+- **Renumbering and heading-level shifts,** as the step-back review below found. They also contradict
+  "Heading indent and outdent shift levels", "Sibling reordering" and "Operation closure", which the change
+  leaves as they are.
+- **Dropping a lone id writes its host.** `dropLoneId` rewrites `Lead.` to `Lead.` / `^id`, so the seam above
+  `- a` is at the edit site, against `misplaced-block-ids`. It is 4's failure, back.
+  ```
+   before    D1 as written    misplaced-block-ids
+  ┆Lead.    ┆Lead.           ┆Lead.
+  ┆- a      ┆^id             ┆^id
+  ┆         ┆                ┆- a
+  ┆^id      ┆- a
+  ```
+- **Block-id corrections never reach `finalize`.** They are raw edits built in `src/block-ids.ts` and applied
+  by `src/plugin/misplaced-ids.ts`. Routed through the pass, "Attaching to the lead paragraph" would gain a line
+  above `- a`, again against `misplaced-block-ids`.
+- **The changed-region bound can drop a seam at the edit site when text repeats.** The region comes from the
+  longest unchanged prefix and suffix, and with repeated lines it shifts off the change. `x` / blank / `z`
+  pasted at the end of `> quote`:
+  ```
+   before      D1 without the bound    with it
+  ┆> quote    ┆> quote                ┆> quote
+  ┆x          ┆                       ┆x
+  ┆           ┆x                      ┆
+  ┆y          ┆                       ┆z
+              ┆z                      ┆
+              ┆                       ┆x
+              ┆x                      ┆
+              ┆                       ┆y
+              ┆y
+  ```
+  The unchanged prefix is `> quote` / `x` / blank, so the pasted `x` lands outside the region and stays flush:
+  the defect the change exists to fix. A deletion's join fails the same way.
+- **One more encode per operation,** to find the region: the cost 4 was faulted for.
+
+Where the rule meets the rest of the specs:
+- **The group forms no longer equal their sequential composition,** as "Group forms of indent, outdent and
+  reordering" requires. Its closure scenario compares trees gaps included (`treesEqual`). Each single-node step
+  has its own edit site, which the one group `finalize` never sees. Block-selecting `a` and `> b` under `# X`
+  and moving them up:
+  ```
+   before    group     sequential
+  ┆# X      ┆# X      ┆# X
+  ┆> p      ┆         ┆
+  ┆a        ┆a        ┆a
+  ┆> b      ┆> b      ┆
+  ┆# N      ┆         ┆> b
+            ┆> p      ┆
+            ┆         ┆> p
+            ┆# N      ┆
+                      ┆# N
+  ```
+- **A type-over, a move to a list's edge and #255 break scenarios the change leaves or rewrites.**
+  - "A type-over keeps the separation of what it replaced" is untouched.
+  - The rewritten move scenario promises what #272 prevents.
+  - The new requirement's "a seam away from the edit site is not touched" has no carve-out for #255, which
+    appears only in the design.
+
+The places half does not work as written:
+- **An Enter position is never carried.** The design's "carried place" amendment rested on a misreading of
+  #253. After ⏎ ⇥ the caret is at `- ┃para`, off the position, and `placeOutline` refuses a position that stands
+  for a new node, which is what #253 itself records. The amendment applies only to Shift+Enter positions, which
+  have no separators, and its task cannot pass.
+- **A dissolved place leaves a node, not gap lines.** `outdentSurgery`'s dissolve and `splitNode`'s folded end
+  leave an empty paragraph node, which the pass treats as a written block. And `applyGroups` keeps only each
+  step's document, so a record on the surgery does not survive a group form.
+- **The removal contradicts itself.** Removing the place's line and the lines added beside it leaves `- item`
+  flush above `next`, while the same text says the seam then holds one blank line.
+
+The rest checked out: the pasted quote, the `<div>` drag, the `---` removal, the `para text` split, the merge
+above `> q`, the `## Budget` reorder, the `^id3` lone id, the four-column payload, the type-over in a tight list,
+the two gestures on `# H` / `- a`, a paste onto a place and Enter over a block selection each give the stated
+result. Node ids survive every re-encode the review checked.
+
 ## Comparison
 
 | | decides by | stays correct when an op rewrites a block | failed on |
@@ -253,7 +344,7 @@ What it leaves:
 | 3. ids + lineage + kind | ids, per-op lineage | only with correct lineage | type-over, drafted heading, list separation |
 | 4. line diff | text alignment | yes, except moves | moves, cross-kind joins, remainders, id drops |
 | 5. marking | a per-op table | yes, by construction | ops that move a block across a list's edge |
-| 6. edit site | which blocks the op wrote, by id, within the changed text | yes, by construction | under review |
+| 6. edit site | which blocks the op wrote, by id, within the changed text | yes, by construction | text-derived rewrites, multi-root moves, id drops, repeated text, group forms, places |
 
 ## A step back: what the reviews were about
 
@@ -431,7 +522,11 @@ in real notes (the corpus holds test notes only), and whether the view covers ev
 
 - **What the oracle counts.** How many seams each op separates where no reader continues, and whether any
   derived seam still disagrees with a reader. B is decided on the first figure.
-- **Whether 6, or A, misses a seam.** The step-back review could not build a case, and the oracle is the check.
+- **Whether 6, or A, misses a seam.** The step-back review could not build a case against the classifier. The
+  one 6's review built, repeated text, comes from the changed-region bound, not from the classifier. The oracle
+  is the check.
+- **What the group forms promise about gaps.** Their equality with the sequential composition includes gaps
+  today, and an edit site per step differs from one per gesture.
 - **How often a user writes a lazy line on purpose.** The corpus holds test notes only.
 - **Is every row of 5's table right?** A same-scope reorder and a type-over's outer seams are the ones a
   different reading of "created" would change.
