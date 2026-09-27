@@ -212,6 +212,47 @@ them with the rest.
 That the property suite saw none of this — nor #158 itself — is
 [#199](https://github.com/laughedelic/obsidian-true-outliner/issues/199).
 
+## A paragraph written into the margin
+
+[#198](https://github.com/laughedelic/obsidian-true-outliner/issues/198) is the same rule running
+the other way. A paragraph at column 4 or deeper can be written back into the margin — a payload
+copied from inside a list item and pasted at the root, a child carried out of its item by a drag —
+and there its text opens whatever it spells: `<!-- c -->` an HTML block, `> q` a quote. The seam
+below it was chosen for a paragraph. Measured on `main` at `5c7c7a5`:
+
+| gesture | before | result |
+| --- | --- | --- |
+| paste `    first` / blank / `    <!-- c -->` before `> real quote` | 3 nodes | `<!-- c -->` / `> real quote` flush: one `html` block holding the quote |
+| paste `    first` / blank / `    > quoted` before `> real quote` | 3 nodes | one quote of two lines |
+| drag `  - kid` (child `    <div>`) above `- item` / `- other` / `after` | 5 nodes | `  <div>` / `- item` / `- other` / `after` flush: one `html` block |
+
+`kindAsWritten` now reads a `paragraph` as the block its first line opens where it is written —
+a heading or an HTML block from column 0, a quote, a callout or a rule from the margin, in the
+order `segment` tries them — and the seam rules do the rest unchanged. A setext underline is not
+looked for: judged as a paragraph, a setext heading takes every separator a heading would. On a
+tree `parse` produced the promotion never fires, since `segment` would already have read the line
+as that block.
+
+| probe | `main` | promoted |
+| --- | --- | --- |
+| bare-seam sweep, pairs wrong | 58 | 4 |
+| of which #198's (a promoted `<!--` or `>` paragraph) | 54 | 0 |
+| insertion differential, encodings differing | — | 0 of 924 |
+| drag sweep (`drag-sweep.test.ts.txt`), moves a node short | 18 of 933 | 0 of 933 |
+
+The 4 pairs left in the sweep are the `---` / `---` ones settled in `paste-across-encoding-regimes`.
+The 18 drag losses are all an HTML-opening child carried to a column within the margin; a
+promoted quote lost nothing in the drag documents, whose following nodes are list items and tables.
+
+Promotion removes separators as well as adding them. A promoted quote directly above a paragraph
+is written flush, as a real quote there is: our parse reads `> quoted` / `below` as two nodes, where
+CommonMark reads `below` as a lazy continuation of the quote (`block-start-margin` records the same
+divergence for quotes the parser already reads).
+
+A promoted ATX heading is still a heading in the re-parse, and takes the siblings below it into its
+section. No separator can prevent that, and it is a question about what the node is called, which
+#198 leaves open.
+
 ## What this does not close
 
 The KIND loss is untouched, and #158 stays open on it. A `quote`, a `callout`, an `hr` or an
