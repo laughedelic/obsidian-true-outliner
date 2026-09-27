@@ -49,7 +49,7 @@ import { Direction, EditorView, keymap } from "@codemirror/view";
 import { deleteCharBackward } from "@codemirror/commands";
 import { indentUnit, foldedRanges } from "@codemirror/language";
 import { Notice, editorInfoField } from "obsidian";
-import { planKey, refusesBackspaceOnId, type GrammarKey } from "./grammar";
+import { planKey, refusesBackspaceOnId, refusesDeleteBeforeId, type GrammarKey } from "./grammar";
 import { REJECTION_MESSAGES } from "./messages";
 import { nextRungs } from "../select-all-ladder";
 import { contentStartRungs, planDeleteToContentStart } from "../caret-policy";
@@ -1065,18 +1065,21 @@ function makeCancelHandler(forward: boolean) {
   return (view: EditorView): boolean => {
     if (!outlinePathOf(view)) return false;
     if (cancelOnDelete(view, forward)) return true;
-    return !forward && refuseBackspaceOnId(view);
+    return refuseJoinWithId(view, forward ? refusesDeleteBeforeId : refusesBackspaceOnId);
   };
 }
 
-/** Backspace at the start of an attached block id's line: refused with the
- * cue, the document unchanged (`refusesBackspaceOnId`). */
-function refuseBackspaceOnId(view: EditorView): boolean {
+/** Backspace at the start of an attached block id's line, or Delete at the end
+ * of the line above it: refused with the cue, the document unchanged. */
+function refuseJoinWithId(
+  view: EditorView,
+  refuses: (text: string, cursor: { line: number; ch: number }) => boolean,
+): boolean {
   const range = view.state.selection.main;
   if (view.state.selection.ranges.length !== 1 || !range.empty) return false;
   const line = view.state.doc.lineAt(range.head);
   const cursor = { line: line.number - 1, ch: range.head - line.from };
-  if (!refusesBackspaceOnId(view.state.doc.toString(), cursor)) return false;
+  if (!refuses(view.state.doc.toString(), cursor)) return false;
   new Notice(REJECTION_MESSAGES["merge-not-expressible"], 1500);
   return true;
 }

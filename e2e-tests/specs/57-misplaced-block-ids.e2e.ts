@@ -225,6 +225,22 @@ describe('keys on an attached block id', function () {
     expect((await h.noticeTexts()).length).toBeGreaterThan(0);
   });
 
+  it('refuses Delete that would join the line above into the id, with the cue', async function () {
+    for (const [md, line, ch] of [
+      ['- one\n^abc\n- two\n', 0, 5],
+      ['> q\n^q\n\nAfter.\n', 0, 3],
+    ] as const) {
+      await h.dismissNotices();
+      await h.setBuffer(md);
+      await browser.pause(150);
+      await h.setCursorSettled(line, ch);
+      await browser.keys(Key.Delete);
+      await browser.pause(100);
+      expect(await h.getBuffer()).toBe(md);
+      expect((await h.noticeTexts()).length).toBeGreaterThan(0);
+    }
+  });
+
   it('moves End and Home along the id\'s own text', async function () {
     await h.setCursorSettled(6, 1);
     await browser.keys(Key.End);

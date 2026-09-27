@@ -13,7 +13,10 @@ node's text, so the grammar's keys SHALL treat it as follows:
   `cannot-split`: splitting an id's line leaves no id.
 - Backspace at the START of the id's line SHALL be rejected with the cue, leaving the document
   unchanged: every join it could make either changes which block the id names or stops it being
-  an id. Deleting the id's own characters is an ordinary edit.
+  an id. Delete at the END of a line directly above the id's line, one of the node's own lines,
+  SHALL be rejected the same way, since it makes the same join: it writes the id into that line,
+  where it is no longer an id — and after a fence or a table, the block no longer ends there.
+  Deleting the id's own characters, and a blank line above the id, is an ordinary edit.
 
 #### Scenario: Enter after an id opens a sibling after the node
 - **WHEN** the caret is at the end of `^t1`, attached to a table with no children, and Enter is
@@ -27,6 +30,11 @@ node's text, so the grammar's keys SHALL treat it as follows:
 
 #### Scenario: Backspace at the start of an id is refused
 - **WHEN** the caret is before `^` on an attached id's line and Backspace is pressed
+- **THEN** the document is unchanged and the cue appears
+
+#### Scenario: Delete at the end of the line above an id is refused
+- **WHEN** the caret is at the end of `- one`, with `^abc` attached directly under it, and Delete
+  is pressed
 - **THEN** the document is unchanged and the cue appears
 
 ### Requirement: Shift+Enter keeps an item's lazy id with the item

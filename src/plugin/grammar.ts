@@ -591,6 +591,24 @@ export function refusesBackspaceOnId(text: string, cursor: EditorPos): boolean {
   return cursor.ch <= line.indexOf('^');
 }
 
+/**
+ * Whether Delete at `cursor` is refused because it sits at the end of the line
+ * directly above an attached block id's line: the join it makes is the one
+ * Backspace at the id's start is refused, and writes the id into that line,
+ * where it is no longer an id — or, after a fence or a table, no longer ends
+ * the block.
+ */
+export function refusesDeleteBeforeId(text: string, cursor: EditorPos): boolean {
+  const doc = parse(text);
+  const lines = text.split('\n');
+  const node = nodeAtLine(doc, cursor.line + 1);
+  if (!node) return false;
+  const idIndex = idLineIndex(node);
+  if (idIndex === undefined || cursor.line + 1 !== nodeStartLine(doc, node.id) + idIndex) return false;
+  const above = lines[cursor.line] ?? '';
+  return above.trim() !== '' && cursor.ch >= above.length;
+}
+
 export function planKey(
   text: string,
   cursor: EditorPos,

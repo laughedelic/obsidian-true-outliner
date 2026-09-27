@@ -3,7 +3,7 @@ import { parse } from '../src/parse';
 import { walkNodes } from '../src/model';
 import { escalateRange } from '../src/escalate';
 import { REJECTION_MESSAGES } from '../src/plugin/messages';
-import { planKey, refusesBackspaceOnId, type GrammarKey, type TxPlan, plannedCaret } from '../src/plugin/grammar';
+import { planKey, refusesBackspaceOnId, refusesDeleteBeforeId, type GrammarKey, type TxPlan, plannedCaret } from '../src/plugin/grammar';
 import type { EditorChange } from '../src/plugin/dispatch';
 
 /** Apply a plan's changes (line/ch semantics) to text; return new text + cursor offset. */
@@ -1223,6 +1223,21 @@ describe('grammar planner: keys on an attached block id', () => {
     if (higher && 'plan' in higher) {
       expect(applyPlan('A\nB\n^id\n- x\n', higher.plan).text).toBe('A\n\nB\n^id\n- x\n');
     }
+  });
+
+  it('refuses Delete at the end of the line directly above an id, and nowhere else', () => {
+    // The join would write the id into the line above: into a fence's closing
+    // line, a table's last row, a quote's line or an item's text.
+    expect(refusesDeleteBeforeId('```\ncode\n```\n^c\n\nAfter.\n', { line: 2, ch: 3 })).toBe(true);
+    expect(refusesDeleteBeforeId('| a |\n| - |\n^t\n', { line: 1, ch: 5 })).toBe(true);
+    expect(refusesDeleteBeforeId('> q\n^q\n', { line: 0, ch: 3 })).toBe(true);
+    expect(refusesDeleteBeforeId('- one\n^abc\n- two\n', { line: 0, ch: 5 })).toBe(true);
+    // Not inside the line, not on a blank line above the id, not above an id
+    // that is a paragraph's own line.
+    expect(refusesDeleteBeforeId('- one\n^abc\n', { line: 0, ch: 3 })).toBe(false);
+    expect(refusesDeleteBeforeId('Para.\n\n^p\n', { line: 1, ch: 0 })).toBe(false);
+    expect(refusesDeleteBeforeId('Para.\n\n^p\n', { line: 0, ch: 5 })).toBe(false);
+    expect(refusesDeleteBeforeId('Lead.\n^id\n- a\n', { line: 0, ch: 5 })).toBe(false);
   });
 
   it('refuses Backspace at the start of an id, and nowhere else', () => {
