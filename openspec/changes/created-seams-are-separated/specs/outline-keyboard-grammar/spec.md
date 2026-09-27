@@ -276,15 +276,16 @@ record of which key was pressed:
 
 - Enter's provisional position SHALL be blank-separated from the content above it and below
   it, so text typed there parses as a node distinct from both neighbours. It stands for a block,
-  and both of its seams are created, per `structural-operations`' `A seam an operation creates is separated`. So it is separated even where
+  and outside a list both of its seams are created, per `structural-operations`' `A seam an operation creates is separated`. So it is separated even where
   the blocks around it were written flush: under a quote, a heading or a closing fence, and above
   a flush first child. Every reader but ours continues a line typed flush under a quote or a list
   item into that block.
 - Shift+Enter's provisional position SHALL be ADJACENT to the node above it, so text typed
   there parses as that node's own continuation line.
 
-This is the reason an end-of-node Enter separates its position on both sides, adding to the gap
-only the lines that takes, rather than reusing the single blank line that already separates two
+This is the reason an end-of-node Enter separates its position on both sides — it always writes the
+position's own line, and adds a blank line on either side only where that seam lacks one — rather
+than reusing the single blank line that already separates two
 nodes. The narrower encoding was evaluated and
 is provably ambiguous: at the end of a top-level paragraph both keys leave the cursor at
 column 0 of the line below, and the only remaining difference is gap width, which
