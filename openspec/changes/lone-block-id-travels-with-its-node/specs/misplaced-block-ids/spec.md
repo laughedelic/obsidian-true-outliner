@@ -173,7 +173,10 @@ seam directly above the id's own line is such a destination too, under the node 
 a drop on the seam below the id puts it back. Under a paragraph's or a list item's text it SHALL
 follow that line directly, and under any other block after one blank line, the form a table's or
 a heading's id is read and edited in. Below it, the seam SHALL take the blank line a block
-directly under an attached id needs (`structural-operations`).
+directly under an attached id needs (`structural-operations`). A drop under a node whose text
+already ends in an id — attached, on a line directly under its text, or written at the end of its
+text line — SHALL be rejected with `not-expressible-under-target`: whatever is written there ends
+that node's text, and the id it has would stop naming it.
 
 The ordinary parse then decides what it is: under a paragraph's or an item's text it is a line of
 that text and names the node as an inline id does; after a heading, table, quote, callout, fence,
@@ -186,6 +189,10 @@ stays a misplaced id naming nothing.
   between `Lead.` and `- a`
 - **THEN** the note reads `Lead.`, `^id`, `- a`, with no blank line; `^id` is a line of `Lead.`, and
   nothing is marked
+
+#### Scenario: Dropping an id under a node that already has one is refused
+- **WHEN** a misplaced `^id` is dragged to the seam between `Lead. ^keep` and its list
+- **THEN** the drop is rejected with `not-expressible-under-target`, and the note is unchanged
 
 #### Scenario: Dropping an id under a heading attaches it, with a blank line below
 - **WHEN** a misplaced `^id` is dragged to the seam between `## H` and its first child `- a`

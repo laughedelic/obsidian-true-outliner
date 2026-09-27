@@ -1926,6 +1926,20 @@ describe('a dragged misplaced id lands as a line of the node above it', () => {
     expect(parse(out).children[0]!.lines).toEqual(['^id']);
   });
 
+  it('refuses an id dropped under a node whose text already ends in an id', () => {
+    const reason = (md: string, parent: string, index: number): string => {
+      try {
+        drop(md, parent, index);
+        return 'accepted';
+      } catch (error) {
+        return (error as Error).message;
+      }
+    };
+    expect(reason('Lead. ^keep\n- a\n\n^id\n', 'Lead. ^keep', 0)).toBe('not-expressible-under-target');
+    expect(reason('Lead.\n^keep\n- a\n\n^id\n', 'Lead.', 0)).toBe('not-expressible-under-target');
+    expect(reason('- a ^keep\n- b\n\n^id\n', 'root', 1)).toBe('not-expressible-under-target');
+  });
+
   it('never writes a dropped id as a list item', () => {
     const out = drop('- a\n- b\n\n^l1\n\nAfter.\n', 'root', 1);
     expect(out).toBe('- a\n  ^l1\n- b\n\nAfter.\n');

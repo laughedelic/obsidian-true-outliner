@@ -45,6 +45,7 @@ import {
   listAttachesTo,
   nativeContentKind,
   reorderReparents,
+  carriesBlockId,
   isLoneBlockIdLine,
   isLoneBlockIdNode,
 } from './rules';
@@ -2650,9 +2651,10 @@ function reencodeHeadingSubtree(node: OutlineNode, delta: number): OutlineNode {
  * so it goes under the line above the destination rather than at a depth —
  * directly under a paragraph's or an item's text, as a line of it, and after a
  * blank line under any other block, as its attached id. Undefined where no line
- * can take it that way: the top of the note, a node that already carries an
- * id, or a block inside a list item, where Obsidian names the item; the
- * insertion then writes it as the paragraph it is.
+ * can take it that way: the top of the note, or a block inside a list item,
+ * where Obsidian names the item; the insertion then writes it as the paragraph
+ * it is. Rejected under a node whose text already ends in an id: whatever is
+ * written there ends that node's text, and the id it has stops naming it.
  */
 function dropLoneId(
   doc: OutlineDoc,
@@ -2676,7 +2678,8 @@ function dropLoneId(
       : parentPath.length > 0
         ? nodeAt(afterRemoval, parentPath)
         : undefined;
-  if (!host || host.blockId) return undefined;
+  if (!host) return undefined;
+  if (carriesBlockId(host)) return reject('not-expressible-under-target');
   const hostPath = findPath(afterRemoval, host.id)!;
   const inItem = hostPath
     .slice(0, -1)
