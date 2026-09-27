@@ -357,6 +357,19 @@ describe('outline zoom', function () {
     await h.dismissNotices();
   });
 
+  it('a command move inside the zoom is not refused over a renumbering Obsidian adds', async function () {
+    // #259: Obsidian renumbers the hidden `3. q` on top of the move, reading the
+    // three-column items as siblings of `p`. The restoration runs before the
+    // zoom check, so the check judges the move the command planned.
+    const md = '1. o\n2. p\n   1. a\n      1. x\n   2. b\n3. q\n';
+    await openZoomable(md);
+    await zoomAt(md, '2. p');
+    await h.setCursorSettled(2, 7);
+    await h.keys.moveNodeDown();
+    expect(await h.getBuffer()).toBe('1. o\n2. p\n   1. b\n   2. a\n      1. x\n3. q\n');
+    expect(await h.noticeTexts()).toEqual([]);
+  });
+
   it('zooms to the node at the caret, hiding everything else', async function () {
     await openZoomable();
     await zoomAt(DOC, '## Mid');
