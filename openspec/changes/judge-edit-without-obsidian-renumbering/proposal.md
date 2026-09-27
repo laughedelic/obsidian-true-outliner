@@ -17,7 +17,8 @@ because nothing is appended there.
 
 `node-edit-enforcement` requires these gestures to be structural. `transaction-classification`
 requires a multi-range edit with an unmodelled range to pass, and it reads every range of a
-transaction as the user's. For these inputs the two requirements cannot both hold. The ranges
+transaction as the user's. For these inputs the two requirements conflict. #260 decides which
+wins: its expected results are the structural ones. The ranges
 Obsidian appends, where they sit and which class they give are measured in
 `docs/research/obsidian-list-renumbering`, "The ranges it appends to a user edit".
 
@@ -32,7 +33,12 @@ Obsidian appends, where they sit and which class they give are measured in
   transaction, Obsidian's numbers included; the structural operation numbers the runs it changes
   itself, as `structural-operations` already requires. A `pass` keeps Obsidian's numbers, as
   today, and a `veto` dissolves the transaction.
-- **Effects outside the verdict layer.**
+- **The class ignores Obsidian's `userEvent`.** A dispatch with no `userEvent` of its own
+  is classified as if Obsidian's `input.renumber` were absent, so it stays `programmatic`.
+- **Other gestures follow.** A type-over or a paste over a selected item, and ⌦ at the end
+  of an item, go from a native pass to the verdict they get without anything appended,
+  whenever items follow.
+- **Effects outside the verdict layer**, for the gestures that are rewritten:
   - While zoomed, such a deletion is now judged on its own edits, so Obsidian's renumbering of a
     hidden line no longer vetoes it as leaving the zoom.
   - A fold whose hidden lines Obsidian would have renumbered stays closed.
@@ -40,6 +46,15 @@ Obsidian appends, where they sit and which class they give are measured in
     first item already does.
 
 ## Non-goals
+
+- An edit that PASSES keeps Obsidian's renumbering, as a native edit does. That includes a
+  linewise cut in a list nested at three columns: the cut is a within-node edit, and Obsidian
+  also renumbers the parent list below it. Whether outline mode should keep Obsidian's
+  renumbering off the edits it passes, typing included, is
+  [#263](https://github.com/laughedelic/obsidian-true-outliner/issues/263).
+- Obsidian's renumbering of lines inside inserted text composes into the user's own range, and
+  cannot be told apart from it. A paste of `7. x⏎8. y` over an item is judged as a paste of
+  `2. x⏎3. y`, as it is on `main`.
 
 - Obsidian's renumbering of ordinary typing is left untouched; whether outline mode should keep
   it is [#263](https://github.com/laughedelic/obsidian-true-outliner/issues/263).
@@ -60,7 +75,7 @@ None.
 - `transaction-classification`: a transaction is classified and judged on the user's own ranges;
   a range rewriting only an ordered marker's number, appended by another filter, is set aside.
 - `node-edit-enforcement`: an ordered item's deletion that is rewritten ends with the numbers the
-  structural operation writes, with scenarios for the gestures #260 reports and the linewise cut.
+  structural operation writes, with scenarios for the gestures #260 reports.
 
 ## Impact
 

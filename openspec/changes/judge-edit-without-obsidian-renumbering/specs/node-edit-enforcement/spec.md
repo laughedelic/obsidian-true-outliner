@@ -20,8 +20,3 @@ that passes keeps whatever Obsidian appended, as a native edit does.
   presses Backspace twice
 - **THEN** the note reads `1. p` / `2. q` and the caret is at the end of `p`, as it is
   when `2. a` is the last item
-
-#### Scenario: A linewise cut of an ordered item
-- **WHEN** the caret is in `2. b` in `1. a` / `2. b` / `3. c`, with nothing selected, and
-  the user cuts
-- **THEN** the note reads `1. a` / `2. c`

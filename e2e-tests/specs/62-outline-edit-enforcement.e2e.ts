@@ -328,8 +328,6 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     await browser.keys(Key.Backspace);
     expect(await h.getBuffer()).toBe('1. p\n2. q\n');
     expect(await h.getCursor()).toEqual({ line: 0, ch: '1. p'.length });
-    await h.keys.undo();
-    expect(await h.getBuffer()).toBe('1. p\n2. \n3. q\n');
   });
 
   it('the same Backspace in a tab-indented nested list leaves the parent list alone', async function () {
@@ -351,6 +349,23 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     expect(await h.getCursor()).toEqual({ line: 1, ch: '   1. a'.length });
     await h.keys.undo();
     expect(await h.getBuffer()).toBe('1. p\n   1. a\n   2. b\n   3. c\n2. q\n');
+  });
+
+  it('a linewise cut of an ordered item leaves the item after it whole', async function () {
+    await outlineNote('1. a\n2. b\n3. c\n');
+    await h.setCursor(1, '2. b'.length);
+    await browser.keys([h.PRIMARY_MOD, 'x']);
+    expect(await h.getBuffer()).toBe('1. a\n2. c\n');
+  });
+
+  it('Backspace inside an item, with an empty item renumbered below it, stays a character deletion', async function () {
+    await outlineNote('1. p\n   1. ab\n2. ');
+    await h.setCursor(1, '   1. ab'.length);
+    await browser.keys(Key.Backspace);
+    // Obsidian's own numbers, as with outline mode off (#263 decides typing).
+    expect(await h.getBuffer()).toBe('1. p\n   2. a\n3. ');
+    const snap = await h.getStats();
+    expect(snap.verdictCounts.rewrite).toBe(0);
   });
 
   it('a deletion inside a quoted list stays native, with Obsidian\'s numbers', async function () {

@@ -54,9 +54,12 @@ when it:
 - ends just past the single space after the delimiter;
 - replaces `N<d> ` with `M<d> `, where `M ≠ N` and the delimiter `<d>` is the same.
 
-Nothing marks the ranges as Obsidian's. Its spec carries `userEvent: 'input.renumber'`, but a
-combined transaction answers `annotation(userEvent)` and `isUserEvent` from the first annotation
-only, which is the user's. No plugin filter can run before Obsidian's either.
+The shape is the one Obsidian's filter writes: in 1.13.7's `app.js` it rewrites `N<d> ` to
+`M<d> ` whenever the number's text differs, and appends the changes as a second, sequential
+spec under `userEvent: 'input.renumber'`. That annotation cannot tell the changes apart: a
+combined transaction answers `annotation(userEvent)` and `isUserEvent` from the first
+annotation, which is the user's when the user's edit has one, and its annotation list is not
+public API.
 
 A looser rule — any change that leaves the line an ordered item with the same text after the
 marker — would also set aside a user's own Backspace inside `13.` made with a second cursor.
@@ -64,10 +67,21 @@ The strict shape cannot be a keystroke of the user's.
 
 **Only when another change remains.** A transaction of marker rewrites alone is left whole.
 
+**Obsidian's `userEvent` does not classify.** On a dispatch with no `userEvent` of its own —
+another plugin's edit, or one of ours through `Editor.transaction` — the first `userEvent` is
+Obsidian's `input.renumber`. Read as it stands, it takes the dispatch out of `programmatic`
+whenever Obsidian renumbered around it, and the dispatch is judged by shape. The adapter reads
+`input.renumber` as no `userEvent`. A plugin-planned dispatch has had Obsidian's numbers
+replaced by the restoration already, so for it nothing else changes.
+
 **Alternatives considered.**
 - *Tolerate the marker ranges inside the multi-range rule only*, as `open-questions` Q23 first
   proposed. That covers a block deletion but not Backspace ⌫ ⌫, which is a merge.
 - *Set them aside in `computeVerdictForRanges`.* Rejected above.
+- *Snapshot the user's own change set in a lower-precedence filter that runs before
+  Obsidian's*, and judge that. This would drop the shape rule. It needs a handshake between two
+  filters keyed by state, and whether it sees the user's pristine changes is unmeasured. The
+  shape rule matches Obsidian's own code exactly, so it is kept.
 - *Make `isExactSubtreeCoverDeletion` refuse replacements.* That closes the empty-item class flip
   but not the joined cut, and it changes a classifier rule the other gestures rely on.
 
@@ -78,6 +92,8 @@ The strict shape cannot be a keystroke of the user's.
   keeps it.
 - [Obsidian changes the shape it appends] → The changes then stop matching and the transaction
   is read as today; the e2e tests for the gestures fail and say so.
-- [A transaction that is not an edit of the user's, such as a plugin's own or a programmatic one,
-  carries such a change] → Those classes are decided by annotation before any span is read, so
-  the helper's output does not change them.
+- [A transaction that is not an edit of the user's carries such a change] → Plugin-own and
+  history transactions are decided by their own `userEvent`, which is first. An unannotated
+  dispatch is kept `programmatic` by reading `input.renumber` as no `userEvent`.
+- [Obsidian's renumbering inside inserted text] → It composes into the user's own change and is
+  judged as part of it, as on `main`.

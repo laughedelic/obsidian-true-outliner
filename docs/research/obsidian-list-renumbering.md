@@ -178,6 +178,13 @@ It replaces them with a new number, the same delimiter and the same space. The n
 change, as `10. ` → `9. ` shows. A marker followed by a tab or by surplus spaces was never
 renumbered in these gestures.
 
+The same shape is what the filter's code writes. In 1.13.7's `app.js` it matches each line
+against `/^([>\s]*)(([*+-] |(\d+)([.)] ))(?:\[(.)\] )?)?/`. It replaces the number, the
+delimiter and the space, from the end of the container prefix, whenever `String(n)` differs
+from the number's text. So `02. ` → `2. ` is a renumbering as well. It returns
+`[tr, {changes, sequential: true, userEvent: 'input.renumber'}]`, with the changes in the
+offsets of the document the user's edit produced.
+
 **Where it sits.** An appended range can be on the line the user edited, as the typing rows of
 "Where it fires" already show, and it can touch the user's range: the linewise cut ends at the
 next line's start, which is where that line's marker begins. CM6's `iterChangedRanges` joins
@@ -200,5 +207,11 @@ as an exact subtree cover without asking whether it inserts anything. In the `2.
 appended range therefore makes a ⌫ inside `ab` `boundary-crossing-edit`. On `main` the verdict for
 it is still `pass`, because the multi-range rule declines the insertion. But judging the user's
 range alone under the class the appended range gave would delete the whole of `ab`. So the class
-has to be computed from the user's ranges too. A single-line deletion inside a quote, as in the
+has to be computed from the user's ranges too.
+
+**Which `userEvent` the transaction answers.** A combined transaction answers `userEvent` from
+its first annotation. After a user's edit that is the user's. After a dispatch with no
+`userEvent` of its own — `Editor.transaction`, which this plugin's structural commands use, or
+another plugin's edit — it is Obsidian's `input.renumber`. Such a dispatch is `programmatic`
+when nothing is appended, and is classified by shape when something is. A single-line deletion inside a quote, as in the
 `> ` row, is `within-node-edit` and never reaches the verdict layer.

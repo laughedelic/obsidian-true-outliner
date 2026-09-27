@@ -20,6 +20,7 @@
 
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
+import { Key } from 'webdriverio';
 import * as h from '../helpers.js';
 
 const NOTE = 'Scratch/zoom.md';
@@ -367,6 +368,18 @@ describe('outline zoom', function () {
     await h.setCursorSettled(2, 7);
     await h.keys.moveNodeDown();
     expect(await h.getBuffer()).toBe('1. o\n2. p\n   1. b\n   2. a\n      1. x\n3. q\n');
+    expect(await h.noticeTexts()).toEqual([]);
+  });
+
+  it('a deletion inside the zoom is not refused over a renumbering Obsidian appends', async function () {
+    // #260: Obsidian renumbers the hidden `2. q` on top of the deletion. It is
+    // set aside, and the zoom check judges the deletion alone.
+    const md = '1. p\n   1. a\n   2. b\n   3. c\n2. q\n';
+    await openZoomable(md);
+    await zoomAt(md, '1. p');
+    await h.setSelection({ line: 2, ch: 0 }, { line: 2, ch: '   2. b'.length });
+    await browser.keys(Key.Backspace);
+    expect(await h.getBuffer()).toBe('1. p\n   1. a\n   2. c\n2. q\n');
     expect(await h.noticeTexts()).toEqual([]);
   });
 

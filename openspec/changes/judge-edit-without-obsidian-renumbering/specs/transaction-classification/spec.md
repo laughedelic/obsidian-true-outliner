@@ -18,6 +18,10 @@ before. The transaction's class and its verdict are then the ones the remaining 
 receive. A `rewrite` replaces the whole transaction, the set-aside ranges included; a
 `pass` keeps them.
 
+The renumbering carries a `userEvent` of its own, `input.renumber`. Where it is the only
+`userEvent` the transaction carries, the transaction SHALL be classified as if it
+carried none, as the same edit is with nothing appended.
+
 *(Added 2026-07-25, `fix-orphan-gap-on-node-deletion`: the verdict layer previously
 declined any transaction with more than one change range unconditionally — a
 deliberate conservative bias from `outline-edit-enforcement` D1 that left escalated
@@ -51,6 +55,18 @@ edit, and joined a linewise cut with the renumbering after it into one range
   transaction also rewrites `   1. ` to `   2. ` and `2. ` to `3. `
 - **THEN** the transaction is classified `within-node-edit` and passes, as the deletion
   alone would
+
+#### Scenario: A linewise cut is read apart from the renumbering it touches
+- **WHEN** the caret is in `2. b` in `1. a` / `2. b` / `3. c`, nothing is selected, and
+  the user cuts, and the transaction also rewrites `3. ` to `2. `, starting where the
+  cut ends
+- **THEN** the cut is classified and judged on its own, and the note reads
+  `1. a` / `2. c`
+
+#### Scenario: An unannotated dispatch stays programmatic
+- **WHEN** a dispatch with no `userEvent` deletes `2. b` of `1. a` / `2. b` / `3. c`,
+  and the transaction also carries the renumbering, under `input.renumber`
+- **THEN** it is classified `programmatic` and passes, as it is with nothing appended
 
 #### Scenario: A range that rewrites more than a marker's number is the user's
 - **WHEN** a multi-range edit carries a range that changes an ordered marker's
