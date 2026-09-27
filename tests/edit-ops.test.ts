@@ -1493,6 +1493,19 @@ describe('a paragraph written into the margin is judged as the block it opens th
     );
   });
 
+  it('a paragraph whose later line opens a quote is separated below by that quote', () => {
+    // Its first line stays a paragraph, so promotion alone leaves it judged as
+    // one; written into the margin, `> q` is a quote of its own and runs on
+    // into the callout below it, which then reads back as a quote.
+    const doc = parse('## H\n> [!note] real\n');
+    const payload = parse('    first\n\n    text\n    > q\n').children;
+    const result = insertSubtrees(doc, byLine(doc, '> [!note] real').id, payload, 'before');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('## H\nfirst\n\ntext\n> q\n\n> [!note] real\n');
+    expect(byLine(parse(encode(result.value.doc)), '> [!note] real').kind).toBe('callout');
+  });
+
   it('a promoted quote before a paragraph is left flush, as a quote is', () => {
     // Control: promotion removes a separator as well as adding one. A quote
     // claims no paragraph below it, so the blank the paragraph rule wrote is

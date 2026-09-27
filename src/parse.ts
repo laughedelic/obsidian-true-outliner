@@ -176,22 +176,25 @@ function promote(line: string, margin: number): NodeKind {
  * The block a node's LAST line belongs to where its lines now sit — what the
  * seam BELOW the node abuts, as `kindAsWritten` is what the seam above it does.
  *
- * The two differ only for a demoted node of more than one line. An `html`
- * block runs to a blank line whatever its lines hold, so past the margin its
- * later lines open whatever they open at their own column: `<div>` over a
- * table is a paragraph and then a TABLE there, and the seam below it has to be
- * the table's. The answer is read from `parse` over the node's own lines rather
- * than from the opening line, since the parse is what decides where one block
- * of them ends and the next begins. A node the margin leaves alone, and a
- * single demoted line, are their own tail. `margin` is `kindAsWritten`'s.
+ * The two differ for a demoted node of more than one line. An `html` block
+ * runs to a blank line whatever its lines hold, so past the margin its later
+ * lines open whatever they open at their own column: `<div>` over a table is a
+ * paragraph and then a TABLE there, and the seam below it has to be the
+ * table's. They differ for a paragraph of more than one line whatever its
+ * first line opens: written into the margin, `text` over `> q` is a paragraph
+ * and then a QUOTE, which runs on into a quote below it. The answer is read
+ * from `parse` over the node's own lines rather than from the opening line,
+ * since the parse is what decides where one block of them ends and the next
+ * begins. Any other node the margin leaves alone, and a single line, are their
+ * own tail. `margin` is `kindAsWritten`'s.
  */
 export function tailAsWritten(
   node: Pick<OutlineNode, 'kind' | 'lines' | 'setext'>,
   margin = 0,
 ): Pick<OutlineNode, 'kind' | 'lines' | 'setext'> {
   const kind = kindAsWritten(node, margin);
-  if (kind === node.kind) return node;
-  if (node.lines.length <= 1) return { kind, lines: node.lines };
+  if (node.lines.length <= 1) return kind === node.kind ? node : { kind, lines: node.lines };
+  if (kind === node.kind && kind !== 'paragraph') return node;
   let tail: OutlineNode | undefined;
   // Read from the margin the node's kind was judged at, so the lines below the
   // opening one are measured as the whole document would measure them.

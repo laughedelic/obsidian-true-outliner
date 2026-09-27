@@ -249,6 +249,23 @@ is written flush, as a real quote there is: our parse reads `> quoted` / `below`
 CommonMark reads `below` as a lazy continuation of the quote (`block-start-margin` records the same
 divergence for quotes the parser already reads).
 
+The seam BELOW a paragraph of more than one line is read through `parse` over its own lines, as a
+demoted `html` block's is, whatever its first line opens. Written into the margin, `text` over
+`> q` is a paragraph and then a quote, and judged on its first line alone the quote ran on into a
+quote or callout below it: pasting `    text` / `    > q` before `> [!note] real` gave one quote of
+three lines, the callout's kind gone. Found by the plan review.
+
+Promotion also changes structure without losing a node, and none of it is a seam's to prevent:
+- a promoted quote with a continuation line (`> q` / `more`) comes back as a quote and a paragraph;
+- a promoted `# x`, or a paragraph whose second line becomes a setext underline, is a heading and
+  takes the siblings below it into its section;
+- a promoted `# x` as a list item's first child leaves the list, since `segment` closes every open
+  item at an ATX line.
+
+A paragraph `---` promoted onto line 0 of a note opens YAML frontmatter, which runs to the next
+`---` and takes every node before it into the preamble. It is not a seam, and is the same on
+`main`.
+
 A promoted ATX heading is still a heading in the re-parse, and takes the siblings below it into its
 section. No separator can prevent that, and it is a question about what the node is called, which
 #198 leaves open.
