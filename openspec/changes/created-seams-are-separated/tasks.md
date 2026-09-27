@@ -44,7 +44,7 @@
 
 ## 3. The pass
 
-- [ ] 3.1 Separate each empty seam at the edit site outside a list (D3) that D4 does not exempt, in `finalize`,
+- [x] 3.1 Separate each empty seam at the edit site outside a list (D3) that D4 does not exempt, in `finalize`,
   before the parse floor runs, and restore every seam away from the edit site to the blank lines it had (D1).
   Skip a place (D5). Verify with unit tests of the pass:
   - a reorder to the top of a scope leaves the seams between the blocks it passed as written
@@ -55,16 +55,16 @@
     - one beside a dissolved item's empty residue, an empty `- ` or an empty drafted heading is unchanged
 
   Negative control: separating every seam at the edit site fails each.
-- [ ] 3.2 Verify the pass is a no-op on parsed trees, with a property over generated documents that
+- [x] 3.2 Verify the pass is a no-op on parsed trees, with a property over generated documents that
   `finalize(doc, doc, …)` leaves the text unchanged, #255's shapes marked (D10). Negative control: treating every
   block as new fails it.
-- [ ] 3.3 Make the group forms take one edit site (D8): restate `Surgery`'s equivalence note, and compare the
+- [x] 3.3 Make the group forms take one edit site (D8): restate `Surgery`'s equivalence note, and compare the
   group-composition oracle's trees with blank lines set aside. Verify the new group scenario, and that the
   existing group properties hold. Negative control: running the pass per step fails the scenario.
 
 ## 4. What each gesture's edit site gives
 
-- [ ] 4.1 Verify the new requirement's insertion, removal and move scenarios as unit tests through the ops:
+- [x] 4.1 Verify the new requirement's insertion, removal and move scenarios as unit tests through the ops:
   - the pasted quote, and the paste after a line that repeats in the payload
   - the drag, and the run `> q` / `body` dragged from `## A` to `## B`
   - the removal of `---` between `> q` and `after`
@@ -76,7 +76,7 @@
     (`insertAsOnlyChildren`)
 
   Negative control: disabling the pass fails the pasted quote, the drag, the removal and the reorder.
-- [ ] 4.2 Verify the rewrite scenarios as unit tests:
+- [x] 4.2 Verify the rewrite scenarios as unit tests:
   - the heading split, and the setext split
   - Enter mid-text in `para text` between `# H` and `> q`
   - `para` merged into `- a` above a flush `> q`
@@ -85,9 +85,9 @@
 
   Negative control: dropping the view clause, so that a block is written only when it is new, fails the upper
   seam of the `para text` split and the heading split.
-- [ ] 4.3 Remove `splitNode`'s own heading-child separator (`separateFromHeading`), which the pass now provides.
+- [x] 4.3 Remove `splitNode`'s own heading-child separator (`separateFromHeading`), which the pass now provides.
   Verify with the heading-split scenario. Negative control: with both removed, the child is written flush.
-- [ ] 4.4 Verify the limits as unit tests:
+- [x] 4.4 Verify the limits as unit tests:
   - deleting `> q` from `Lead.` / blank / `^id3` / `> q` / `# H` keeps `^id3` flush and unattached
   - dropping the lone `^id` onto `Lead.` keeps `- a` directly below the id line
   - an attached id on a list item inserted at the root above a paragraph keeps the blank line below the id
@@ -95,7 +95,7 @@
 
   Negative controls: dropping the lone-id exemption fails the first, and writing the separator before the id
   fails the third.
-- [ ] 4.5 Make `deleteSubtreeGroups` separate nothing when a splice follows. Verify with unit tests through
+- [x] 4.5 Make `deleteSubtreeGroups` separate nothing when a splice follows. Verify with unit tests through
   `computeVerdict`:
   - `x` typed over a selected `para` in `# A` / `para` / `# B` gives `# A` / blank / `x` / blank / `# B`
   - a type-over of `- b` in `- a` / `- b` / `> q` with `- x` / `- y` leaves `- a` / `- x` flush
@@ -105,22 +105,25 @@
     one blank line below the text
 
     Negative control: letting the deletion separate its join fails the second and the last.
-- [ ] 4.6 Verify the narrowed indent-unit round trip: a list item's subtree copied and pasted back after itself is
+- [x] 4.6 Verify the narrowed indent-unit round trip: a list item's subtree copied and pasted back after itself is
   still byte-identical in every unit the existing scenario covers. Negative control: applying the pass inside
   lists fails it for a subtree with a flush child block.
-- [ ] 4.7 Re-check the existing unit tests that pin a flush seam at an edit site outside a list (edit-ops, ops,
+- [x] 4.7 Re-check the existing unit tests that pin a flush seam at an edit site outside a list (edit-ops, ops,
   grammar, split, enforce, group). Update each expectation to the rule, and record in the test's comment which
   edit-site seam gained the line. Verify with `npm test`.
 
 ## 5. Dispatch, the oracle's figures and the decision
 
-- [ ] 5.1 Make the relocation match in `src/plugin/dispatch.ts` compare the two sides with blank lines set aside,
+- [x] 5.1 Make the relocation match in `src/plugin/dispatch.ts` compare the two sides with blank lines set aside,
   keeping its removed-lines test on the unfiltered lines, and dispatch the blank lines that differ as insertions or
   deletions of their own. Verify with the new `minimal-change-dispatch` scenario, the existing table-widget
   scenarios, and a cross-scope move that takes a gap line with it. Measure in the real app a paragraph moved from
   another section to below a table, and a removal that joins a table and a paragraph. Negative control: the
-  current exact-lines match rewrites the table.
-- [ ] 5.2 Run the oracle over the pass, turn every expected failure of 2.4 that the pass closes into a passing
+  current exact-lines match rewrites the table. Measured: it does not, for a paragraph moved up past a table
+  (`tests/created-seams.test.ts`, "dispatch"), because the cost comparison already picks the relocation reading
+  there; the match's blank-line filter widens what it accepts and is kept for the moves the comparison does not
+  decide. The real-app measurements are the e2e table scenarios, which pass.
+- [x] 5.2 Run the oracle over the pass, turn every expected failure of 2.4 that the pass closes into a passing
   check, and record the figures after the pass: each check's failures, and the seams separated where no reader
   would have continued them. Verify that checks 1 to 5 hold, #255's and #272's shapes aside.
 - [ ] 5.3 Bring the count of 5.2 to the maintainer, with the narrower rule of D11 drawn on the cases it would

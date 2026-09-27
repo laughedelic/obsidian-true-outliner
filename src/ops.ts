@@ -123,11 +123,17 @@ export interface OpOutput {
  * latency budget this path shares with enforcement. Composing surgeries pays
  * for one `finalize` however many roots there are.
  *
- * That this is EQUIVALENT to composing whole operations is not an assumption:
- * every operation guarantees closure (encoding its result re-parses to that
- * same tree), so the re-parse a whole-operation composition would perform
- * between steps is the identity. The property suite checks it against an oracle
- * that really does re-parse between steps.
+ * That this is EQUIVALENT to composing whole operations, blank lines aside, is
+ * not an assumption: every operation guarantees closure (encoding its result
+ * re-parses to that same tree), so the re-parse a whole-operation composition
+ * would perform between steps is the identity. The property suite checks it
+ * against an oracle that really does re-parse between steps.
+ *
+ * Blank lines are where the two differ, by design: `finalize` separates the
+ * edit site of the whole gesture, judged against the note before it, so a seam
+ * between two roots that one step would part and the next rejoin stays as
+ * written (`structural-operations`, "Group forms of indent, outdent and
+ * reordering").
  */
 interface Surgery {
   readonly doc: OutlineDoc;
@@ -1688,24 +1694,15 @@ export function splitNode(
       if (node.children.length === 0 && node.trailingGap.length > 0) {
         lower = { ...lower, trailingGap: [...lower.trailingGap, ...node.trailingGap] };
       }
-      // A heading and a paragraph child it did not have before are separated by
-      // a blank line — required by CONVENTION, not by the parse (`# Head` then
-      // `line` re-parses correctly either way).
-      //
-      // Applied HERE, where the boundary is created, and deliberately not in
-      // `normalizeBoundaries`: that runs on every operation's result, and a
-      // heading with a gap-0 paragraph child is ordinary parsed markdown, so a
-      // global rule would rewrite heading boundaries the user wrote anywhere in
-      // the file on any unrelated edit. The list-item version of the same rule
-      // IS global and IS safe, because without the blank line its indented text
-      // is a continuation line and there is no child at all.
+      // A heading's new paragraph child is separated from it by `finalize`: the
+      // child is a written block, so the seam between them is at the edit site
+      // (`structural-operations`, "A seam at an operation's edit site is
+      // separated").
       const ownGap = node.children.length === 0 ? [] : node.trailingGap;
-      const separateFromHeading =
-        node.kind === 'heading' && childKind === 'paragraph' && ownGap.length === 0;
       const upper: OutlineNode = {
         ...node,
         lines: upperLines,
-        trailingGap: separateFromHeading ? [''] : ownGap,
+        trailingGap: ownGap,
         // The existing children hold the run's start; the new first child takes
         // it and pushes the rest down.
         children: renumberOrderedAgainst(node.children, [lower, ...node.children]),

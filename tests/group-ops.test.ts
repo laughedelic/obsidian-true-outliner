@@ -96,7 +96,14 @@ describe('2.7 group operations equal the sequential composition', () => {
           return true;
         }
         compared++;
-        return treesEqual(actual.value.doc, expected.doc);
+        // Blank lines aside: the group separates the whole gesture's edit
+        // site, and each sequential step its own (`structural-operations`,
+        // "Group forms of indent, outdent and reordering").
+        const shape = (doc: OutlineDoc): string =>
+          JSON.stringify(doc.children, (key, value: unknown) =>
+            key === 'id' || key === 'trailingGap' || key === 'gap' ? undefined : value,
+          );
+        return shape(actual.value.doc) === shape(expected.doc);
       }),
       { numRuns: 4000 },
     );
