@@ -19,14 +19,20 @@ each line's offset from its node; the child spelled apart meets the first and br
 
 - The read-back keeps the blank lines between the block's own nodes and leaves out only the gap
   after its last line.
-- A line at or past its node's indentation that does not open with it keeps its offset in columns,
-  in spaces after the new indentation. A line short of it, a lazy continuation, is carried with the
-  root's prefix as before.
+- A child's line, or a nested node's own line, at or past its node's indentation that does not
+  open with it keeps its offset in columns, in spaces after the new indentation. A line short of
+  it, a lazy continuation, and the block root's own lines are carried with the root's prefix as
+  before: the read-back measures the root from its own column rather than its container's, so it
+  would not see a root's line kept in columns land on a block start.
 
 ## Non-goals
 
 - The fallback's own writing, where a tab past the root's prefix absorbs the new prefix: #270.
 - Seams between blocks: #267.
+- The read-back's model of the root's column. It re-roots the block at its indentation modulo a tab
+  stop, not at its container's content column, so a root's own line past a two-column container
+  can open a block it does not see; that is on `main` for the space spelling already
+  (`docs/research/paste-fallback-misfires`, "Left alone").
 
 ## Capabilities
 

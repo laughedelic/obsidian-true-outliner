@@ -1762,6 +1762,18 @@ describe('a paste spelled in tabs under a space-indented item is written in the 
     );
   });
 
+  it('a root’s own line spelled apart from it is carried with the root', () => {
+    // `\t\t> q1` is text only because it sits four columns past its
+    // container. Kept two columns past `cont1` it would open a quote, which the
+    // read-back, measuring the root from its own column, would not see.
+    const target = parse('- a\n\n  para0\n');
+    const payload = parse('\t  cont1\n\t\t> q1\n').children;
+    const result = insertSubtrees(target, byLine(target, '  para0').id, payload, 'after');
+    if (!result.ok) throw new Error(result.rejection.reason);
+    const kinds = parse(encode(result.value.doc)).children[0]!.children.map((n) => n.kind);
+    expect(kinds).toEqual(['paragraph', 'paragraph']);
+  });
+
   it('a drop writes the same', () => {
     const md = `${doc}- p\n\n  para\n\n  - n\n\t1. m\n`;
     const source = parse(md);

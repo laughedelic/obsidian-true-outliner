@@ -19,11 +19,12 @@ A node's own lines below its first, and a child that is not a list item, SHALL k
 their offset from the node's indentation, written after its new indentation: the
 characters the payload wrote past the node's indentation are kept where they are
 spaces, or tabs in a tab document, and land on the same column; otherwise the offset
-is written in spaces. A line at or past its node's indentation that does not open with it,
-such as a child written in another unit from its parent, SHALL keep its offset in columns,
-written in spaces after the new indentation. A line short of its node's indentation SHALL move
-with the block by the swap of the block root's own prefix, and SHALL be carried as it was
-where it does not open with that either. A child that is not a list item SHALL be written at its parent's
+is written in spaces. A child's line, or a nested node's own line, at or past its node's
+indentation that does not open with it, such as a child written in another unit from its parent,
+SHALL keep its offset in columns, written in spaces after the new indentation. Any other line
+that does not open with its node's indentation — a line short of it, or one of the block root's
+own lines — SHALL move with the block by the swap of the block root's own prefix, and SHALL be
+carried as it was where it does not open with that either. A child that is not a list item SHALL be written at its parent's
 content column wherever its offset would reach the content column of the list item
 before it. An atom's lines are content and SHALL move as a unit by its first
 line's prefix, keeping the tabs inside it. A child list of a paragraph SHALL keep its
@@ -110,6 +111,11 @@ blank to parse, so the separation a reader sees there is this one.
   `- a` / `  1. b`, where `\ttext` is `n`'s paragraph child at its content column
 - **THEN** it lands as `  - p` / `    - n` / `      1. m` / `      text`, in spaces, with `text`
   still `n`'s child
+
+#### Scenario: A root's own line spelled apart from it is carried with the root
+- **WHEN** `\t  cont1` / `\t\t> q1`, one paragraph whose second line is text because it sits four
+  columns past its container, is pasted after `  para0` in `- a` / blank / `  para0`
+- **THEN** `> q1` is still a line of that paragraph, not a quote
 
 #### Scenario: A blank line under a pasted root does not send it to its own characters
 - **WHEN** `- p` / blank / `  para` / blank / `  - n` / `\t1. m` is pasted, or dropped, after
