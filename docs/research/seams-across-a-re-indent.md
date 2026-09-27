@@ -266,10 +266,6 @@ A paragraph `---` promoted onto line 0 of a note opens YAML frontmatter, which r
 `---` and takes every node before it into the preamble. It is not a seam, and is the same on
 `main`.
 
-A promoted ATX heading is still a heading in the re-parse, and takes the siblings below it into its
-section. No separator can prevent that, and it is a question about what the node is called, which
-#198 leaves open.
-
 ## What this does not close
 
 The KIND loss is untouched, and #158 stays open on it. A `quote`, a `callout`, an `hr` or an
