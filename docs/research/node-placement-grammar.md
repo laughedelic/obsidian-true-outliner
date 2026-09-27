@@ -153,22 +153,12 @@ is the one conversion whose way back is written into the node.
 ## Defects: where the explicit conversion writes what the grammar does not admit
 
 Eight shapes, each an operation accepting a destination and writing a node the re-parse reads
-differently. None is a question of preference; each has one admissible answer or a refusal. Each
-is proposed as an issue rather than fixed here.
+differently. None is a question of preference; each has one admissible answer or a refusal. D1, D3
+and D6 are filed; the others are described here and not yet filed.
 
-**D1. A list item carrying a `#` run, converted to a paragraph, is written as a heading.** The
-conversion strips the list marker and leaves `### H`, which is a heading line. Reached wherever a
-list item is forced to a paragraph: dropped or pasted right after a section-level paragraph, or
-after a paragraph inside a list item (D6), or outdented into a paragraph's list. At section level
-the heading takes what follows it into its section; inside a list the line leaves the list for the
-top level. 1,464 drop destinations, 182 of the paste measurements, and the outdent cases above.
-
-```
- before     drop H after P, under x
-┆- x       ┆- x
-┆  P       ┆  P
-┆- ### H   ┆### H
-```
+**D1. A list item carrying a `#` run, converted to a paragraph, is written as a heading:**
+[#277](https://github.com/laughedelic/obsidian-true-outliner/issues/277). 1,464 drop destinations and
+182 pastes.
 
 **D2. A list item converted to a paragraph strands every child that is not a list item.** A
 paragraph holds only list items, so the item's code blocks, quotes and paragraph children fall out
@@ -186,18 +176,9 @@ child, where it keeps its kind and its list items become the item's.
 ┆  - y          ┆```c```
 ```
 
-**D3. A paragraph inside a list item is offered as a parent.** The grammar gives it no children.
-The drop offers the column one level inside it, the preview names it, and the run lands under the
-enclosing list item instead; indent accepts it as a target and writes nothing, where a refusal
-would say why. 12,260 drop destinations and all 99 indent cases.
-
-```
- place    drop y at 2    ⇥ on y, with y after P under x
-┆- x     ┆- x           ┆- x
-┆  P     ┆  P           ┆  P
-┆    2   ┆  - y         ┆  - y
-┆- y
-```
+**D3. A paragraph inside a list item is offered as a parent:**
+[#278](https://github.com/laughedelic/obsidian-true-outliner/issues/278). 12,260 drop destinations and
+95 indents.
 
 **D4. The preview draws absorbed rows one level inside the run; the release puts them under the
 run's last node.** Recorded as an ambiguity, A6 below, because deciding where the rows should go is
@@ -218,19 +199,8 @@ paragraph, but not a paragraph landing before a list item. 297 drop destinations
              ┆    - y
 ```
 
-**D6. The kind rule applies the attachment rule inside a list item, where the parse does not.**
-`forcedContentKind` converts a list item whose preceding sibling is a paragraph, whatever the
-parent. Under a list item that paragraph adopts nothing, so the conversion is not forced: a list
-item dropped there becomes a paragraph for no reason, and a task is refused a destination it could
-take as it is.
-
-```
- place    drop y at 1
-┆- x     ┆- x
-┆  P     ┆  P
-┆  1     ┆  y
-┆- y
-```
+**D6. The kind rule applies the attachment rule inside a list item, where the parse does not:**
+[#279](https://github.com/laughedelic/obsidian-true-outliner/issues/279).
 
 **D7. Outdent takes an atom out of a paragraph's list.** An atom cannot be a paragraph's child, so
 outdenting one from a list item whose parent is a section-level paragraph lands it a level further
@@ -612,7 +582,7 @@ local admissibility check, a bounded exhaustive table and properties over genera
 
 ## Open
 
-- The defects D1 to D8, each proposed as an issue.
+- The defects D2, D4, D5, D7 and D8, not yet filed; D1, D3 and D6 are #277, #278 and #279.
 - The modifier's key and the preview's drawing of both readings: a design for the drag, not
   measured here.
 - Whether paste needs an in-place alternative for A1: a question for use, not for measurement.
