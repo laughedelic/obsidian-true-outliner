@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { headingWithLevel, markerWidth, normalizeMarkerRun, reencodeForDestination, shiftSubtree } from '../src/reencode';
 import { indentWidth, parse } from '../src/parse';
 import { walkNodes, type OutlineNode } from '../src/model';
+import { encode } from '../src/encode';
+import { outdent } from '../src/ops';
 
 /** A one-line list item carrying `ws` as its leading whitespace. */
 function itemWith(ws: string): OutlineNode {
@@ -231,5 +233,28 @@ describe('headingWithLevel keeps what follows an empty title\'s marker (#257)', 
     ['## Foo', 1, '# Foo'],
   ])('%j at level %i is %j', (line, level, expected) => {
     expect(headingWithLevel(heading(line), level).lines).toEqual([expected]);
+  });
+
+  it.each([
+    ['## ', '# '],
+    ['##\tBar', '#\tBar'],
+    ['##  Bar', '#  Bar'],
+    [' ## Bar', ' # Bar'],
+    ['## Bar ##', '# Bar ##'],
+  ])('in place, %j becomes %j: only the # run changes', (line, expected) => {
+    expect(headingWithLevel(heading(line), 1, true).lines).toEqual([expected]);
+  });
+});
+
+describe('a heading level shift touches only the # run (#257)', () => {
+  it.each([
+    ['## Foo\n##\tBar\n', '## Foo\n#\tBar\n'],
+    ['## Foo\n ## \n', '## Foo\n # \n'],
+    ['## Foo\n##  Bar\n### Sub\n', '## Foo\n#  Bar\n## Sub\n'],
+  ])('outdenting the second heading of %j gives %j', (src, expected) => {
+    const doc = parse(src);
+    const result = outdent(doc, doc.children[1]!.id);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(encode(result.value.doc)).toBe(expected);
   });
 });

@@ -419,11 +419,13 @@ const ATX_RE = /^( {0,3})(#{1,6})([ \t]*)(.*)$/;
  * A heading's lines at a new level. Setext headings are rewritten to ATX
  * whenever the level changes (an op-touched line; still lossless).
  *
- * An empty title keeps whatever followed its `#` run. `## ` shifted to a bare
- * `#` left the caret right after the `#`, where Obsidian's tag suggester opens
- * and takes the arrow keys (#257).
+ * `inPlace` is the level shift, which rewrites the `#` run and nothing else on
+ * the line. Without it the line is rebuilt as `#`s, one space and the title.
+ * An empty title keeps whatever followed its `#` run either way: `## ` shifted
+ * to a bare `#` left the caret right after the `#`, where Obsidian's tag
+ * suggester opens and takes the arrow keys (#257).
  */
-export function headingWithLevel(node: OutlineNode, level: number): OutlineNode {
+export function headingWithLevel(node: OutlineNode, level: number, inPlace = false): OutlineNode {
   const marker = '#'.repeat(level);
   let lines: string[];
   if (node.setext) {
@@ -432,7 +434,8 @@ export function headingWithLevel(node: OutlineNode, level: number): OutlineNode 
   } else {
     const match = ATX_RE.exec(node.lines[0] ?? '');
     const text = match ? match[4]! : (node.lines[0] ?? '').trim();
-    lines = [text === '' ? `${marker}${match?.[3] ?? ''}` : `${marker} ${text}`];
+    if (match && inPlace) lines = [`${match[1]}${marker}${match[3]}${text}`];
+    else lines = [text === '' ? `${marker}${match?.[3] ?? ''}` : `${marker} ${text}`];
   }
   const result: OutlineNode = { ...node, level, lines };
   delete (result as { setext?: unknown }).setext;

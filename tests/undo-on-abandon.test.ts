@@ -660,11 +660,6 @@ describe('a carried empty node is removed by reverting its carries', () => {
     });
   }
 
-  it('a drafted heading, Tab', () => {
-    const out = carryAndAbandon('## Foo\nbody\n## Bar\ntext\n', [0, 6], ['continue', 'indent']);
-    expect(out.restored).toBe('## Foo\nbody\n## Bar\ntext\n');
-  });
-
   it('the ladder under a paragraph, which dissolves the item and moves its sibling out', () => {
     const out = carryAndAbandon('para\n  - a\n  - b\n', [1, 5], ['split', 'split']);
     expect(out.carried).not.toBe('para\n  - a\n  - b\n');

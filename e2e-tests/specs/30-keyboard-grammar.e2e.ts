@@ -25,8 +25,11 @@ async function grammarNote(content: string, line: number, ch: number): Promise<v
   await h.setCursorSettled(line, ch);
 }
 
-/** Whether one of Obsidian's editor suggesters (tags, links) is showing. */
-function suggesterOpen(): Promise<boolean> {
+/** Whether one of Obsidian's editor suggesters (tags, links) is showing. The
+ * editor re-runs its suggesters a moment after an update, so an absence is only
+ * read after that has passed. */
+async function suggesterOpen(): Promise<boolean> {
+  await browser.pause(300);
   return browser.execute(() => document.querySelector('.suggestion-container') !== null);
 }
 
