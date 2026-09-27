@@ -8,7 +8,8 @@ node's text, so the grammar's keys SHALL treat it as follows:
 
 - Enter at the END of the id's line SHALL act as Enter at the node's content end: the empty
   position below the node, in its child scope when it has children and in its sibling scope when
-  it does not. The id stays attached to the node.
+  it does not. The id stays attached to the node. On a folded node it is Enter at a folded node's
+  end: the node stays folded, and the new node goes after its hidden subtree.
 - Enter anywhere else on the id's line, and Shift+Enter anywhere on it, SHALL be rejected with
   `cannot-split`: splitting an id's line leaves no id.
 - Backspace at the START of the id's line SHALL be rejected with the cue, leaving the document

@@ -134,11 +134,16 @@ function makeHandler(key: GrammarKey) {
     // child, so there is no sibling encoding to put the new node in. A folded
     // heading opens and splits like any other.
     const foldedEntry = key === "split" ? foldedEntryAt(view.state, fromLine.number - 1) : null;
-    const ownTextEnd = foldedEntry
-      ? view.state.doc.line(foldedEntry.startLine + foldedEntry.node.lines.length).to
-      : -1;
+    // An attached id's line ends the node too: Enter there is Enter at the
+    // text's end (`outline-keyboard-grammar`).
+    const ownEnds = foldedEntry
+      ? [
+          view.state.doc.line(foldedEntry.startLine + foldedEntry.node.lines.length).to,
+          view.state.doc.line(foldedEntry.startLine + lastPlaceIndex(foldedEntry.node) + 1).to,
+        ]
+      : [];
     const collapsed =
-      foldedEntry !== null && planFrom === ownTextEnd && foldedEntry.node.kind !== "heading";
+      foldedEntry !== null && ownEnds.includes(planFrom) && foldedEntry.node.kind !== "heading";
     if (foldedEntry && !collapsed) {
       // Only this node's own fold: unfolding a range that ran to the end of the
       // document took every later fold with it.

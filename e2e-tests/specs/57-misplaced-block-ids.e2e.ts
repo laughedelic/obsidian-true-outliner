@@ -10,6 +10,7 @@ import { obsidianPage } from 'wdio-obsidian-service';
 import { Key } from 'webdriverio';
 import * as h from '../helpers.js';
 import { dragFrom, markPoint } from '../dragging.js';
+import { clearFolds, foldedLineRanges } from '../folding.js';
 
 const NOTE = 'Scratch/misplaced-ids.md';
 const DOC = 'Lead.\n- a\n- b\n\n^foo\n\nAfter.\n';
@@ -239,6 +240,21 @@ describe('keys on an attached block id', function () {
       expect(await h.getBuffer()).toBe(md);
       expect((await h.noticeTexts()).length).toBeGreaterThan(0);
     }
+  });
+
+  it('keeps a folded node folded through Enter at the end of its id', async function () {
+    const FOLDED = '- a\n\n  ^a\n  - child\n- b\n';
+    await clearFolds();
+    await h.setBuffer(FOLDED);
+    await browser.pause(150);
+    await h.setCursorSettled(0, 3);
+    await h.runCommand('fold-node');
+    await h.setCursorSettled(2, 4);
+    await browser.keys(Key.Enter);
+    await browser.keys('x');
+    expect(await h.getBuffer()).toBe('- a\n\n  ^a\n  - child\n- x\n- b\n');
+    expect((await foldedLineRanges()).length).toBe(1);
+    await clearFolds();
   });
 
   it('moves End and Home along the id\'s own text', async function () {
