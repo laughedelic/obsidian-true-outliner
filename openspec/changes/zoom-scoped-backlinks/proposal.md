@@ -88,11 +88,11 @@ _None._
 
 ## Sequencing
 
-Stacks on `fix/lone-block-id-travels-with-its-node`
+Builds on `lone-block-id-travels-with-its-node`
 ([#208](https://github.com/laughedelic/obsidian-true-outliner/pull/208)), the fix for
-[#207](https://github.com/laughedelic/obsidian-true-outliner/issues/207). This change reads what it
-adds: a lone id that names one of our nodes is part of that node, and every other lone id carries
-the reading its mark shows. Where an id belongs then follows from which node holds it, or from
+[#207](https://github.com/laughedelic/obsidian-true-outliner/issues/207), which has landed on
+`main`. This change reads what it added: a lone id that names one of our nodes is part of that
+node, and every other lone id carries the reading its mark shows. Where an id belongs then follows from which node holds it, or from
 that reading, with three rules of our own left over (design D2).
 
 At the file level the code also overlaps the open draft `feat/search-palette`

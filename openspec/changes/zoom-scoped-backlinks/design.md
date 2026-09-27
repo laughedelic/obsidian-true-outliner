@@ -229,9 +229,9 @@ probed.
   node admits references to the whole list. The id names a range no single node of ours spans, and
   the first item is where that range begins; recorded rather than special-cased. #208 marks such
   an id and offers to attach it to a node, after which it belongs to that node.
-- [This change reads what #208 adds] → `OutlineNode.blockId` and `misplacedBlockIds` are its
-  surface; a change to either on that branch is a change to D2, and the attribution prototype in
-  the research note re-runs against it.
+- [This change reads what #208 added] → `OutlineNode.blockId` and `misplacedBlockIds` are its
+  surface; a change to either is a change to D2, and the attribution prototype in the research
+  note re-runs against it.
 - [Two panes on one note share the chosen answer] → view state is keyed by path, as the filters
   are; each pane still classifies against its own zoom.
 
