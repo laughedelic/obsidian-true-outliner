@@ -74,6 +74,23 @@ const SHAPES: Record<string, string> = {
   'item, lazy id, indented paragraph directly under': '- a\n^g7\n  more\n',
   'callout, id directly under, list directly under': '> [!note] T\n> body\n^g9\n- a\n',
   'heading, blank, id, end of note': '## H\n\n^g11',
+  // Two ids in a row, across containers, measured 27 September 2026.
+  'table, blank, id, blank, id': '| a | b |\n| --- | --- |\n| 1 | 2 |\n\n^t1\n\n^t2\n',
+  'quote, lazy id, blank, id': '> q\n^n5\n\n^n6\n',
+  'heading, id directly under, blank, id': '## H\n^n9\n\n^n10\n',
+  'paragraph, id directly under, blank, id': 'Lead.\n^n15\n\n^n16\n\nAfter.\n',
+  'paragraph with an inline id, blank, id': 'Lead. ^k3\n\n^k4\n\nAfter.\n',
+  'item, blank, indented id, blank, id at column 0': '- a\n\n  ^n1\n\n^n2\n',
+  'item, lazy id, blank, id at column 0': '- a\n^n3\n\n^n4\n',
+  'two items, indented id under the last, blank, id': '- b\n- a\n\n  ^n7\n\n^n8\n',
+  'nested item, its id, then the parent item id': '- a\n  - c\n\n    ^n11\n\n  ^n12\n',
+  'item, blank, two indented ids in a row': '- a\n\n  ^n13\n\n  ^n14\n',
+  'item, blank, id, blank, id, next item': '- a\n\n  ^p5\n\n  ^p6\n- b\n',
+  'item, blank, id, child, blank, id': '- a\n\n  ^p1\n  - c\n\n  ^p2\n',
+  'item, lazy id, child, blank, id': '- a\n^p3\n  - c\n\n  ^p4\n',
+  'item, id at content column directly under, blank, id': '- a\n  ^p7\n\n  ^p8\n',
+  'item, lazy id, blank, indented id': '- a\n^p9\n\n  ^p10\n',
+  'item with an inline id, blank, indented id': '- a ^k1\n\n  ^k2\n',
 };
 
 describe('probe: lone block ids', function () {

@@ -218,6 +218,34 @@ describe('misplaced block ids', () => {
     }
   });
 
+  it('keeps the last of two ids outside a list item, the first inside one, and both across containers', () => {
+    const reading = (shape: string) =>
+      found(RESEARCH_SHAPES[shape]!).map((m) => [m.id, m.reading.kind, 'because' in m.reading ? m.reading.because : '']);
+    const attached = (shape: string) =>
+      [...walkNodes(parse(RESEARCH_SHAPES[shape]!))].flatMap((n) => (n.blockId ? [n.blockId.line.trim()] : []));
+    // Outside a list item, the last names the block and the first is ignored.
+    expect(reading('quote, lazy id, blank, id')).toEqual([['^n5', 'nothing', 'next-id']]);
+    expect(reading('heading, id directly under, blank, id')).toEqual([['^n9', 'nothing', 'next-id']]);
+    // An item's id and an id after the list name different blocks: both stay.
+    expect(attached('item, blank, indented id, blank, id at column 0')).toEqual(['^n1']);
+    expect(reading('item, blank, indented id, blank, id at column 0')).toEqual([['^n2', 'whole-list', '']]);
+    expect(attached('item, lazy id, blank, id at column 0')).toEqual(['^n3']);
+    expect(attached('two items, indented id under the last, blank, id')).toEqual(['^n7']);
+    expect(attached('nested item, its id, then the parent item id')).toEqual(['^n11']);
+    expect(reading('nested item, its id, then the parent item id')).toEqual([['^n12', 'item', '']]);
+    // Inside one item, the first names the item and the later ones are ignored.
+    for (const [shape, first, later] of [
+      ['item, blank, two indented ids in a row', '^n13', '^n14'],
+      ['item, blank, id, child, blank, id', '^p1', '^p2'],
+    ] as const) {
+      expect(attached(shape), shape).toEqual([first]);
+      expect(reading(shape), shape).toEqual([[later, 'nothing', 'previous-id']]);
+    }
+    expect(reading('item, id at content column directly under, blank, id')).toEqual([['^p8', 'nothing', 'previous-id']]);
+    expect(reading('item with an inline id, blank, indented id')).toEqual([['^k2', 'nothing', 'previous-id']]);
+    expect(menu(RESEARCH_SHAPES['item, blank, two indented ids in a row']!)).toEqual(['remove']);
+  });
+
   it('reads the first of two ids, and an id with nothing above it, as naming nothing', () => {
     const run = RESEARCH_SHAPES['paragraph, blank, id, blank, id']!;
     expect(found(run).map((m) => [m.id, m.reading])).toEqual([['^y1', { kind: 'nothing', because: 'next-id' }]]);

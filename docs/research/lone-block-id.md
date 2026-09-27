@@ -116,6 +116,36 @@ Three findings:
 - **An id directly under a paragraph's last line is a line of that paragraph**, and names the
   paragraph the way an inline ` ^id` does, whatever follows.
 
+### Two ids in a row
+
+The `^y1` shape, re-measured on 27 September 2026 with the same probe, across containers:
+
+| Shape | `CachedMetadata.blocks` |
+| --- | --- |
+| paragraph, blank, `^y1`, blank, `^y2` | `^y2` names the paragraph; `^y1` is not registered |
+| table, blank, `^t1`, blank, `^t2` | `^t2` names the table; `^t1` is not registered |
+| `> q`, `^n5` directly under, blank, `^n6` | `^n6` names the quote, the id line included; `^n5` is not registered |
+| `## H`, `^n9` directly under, blank, `^n10` | `^n10` names the heading; `^n9` is not registered |
+| `Lead.`, `^n15` directly under, blank, `^n16` | `^n16` names the paragraph |
+| `Lead. ^k3`, blank, `^k4` | `^k4` names the paragraph |
+| `- a`, blank, `  ^n1`, blank, `^n2` | both: `^n1` names item `a`, `^n2` the list |
+| `- a`, `^n3` directly under, blank, `^n4` | both: `^n3` names item `a`, `^n4` the list |
+| `- b`, `- a`, blank, `  ^n7`, blank, `^n8` | both: `^n7` names item `a`, `^n8` the list |
+| `- a`, `  - c`, blank, `    ^n11`, blank, `  ^n12` | both: `^n11` names item `c`, `^n12` item `a` |
+| `- a`, blank, `  ^n13`, blank, `  ^n14` | `^n13` names item `a`; `^n14` is not registered |
+| `- a`, blank, `  ^p5`, blank, `  ^p6`, `- b` | `^p5` names item `a` |
+| `- a`, blank, `  ^p1`, `  - c`, blank, `  ^p2` | `^p1` names item `a`, the child included |
+| `- a`, `^p3` directly under, `  - c`, blank, `  ^p4` | `^p3` names item `a` |
+| `- a`, `  ^p7` directly under, blank, `  ^p8` | `^p7` names item `a` |
+| `- a`, `^p9` directly under, blank, `  ^p10` | `^p9` names item `a` |
+| `- a ^k1`, blank, `  ^k2` | `^k1` names item `a` |
+
+- **Two ids that would name the same block: the last wins outside a list item, the first inside
+  one.** Inline or lone, an id already written into an item keeps naming it, and a later id in the
+  same item is not registered.
+- **Ids in different containers are judged apart.** An item's id and an id after the list both
+  register: one names the item, the other the whole list.
+
 ## What an embed shows
 
 Each shape embedded from a note of its own, `![[Embed target#^id]]`, read from the rendered embed.

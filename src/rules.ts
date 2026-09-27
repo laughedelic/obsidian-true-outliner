@@ -28,6 +28,19 @@ export function isLoneBlockIdLine(line: string): boolean {
   return LONE_BLOCK_ID_RE.test(line);
 }
 
+const INLINE_BLOCK_ID_RE = /\s\^[A-Za-z0-9-]+$/;
+
+/**
+ * Whether a node's text already ends in a block id: an attached one, an id
+ * line directly under its text, or one written at the end of its text line.
+ */
+export function carriesBlockId(node: Pick<OutlineNode, 'kind' | 'lines' | 'blockId' | 'setext'>): boolean {
+  if (node.blockId) return true;
+  const textIndex = node.kind === 'heading' && node.setext ? 0 : node.lines.length - 1;
+  const own = node.lines[textIndex] ?? '';
+  return INLINE_BLOCK_ID_RE.test(own) || (textIndex > 0 && isLoneBlockIdLine(own));
+}
+
 /** A node that is nothing but a lone block id: a one-line paragraph. */
 export function isLoneBlockIdNode(node: Pick<OutlineNode, 'kind' | 'lines'>): boolean {
   return node.kind === 'paragraph' && node.lines.length === 1 && isLoneBlockIdLine(node.lines[0]!);
@@ -58,22 +71,25 @@ export interface BlockIdHost {
  *   Obsidian's lazy continuation.
  *
  * `host` has no children yet: it is the node attached just before the id. A
- * host that is itself a lone id, and an id followed by another lone id, never
- * attach — Obsidian registers only the last of a run of them.
+ * host that is itself a lone id never takes one, and neither does a host that
+ * already carries one. Of a run of ids naming the same block, Obsidian
+ * registers the last outside a list item and the first inside one: an id
+ * followed by another lone id attaches only to a list item.
  */
 export function blockIdAttaches(
   host: BlockIdHost | undefined,
   id: { readonly indent: number; readonly closed: boolean; readonly nextIsLoneId: boolean },
 ): boolean {
-  if (!host || id.nextIsLoneId || isLoneBlockIdNode(host.node)) return false;
+  if (!host || isLoneBlockIdNode(host.node) || host.node.blockId) return false;
   const { node } = host;
   const afterBlank = node.trailingGap.length > 0;
   if (node.kind === 'list-item') {
+    if (carriesBlockId(node)) return false;
     return afterBlank
       ? id.indent >= host.contentCol && id.indent < host.contentCol + 4
       : id.indent < host.contentCol;
   }
-  if (host.inListItem || id.indent >= 4) return false;
+  if (id.nextIsLoneId || host.inListItem || id.indent >= 4) return false;
   return id.closed || (!afterBlank && (node.kind === 'quote' || node.kind === 'callout'));
 }
 

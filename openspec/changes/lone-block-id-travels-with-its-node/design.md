@@ -64,7 +64,8 @@ attached just before it, given that node, the open list stack and the id's inden
 does, the previous node's `trailingGap` becomes `blockId.gap`, the id's line becomes
 `blockId.line`, and the id block's own gap becomes the node's `trailingGap`.
 
-Two parts of the rule need the block after the id: the consecutive-id rule, and the rule that an
+Two parts of the rule need the block after the id: the consecutive-id rule, which holds outside
+list items only, since an item keeps the first id it takes, and the rule that an
 id outside a list attaches only when a blank line or the end of the document follows it
 (`docs/research/lone-block-id`, "What may follow the id"). `attach` is handed a look-ahead that
 says whether the next block is another lone id, and whether the id block is closed by a gap or by

@@ -39,9 +39,14 @@ blank lines between skipped, when that node has no children before the id and on
   it is indented less than the item's content column.
 
 These are the shapes in which Obsidian names that same node (`docs/research/lone-block-id`, "What a
-lone id names"). Where two or more lone ids follow one another with only blank lines between,
-none of them SHALL attach. Every lone id that does not attach SHALL parse as the paragraph it
-parses as without this rule.
+lone id names"). A node SHALL take at most one id. Of lone ids that follow one another with only
+blank lines between and would name the same block, Obsidian registers the last outside a list
+item and the first inside one: outside a list item none of them SHALL attach, and a list item
+SHALL take the first and none after it. A list item whose text already ends in an id — written
+at the end of its text line, or on a line directly under its text — SHALL take no lone id. Ids in
+different containers, such as an item's id followed by an id after the list, name different
+blocks and are judged each on its own. Every lone id that does not attach SHALL parse as the
+paragraph it parses as without this rule.
 
 An attached id is part of its node the way an inline ` ^id` is: it belongs to that node's span,
 and it is not one of the node's children and not a node of its own.
@@ -101,6 +106,14 @@ and it is not one of the node's children and not a node of its own.
 #### Scenario: Consecutive ids do not attach
 - **WHEN** a paragraph is followed by a blank line, `^y1`, a blank line and `^y2`
 - **THEN** both ids are paragraph nodes of their own
+
+#### Scenario: Inside an item, the first of two ids attaches
+- **WHEN** `- a` is followed by a blank line, `  ^n13`, a blank line and `  ^n14`
+- **THEN** `^n13` belongs to `- a`, and `^n14` is a paragraph node of its own
+
+#### Scenario: An item's id and an id after the list are judged apart
+- **WHEN** `- a` is followed by a blank line, `  ^n1`, a blank line and `^n2`
+- **THEN** `^n1` belongs to `- a`, and `^n2` is a paragraph node of its own after the list
 
 #### Scenario: A line that is not an id does not attach
 - **WHEN** a table is followed by a blank line and `^t4` with trailing spaces, or by a blank line,

@@ -68,6 +68,8 @@ export function readingText(reading: BlockIdReading): string {
       switch (reading.because) {
         case 'next-id':
           return 'Obsidian ignores this ID: the next one names the same block';
+        case 'previous-id':
+          return 'Obsidian ignores this ID: an earlier one names the same item';
         case 'nothing-above':
           return 'Obsidian ignores this ID: nothing comes before it';
         case 'block-below':

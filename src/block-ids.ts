@@ -16,13 +16,16 @@ import type { LinePos } from './line-pos';
 import { ownSpan, type OutlineDoc, type OutlineNode } from './model';
 import { nodeContent } from './node-text';
 import type { Edit } from './result';
-import { isLoneBlockIdLine, isLoneBlockIdNode } from './rules';
+import { carriesBlockId, isLoneBlockIdLine, isLoneBlockIdNode } from './rules';
 
 /** What Obsidian reads a misplaced id as. */
 export type BlockIdReading =
   | { readonly kind: 'whole-list' }
   | { readonly kind: 'item'; readonly itemText: string }
-  | { readonly kind: 'nothing'; readonly because: 'next-id' | 'nothing-above' | 'block-below' }
+  | {
+      readonly kind: 'nothing';
+      readonly because: 'next-id' | 'previous-id' | 'nothing-above' | 'block-below';
+    }
   | { readonly kind: 'not-an-id'; readonly because: 'trailing-space' | 'joined' };
 
 export interface BlockIdCorrection {
@@ -109,12 +112,23 @@ function misplacedAt(
   if (!previous) {
     return { ...at, reading: { kind: 'nothing', because: 'nothing-above' }, corrections: [remove] };
   }
+  // Of ids naming the same block, Obsidian registers the last outside a list
+  // item and the first inside one.
+  const item = [...ancestors].reverse().find((ancestor) => ancestor.kind === 'list-item');
   const next = placed[index + 1];
-  if (next && node.children.length === 0 && isLoneBlockIdNode(next.node)) {
+  if (
+    !item &&
+    next &&
+    node.children.length === 0 &&
+    isLoneBlockIdNode(next.node) &&
+    next.ancestors[next.ancestors.length - 1] === ancestors[ancestors.length - 1]
+  ) {
     return { ...at, reading: { kind: 'nothing', because: 'next-id' }, corrections: [remove] };
   }
 
-  const item = [...ancestors].reverse().find((ancestor) => ancestor.kind === 'list-item');
+  if (item && namedEarlier(item, placed, index)) {
+    return { ...at, reading: { kind: 'nothing', because: 'previous-id' }, corrections: [remove] };
+  }
   if (item) {
     const corrections: BlockIdCorrection[] = [];
     const itemAttach = attach(lines, placed, item, id, start, holdsBelow);
@@ -149,6 +163,14 @@ function misplacedAt(
   }
 
   return undefined;
+}
+
+/** Whether an id written before the one at `index` already names `item`. */
+function namedEarlier(item: OutlineNode, placed: readonly Placed[], index: number): boolean {
+  if (carriesBlockId(item)) return true;
+  return placed
+    .slice(0, index)
+    .some((entry) => entry.ancestors.includes(item) && isLoneBlockIdNode(entry.node));
 }
 
 /**

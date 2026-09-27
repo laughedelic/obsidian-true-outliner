@@ -16,7 +16,8 @@ mark's title state (`docs/research/lone-block-id`):
 | --- | --- |
 | a lone block id that does not attach, following a list's last line after one or more blank lines, indented into no list item | the whole list |
 | a lone block id that does not attach, indented to a list item's content column | that list item |
-| a lone block id followed, after only blank lines, by another lone block id | nothing: the next id names the same block |
+| a lone block id outside every list item, followed, after only blank lines, by another lone block id in the same container | nothing: the next id names the same block |
+| a lone block id inside a list item whose text already ends in an id, or after an earlier lone id in the same item | nothing: an earlier id names the same item |
 | a lone block id with no content line above it in the document | nothing |
 | a lone block id outside every list item, with a block directly under it | nothing: it names only its own line |
 | a line that would be a lone block id but for trailing whitespace | not an id |
@@ -37,6 +38,11 @@ misplaced, and no other line is.
 #### Scenario: The first of two consecutive ids is misplaced, the second is not
 - **WHEN** a paragraph is followed by `^y1` and `^y2`, each after a blank line
 - **THEN** `^y1` is misplaced with the reading that it names nothing, and `^y2` is not marked
+
+#### Scenario: A later id inside an item is misplaced, the first is not
+- **WHEN** `- a` is followed by a blank line, `  ^n13`, a blank line and `  ^n14`
+- **THEN** `^n14` is misplaced with the reading that an earlier id names the same item, its only
+  correction is removing it, and `^n13` is not marked
 
 #### Scenario: An id with a list directly under it is misplaced
 - **WHEN** `Lead.`, a blank line, `^id3` and `- a` directly under the id are in outline mode
