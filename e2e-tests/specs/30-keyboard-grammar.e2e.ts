@@ -25,6 +25,11 @@ async function grammarNote(content: string, line: number, ch: number): Promise<v
   await h.setCursorSettled(line, ch);
 }
 
+/** Whether one of Obsidian's editor suggesters (tags, links) is showing. */
+function suggesterOpen(): Promise<boolean> {
+  return browser.execute(() => document.querySelector('.suggestion-container') !== null);
+}
+
 async function modeOff(): Promise<void> {
   await h.setOutlineMode(false);
 }
@@ -1017,6 +1022,23 @@ describe('keyboard grammar', function () {
       expect(await h.getBuffer()).toContain('\n2. \n');
       await press(['up']);
       expect(await h.getBuffer()).toBe(src);
+    });
+
+    it('an arrow key leaves a drafted heading Shift+Tab promoted to level 1', async function () {
+      // Issue #257. The level shift wrote the empty heading as a bare `#` with
+      // the caret after it, which is where Obsidian's tag suggester opens, and
+      // the suggester then took both arrow keys.
+      const src = '## Foo\nbody\n## Bar\ntext\n';
+      for (const [key, line] of [[Key.ArrowUp, 1], [Key.ArrowDown, 2]] as const) {
+        await grammarNote(src, 0, 6);
+        await press(['shiftEnter', 'shiftTab']);
+        expect(await h.getBuffer()).toBe('## Foo\nbody\n# \n## Bar\ntext\n');
+        expect(await h.getCursor()).toEqual({ line: 2, ch: 2 });
+        expect(await suggesterOpen()).toBe(false);
+        await browser.keys(key);
+        expect(await h.getBuffer()).toBe(src);
+        expect((await h.getCursor()).line).toBe(line);
+      }
     });
 
     it('one Backspace removes a position Tab carried', async function () {
