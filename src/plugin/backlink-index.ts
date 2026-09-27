@@ -51,6 +51,12 @@ export interface BacklinkReference {
   readonly property?: string | undefined;
   /** The link as written, alias and all. */
   readonly original: string;
+  /**
+   * The heading or block the link addresses inside the target, as the link
+   * carries it and without its alias — `#Heading`, `#Parent#Child`, `#^id`.
+   * Absent for a link to the note as a whole.
+   */
+  readonly subpath?: string | undefined;
 }
 
 /** One referencing note and how many references it contributes. Available with
@@ -308,9 +314,10 @@ export class BacklinkIndex {
       const target = this.resolve(ref.link, file.path);
       // A note linking to itself is not its own backlink.
       if (!target || target === file.path) return undefined;
+      const subpath = parseLinktext(ref.link).subpath || undefined;
       return [
         target,
-        { kind, sourcePath: file.path, line, original: ref.original, property },
+        { kind, sourcePath: file.path, line, original: ref.original, property, subpath },
       ];
     };
 

@@ -106,31 +106,50 @@ each shape a note of its own followed by `After.`:
 No node inside a list holds two in any shape below: #208 attaches no second id to an item that
 already carries one, and the second stays a misplaced id with its own reading.
 
+### Where an inline id counts
+
+An id ending a line other than a block's last is not registered. Measured on 27 September 2026 in
+Obsidian 1.13.7 with the same probe, each shape followed by `After.` unless it ends the note:
+
+| Shape | `CachedMetadata.blocks` |
+| --- | --- |
+| `Lead ^m1`, `second line` | nothing |
+| `- a ^m2`, `  second line` | nothing |
+| a fence holding `code ^m3`, `more` | nothing |
+| a table whose middle row ends ` ^m4` | `^m4` names the table |
+| `> q ^m5`, `> more` | nothing |
+| `Title ^m6`, `===` | `^m6` names the heading |
+| an unclosed fence holding `code ^m7`, the note's last line | nothing |
+
+So an inline id counts on a block's last line, on any row of a table, on the text line of a setext
+heading, and on no line of a code block.
+
 ### The rule and its parts
 
 [`prototypes/zoom-anchors-probe/attribution-on-attached-ids.ts.txt`](prototypes/zoom-anchors-probe/attribution-on-attached-ids.ts.txt)
-states the attribution on that tree and runs it over the shapes of both notes and the three above
-that `lone-block-id` does not hold (`^k5`, `^k7`, `^k9`), 87 shapes holding 107 ids, against the
-start line Obsidian's metadata gave each. An id belongs to
-the node holding it — on one of its lines, or attached — with five exceptions, each of which the
-prototype can leave out:
+states the attribution on that tree and runs it over the shapes of both notes and the ten above
+that `lone-block-id` does not hold (`^k5`, `^k7`, `^k9`, `^m1`–`^m7`), 94 shapes holding 114 ids,
+against the start line Obsidian's metadata gave each. An id belongs to the node holding it — ending
+the line the section above names, or attached — with five exceptions, each of which the prototype
+can leave out, as it can the line rule itself:
 
 | Part of the rule | Ids that go wrong without it |
 | --- | --- |
+| an inline id counts only where the section above says | 5 (`^m1`, `^m2`, `^m3`, `^m5`, `^m7`) |
 | an id held by anything but a list item, inside a list item, belongs to the nearest item | 3 (`^x8`, `^x9`, `^x10`) |
-| a misplaced id belongs to what `misplacedBlockIds` reads it as: the item, the list's first item, or no node | 30 |
+| a misplaced id belongs to what `misplacedBlockIds` reads it as: the item, the list's first item, or no node | 27 |
 | a misplaced id with a block directly under it names its own line, so its own paragraph | 6 (`^id3`, `^f1`, `^f6`, `^f7`, `^f11`, `^f12`) |
 | the last of a run of lone ids, which neither attaches nor is marked, is read as if the others were absent | 4 (`^y2`, `^t2`, `^n6`, `^n10`) |
-| outside a list item, of the ids one node holds only the last names it; the earlier name nothing | 5 (`^n15`, `^k3`, `^k5`, `^k7`, `^k9`) |
+| outside a list item, of the ids one node holds only the last names it; the earlier name nothing | 4 (`^n15`, `^k3`, `^k7`, `^k9`) |
 
-With all five, 106 of 107 agree. The one that does not is `^f15`: `Lead.`, blank, `^f15` with a
+With all of it, 113 of 114 agree. The one that does not is `^f15`: `Lead.`, blank, `^f15` with a
 table directly under it. Obsidian reads the id's line as part of the table and registers no id;
 our parser reads it as a paragraph above the table, and #208 reads it as an id naming only its own
 line. A link to `^f15` then counts for that paragraph, where Obsidian's own link goes nowhere.
 
 So on #208's tree the walk to "the block before" described above is no longer ours to make: what
 the tree does not settle, the misplaced-id reading does, and the rule of our own shrinks to the
-list-item lift, the run and the one id a block keeps.
+line an inline id counts on, the list-item lift, the run and the one id a block keeps.
 
 ## What a heading subpath matches
 

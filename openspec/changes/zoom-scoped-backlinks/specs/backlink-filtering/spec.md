@@ -83,6 +83,10 @@ the punctuation a heading subpath drops, nested heading paths, the first of two 
 — applied to the headings and block ids of the note as the editor currently holds it, not as the
 note was last saved.
 
+An inline block id SHALL count only where Obsidian registers one: ending a block's last line, any
+row of a table, or the text line of a setext heading, and on no line of a code block. An id
+written anywhere else names nothing.
+
 An anchor SHALL belong to the node that owns the first line of what the anchor names, reading the
 tree as `document-tree-mapping` builds it, attached block ids included:
 
@@ -95,7 +99,7 @@ tree as `document-tree-mapping` builds it, attached block ids included:
   would belong to were the ids before it absent;
 - of several block ids one node holds outside a list item, the last to that node, and every other
   to no node, because a block outside a list item keeps only the last id written for it;
-- any other block id, to the node holding it — ending one of its lines, as a line of it, or
+- any other block id, to the node holding it — ending its last line, as a line of it, or
   attached to it — except that an id held by anything other than a list item, inside a list item,
   belongs to the nearest list item holding it, because no id names a block inside a list item.
 

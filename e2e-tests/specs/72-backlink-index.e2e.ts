@@ -27,6 +27,7 @@ interface RefRow {
   line?: number;
   property?: string;
   original: string;
+  subpath?: string;
 }
 
 function referencesFrom(target: string, source: string): Promise<RefRow[]> {
@@ -143,6 +144,69 @@ describe('backlink index', function () {
 
     const embed = refs.find((r) => r.kind === 'embed')!;
     expect(embed.line).toBeGreaterThanOrEqual(0);
+  });
+
+  describe('the subpath a reference addresses', function () {
+    const SUBPATHS = 'Backlinks/Subpath source.md';
+    let refs: RefRow[] = [];
+
+    before(async function () {
+      await writeNote(
+        SUBPATHS,
+        [
+          '---',
+          'sprint: "[[Aurora Dashboard#Current sprint]]"',
+          'whole: "[[Aurora Dashboard]]"',
+          '---',
+          'Aliased [[Aurora Dashboard#Current sprint|the sprint]].',
+          'Nested [[Aurora Dashboard#Top#Current sprint]].',
+          '![[Aurora Dashboard#^t1]]',
+          'The note itself, [[Aurora Dashboard]], and embedded:',
+          '![[Aurora Dashboard]]',
+          '',
+        ].join('\n'),
+      );
+      await browser
+        .waitUntil(async () => (refs = await referencesFrom(TARGET, SUBPATHS)).length === 7, {
+          timeout: 8000,
+        })
+        .catch(() => {
+          throw new Error(`the subpath source never settled; saw ${JSON.stringify(refs)}`);
+        });
+    });
+
+    after(async function () {
+      await deleteNote(SUBPATHS);
+    });
+
+    it('reports a heading link\'s subpath without its alias', async function () {
+      const aliased = refs.find((r) => r.original.includes('|the sprint'))!;
+      expect(aliased.kind).toBe('anchor');
+      expect(aliased.subpath).toBe('#Current sprint');
+    });
+
+    it('reports a nested heading path as written', async function () {
+      const nested = refs.find((r) => r.original.includes('#Top#'))!;
+      expect(nested.subpath).toBe('#Top#Current sprint');
+    });
+
+    it('reports an embed of a block', async function () {
+      const embed = refs.find((r) => r.kind === 'embed' && r.original.includes('^t1'))!;
+      expect(embed.subpath).toBe('#^t1');
+    });
+
+    it('reports a frontmatter heading link', async function () {
+      const property = refs.find((r) => r.kind === 'property' && r.property === 'sprint')!;
+      expect(property.subpath).toBe('#Current sprint');
+    });
+
+    it('reports none for the three whole-note forms', async function () {
+      const whole = refs.filter(
+        (r) => r.original === '[[Aurora Dashboard]]' || r.original === '![[Aurora Dashboard]]',
+      );
+      expect(whole.map((r) => r.kind).sort()).toEqual(['embed', 'note', 'property']);
+      expect(whole.map((r) => r.subpath)).toEqual([undefined, undefined, undefined]);
+    });
   });
 
   it('does not report a note as its own backlink', async function () {

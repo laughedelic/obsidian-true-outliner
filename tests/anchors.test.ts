@@ -1,135 +1,19 @@
+import { describe, expect, it } from 'vitest';
+import fc from 'fast-check';
+import { parse } from '../src/parse';
+import { encode } from '../src/encode';
+import { nodeAtLine } from '../src/locate';
+import { resolveZoom } from '../src/zoom';
+import { anchorsOf, classifyZoom, headingText, type Anchor } from '../src/anchors';
+import { walkNodes } from '../src/model';
+import { arbTree } from './generators';
+
 /**
- * The anchor attribution of docs/research/zoom-scoped-backlinks, restated on
- * the tree `lone-block-id-travels-with-its-node` builds (#208): an attached id
- * is part of its node (`OutlineNode.blockId`), and an id the parser cannot
- * attach is a paragraph `misplacedBlockIds` reads. For every shape measured in
- * `zoom-scoped-backlinks` and `lone-block-id`, prints the start line the rule
- * gives each block id beside the one Obsidian's metadata gave it.
- *
- * To re-run it from the repository root:
- *   npx esbuild docs/research/prototypes/zoom-anchors-probe/attribution-on-attached-ids.ts.txt \
- *     --loader:.txt=ts --bundle --platform=node --format=esm --outfile=/tmp/attribution.mjs
- *   node /tmp/attribution.mjs
+ * Shape -> the start line each block id gets, null where no block is
+ * registered for it. Every row but `^f15` is the line Obsidian's metadata gave
+ * the id (docs/research/zoom-scoped-backlinks and docs/research/lone-block-id).
  */
-
-import { parse } from '../../../../src/parse';
-import { misplacedBlockIds } from '../../../../src/block-ids';
-import { ownSpan, type OutlineDoc, type OutlineNode } from '../../../../src/model';
-import { isLoneBlockIdNode } from '../../../../src/rules';
-
-interface Placed {
-  readonly node: OutlineNode;
-  readonly start: number;
-  readonly ancestors: readonly OutlineNode[];
-  readonly parent: readonly OutlineNode[];
-}
-
-function place(doc: OutlineDoc): Placed[] {
-  const out: Placed[] = [];
-  let line = doc.preamble.length;
-  const visit = (nodes: readonly OutlineNode[], ancestors: readonly OutlineNode[]): void => {
-    for (const node of nodes) {
-      out.push({ node, start: line, ancestors, parent: nodes });
-      line += ownSpan(node);
-      visit(node.children, [...ancestors, node]);
-    }
-  };
-  visit(doc.children, []);
-  return out;
-}
-
-const INLINE_ID = /\s\^([A-Za-z0-9-]+)$/;
-const LONE_ID = /^[ \t]*\^([A-Za-z0-9-]+)$/;
-
-/** The ids a node holds: ending its last line — any row of a table, the text
- * line of a setext heading, no line of a code block — or attached. Every line
- * when DROP=last-line. */
-function idsHeld(node: OutlineNode): string[] {
-  const ids: string[] = [];
-  const lines = node.lines;
-  const candidates = drop.has('last-line')
-    ? lines
-    : node.kind === 'code'
-      ? []
-      : node.kind === 'table'
-        ? lines
-        : node.kind === 'heading' && node.setext
-          ? lines.slice(0, 1)
-          : lines.slice(-1);
-  for (const line of candidates) {
-    const m = INLINE_ID.exec(line) ?? LONE_ID.exec(line);
-    if (m) ids.push(m[1]!);
-  }
-  const attached = node.blockId && LONE_ID.exec(node.blockId.line);
-  if (attached) ids.push(attached[1]!);
-  return ids;
-}
-
-function nearestItem(p: Placed): OutlineNode | undefined {
-  return [...p.ancestors].reverse().find((a) => a.kind === 'list-item');
-}
-
-/** The first item of the list `last` ends: up through its item ancestors, then
- * back along the outermost item's run of sibling items. */
-function firstItemOfList(placed: readonly Placed[], last: Placed): OutlineNode {
-  let outer = last;
-  for (let i = last.ancestors.length - 1; i >= 0 && last.ancestors[i]!.kind === 'list-item'; i--) {
-    outer = placed.find((p) => p.node === last.ancestors[i])!;
-  }
-  const siblings = outer.parent;
-  let at = siblings.indexOf(outer.node);
-  while (at > 0 && siblings[at - 1]!.kind === 'list-item') at--;
-  return siblings[at]!;
-}
-
-/** Parts of the rule to leave out, for the negative controls:
- * DROP=lift,readings,block-below,run,superseded,last-line node /tmp/attribution.mjs */
-declare const process: { env: Record<string, string | undefined> };
-const drop = new Set((process.env.DROP ?? '').split(',').filter(Boolean));
-
-/** Start line per block id, or null for an id Obsidian registers no block for. */
-export function attribute(md: string): Record<string, number | null> {
-  const doc = parse(md);
-  const placed = place(doc);
-  const startOf = (node: OutlineNode) => placed.find((p) => p.node === node)!.start;
-  const misplaced = new Map(misplacedBlockIds(doc).map((m) => [m.line, m]));
-  const out: Record<string, number | null> = {};
-  placed.forEach((p, index) => {
-    const held = idsHeld(p.node);
-    // Outside a list item a block keeps one id, the last written; Obsidian registers no other.
-    const outsideItems = p.node.kind !== 'list-item' && !nearestItem(p);
-    const superseded = outsideItems && !drop.has('superseded') ? held.slice(0, -1) : [];
-    for (const id of superseded) out[id] = null;
-    for (const id of held) {
-      if (superseded.includes(id)) continue;
-      const marked = drop.has('readings') ? undefined : misplaced.get(p.start);
-      let owner: OutlineNode | null;
-      if (marked) {
-        const r = marked.reading;
-        if (r.kind === 'item') owner = nearestItem(p)!;
-        else if (r.kind === 'whole-list') owner = firstItemOfList(placed, placed[index - 1]!);
-        // An id with a block directly under it names its own line: its own paragraph.
-        else if (r.kind === 'nothing' && r.because === 'block-below' && !drop.has('block-below')) owner = p.node;
-        else owner = null;
-      } else if (isLoneBlockIdNode(p.node) && !drop.has('run')) {
-        // The last of a run of lone ids: read as if the ids before it were absent.
-        let k = index - 1;
-        while (k >= 0 && isLoneBlockIdNode(placed[k]!.node)) k--;
-        owner = k >= 0 ? placed[k]!.node : null;
-      } else if (p.node.kind !== 'list-item' && nearestItem(p) && !drop.has('lift')) {
-        owner = nearestItem(p)!;
-      } else {
-        owner = p.node;
-      }
-      out[id] = owner ? startOf(owner) : null;
-    }
-  });
-  return out;
-}
-
-/** Shape → the start line Obsidian's `CachedMetadata.blocks` gave each id,
- * null where it registered none. */
-const shapes: Array<[string, string, Record<string, number | null>]> = [
+const SHAPES: Array<[string, string, Record<string, number | null>]> = [
   // docs/research/zoom-scoped-backlinks, "What a block id names"
   ['paragraph, id at end', 'Some prose. ^p1\n', { p1: 0 }],
   ['paragraph, id directly below', 'Some prose.\n^p2\n', { p2: 0 }],
@@ -183,7 +67,8 @@ const shapes: Array<[string, string, Record<string, number | null>]> = [
   ['table, blank, id, item directly under', '| a |\n| --- |\n| 1 |\n\n^f6\n- a\n', { f6: 4 }],
   ['table, id directly below, item directly under', '| a |\n| --- |\n| 1 |\n^f7\n- a\n', { f7: 3 }],
   ['heading, id directly below, item directly under', '## H\n^f12\n- a\n', { f12: 1 }],
-  ['lead, blank, id, table directly under', 'Lead.\n\n^f15\n| a |\n| --- |\n| 1 |\n', { f15: null }],
+  // Obsidian registers no id here: it reads the id's line as part of the table (design, Risks).
+  ['lead, blank, id, table directly under', 'Lead.\n\n^f15\n| a |\n| --- |\n| 1 |\n', { f15: 2 }],
   ['heading, blank, id, item directly under', '## H\n\n^f11\n- a\n', { f11: 2 }],
   ['callout, id, item directly under', '> [!note] T\n> body\n^g9\n- a\n', { g9: 0 }],
   ['lead, blank, id, blank, item', 'Lead.\n\n^id4\n\n- a\n', { id4: 0 }],
@@ -232,16 +117,175 @@ const shapes: Array<[string, string, Record<string, number | null>]> = [
   ['unclosed code block ending an id', '```\ncode ^m7\n', { m7: null }],
 ];
 
-let agree = 0;
-let ids = 0;
-for (const [name, md, expected] of shapes) {
-  const got = attribute(md);
-  for (const [id, want] of Object.entries(expected)) {
-    ids++;
-    const have = id in got ? got[id]! : null;
-    const same = have === want;
-    if (same) agree++;
-    console.log(`${same ? 'ok  ' : 'DIFF'} ${name} — ^${id}: Obsidian ${want ?? 'none'}, rule ${have ?? 'none'}`);
-  }
+function blockLines(md: string): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const anchor of anchorsOf(parse(md))) if (anchor.kind === 'block') out[anchor.id] = anchor.line;
+  return out;
 }
-console.log(`\n${agree} of ${ids} ids agree, over ${shapes.length} shapes`);
+
+describe('anchorsOf: where a block id begins', () => {
+  for (const [name, md, expected] of SHAPES) {
+    it(name, () => {
+      const got = blockLines(md);
+      const want = Object.fromEntries(
+        Object.entries(expected).filter((entry): entry is [string, number] => entry[1] !== null),
+      );
+      expect(got).toEqual(want);
+    });
+  }
+
+  it('files a block under its lower-cased key, and keeps the id as written', () => {
+    const [anchor] = anchorsOf(parse('Prose ^XYZ\n')) as [Anchor & { kind: 'block' }];
+    expect(anchor).toMatchObject({ kind: 'block', id: 'XYZ', key: 'xyz', line: 0, at: 0 });
+  });
+
+  it('gives each anchor the node it belongs to, and the line its id is written on', () => {
+    const doc = parse('| a |\n| --- |\n| 1 |\n\n^t1\n');
+    const [table] = [...walkNodes(doc)];
+    expect(anchorsOf(doc)).toEqual([
+      { kind: 'block', id: 't1', key: 't1', line: 0, at: 4, nodeId: table!.id },
+    ]);
+  });
+});
+
+describe('anchorsOf: headings', () => {
+  const heading = (md: string): string => {
+    const found = anchorsOf(parse(md)).find((a) => a.kind === 'heading');
+    return found?.kind === 'heading' ? found.text : '(none)';
+  };
+
+  it('is the line after its marker, trimmed', () => {
+    expect(heading('## Current sprint   \n')).toBe('Current sprint');
+  });
+
+  it('drops closing hashes', () => {
+    expect(heading('## Current sprint ##\n')).toBe('Current sprint');
+  });
+
+  it('is the first line of a setext heading', () => {
+    expect(heading('Current sprint\n===\n')).toBe('Current sprint');
+  });
+
+  it('keeps inline markup as written', () => {
+    expect(heading('## Emph *bold* and [[Other]] link\n')).toBe('Emph *bold* and [[Other]] link');
+  });
+
+  it('keeps an id the line ends in', () => {
+    expect(heading('## Head with id ^h1\n')).toBe('Head with id ^h1');
+  });
+
+  it('records level, line and node, in the order written, beside the ids', () => {
+    const doc = parse('# Top\n\n## Current sprint ^cs\n\n- item ^it\n');
+    const [top, sprint, item] = [...walkNodes(doc)];
+    expect(anchorsOf(doc)).toEqual([
+      { kind: 'heading', text: 'Top', level: 1, line: 0, at: 0, nodeId: top!.id },
+      { kind: 'heading', text: 'Current sprint ^cs', level: 2, line: 2, at: 2, nodeId: sprint!.id },
+      { kind: 'block', id: 'cs', key: 'cs', line: 2, at: 2, nodeId: sprint!.id },
+      { kind: 'block', id: 'it', key: 'it', line: 4, at: 4, nodeId: item!.id },
+    ]);
+  });
+
+  it('headingText reads a setext heading from its node alone', () => {
+    const [node] = [...walkNodes(parse('Title\n---\n'))];
+    expect(headingText(node!)).toBe('Title');
+  });
+});
+
+describe('anchorsOf: property', () => {
+  it('every anchor begins on the first line of the node it belongs to', () => {
+    fc.assert(
+      fc.property(arbTree(), fc.array(fc.nat(), { maxLength: 6 }), (tree, picks) => {
+        const lines = encode(tree).split('\n');
+        picks.forEach((pick, n) => {
+          const i = pick % lines.length;
+          if (lines[i]!.trim() !== '') lines[i] = `${lines[i]} ^gen${n}`;
+        });
+        const doc = parse(lines.join('\n'));
+        return anchorsOf(doc).every((anchor) => nodeAtLine(doc, anchor.line)?.id === anchor.nodeId);
+      }),
+      { numRuns: 500 },
+    );
+  });
+});
+
+describe('classifyZoom', () => {
+  const NOTE = [
+    '# Top', //                      0
+    '', //                           1
+    '## Current sprint', //          2  zoom root
+    '', //                           3
+    '- Alarm list ^alarm', //        4
+    '- Triage', //                   5
+    '', //                           6
+    '| a |', //                      7
+    '| --- |', //                    8
+    '| 1 |', //                      9
+    '', //                          10
+    '^tab', //                      11  names the table
+    '', //                          12
+    '## Backlog', //                13
+    '', //                          14
+    '- Later ^later', //            15
+    '',
+  ].join('\n');
+
+  const setup = (rootLine: number) => {
+    const doc = parse(NOTE);
+    const anchors = anchorsOf(doc);
+    const scope = resolveZoom(doc, rootLine)!;
+    const resolve = (subpath: string): number | null => {
+      const found = anchors.find((a) =>
+        a.kind === 'block' ? subpath === `#^${a.id}` : subpath === `#${a.text}`,
+      );
+      return found?.line ?? null;
+    };
+    return classifyZoom(anchors, scope.root.id, scope.cover, resolve);
+  };
+
+  it("answers node for the root's own heading", () => {
+    expect(setup(2).classify('#Current sprint')).toBe('node');
+  });
+
+  it("answers below for a descendant's id", () => {
+    expect(setup(2).classify('#^alarm')).toBe('below');
+  });
+
+  it("answers outside for a sibling's anchors", () => {
+    const zoom = setup(2);
+    expect(zoom.classify('#^later')).toBe('outside');
+    expect(zoom.classify('#Backlog')).toBe('outside');
+    expect(zoom.classify('#Top')).toBe('outside');
+  });
+
+  it('answers node for an id on the line after a zoomed table', () => {
+    expect(setup(7).classify('#^tab')).toBe('node');
+  });
+
+  it('answers node for a whole-list id written after the list, zoomed into its first item', () => {
+    const doc = parse('- a\n- b\n\n^l1\n');
+    const anchors = anchorsOf(doc);
+    const scope = resolveZoom(doc, 0)!;
+    const zoom = classifyZoom(anchors, scope.root.id, scope.cover, (s) => (s === '#^l1' ? 0 : null));
+    expect(scope.cover.end.line).toBeLessThan(3);
+    expect(zoom.classify('#^l1')).toBe('node');
+  });
+
+  it('answers outside for a subpath the resolver cannot place', () => {
+    expect(setup(2).classify('#^missing')).toBe('outside');
+  });
+
+  it('offers This branch and not This node for a root with no anchor but an anchored child', () => {
+    const zoom = setup(0);
+    // `# Top` carries a heading anchor; zoom instead into the unanchored item.
+    const item = setup(5);
+    expect(zoom.node).toBe(true);
+    expect(item.node).toBe(false);
+    expect(item.branch).toBe(false);
+    const doc = parse('- parent\n  - child ^c\n');
+    const anchors = anchorsOf(doc);
+    const scope = resolveZoom(doc, 0)!;
+    const parent = classifyZoom(anchors, scope.root.id, scope.cover, () => null);
+    expect(parent.node).toBe(false);
+    expect(parent.branch).toBe(true);
+  });
+});

@@ -1,6 +1,6 @@
 ## 1. The index reports subpaths
 
-- [ ] 1.1 Add `subpath` to `BacklinkReference` in `src/plugin/backlink-index.ts`, set from
+- [x] 1.1 Add `subpath` to `BacklinkReference` in `src/plugin/backlink-index.ts`, set from
       `parseLinktext(ref.link).subpath` for links, embeds and frontmatter links, absent when empty.
       Verify with cases in `e2e-tests/specs/72-backlink-index.e2e.ts` for each scenario of
       `backlink-index`'s new requirement: an aliased heading link, a nested heading path, an embed
@@ -10,28 +10,30 @@
 
 ## 2. Anchors of a parsed document
 
-- [ ] 2.1 Create `src/anchors.ts` with `anchorsOf(doc)` per design D2, reading attached ids from
+- [x] 2.1 Create `src/anchors.ts` with `anchorsOf(doc)` per design D2, reading attached ids from
       `OutlineNode.blockId` and misplaced ones from `misplacedBlockIds`: headings with their text
       and level, block ids with their lower-cased key, each with its start line and owning node id,
-      in document order. Verify with `tests/anchors.test.ts` holding the 87 shapes of the
+      in document order. Verify with `tests/anchors.test.ts` holding the 94 shapes of the
       attribution prototype in `docs/research/zoom-scoped-backlinks` as a table of text → expected
       start line — `^f15` on the paragraph our parser makes of it, as the design's first risk
       records — plus the heading-text rows (closing hashes, setext, trailing spaces, inline markup
       kept, an id kept in the text). Negative controls: leave out the list-item lift and confirm
       `^x8`–`^x10` fail; leave out the run rule and confirm `^y2` fails; name every id a node
-      holds and confirm `^k3` fails
-- [ ] 2.2 Add a property to `tests/anchors.test.ts` over `arbTree()` documents with ids appended to
+      holds and confirm `^k3` fails; count an id on every line and confirm `^m1` fails
+- [x] 2.2 Add a property to `tests/anchors.test.ts` over `arbTree()` documents with ids appended to
       random lines: every anchor's owning node is `nodeAtLine(doc, line)` for its own start line.
       Negative control: return the lone id line's own line as the start and confirm the property
       fails
-- [ ] 2.3 Add the pure classification to `src/anchors.ts` (design D3): given the anchors, the zoom
+- [x] 2.3 Add the pure classification to `src/anchors.ts` (design D3): given the anchors, the zoom
       root's id, its cover and a resolver from subpath to start line, answer `node`, `below` or
       `outside` for a subpath, and which answers are available. Verify in `tests/anchors.test.ts`
       with a stub resolver: the root's own heading is `node`, a descendant's id is `below`, a
-      sibling's is `outside`, an id on the line after a zoomed table is `node`, a subpath the
-      resolver cannot place is `outside`, and a root with no anchor but an anchored child offers
-      `below` and not `node`. Negative control: test membership by the anchor's LINE against the
-      cover instead of by its owning node, and confirm the table case fails
+      sibling's is `outside`, an id on the line after a zoomed table is `node`, a whole-list id
+      written after the list is `node` zoomed into the list's first item, a subpath the resolver
+      cannot place is `outside`, and a root with no anchor but an anchored child offers `below`
+      and not `node`. Negative control: test membership by the line an id is written on against
+      the cover instead of by its owning node, and confirm the whole-list case fails — the table's
+      id is attached to it, so its line lies inside the table's cover either way
 
 ## 3. The answer in the controls model
 
