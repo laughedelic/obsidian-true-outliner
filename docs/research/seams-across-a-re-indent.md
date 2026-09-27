@@ -253,7 +253,7 @@ The seam BELOW a paragraph of more than one line is read through `parse` over it
 demoted `html` block's is, whatever its first line opens. Written into the margin, `text` over
 `> q` is a paragraph and then a quote, and judged on its first line alone the quote ran on into a
 quote or callout below it: pasting `    text` / `    > q` before `> [!note] real` gave one quote of
-three lines, the callout's kind gone. Found by the plan review.
+two lines, the callout's kind gone. Found by the plan review.
 
 Promotion also changes structure without losing a node, and none of it is a seam's to prevent:
 - a promoted quote with a continuation line (`> q` / `more`) comes back as a quote and a paragraph;
