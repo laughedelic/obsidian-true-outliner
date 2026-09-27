@@ -13,17 +13,19 @@ structure, and the text it writes has to mean that structure in every view of th
 - **A seam an operation creates outside a list is written with one blank line.** A seam is created
   when its two blocks were not adjacent in the note before the operation. That covers an insertion, a
   paste, a drop, a move, a removal that brings two blocks together, a split's new block, a merge's
-  adoption, an outdent that adopts siblings, and the provisional position Enter opens. This replaces
+  adoption, and the provisional position Enter opens. A seam is also created when a re-encode changes
+  either block's kind, as an indent that turns a paragraph into a list item does. This replaces
   "the minimum the parse requires" as the rule for those seams, and the kind-as-written rules stay as
   the floor they already are.
-- **Inside a list, the list decides.** A seam whose blocks both lie in one list is separated as it is
-  today, so tight and loose lists stay what they were. That covers an item and its child blocks, two
+- **Inside a list, the list decides.** A seam inside a list that an operation creates takes the list's
+  own separation, so tight and loose lists stay what they were. That also corrects an insertion at a
+  list's edge, which today copies the list's exit gap into the list. That covers an item and its child blocks, two
   child blocks of one item, an item and the next, and an item and its nested list. Such a seam turns a
   tight list loose in every reader, reading mode's structure included
   (`lazy-continuation-at-seams`, "Measured: loose lists").
 - **A seam the user wrote is not touched.** Two blocks adjacent before the operation keep their
-  separation as written, however flush. That includes a block that was split, merged or drafted in
-  place, whose seam below did not move.
+  separation as written, however flush. That includes a block that was split, merged, drafted or typed
+  over in place, whose seam did not move and whose kind did not change.
 - **A seam is never widened.** One that already holds a blank line keeps what it holds. Only an empty
   seam gains a line, and it gains one.
 - **A block id stays on its block,** and a lone id line stays flush above the block below it.
@@ -68,8 +70,11 @@ None.
     operation and the op's lineage
   - `deleteSubtreeGroups` leaves its splice seam alone when a splice follows
   - `splitNode`, `mergeNodes` and `insertSiblingHeading` state their lineage
-  - `splitNode`, `insertEmptyBefore` and `unwrapListItem` write their places through the rule
-- `src/enforce.ts`: the type-over and empty-anchor paste paths rely on the deletion's `spliceFollows`.
+  - `spliceAtIndex` gives a list's exit gap to the seam that leaves the list
+  - `splitNode`, `insertEmptyBefore`, `unwrapListItem` and `outdentSurgery` write their places
+    separated on both sides
+- `src/enforce.ts`: the type-over and empty-anchor paste paths rely on the deletion's `spliceFollows`,
+  and a type-over states its replacement's lineage.
 - `src/plugin/grammar.ts`: a dissolving op's stated removal covers the separators its place added.
 - `src/plugin/dispatch.ts`: the relocation match sets blank lines aside.
 - Tests: many unit tests pin flush encodings for created seams outside lists, and change with the

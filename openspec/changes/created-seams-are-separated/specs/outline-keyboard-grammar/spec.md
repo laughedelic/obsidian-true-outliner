@@ -181,6 +181,11 @@ every other range with no document change to undo.
 - **THEN** the grammar declines and stock behavior runs for every range — no range is
   silently discarded
 
+#### Scenario: Leaving a list under a paragraph separates the position from the list
+- **WHEN** Enter is pressed on an empty item `- ` in `para` / `- a` / `- ` / `next`, so the item
+  leaves the list
+- **THEN** the note reads `para` / `- a` / blank / the position / blank / `next`
+
 #### Scenario: Enter at a paragraph's content start under a flush quote separates the position
 - **WHEN** Enter is pressed at the content start of `para`, written directly below `> q`
 - **THEN** the note reads `> q` / blank / the position / blank / `para`, so text typed on the
@@ -275,11 +280,13 @@ The two kinds SHALL be distinguishable from the DOCUMENT ALONE, with no editor s
 record of which key was pressed:
 
 - Enter's provisional position SHALL be blank-separated from the content above it and below
-  it, so text typed there parses as a node distinct from both neighbours. It stands for a block,
-  and outside a list both of its seams are created, per `structural-operations`' `A seam an operation creates is separated`. So it is separated even where
-  the blocks around it were written flush: under a quote, a heading or a closing fence, and above
-  a flush first child. Every reader but ours continues a line typed flush under a quote or a list
-  item into that block.
+  it, so text typed there parses as a node distinct from both neighbours. It stands for a paragraph
+  that must parse as a block of its own, so it is separated on both sides wherever it sits, inside
+  a list too — a paragraph inside a list item needs a blank line above it anyway. It is separated
+  even where the blocks around it were written flush: under a quote, a heading or a closing fence,
+  under a list an item left, and above a flush first child. Every reader but ours continues a line
+  typed flush under a quote or a list item into that block. The keypress always writes the
+  position's own line, and adds a blank line on either side only where that side lacks one.
 - Shift+Enter's provisional position SHALL be ADJACENT to the node above it, so text typed
   there parses as that node's own continuation line.
 

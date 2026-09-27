@@ -12,7 +12,10 @@ operation, whichever of those two relations they had. That covers:
 - a removal that brings two blocks together
 - a split's new block
 - a merge that adopts children
-- an outdent that adopts siblings
+
+A seam is also created when a re-encode changes the kind, as written, of either of its blocks: an
+indent that turns a paragraph written directly above `> q` into a list item changes what that seam
+means to every reader.
 
 Every block of a pasted payload is new to the document, so every seam inside the payload is
 created. A moved run's blocks are not, so the seams inside the run are not.
@@ -20,7 +23,14 @@ created. A moved run's blocks are not, so the seams inside the run are not.
 An operation that replaces a block without moving the seam below it does not create that seam:
 - a split's lower half, which takes the original's last line
 - a merge's survivor, which takes the second node's last line
-- a drafted sibling heading, which ends where the original's section ended
+- a drafted sibling heading or a folded split's new block, which ends where the original's section
+  ended
+- a type-over's replacement, whose first block takes the seam above the replaced run and whose last
+  block takes the seam below it
+
+Such a seam is still created when the replacing block's kind, as written, differs from the block it
+replaces. The replacement stands in for the replaced block on the seam's UPPER side only, the side
+whose last line it took, and the seam above a merge's survivor is read as it always was.
 
 A created seam SHALL be written with one blank line. Every reader of the note but our own parse
 continues a line written flush under a quote, a callout or a list item into that block
@@ -30,11 +40,13 @@ lines each reader continues would need that table kept current for every reader.
 
 Four limits bound it:
 
-- **Inside a list the list decides.** A seam INSIDE A LIST has its lower block inside a list item, or a
-  list item continuing the same list, and its upper block inside that list. That covers an item and its
-  child blocks, two child blocks of one item, an item's last block and the next item, and an item and
-  its nested list. Such a seam SHALL be separated as `Subtree insertion at a boundary`, `Node split`
-  and the parse require, and this rule SHALL NOT add to it. A blank line there makes the list loose in
+- **Inside a list the list decides.** A LIST is a maximal run of adjacent sibling list items under one
+  parent, judged by kind as written, whatever their markers. A seam INSIDE A LIST has its lower block
+  inside one of the list's items, or is the list's next item, and its upper block inside that list.
+  That covers an item and its child blocks, two child blocks of one item, an item's last block and the
+  next item, and an item and its nested list. A seam inside a list that the operation creates SHALL
+  take THE LIST'S OWN SEPARATION: that of a seam between two of the list's items the operation did not
+  create, or none where the list has no such seam. The parse floor still applies on top of it. A blank line there makes the list loose in
   every reader (`lazy-continuation-at-seams`, "Measured: loose lists"), and whether a list is tight or
   loose is the user's to choose. The seams between a list and a block outside it are not inside the
   list: a paragraph or heading directly above the list, and the block directly below the list's last
@@ -59,7 +71,7 @@ A provisional position is the block the user is about to type. Its seams are gov
 #### Scenario: A pasted quote is separated from the paragraph below it
 - **WHEN** `    first` / blank / `    > quote` is pasted at the end of `## H` in a note holding `## H`
   directly above `below`
-- **THEN** the note reads `## H` / `first` / blank / `> quote` / blank / `below`
+- **THEN** the note reads `## H` / blank / `first` / blank / `> quote` / blank / `below`
 
 #### Scenario: A drag that ends a list above a paragraph separates them
 - **WHEN** `- kid`, whose child is a paragraph `<div>`, is dragged out of `- other` to the top of
@@ -73,6 +85,19 @@ A provisional position is the block the user is about to type. Its seams are gov
 #### Scenario: A run of list items lands in a tight list tight
 - **WHEN** a list item is pasted between two list items with no blank line between them
 - **THEN** no blank line is added on either side of it
+
+#### Scenario: A list item pasted after a list's last item keeps the list tight
+- **WHEN** `- x` is pasted after `- b` in `- a` / `- b` / blank / `para`
+- **THEN** the note reads `- a` / `- b` / `- x` / blank / `para`
+
+#### Scenario: An indent that changes a block's kind separates its seam
+- **WHEN** `p2`, written directly above `> q` and after `p1` / blank, is indented under `p1`
+- **THEN** `- p2` and `> q` are separated by a blank line
+
+#### Scenario: Typing over a selected block keeps the spacing around it
+- **WHEN** `x` is typed over a selected `para` in `# H` / blank / `para` / `> q`, where `para` sits
+  directly above `> q`
+- **THEN** the note reads `# H` / blank / `x` / `> q`
 
 #### Scenario: A code block dropped into a tight list keeps the list tight
 - **WHEN** a fenced code block is dropped as the last child of `- b` in the tight list `- a` / `- b`
@@ -138,9 +163,9 @@ operation inserted is a node short.
 
 This rule decides what the PARSE requires at a seam, and it is the floor under every seam: a
 seam the operation did not create, such as one inside a moved run whose column the move changed,
-is separated exactly when this rule requires it. A seam the operation created is separated
-whatever the parse requires, per `A seam an operation creates is separated`, and this rule is not
-what decides it there.
+is separated exactly when this rule requires it. A seam the operation created outside a list is
+separated whatever the parse requires, per `A seam an operation creates is separated`, and this
+rule is not what decides it there. Inside a list, this rule is added to the list's own separation.
 
 Within that floor the rule both adds and removes separators, for one reason in both directions:
 the rule that applies is the rule for the node the document will contain. Where that node claims
@@ -257,8 +282,10 @@ SHALL be that scope's own separation: the parent's trailing gap, or the boundary
 root. A copied gap line SHALL be written as an EMPTY line, a place line's own indentation saying
 nothing where it is copied to.
 
-Both seams an insertion makes are created. Inside a list the carried separation stands as the
-seam's whole separation, so a tight list stays tight and a loose one loose. At every other seam a
+Both seams an insertion makes are created. Inside a list a created seam takes the list's own
+separation, per `A seam an operation creates is separated`, so a tight list stays tight and a loose
+one loose. Where the run lands at a list's edge, the separation that ended the list goes to the seam
+that now ends it, not to the new seam inside the list. At every other seam a
 destination with no separation gains one blank line, per `A seam an operation creates is
 separated`, and a carried separation of one or more blank lines stands as it is. A blank line the PARSE requires is added by the boundary
 normalization every operation runs, independently of both.

@@ -35,9 +35,10 @@ A pasted run SHALL keep the separation of the boundary it lands in, on both side
 every other seam the paste creates, those inside the payload included, is separated per
 `structural-operations`' `A seam an operation creates is separated`. A TYPE-OVER reaches its destination through
 a deletion, which takes the replaced run's own gap with it, so its replacement SHALL inherit the
-separation that run had rather than whatever gap the payload's own text ended with, wherever the seam
-below the replacement lies inside a list. Outside a list the seam below the replacement is created,
-and a replaced run that sat flush there is followed by one blank line.
+separation that run had rather than whatever gap the payload's own text ended with: the payload's first
+block takes over the seam above the replaced run and its last block the seam below it, per
+`structural-operations`' `A seam an operation creates is separated`. Such a seam is created only where
+the payload's block is of another kind than the one it replaced.
 
 A gap the caret was in and that is WIDER than a single blank line SHALL collapse to one with the
 insertion. A structural Enter opens a place there, separated on both sides — which is what makes
@@ -75,8 +76,7 @@ above the pasted content.)*
 #### Scenario: A type-over keeps the separation of what it replaced
 - **WHEN** a structural payload replaces a selection covering every node of a scope
 - **THEN** the run is separated from what follows it exactly as the replaced run was — no blank
-  line in a tight list, the document's terminating newline where that run ended the file — save
-  for a created seam outside a list, which holds one blank line
+  line in a tight list, the document's terminating newline where that run ended the file
 
 #### Scenario: A paste onto a place leaves no widened gap behind
 - **WHEN** a structural Enter opens a place and a structural payload is pasted onto it
