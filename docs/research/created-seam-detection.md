@@ -334,6 +334,20 @@ above `> q`, the `## Budget` reorder, the `^id3` lone id, the four-column payloa
 the two gestures on `# H` / `- a`, a paste onto a place and Enter over a block selection each give the stated
 result. Node ids survive every re-encode the review checked.
 
+**Revised after both reviews.** The step-back review and 6's review pointed the same way, and the maintainer
+took their recommendations:
+- **A block is judged on the outline, not its text** (the step-back review's alternative A). A block is written
+  when it is new, or its kind, its content without indentation, marker, ordinal or id, or a heading's level
+  relative to its parent changed. That closes renumbering, level shifts and the id drop.
+- **A new parent counts only for a block with no previous sibling,** which closes the multi-root move.
+- **The text-region bound is dropped.** Ids are never reused, and every caller passes the document its surgery
+  was built from, so identity alone bounds the edit site. That closes the repeated-text case and the extra encode.
+- **A group operation has one edit site for the gesture.** Its equality with the sequential composition holds
+  with blank lines set aside.
+- **Places, block-id corrections and #272 leave the change.** Places wait on #253's decision.
+- **A seam oracle comes first,** and its count of seams separated where no reader continues decides alternative
+  B before the change lands.
+
 ## Comparison
 
 | | decides by | stays correct when an op rewrites a block | failed on |
@@ -345,6 +359,7 @@ result. Node ids survive every re-encode the review checked.
 | 4. line diff | text alignment | yes, except moves | moves, cross-kind joins, remainders, id drops |
 | 5. marking | a per-op table | yes, by construction | ops that move a block across a list's edge |
 | 6. edit site | which blocks the op wrote, by id, within the changed text | yes, by construction | text-derived rewrites, multi-root moves, id drops, repeated text, group forms, places |
+| 6, revised | which blocks' outlines the op changed, by id, for the whole gesture | yes, by construction | under review; the oracle checks it |
 
 ## A step back: what the reviews were about
 

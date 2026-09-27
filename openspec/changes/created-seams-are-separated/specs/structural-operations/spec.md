@@ -4,20 +4,29 @@
 A SEAM is the boundary between two blocks: the last content line of the block above it (its UPPER block) and
 the first content line of the block below it (its LOWER block), with whatever blank lines stand between them.
 
-A structural operation's EDIT SITE is every seam, inside or at an edge of the text the operation changed, where:
-- the lower block was WRITTEN: it is new, its text (compared without indentation) or its kind as written
-  changed, or it has a new parent or a new previous sibling;
-- the upper block was WRITTEN: it is new, or its text or its kind as written changed; or
+A block is judged on what the outline shows of it, not on its text. A block is WRITTEN by an operation when it is
+new, or when any of these changed:
+- its kind as it will re-parse
+- its content, with indentation, list marker, ordinal number and block id set aside
+- for a heading, its level relative to the heading it sits under
+
+Renumbering an ordered run, shifting a section's heading levels, re-indenting a run and attaching a block id
+therefore write no block.
+
+A structural operation's EDIT SITE is every seam where:
+- the lower block was written, its previous sibling changed, or it has no previous sibling and its parent
+  changed;
+- the upper block was written; or
 - the two blocks were not consecutive before the operation, so something that stood between them was removed
   or moved away.
 
-A block whose own lines, parent and previous sibling are unchanged is not written, even when an ancestor of it
-moved: a moved subtree's inner seams are not at the edit site, and only the seams at its edges are. Every block
-of a pasted payload is new, so every seam inside the payload is at the edit site. A paste of a single childless
-block that reaches the editor natively is not a structural operation.
+A moved run's inner seams are not at the edit site: each of its blocks but the first keeps its previous
+sibling, and a first child inside the run keeps its parent. Only the seams at its edges are. Every block of a pasted payload
+is new, so every seam inside the payload is at the edit site. A paste of a single childless block that reaches
+the editor natively is not a structural operation.
 
-A seam at the edit site SHALL be written with one blank line. Every reader of the note but our own parse
-continues a line written flush under a quote, a callout or a list item into that block
+An empty seam at the edit site SHALL gain one blank line. Every reader of the note but our own parse continues
+a line written flush under a quote, a callout or a list item into that block
 (`docs/research/lazy-continuation-at-seams`), and a blank line settles every reader. So the rule separates every
 seam at the edit site rather than the ones some reader would continue: a writer that knew which lines each reader
 continues would need that table kept current for every reader.
@@ -38,10 +47,11 @@ Four limits bound it:
   choose. The seams between a list and a block outside it are not inside the list: a paragraph or heading
   directly above the list, and the block directly below the list's last line.
 - **A seam is never widened.** A seam at the edit site that already holds one or more blank lines SHALL keep
-  exactly what it holds. Only an empty seam gains a line, and it gains one.
+  exactly what it holds.
 - **A seam away from the edit site is not touched.** It SHALL keep its separation as written, however flush,
   unless the parse requires a separator there (`Boundary separation is judged on the kind the re-parse will
-  read`).
+  read`). The parse's requirements include one that reaches seams away from any edit: a list item is separated
+  from a flush quote, callout or `- - -` first child on any operation (#255).
 - **A blank line never changes what a block is.**
   - An attached block-id line SHALL NOT be separated from the block it names. It is part of that block's
     encoding, and the separator is written after it.
@@ -54,14 +64,20 @@ Four limits bound it:
 The cost of the first limit is that some shapes stay ambiguous inside a tight list. A paragraph written directly
 under a quote, or under a nested item, is continued into that block by reading mode.
 
-A provisional position's lines are gap lines, not a block, and its separation is governed by
-`outline-keyboard-grammar`'s provisional-position requirement. `docs/research/created-seam-detection` records the
-other rules for deciding which seams an operation owns that were reviewed, and the cases each failed on.
+A provisional position is not a block, and neither is the empty line an operation leaves where it dissolved a
+node. A seam is judged between the blocks on either side of one, and the rule writes nothing beside it: its lines
+are the ones `outline-keyboard-grammar`'s `Provisional positions` states. `docs/research/created-seam-detection`
+records the other rules for deciding which seams an operation owns that were reviewed, and the cases each failed
+on.
 
 #### Scenario: A pasted quote is separated from the paragraph below it
 - **WHEN** `    first` / blank / `    > quote` is pasted at the end of `## H` in a note holding `## H`
   directly above `below`
 - **THEN** the note reads `## H` / blank / `first` / blank / `> quote` / blank / `below`
+
+#### Scenario: A paste after a line that repeats in the payload is still separated
+- **WHEN** `x` / blank / `z` is pasted at the end of `> quote` in `> quote` / `x` / blank / `y`
+- **THEN** a blank line stands between `> quote` and the pasted `x`
 
 #### Scenario: A drag that ends a list above a paragraph separates them
 - **WHEN** `- kid`, whose child is a paragraph `<div>`, is dragged out of `- other` to the top of
@@ -98,8 +114,8 @@ other rules for deciding which seams an operation owns that were reviewed, and t
 - **THEN** the note reads `# A` / blank / `x` / blank / `# B`
 
 #### Scenario: An outdent that takes a quote out of a list separates it from the list
-- **WHEN** Shift+Tab is pressed on `  > q`, the last child of `  - b` in `- a` / `  - b` / `  > q`
-- **THEN** the quote is written at the root with a blank line between `  - b` and `> q`
+- **WHEN** Shift+Tab is pressed on `  > q`, the child of `- b` in `- a` / `- b` / `  > q`
+- **THEN** the quote is written at the root with a blank line between `- b` and `> q`
 
 #### Scenario: A reorder separates the flush seams at the moved block's edges
 - **WHEN** `## Budget` is moved up past `## Packing` in `## Packing` / `x` / `## Budget` / `y`, written with no
@@ -107,13 +123,23 @@ other rules for deciding which seams an operation owns that were reviewed, and t
 - **THEN** the note reads `## Budget` / `y` / blank / `## Packing` / `x`, and `## Budget` stays directly above
   `y`
 
+#### Scenario: Renumbering writes no block
+- **WHEN** `1. a` is deleted from `1. a` / `2. b` / `3. c` / `para`, written with no blank lines
+- **THEN** the note reads `1. b` / `2. c` / `para`
+
+#### Scenario: A level shift writes only the heading it moves
+- **WHEN** Tab is pressed on `## B` in `# A` / `## B0` / `## B` / `text` / `### C` / `body`, written with no
+  blank lines
+- **THEN** the note reads `# A` / `## B0` / blank / `### B` / `text` / `#### C` / `body`
+
 #### Scenario: A seam away from the edit site is left alone
 - **WHEN** a document contains `> q` directly followed by `body`, and a structural operation runs
   on some unrelated node
 - **THEN** the quote's own lines and trailing gap are byte-identical afterwards
 
 #### Scenario: A seam inside a moved run is left as written
-- **WHEN** a run holding `> q` directly followed by `body` is moved under another heading at the same depth
+- **WHEN** the run `> q` / `body`, two sibling blocks written with no blank line between them, is dragged from
+  under `## A` to the end of `## B`
 - **THEN** `> q` and `body` are still written with no blank line between them
 
 #### Scenario: An existing separated boundary is not widened further
@@ -131,263 +157,149 @@ other rules for deciding which seams an operation owns that were reviewed, and t
 - **THEN** `^id3` stays directly above `# H`, and remains a node of its own rather than attaching to
   `Lead.`
 
+#### Scenario: Dropping a lone id writes no block
+- **WHEN** the lone `^id` is dropped onto `Lead.` in `Lead.` / `- a` / blank / `^id`
+- **THEN** `- a` stays directly below `Lead.`'s id line
+
 #### Scenario: A block indented four columns is not preceded by a blank line
 - **WHEN** a payload of `para` over `    - a`, a list indented four columns under it, is pasted
 - **THEN** no blank line is written between `para` and `    - a`
 
 ## MODIFIED Requirements
 
-### Requirement: Boundary separation is judged on the kind the re-parse will read
-The boundary normalization every operation runs SHALL choose each seam's separator from the kind
-the node's lines PARSE AS where they are written, not from the kind the tree holds for them.
+### Requirement: Heading indent and outdent shift levels
+Indent on a heading SHALL increase its level by one and outdent SHALL decrease it by one,
+rewriting the heading markers of the node and its entire heading subtree (level shift is
+recursive), touching only heading-marker characters, save for the blank line an empty seam gains at its edit site (`A seam at an operation's edit site is separated`): the heading it moves has a new parent or previous sibling, and the headings below it keep their level relative to the heading they sit under. The tree SHALL re-derive from the new
+levels. Indent SHALL be rejected at h6; outdent SHALL be rejected at h1.
 
-The two differ wherever an operation has moved a node's column. `hr`, `quote`, `callout`, `html`
-and an ATX heading open a block only within three columns of the left margin — `HR_RE`,
-`QUOTE_RE`, `CALLOUT_RE`, `HTML_OPEN_RE` and `ATX_RE` are all written `^ {0,3}` — and a setext
-heading carries that anchor on its UNDERLINE rather than on its first line. `code` and `table`
-have no such limit. The margin is the one the parser measures from: column 0 outside every list
-item, and inside one the content column of the innermost item holding the node, so a node's
-children are judged at their parent's content column when the parent is a list item and at the
-parent's own margin otherwise. A heading and an HTML block are judged at column 0 wherever they
-sit, as the parser reads them. Normalization runs on the TREE and encoding runs after it, so a node a
-re-encode has pushed past that margin is separated as the kind it was and read back as the kind
-its new column makes it. Measured, a `quote` needs no separator before a paragraph and the
-paragraph it becomes at column 4 does: the two nodes come back as one, and the payload the
-operation inserted is a node short.
+#### Scenario: Demote with subtree
+- **WHEN** indent is applied to `## Budget` which contains `### Transport`
+- **THEN** the document now reads `### Budget` and `#### Transport`, all non-heading lines
+  are byte-identical, a blank line above `### Budget` aside where it was written flush, and `Budget` re-parses as a child of the preceding `##` heading
 
-This rule decides what the PARSE requires at a seam, and it is the floor under every seam. A seam away from the operation's edit site, such as one inside a moved run whose column the move changed,
-is separated exactly when this rule requires it, and so is every seam inside a list. A seam at the edit
-site outside a list is separated whatever the parse requires, per `A seam at an operation's edit site is separated`, and this rule is not what decides it there.
+#### Scenario: Outdent consumes a level skip before changing hierarchy
+- **WHEN** outdent is applied to `### Monday` whose parent is `# Log`
+- **THEN** it becomes `## Monday`, still a child of `# Log` (level normalized, hierarchy
+  unchanged), and a second outdent produces `# Monday` as a sibling of `# Log`
 
-Within that floor the rule both adds and removes separators, for one reason in both directions:
-the rule that applies is the rule for the node the document will contain. Where that node claims
-the line below it and the tree's kind did not, a separator is added; where the tree's kind claimed
-a line the written kind does not — an `html` block's unconditional separator below a node that is
-no longer an HTML block — the parse asks for no separator.
+#### Scenario: Demote may create a skip
+- **WHEN** indent is applied to `### Electronics` whose parent is `## Packing` and which has
+  no `###` sibling context requiring otherwise
+- **THEN** it becomes `#### Electronics`, remaining a child of `## Packing` (a styling-only
+  edit; tree position unchanged)
 
-What a demoted line becomes SHALL be read off the line rather than assumed to be a paragraph.
-`LIST_ITEM_RE` carries no margin, so a rule spelled `- - -` or `* * *` is an `hr` at column 3 and
-a LIST ITEM at column 4, where `---` is a paragraph; a list item claims nothing and needs no
-separator. Treating every demoted line as a paragraph writes a blank line for a node that is not
-there.
+#### Scenario: Bound rejections
+- **WHEN** indent is applied to an h6 heading, or outdent to an h1 heading
+- **THEN** the operation is rejected with `at-h6-bound` / `at-h1-bound` respectively
 
-The seam BELOW a node SHALL be judged on the block its LAST line lands in where written, and the
-seam above it on the block its first line opens. The two differ for a demoted node of more than
-one line: an `html` block runs to a blank line whatever its lines hold, so past the margin its
-later lines open blocks of their own, and the seam below it is the last of those.
+### Requirement: Non-heading outdent moves brother to uncle
+Outdent on a non-heading node SHALL make it the next sibling of its former parent
+(brother→uncle), subtree included, and SHALL be rejected with `at-top-level` when the node
+has no parent to escape. If the node has following siblings under the same former parent, they
+SHALL be re-parented as the outdented node's own trailing children — appended, in their
+original relative order, after any children the node already had — rather than remaining
+under the former parent. Re-parented following siblings SHALL have their encoding recomputed
+by the same context-determined rule used for the outdented node itself (Requirement:
+Context-determined encoding on reparent), evaluated against their new parent (the outdented
+node).
 
-A table SHALL be separated from any following node whose first line contains a `|`. The table's
-own loop claims every such line, of whatever kind, so a separator chosen only against another
-table leaves a list item or a paragraph carrying a wikilink alias to be read as a row.
+#### Scenario: Outdent with children keeps the subtree attached
+- **WHEN** outdent is applied to list item `x` (child of paragraph `Para.`) where `x` has
+  child `y`
+- **THEN** `x` becomes `Para.`'s next sibling with `y` still its child, expressed via the
+  attachment rule
 
-#### Scenario: A quote re-indented into a heading scope keeps the node below it
-- **WHEN** a payload whose last root is a quote is inserted before a tab-indented paragraph in a
-  heading's children, so the quote is written at column 4
-- **THEN** a blank line stands between the quote's line and that paragraph, and the result holds
-  both payload nodes and the section's own paragraph
+#### Scenario: Outdent re-parents following siblings as the node's own children
+- **WHEN** outdent is applied to the middle item of `- p\n\t- x\n\t- y\n\t- z\n` (outdenting
+  `x`, which has no children of its own, where `y` and `z` are `x`'s former following
+  siblings under `p`)
+- **THEN** `x` becomes `p`'s next sibling, and `y`/`z` become `x`'s own children in that
+  order (`- p\n- x\n\t- y\n\t- z\n`), rather than `x` jumping out past `y`/`z` while they
+  remain under `p`
 
-#### Scenario: A separator that described a block the document no longer contains is not written
-- **WHEN** a payload ending in an HTML block is re-encoded at a list item's child column and the
-  next sibling is a list item, in a tight list
-- **THEN** no blank line is written between them, since the seam lies inside the list, and the
-  re-parse reads the same nodes as it would with one
+#### Scenario: Re-parented following siblings append after the node's pre-existing children
+- **WHEN** outdent is applied to a node `x` that already has child `w`, and `x` has following
+  siblings `y`, `z` under its former parent
+- **THEN** `x`'s children become `[w, y, z]` in that order — `y`/`z` are appended after `w`,
+  not inserted before it
 
-#### Scenario: A rule spelled with a marker becomes a list item, not a paragraph
-- **WHEN** a payload ending in `- - -` is re-encoded past the margin above an existing node
-- **THEN** no blank line is written between the rule and the list item above it, since both are
-  list items as written, every node survives, and the rule's line re-parses as a list item
+#### Scenario: Outdent with no following siblings is unaffected
+- **WHEN** outdent is applied to a node that is the last child of its former parent (no
+  following siblings)
+- **THEN** no siblings are re-parented because none exist, and the node moves exactly as it would
+  without this rule
 
-#### Scenario: A demoted html block is separated below by its last block
-- **WHEN** a payload holding an `html` block of `<div>` over a table is re-encoded past the
-  margin before an existing table
-- **THEN** a blank line stands between the payload's table rows and the existing table, and the
-  existing table re-parses with exactly its own rows
+### Requirement: Sibling reordering
+MoveUp/moveDown SHALL swap a node (with its entire subtree) with its previous/next sibling,
+and SHALL be rejected when no such sibling exists. Node types and encodings are unchanged by
+reordering, except ordered-list markers which are renumbered, and the blank line an empty seam at
+the edges of the swapped nodes gains outside a list (`A seam at an operation's edit site is separated`).
 
-#### Scenario: A table is separated from a line that carries a pipe
-- **WHEN** a payload ending in a table lands before a list item reading `- see [[a|b]]` with no
-  separation between them
-- **THEN** a blank line stands between the table and the list item, and the list item
-  re-parses as a list item
+A reorder SHALL be rejected when the swap would place a SECTION-LEVEL list item directly after
+a paragraph sibling. That arrangement has no markdown encoding: a list item whose preceding
+sibling is a paragraph is read as that paragraph's CHILD, so the emitted document says
+something the surgery did not. Since reordering rewrites no node's encoding, refusing is the
+only outcome available to it — the unifying principle's other branch, the minimal encoding of
+the new tree, requires a rewrite this operation does not perform.
 
-#### Scenario: A seam inside the margin is unchanged
-- **WHEN** the same payload lands in a scope whose content sits at column 0
-- **THEN** the quote is still a quote, and the blank line below it is the one the edit-site rule writes, not one this rule requires
+The check SHALL cover BOTH nodes the swap relocates, not the subject alone. A swap moves two
+subtrees, and either can come to rest after a paragraph: the subject at its new slot, or the
+displaced sibling at the slot the subject left. Measured, the second case is the whole of move
+up's exposure and none of it is visible to the subject.
 
-#### Scenario: An atom at a list item's child column keeps its kind across the seam
-- **WHEN** a payload of `## H` over `---` is pasted after `  - two` below `- one`, so the rule is
-  written at column 4, the converted item's child column
-- **THEN** a blank line stands between `  - ## H` and the rule, and the rule re-parses as an `hr`,
-  a child of that item
+"Section level" is the whole of the rule's reach: the attachment it guards against fires only
+among the children of the root or of a heading. Among a list item's own children a paragraph
+does not adopt a following list, so a reorder there is never refused on this ground.
 
-### Requirement: Subtree insertion at a boundary
-An `insertSubtrees` operation SHALL splice a parsed sequence of whole subtrees into
-the tree at a node boundary (before or after an anchor node), re-encoded at a depth
-valid for the anchor's scope per the mapping algebra (heading levels bounded,
-list/paragraph depth encodings converted as the existing reparenting rules require).
-Sequences inexpressible at the target scope SHALL be rejected rather than inserted
-in corrupted form. When no kind conversion is needed (the common case — the
-sequence's own top-level kind already matches the destination context), each
-subtree SHALL be written in the DOCUMENT's indent unit at every level, whatever unit
-the payload arrived in: a list item under a list item takes its parent's new
-indentation plus one unit, padded with spaces to the parent's content column where
-the unit falls short of it, which is what an indent writes there. The unit is the
-one an indent reads from the document, falling back to the editor's own setting. A
-payload the document itself wrote in that unit SHALL come back with its own lines byte-identical;
-only a seam between its blocks outside a list may gain a blank line, per `A seam at an operation's edit site is separated`.
+An accepted reorder SHALL leave EVERY node's depth unchanged in the result tree, not only the
+subject's. A reorder permutes two subtrees at one level and moves nothing between levels, so
+any depth change anywhere in the document is an encoding that re-parsed differently from the
+tree the operation built.
 
-A node's own lines below its first, and a child that is not a list item, SHALL keep
-their offset from the node's indentation, written after its new indentation: the
-characters the payload wrote past the node's indentation are kept where they are
-spaces, or tabs in a tab document, and land on the same column; otherwise the offset
-is written in spaces. A line that does not open with its node's indentation SHALL move
-with the block by the swap of the block root's own prefix, and SHALL be carried as it was
-where it does not open with that either. A child that is not a list item SHALL be written at its parent's
-content column wherever its offset would reach the content column of the list item
-before it. An atom's lines are content and SHALL move as a unit by its first
-line's prefix, keeping the tabs inside it. A child list of a paragraph SHALL keep its
-offset from the paragraph, since it attaches by adjacency at any column.
+#### Scenario: Heading section swap
+- **WHEN** moveUp is applied to `## Budget` preceded by sibling `## Packing`
+- **THEN** the two sections (headings plus all descendant content) swap positions and every
+  moved line is byte-identical to before, merely relocated
 
-A block whose lines, so written and read back on their own, parse as a different tree
-from the block's own SHALL instead keep its own characters past its root's prefix,
-re-rooted at the destination depth.
+#### Scenario: A list item refuses to move down past a paragraph
+- **WHEN** moveDown is applied to a top-level list item whose next sibling is a paragraph
+- **THEN** the operation is rejected and the document is unchanged — landing after that
+  paragraph would make the item its child, which is not the sibling swap that was asked for
 
-When a block's kind converts for its destination, its own lines SHALL be converted as
-before, and its children SHALL be written in the document's unit: under a paragraph at the
-paragraph's own indentation, and under a list item as any list item's children are.
+#### Scenario: A paragraph refuses to move up above a list item
+- **WHEN** moveUp is applied to a top-level paragraph whose previous sibling is a list item
+- **THEN** the operation is rejected, because the list item would be left directly after the
+  paragraph and adopted by it — a node the caller never selected, changing depth
 
-A paste into a note that holds no node SHALL be written as the root's children through the
-same re-encode, at a caret on any blank line past the note's frontmatter or over a selection
-lying wholly on such lines. The frontmatter SHALL NOT be touched, and a selection reaching into
-it SHALL be left to the native paste.
+#### Scenario: The displaced sibling is checked, not just the subject
+- **WHEN** a reorder would leave either relocated subtree's root as a section-level list item
+  directly after a paragraph
+- **THEN** the operation is rejected, whichever of the two it is
 
-The document's unit SHALL be read from the step between a bullet item and its first
-indented child where the document has one. The step under a numbered item is also the
-width its child needs to reach the content column, so it is not evidence of the unit.
-A move SHALL read the unit from the document before the moved run is removed.
+#### Scenario: A reorder inside a list item is unaffected
+- **WHEN** moveDown is applied to a list item among a list item's own children, past a sibling
+  paragraph there
+- **THEN** the operation is accepted and both nodes keep their depth — a paragraph nested
+  inside a list item does not adopt a following list, so no encoding is lost
 
-The inserted run SHALL carry the SEPARATION of the boundary it lands in on both sides of
-itself. A gap is a boundary's separation and an insertion turns one boundary into two: the node
-above the insertion point keeps its own gap, and the run's last block takes a copy of it. Where
-that node is the document's LAST, its gap is the file's terminating newline rather than a
-separation — the run SHALL take that over, and what separates the run from the node now above it
-SHALL be that scope's own separation: the parent's trailing gap, or the boundary above it at the
-root. A copied gap line SHALL be written as an EMPTY line, a place line's own indentation saying
-nothing where it is copied to.
+#### Scenario: An accepted reorder moves no node between levels
+- **WHEN** any reorder is accepted, in its single-node or group form
+- **THEN** every node in the result document sits at the depth it sat at before, the subject
+  and every bystander alike
 
-Both seams an insertion makes are at its edit site. Inside a list the carried separation is the seam's
-whole separation, so a destination with none gains none there. At every other seam a destination with no
-separation gains one blank line, per `A seam at an operation's edit site is separated`, and a carried
-separation of one or more blank lines stands as it is. A blank line the PARSE requires is added by
-the boundary normalization every operation runs, independently of both.
+### Requirement: Operation closure over the mapping
+For every accepted operation, encoding the resulting tree SHALL produce valid markdown that
+re-parses to an identical tree, and the emitted edit list applied to the original text SHALL
+equal that encoding. Edits SHALL touch only lines the operation semantically requires, with
+one documented exception: ordered-list marker renumbering of affected siblings. The blank line an
+empty seam gains at the operation's edit site is a line the operation requires
+(`A seam at an operation's edit site is separated`).
 
-#### Scenario: List items pasted under a deeper scope re-indent
-- **WHEN** `insertSubtrees` places two top-level list-item subtrees after a list item
-  nested two levels deep
-- **THEN** the inserted items are re-encoded at the anchor's depth with their
-  internal relative structure preserved
-
-#### Scenario: A single node's nested children keep a consistent indent unit at any target depth
-- **WHEN** `insertSubtrees` places ONE top-level list-item subtree — itself with a
-  child two levels deep, all tab-indented — after an anchor at a depth different
-  from where the subtree was originally encoded
-- **THEN** every line in the inserted subtree, at every depth, uses the SAME indent
-  character the anchor's own context uses — no mix of the original tabs with
-  newly-added spaces at any level
-
-#### Scenario: Every spelling of one tree lands in the same bytes
-- **WHEN** one tree, spelled with tabs, with two spaces, with four spaces, or with a mix, is
-  pasted under a tab-indented list item, a two-space one, or a four-space one, or at the root
-  of a tab or a two-space document
-- **THEN** every spelling lands in the same bytes at each destination, every level in the
-  destination document's unit
-
-#### Scenario: A copy from the document comes back unchanged
-- **WHEN** a list item's subtree is copied from a document indented consistently with tabs,
-  two spaces or four spaces, including one whose first nested item sits under `1.`, and pasted
-  back after itself
-- **THEN** the pasted copy is byte-identical to the original, apart from an ordered root's number
-
-#### Scenario: A continuation keeps its offset in the document's characters
-- **WHEN** `- a` / `  x` is pasted under a tab-indented list item
-- **THEN** it lands as `\t- a` / `\t  x`
-- **AND** `- a` / `\tx` pasted under a two-space list item lands with `x` four columns past its
-  item, in spaces
-
-#### Scenario: A fenced block keeps the tabs inside it
-- **WHEN** a list item holding a fenced block whose code is indented with tabs is pasted into a
-  two-space document
-- **THEN** the fence opens at the offset it had from its item, in spaces, and no tab inside the
-  code is converted
-
-#### Scenario: A block after a nested item stays its parent's child
-- **WHEN** `- Step 1` / `    - detail` / a fenced block at four columns is pasted under a
-  two-space list item
-- **THEN** the fence is written at `Step 1`'s content column and remains its child, not
-  `detail`'s
-
-#### Scenario: A block that would read as another tree keeps its own
-- **WHEN** a payload's converged lines would turn a lazy line into a quote or a table
-- **THEN** the payload is written with its own characters past its root's prefix, and its tree
-  is unchanged
-
-#### Scenario: A list pasted after a paragraph converts with its list in the unit
-- **WHEN** a list in any spelling is pasted at the end of a paragraph in a tab-indented vault
-- **THEN** its root becomes a paragraph, its list follows at the paragraph's indentation, and
-  every nested level below that is written with tabs
-
-#### Scenario: The first paste into an empty note converges
-- **WHEN** a two-space list is pasted into an empty note in a tab-indented vault
-- **THEN** it lands with tabs at every nested level
-
-#### Scenario: Select-all over an empty note converges too
-- **WHEN** a two-space list is pasted over a selection of every line of a note that holds only
-  blank lines, in a tab-indented vault
-- **THEN** it lands with tabs at every nested level, as a caret paste there does
-
-#### Scenario: A paste below a template's frontmatter leaves the frontmatter alone
-- **WHEN** a list is pasted on the blank line below the frontmatter of a note with no node
-- **THEN** the list is written below the frontmatter in the vault's unit, and the frontmatter's
-  lines are unchanged
-
-#### Scenario: A move keeps the document's unit
-- **WHEN** a run holding the document's only nested list items is moved under another item
-- **THEN** its levels are written in the unit the document had before the move, not the
-  editor's setting
-
-#### Scenario: Insertion never splices mid-node
-- **WHEN** `insertSubtrees` is invoked with any anchor
-- **THEN** every existing node's own lines remain contiguous and byte-identical —
-  inserted content only ever lands between nodes
-
-#### Scenario: A run landing in a separated boundary is separated on both sides
-- **WHEN** a run whose last block is a callout is inserted before a paragraph that a blank line
-  separated from the node above it
-- **THEN** a blank line stands between the run and that paragraph, as well as above the run,
-  although the parse would read the two as separate nodes without one
-
-#### Scenario: A tight destination gains no separation
-- **WHEN** a run of list items, or of blocks inside a list item, is inserted between two list items
-  with no blank line between them
-- **THEN** no blank line is added on either side of the run
-
-#### Scenario: A tight destination outside a list separates the run
-- **WHEN** a paragraph is inserted between a heading and a code block with no blank line between
-  them
-- **THEN** a blank line stands above and below the paragraph
-
-#### Scenario: A run at the end of the document takes over the terminating newline
-- **WHEN** a run is inserted after the document's last node
-- **THEN** the file ends in exactly one newline, and the run is separated from the node above it
-  by that scope's own separation, or by one blank line where that separation is none and the seam
-  lies outside a list
-
-*(Amendment 2026-09-19, `paste-lands-where-it-is-pointed`: the run's own final gap was stripped
-and the anchor's was moved onto it, which left the run flush against a neighbour wherever the
-parse required no blank line — measured in `docs/research/paste-across-encoding-regimes`, M6.)*
-
-*(Amendment 2026-09-25, `a-paste-writes-the-document-unit`: the levels below a pasted root were
-carried in the payload's own characters, so a clipboard from outside the vault left the
-document indented two ways — measured in `docs/research/paste-indent-convergence`.)*
+#### Scenario: Closure property test
+- **WHEN** any generated operation is applied to any generated tree
+- **THEN** either it is rejected, or `parse(encode(result.tree))` equals `result.tree` and
+  applying `result.edits` to the source text yields `encode(result.tree)`
 
 ### Requirement: Subtree deletion
 A `deleteSubtrees` operation SHALL remove a contiguous run of whole sibling subtrees
@@ -438,288 +350,6 @@ it as well would separate the survivor from what lands beside it.
 #### Scenario: Heading deletion removes its section
 - **WHEN** `deleteSubtrees` targets a heading node
 - **THEN** the heading and every node in its subtree are removed together
-
-### Requirement: A run moves to a named destination as one operation
-
-The algebra SHALL offer an operation that moves a forest of whole subtrees to a NAMED destination —
-a parent and a position among its children — and returns a single result, in the same total and
-typed form every other operation returns.
-
-The destination SHALL be expressible as a parent and an index, including the index zero of a
-parent that has no children at all. An insertion stated only against an anchor SIBLING cannot name
-that destination, and it is the commonest reparenting destination there is: "make this the first
-child of that". The operation SHALL NOT be built on a private variant kept elsewhere for the case.
-
-The operation SHALL be the one place the move is expressed. A caller SHALL NOT compose it out of a
-removal followed by an insertion: both halves carry gap ownership and ordered-run renumbering, the
-destination's anchor moves when the run is removed from above it, and a second call site that
-half-remembers those rules is the failure mode the shared re-encoding call site already exists to
-prevent.
-
-The moved run SHALL be re-encoded for its destination by the SAME rule an insertion at that
-destination uses, so a run that lands in a different scope, at a different depth, or under a
-different encoding regime arrives encoded as that destination's own content — with the run's
-internal relative nesting preserved exactly.
-
-The result SHALL be rejected, rather than partially applied, whenever the destination cannot hold
-the run: a destination inside the run's own subtrees, a destination the insertion rule declines,
-or a destination that no longer exists. A rejection SHALL leave the document untouched.
-
-A move that begins and ends in ONE scope SHALL be a reorder. The run SHALL keep its own encoding,
-because a run that has not left its scope is already encoded for it, and the blank lines between
-that scope's members SHALL stay with the POSITIONS rather than with the nodes — the last position
-ends the file whichever node occupies it. A reorder's edit site is the seams at the moved run's edges, per
-`A seam at an operation's edit site is separated`: the positions' blank lines stay, and an empty seam there
-gains one. Re-encoding such a run against the siblings the removal
-leaves behind reads the scope's regime off the very evidence the run was counter-evidence to.
-
-A move whose destination is the run's CURRENT place SHALL produce no document change.
-
-#### Scenario: A run moves across the document as one result
-- **WHEN** two sibling subtrees are moved to a destination several levels deeper, elsewhere in the
-  document
-- **THEN** one result carries the whole change: both subtrees are gone from their old place, both
-  sit at the destination in their original order, and every descendant keeps its depth relative to
-  its own root
-
-#### Scenario: The run re-encodes for where it lands
-- **WHEN** a run is moved into a scope whose encoding differs from its own
-- **THEN** it arrives encoded as that scope's content, by the same rule an insertion there would
-  apply, with its internal nesting unchanged
-
-#### Scenario: A moved heading absorbs what follows it, as an inserted one does
-- **WHEN** a heading-rooted run is moved among siblings that are followed by more content at the
-  same depth
-- **THEN** that content re-parses as part of the moved heading's section, bounded by the
-  destination scope's end — the same result the insertion rule already states, reached by a move
-  rather than by a paste
-
-#### Scenario: Gaps are repaired on both sides
-- **WHEN** a run is moved out from between two siblings and into a destination between two others
-- **THEN** the place it left and the place it arrived at are each separated per `A seam at an operation's edit site is separated` — no blank line is doubled, and a list's own separation is
-  neither added to nor lost
-
-#### Scenario: Ordered runs renumber on both sides
-- **WHEN** an ordered item is moved out of one ordered run and into the middle of another
-- **THEN** both runs are numbered consecutively afterwards, and the moved item takes its new run's
-  numbering rather than carrying its old number
-
-#### Scenario: A childless parent is a destination
-- **WHEN** a run is moved to be the first child of a node that has no children
-- **THEN** the move is accepted and the run lands there, re-encoded for that scope
-
-#### Scenario: A leaf is not a destination
-- **WHEN** the named parent is an atom — a code fence, a table or another leaf the algebra does
-  not give children
-- **THEN** the operation is rejected and the document is unchanged, by the same guard every other
-  insertion path runs, rather than by a condition restated at this call site
-
-#### Scenario: A destination inside the run is rejected
-- **WHEN** the named destination lies inside one of the subtrees being moved
-- **THEN** the operation is rejected and the document is unchanged
-
-#### Scenario: A destination the insertion rule declines is rejected
-- **WHEN** the named destination is one the insertion rule refuses — a run whose own roots include
-  an atom, moved into a paragraph's children
-- **THEN** the operation is rejected, with the same reason the insertion would have given, and the
-  document is unchanged
-
-#### Scenario: A destination too deep for the run's own headings is rejected
-- **WHEN** a heading-rooted run is moved into a heading-bearing scope deep enough that the run's
-  DEEPEST heading would re-level past the last level markdown has
-- **THEN** the operation is rejected with the same reason the insertion gives, and the document is
-  unchanged — including where the run's ROOT alone would have fitted
-
-#### Scenario: A run that does not leave its scope keeps its own encoding
-- **WHEN** a list item is moved to another position among the same parent's children, in a scope
-  whose other members are paragraphs
-- **THEN** it is still a list item, and the blank lines between the scope's members are where they
-  were — a tight list stays tight and the file's terminating newline stays at the end
-
-#### Scenario: A move to the current place changes nothing
-- **WHEN** a run is moved to the destination it already occupies
-- **THEN** the result carries no document change
-
-### Requirement: Node split
-`splitNode(doc, nodeId, position)` SHALL resolve a document position within a paragraph,
-list-item, or heading node into ONE of two outcomes: a SPLIT at that position, or — when
-the position is the node's own content start — an INSERTION BEFORE the node, which divides
-nothing. Both are specified below, and which one applies is a function of the position
-alone. The operation's name predates the second outcome; the two are one operation because
-a caller cannot tell in advance which its position will produce, and because both answer
-the same question, "what does a line break mean here".
-
-For an INTERIOR position, the node is split. For a paragraph or list-item node WITH
-children, the remainder SHALL become the node's new FIRST CHILD — the position
-content-adjacent to the split point — encoded per the child scope's kind rules (a
-paragraph parent's new child becomes a list item when its existing children are
-list items, per the attachment rule). For a paragraph or list-item node with NO
-children, the remainder becomes the next sibling of the same kind: list items reuse
-the original's marker style (ordered runs renumber, and a task marker carries over
-UNCHECKED whatever the original's state); paragraphs gain the separating blank line
-the boundary rules require.
-
-A split position at the node's own CONTENT START — its first line, at or before its
-content column — SHALL INSERT BEFORE the node rather than split it. For a list item
-carrying a TASK MARKER, that content column SHALL fall after the marker: a position in
-front of `[ ]`, inside it, or immediately after it all name the same intent, and none of
-them divides the marker. The marker is a prefix for SPLITTING only — it remains ordinary
-content to the caret, to Home, and to the selection ladder. The node's own
-lines, children, depth and trailing gap SHALL be unchanged, and the operation's anchor
-SHALL be the inserted empty position, not the node's text. Where the node's SIBLING
-scope has an empty markdown encoding, an empty node SHALL be materialized there: a list
-item in the original's marker style, with ordered runs renumbered, or a HEADING at the
-same level. Where it has none — a paragraph — a provisional position SHALL open in the gap
-ABOVE the node as the anchor. Outside a list it is blank-separated from the block above it and
-from the node; inside one it keeps the separation the parse requires. The position's own line is
-always written, and a blank line on either side only where that side lacks one. A position at the start of a
-CONTINUATION line is an ordinary interior split, not a content start.
-
-An END-of-node split SHALL place its result in the node's CHILD scope when it has
-children and its SIBLING scope when it does not, and SHALL open a provisional position in the
-relevant gap, blank-separated on both sides outside a list and as the parse requires inside one,
-whenever that scope's kind has no empty encoding — including the case where
-the node HAS children and the child scope resolves to `paragraph`. It SHALL NOT fall
-through to the childless sibling path there, which placed the new position after the
-entire subtree: the jump-over-the-subtree shape the content-adjacent rule exists to
-prevent, reachable for any node whose first child is an indented paragraph.
-
-The horizontal whitespace run immediately following the split point SHALL be consumed for
-EVERY node kind — it separated two words now on different lines and belongs to neither
-half. Previously list-item remainders were trimmed and paragraph remainders were not, so a
-paragraph split left an invisible leading space with the cursor behind it.
-
-A heading node's INTERIOR split SHALL always produce a CHILD, never a sibling: a heading's
-only possible sibling is another heading, and a plain-text split has no heading-sibling
-encoding to produce. The content-start case above is not a split — nothing is divided, an
-empty node is inserted — and an empty heading at the same level IS encodable, so that case
-is exempt from this restriction. The heading keeps its own level, marker and setext-ness,
-truncated to the text before the cursor; the text after the cursor becomes a new child,
-encoded per the same child-scope kind rule paragraph/list-item parents use (which resolves
-to `paragraph` for a heading parent when no list-item donor exists among its children).
-When the split-off remainder's kind is `paragraph` and the heading's existing first child
-is ALSO a paragraph, the two SHALL be separated by a blank line so they remain distinct
-nodes on re-parse. Splitting is scored against a heading's title line only: a split
-targeted at a setext heading's underline line SHALL be rejected with `cannot-split`. A
-mid-title split of a setext heading SHALL keep the underline attached to the truncated
-(upper) heading — the underline is NOT continuation content of the title and SHALL NOT
-travel with the split-off remainder.
-
-Atoms SHALL be rejected with `cannot-split`. The operation SHALL satisfy the same
-contract as all structural operations: typed rejection or `{tree, edits, cursor}`
-where the result re-parses identically from its own encoding, edits reproduce the
-encoding, untouched nodes keep verbatim lines, and `cursor` points at the
-remainder's content start.
-
-*(Amended 2026-07-21, real-vault manual pass: the original children-stay-up sibling
-split made the new node visually jump over the whole subtree — unnatural in content
-space.)*
-
-*(Amended 2026-07-24, Q17 heading-Enter decision: headings were previously rejected
-outright with `cannot-split`; Enter on a heading instead always inserted a blind
-blank line ignoring cursor position, at the `outline-keyboard-grammar` layer. Headings
-now split like every other kind, always into a child per the mixed-containment rule.)*
-
-*(Amended 2026-08-07, measured catalogue of 49 cursor positions: a split at a node's
-content start demoted the node's own text into a child of an empty parent — for every
-heading, and for any list item with children. Insert-before replaces it, and the anchor
-moves to the inserted position rather than the node's text. The end-of-node fall-through
-and the per-kind whitespace difference were found in the same pass.)*
-
-#### Scenario: Splitting a parent puts the remainder before the children
-- **WHEN** `- alpha beta` with a child `- gamma` is split after `alpha `
-- **THEN** the tree is `- alpha ` with children `- beta` then `- gamma` — the
-  remainder is the first child, not a sibling below the subtree
-
-#### Scenario: Mid-text split of a list item
-- **WHEN** a childless `- alpha beta` is split after `alpha `
-- **THEN** the encoding contains sibling items `- alpha ` and `- beta`, and
-  re-parsing yields exactly that tree
-
-#### Scenario: End-of-node split
-- **WHEN** a childless node is split at the exact end of its text
-- **THEN** for a list item the new sibling is an empty item node (`- `) with the
-  cursor after its marker; for a paragraph — whose empty form has no markdown
-  encoding — a provisional position opens below it, blank-separated on both sides, with the
-  cursor on it, and the sibling node materializes when text is typed
-
-#### Scenario: End-of-node split of a node whose child scope is a paragraph
-- **WHEN** a list item whose first child is an indented paragraph is split at the exact
-  end of its own text
-- **THEN** a provisional position opens in the item's OWN trailing gap, blank-separated from
-  the item and from that paragraph, with the cursor on it, and nothing is added after the subtree
-
-#### Scenario: Split where a task item's text begins inserts an empty item before it
-- **WHEN** `- [ ] bar` with a child is split at the position its text begins — after the
-  checkbox
-- **THEN** an empty `- [ ] ` is inserted as its preceding sibling, `- [ ] bar` keeps its own
-  line, marker, depth and child verbatim, and the anchor is in the new empty item
-
-#### Scenario: A position inside a task marker never divides it
-- **WHEN** a task item is split at any position from its list marker's end through its task
-  marker's end
-- **THEN** every one of them produces the same result as the scenario above, and no result
-  contains a partial `[ ]`
-
-#### Scenario: Split at a node's content start inserts an empty sibling before it
-- **WHEN** `- alpha` with a child `- child` is split at its content column
-- **THEN** an empty `- ` is inserted as its preceding sibling, `- alpha` keeps its own
-  lines, depth and child verbatim, and the anchor is in the new empty item
-
-#### Scenario: Split at a heading's content start inserts an empty heading
-- **WHEN** `## Hello` is split at any position at or before its content column
-- **THEN** an empty `## ` is inserted as its preceding sibling, `## Hello` is
-  byte-identical, no child is created, and the anchor is in the new empty heading
-
-#### Scenario: Split at a paragraph's content start widens the gap above
-- **WHEN** a paragraph is split at its content start
-- **THEN** a provisional position opens above it, blank-separated from the block above and from
-  the paragraph, the paragraph is byte-identical, and the anchor is the position
-
-#### Scenario: A task split carries an unchecked marker
-- **WHEN** `- [x] done` is split at the end of its text
-- **THEN** the new sibling is `- [ ] `, and splitting it mid-text likewise produces
-  `- [ ] ` plus the remainder
-
-#### Scenario: The split point's whitespace goes with neither half
-- **WHEN** a paragraph `one two` is split after "one", before the space
-- **THEN** the halves are `one` and `two`, with no leading space on the second
-
-#### Scenario: Atom split rejected
-- **WHEN** splitting is attempted at a position inside a code fence
-- **THEN** the operation is rejected with `cannot-split` and nothing changes
-
-#### Scenario: Mid-text split of a childless heading
-- **WHEN** a heading `# Hello world` with no children is split after "Hello "
-- **THEN** the tree becomes `# Hello ` with a single new paragraph child `world`,
-  separated from it by a blank line, and the cursor at the child's content start
-
-#### Scenario: Mid-text split of a heading with existing children
-- **WHEN** a heading with an existing paragraph child is split mid-text
-- **THEN** the split-off remainder becomes the heading's new FIRST child, placed
-  before the existing paragraph child, separated from it by a blank line so both
-  remain distinct paragraph nodes on re-parse
-
-#### Scenario: End-of-heading split widens the gap
-- **WHEN** a heading whose child scope resolves to `paragraph` is split at the exact end
-  of its text (empty remainder)
-- **THEN** a provisional position opens in the heading's own trailing gap — the same rule a
-  childless paragraph's end-of-node split uses — blank-separated from the heading and from the
-  heading's first child, whether that child was written flush or not, with the cursor on it and
-  no child materializing until text is typed
-
-#### Scenario: Setext underline split rejected
-- **WHEN** splitting is attempted at a position on a setext heading's underline
-  line (`===` or `---`)
-- **THEN** the operation is rejected with `cannot-split` and nothing changes
-
-#### Scenario: Mid-title split of a setext heading keeps the underline attached
-- **WHEN** a setext heading `Hello world` (underlined `====`) with no children
-  is split after "Hello "
-- **THEN** the tree becomes a setext heading `Hello ` (still underlined `====`)
-  with a single new paragraph child `world` — the underline stays with the
-  heading, it does not become part of the remainder or get treated as a
-  continuation line of the title
 
 ### Requirement: Adjacent-node merge
 A `mergeNodes` operation SHALL join a node (`first`) with its immediately following
@@ -835,6 +465,175 @@ SURVIVOR keeps its own marker, task marker included, exactly as it keeps its own
 - **THEN** the result is `- [x] foobar` — the survivor's own box is unchanged and no `[ ]`
   appears in its text
 
+### Requirement: Subtree insertion at a boundary
+An `insertSubtrees` operation SHALL splice a parsed sequence of whole subtrees into
+the tree at a node boundary (before or after an anchor node), re-encoded at a depth
+valid for the anchor's scope per the mapping algebra (heading levels bounded,
+list/paragraph depth encodings converted as the existing reparenting rules require).
+Sequences inexpressible at the target scope SHALL be rejected rather than inserted
+in corrupted form. When no kind conversion is needed (the common case — the
+sequence's own top-level kind already matches the destination context), each
+subtree SHALL be written in the DOCUMENT's indent unit at every level, whatever unit
+the payload arrived in: a list item under a list item takes its parent's new
+indentation plus one unit, padded with spaces to the parent's content column where
+the unit falls short of it, which is what an indent writes there. The unit is the
+one an indent reads from the document, falling back to the editor's own setting. A
+payload the document itself wrote in that unit SHALL come back with its own lines byte-identical;
+only a seam between its blocks outside a list may gain a blank line, per `A seam at an operation's edit site is separated`.
+
+A node's own lines below its first, and a child that is not a list item, SHALL keep
+their offset from the node's indentation, written after its new indentation: the
+characters the payload wrote past the node's indentation are kept where they are
+spaces, or tabs in a tab document, and land on the same column; otherwise the offset
+is written in spaces. A line that does not open with its node's indentation SHALL move
+with the block by the swap of the block root's own prefix, and SHALL be carried as it was
+where it does not open with that either. A child that is not a list item SHALL be written at its parent's
+content column wherever its offset would reach the content column of the list item
+before it. An atom's lines are content and SHALL move as a unit by its first
+line's prefix, keeping the tabs inside it. A child list of a paragraph SHALL keep its
+offset from the paragraph, since it attaches by adjacency at any column.
+
+A block whose lines, so written and read back on their own, parse as a different tree
+from the block's own SHALL instead keep its own characters past its root's prefix,
+re-rooted at the destination depth.
+
+When a block's kind converts for its destination, its own lines SHALL be converted as
+before, and its children SHALL be written in the document's unit: under a paragraph at the
+paragraph's own indentation, and under a list item as any list item's children are.
+
+A paste into a note that holds no node SHALL be written as the root's children through the
+same re-encode, at a caret on any blank line past the note's frontmatter or over a selection
+lying wholly on such lines. The frontmatter SHALL NOT be touched, and a selection reaching into
+it SHALL be left to the native paste.
+
+The document's unit SHALL be read from the step between a bullet item and its first
+indented child where the document has one. The step under a numbered item is also the
+width its child needs to reach the content column, so it is not evidence of the unit.
+A move SHALL read the unit from the document before the moved run is removed.
+
+The inserted run SHALL carry the SEPARATION of the boundary it lands in on both sides of
+itself. A gap is a boundary's separation and an insertion turns one boundary into two: the node
+above the insertion point keeps its own gap, and the run's last block takes a copy of it. Where
+that node is the document's LAST, its gap is the file's terminating newline rather than a
+separation — the run SHALL take that over, and what separates the run from the node now above it
+SHALL be that scope's own separation: the parent's trailing gap, or the boundary above it at the
+root. A copied gap line SHALL be written as an EMPTY line, a place line's own indentation saying
+nothing where it is copied to.
+
+Both seams an insertion makes are at its edit site. Inside a list the carried separation is the seam's whole separation, so a destination with none gains none there, save what the parse requires: a quote, callout or `- - -` landing flush as an item's first child is separated by the parse (#255). At every other seam a destination with no
+separation gains one blank line, per `A seam at an operation's edit site is separated`, and a carried
+separation of one or more blank lines stands as it is. A blank line the PARSE requires is added by
+the boundary normalization every operation runs, independently of both.
+
+#### Scenario: List items pasted under a deeper scope re-indent
+- **WHEN** `insertSubtrees` places two top-level list-item subtrees after a list item
+  nested two levels deep
+- **THEN** the inserted items are re-encoded at the anchor's depth with their
+  internal relative structure preserved
+
+#### Scenario: A single node's nested children keep a consistent indent unit at any target depth
+- **WHEN** `insertSubtrees` places ONE top-level list-item subtree — itself with a
+  child two levels deep, all tab-indented — after an anchor at a depth different
+  from where the subtree was originally encoded
+- **THEN** every line in the inserted subtree, at every depth, uses the SAME indent
+  character the anchor's own context uses — no mix of the original tabs with
+  newly-added spaces at any level
+
+#### Scenario: Every spelling of one tree lands in the same bytes
+- **WHEN** one tree, spelled with tabs, with two spaces, with four spaces, or with a mix, is
+  pasted under a tab-indented list item, a two-space one, or a four-space one, or at the root
+  of a tab or a two-space document
+- **THEN** every spelling lands in the same bytes at each destination, every level in the
+  destination document's unit
+
+#### Scenario: A copy from the document comes back unchanged
+- **WHEN** a list item's subtree is copied from a document indented consistently with tabs,
+  two spaces or four spaces, including one whose first nested item sits under `1.`, and pasted
+  back after itself
+- **THEN** the pasted copy is byte-identical to the original, apart from an ordered root's number
+
+#### Scenario: A continuation keeps its offset in the document's characters
+- **WHEN** `- a` / `  x` is pasted under a tab-indented list item
+- **THEN** it lands as `\t- a` / `\t  x`
+- **AND** `- a` / `\tx` pasted under a two-space list item lands with `x` four columns past its
+  item, in spaces
+
+#### Scenario: A fenced block keeps the tabs inside it
+- **WHEN** a list item holding a fenced block whose code is indented with tabs is pasted into a
+  two-space document
+- **THEN** the fence opens at the offset it had from its item, in spaces, and no tab inside the
+  code is converted
+
+#### Scenario: A block after a nested item stays its parent's child
+- **WHEN** `- Step 1` / `    - detail` / a fenced block at four columns is pasted under a
+  two-space list item
+- **THEN** the fence is written at `Step 1`'s content column and remains its child, not
+  `detail`'s
+
+#### Scenario: A block that would read as another tree keeps its own
+- **WHEN** a payload's converged lines would turn a lazy line into a quote or a table
+- **THEN** the payload is written with its own characters past its root's prefix, and its tree
+  is unchanged
+
+#### Scenario: A list pasted after a paragraph converts with its list in the unit
+- **WHEN** a list in any spelling is pasted at the end of a paragraph in a tab-indented vault
+- **THEN** its root becomes a paragraph, its list follows at the paragraph's indentation, and
+  every nested level below that is written with tabs
+
+#### Scenario: The first paste into an empty note converges
+- **WHEN** a two-space list is pasted into an empty note in a tab-indented vault
+- **THEN** it lands with tabs at every nested level
+
+#### Scenario: Select-all over an empty note converges too
+- **WHEN** a two-space list is pasted over a selection of every line of a note that holds only
+  blank lines, in a tab-indented vault
+- **THEN** it lands with tabs at every nested level, as a caret paste there does
+
+#### Scenario: A paste below a template's frontmatter leaves the frontmatter alone
+- **WHEN** a list is pasted on the blank line below the frontmatter of a note with no node
+- **THEN** the list is written below the frontmatter in the vault's unit, and the frontmatter's
+  lines are unchanged
+
+#### Scenario: A move keeps the document's unit
+- **WHEN** a run holding the document's only nested list items is moved under another item
+- **THEN** its levels are written in the unit the document had before the move, not the
+  editor's setting
+
+#### Scenario: Insertion never splices mid-node
+- **WHEN** `insertSubtrees` is invoked with any anchor
+- **THEN** every existing node's own lines remain contiguous and byte-identical —
+  inserted content only ever lands between nodes
+
+#### Scenario: A run landing in a separated boundary is separated on both sides
+- **WHEN** a run whose last block is a callout is inserted before a paragraph that a blank line
+  separated from the node above it
+- **THEN** a blank line stands between the run and that paragraph, as well as above the run,
+  although the parse would read the two as separate nodes without one
+
+#### Scenario: A tight destination gains no separation
+- **WHEN** a run of list items, or of blocks inside a list item other than a quote, callout or `- - -`
+  landing as an item's first child, is inserted between two list items with no blank line between them
+- **THEN** no blank line is added on either side of the run
+
+#### Scenario: A tight destination outside a list separates the run
+- **WHEN** a paragraph is inserted between a heading and a code block with no blank line between
+  them
+- **THEN** a blank line stands above and below the paragraph
+
+#### Scenario: A run at the end of the document takes over the terminating newline
+- **WHEN** a run is inserted after the document's last node
+- **THEN** the file ends in exactly one newline, and the run is separated from the node above it
+  by that scope's own separation, or by one blank line where that separation is none and the seam
+  lies outside a list
+
+*(Amendment 2026-09-19, `paste-lands-where-it-is-pointed`: the run's own final gap was stripped
+and the anchor's was moved onto it, which left the run flush against a neighbour wherever the
+parse required no blank line — measured in `docs/research/paste-across-encoding-regimes`, M6.)*
+
+*(Amendment 2026-09-25, `a-paste-writes-the-document-unit`: the levels below a pasted root were
+carried in the payload's own characters, so a clipboard from outside the vault left the
+document indented two ways — measured in `docs/research/paste-indent-convergence`.)*
+
 ### Requirement: Sibling heading creation
 `insertSiblingHeading(doc, nodeId, remainder)` SHALL insert a heading at the SAME LEVEL
 as an existing heading, directly after it, carrying `remainder` as its title — the
@@ -867,58 +666,357 @@ the new heading's content start.
 - **WHEN** the operation runs on a setext heading underlined `====`
 - **THEN** the new sibling is `# `, and the original keeps its setext encoding verbatim
 
-### Requirement: A provisional position carries its destination scope's indentation
+### Requirement: Group forms of indent, outdent and reordering
 
-Where a split opens a provisional position instead of materializing a node — the end-of-node
-case whose destination scope's kind has no empty encoding — the line the anchor points at
-SHALL carry the indentation that scope requires, by the same indentation rule every other
-operation uses to place a node at a destination, and the anchor SHALL point after that
-indentation rather than at column 0.
+Indent, outdent, move up and move down SHALL each have a GROUP form taking a forest of covered
+roots — one contiguous sibling run per parent, in document order, the same input shape
+`deleteSubtreeGroups` takes — and returning the same typed result the single-node forms return.
 
-The scope is the one the widened gap already serves: the CHILD scope for a node that has
-children, and for a heading; the node's own level otherwise. For a destination at the top
-level, or directly under a heading, the required indentation is empty and the operation's
-output is byte-identical to a plain blank line. For a destination inside a list item it is
-that item's own content indentation, which is what makes text typed there parse as a node in
-the intended scope.
+A group operation SHALL preserve the RELATIVE DOCUMENT ORDER of its covered roots, at every
+cover shape. "Move these three up" means the three arrive above their neighbour still in the
+order the user selected them; an operation that returns them shuffled has not performed the
+gesture, whatever else it got right.
 
-Without it, a provisional position whose destination lies inside a list item materializes
-outside it: text typed at column 0 after a list item starts a new top-level block, which
-places the new node at the wrong depth AND detaches the item's existing children, since they
-then follow a top-level sibling instead of the item.
+Subject to that, the group form's output tree SHALL BE, with blank lines set aside, the tree
+produced by applying the SINGLE-NODE form to each covered root IN TURN, each step evaluated
+against the tree the previous step produced. Its blank lines are the edit-site rule's for the
+whole gesture (`A seam at an operation's edit site is separated`), judged once against the note
+before the gesture: a step's own edit site includes seams that the roots after it restore, such
+as a seam between two selected roots that each step parts and the next rejoins. The order is:
 
-Everything else about a provisional position is unchanged: the keypress SHALL still leave the
-node count untouched, the position SHALL still be blank-separated or adjacent as its kind
-requires, and it SHALL still be removable in full — indentation included — by the
-undo-on-abandon rule, leaving no trace in the file.
+- Indent, outdent and move up apply their roots in DOCUMENT ORDER.
+- Move down applies its roots in REVERSE document order, because a forward-order move would
+  swap a selected root past another selected root rather than past the run's own neighbour.
+- Groups apply in document order, topmost first. Groups are independent by construction: a
+  forest cover is a document-order interval closed under descendants, so no group's parent can
+  be a member of another group.
 
-#### Scenario: A position inside a list item materializes as that item's child
-- **WHEN** a list item that has a paragraph child is split at the end of its own text, and a
-  character is then typed at the resulting anchor
-- **THEN** the typed text becomes the item's new FIRST child, placed before the existing
-  paragraph child, and that existing child remains a child of the same item
+Move up and move down SHALL additionally require the operand to be a SINGLE group — one
+contiguous sibling run under one parent — and SHALL reject a multi-parent forest with
+`cannot-reorder-across-scopes`. Indent and outdent carry no such restriction and apply to a
+forest of any shape.
 
-#### Scenario: A top-level position is byte-identical to before
-- **WHEN** a childless top-level paragraph is split at the end of its text
-- **THEN** the widened gap's lines carry no indentation at all and the anchor sits at column
-  0, exactly as with no destination indentation to apply
+The asymmetry is measured, not stylistic. A reorder moves each group WITHIN ITS OWN SCOPE, so
+a cover whose roots sit at different depths is scattered rather than moved: on
 
-#### Scenario: A position beside an indented paragraph stays at its level
-- **WHEN** a paragraph that is itself a child of a list item is split at the end of its text,
-  and a character is typed at the resulting anchor
-- **THEN** the typed text becomes a sibling of that paragraph, at the same depth, still inside
-  the list item
+    L0
+    - L1
+      - L2
+      - L3   <- covered
+      - L4   <- covered
 
-#### Scenario: Abandoning removes the indentation too
-- **WHEN** a provisional position carrying destination indentation is abandoned
-- **THEN** the document is byte-identical to what it was before the keypress, with no
-  whitespace-only line left behind
+    L5       <- covered
 
-**Covered by**: `tests/split.test.ts` (the indented provisional position for each destination
-scope, and the re-parse of the materialized node including its siblings' attachment);
-`tests/undo-on-abandon.test.ts` (byte-identical abandonment of an indented position);
-`e2e-tests/specs/30-keyboard-grammar.e2e.ts` (the live keypress-then-type sequence on a list item
-with a paragraph child).
+move up carries `L5` to the top of the document while `L3` and `L4` shuffle inside `L1`. The
+roots end up separated by content that was never selected, which is not a weaker version of
+the requested gesture but a different one. Measured over generated documents (20 000 runs per
+operation): every accepted multi-parent move up left the roots torn apart (3100 of 3100), while
+indent and outdent left them adjacent in every accepted case (3723 and 2577 respectively, none
+torn). Multi-parent move down was never accepted at all in 8141 attempts — its last root is its
+scope's last child — so it is restricted on the same rule rather than on its own evidence.
+
+Indent and outdent are unaffected because their destination is derived per group from that
+group's own previous sibling or parent, and a group's roots stay adjacent under it.
+
+Stating the algebra as a composition rather than as new rules is what keeps the two-regime
+per-kind algebra intact without restating it. A heading root still level-shifts and a
+non-heading root still reparents under the run's previous sibling; a sibling run mixing the
+two gets each root's own rule, with no new rejection for the mixture.
+
+Where the composition would NOT preserve the roots' order, the ORDER rule governs and the
+composition does not define the result. The two can conflict because a composition moves one
+root at a time, and an intermediate tree need not be REPRESENTABLE: markdown has no encoding
+for a list item that follows a paragraph as its sibling, so the re-parse between two steps can
+reshape the document under the steps that have not run yet.
+
+For a REORDER, that unrepresentability is now decided before either rule applies. "Sibling
+reordering" refuses a swap that would place a section-level list item directly after a paragraph
+sibling, and because a group reorder IS the composition above, it inherits that refusal at every
+step: a step the single-node form refuses is a composition that does not exist, so the group
+operation is refused as a whole. A run whose intermediate step is refused is therefore refused
+even where the arrangement it would finally have emitted is expressible; that follows from
+defining the group form as the composition, and group rejection is already atomic.
+
+So the order rule governs among the runs a reorder accepts, and the shape where the two rules
+disagree is refused rather than resolved in the order rule's favour. The measurement below is
+retained because it is why the order rule is stated first and the composition subordinate to
+it; it now describes a case that is rejected.
+
+Measured on `- L0` / `L1` / `L2`, moving the run `[L1, L2]` up. Step one swaps `L1` above
+`- L0`; that encoding re-parses with `- L0` as L1's own child, so step two finds L2's previous
+sibling to be `L1` and swaps past it — yielding `L2 / L1 / - L0`, the run reversed. Acting on
+the whole run at once yields `L1 / L2 / - L0`, which is the requested gesture.
+
+Every measured disagreement between the two rules has this shape — 49 of 49, always with the
+composition losing the order and the whole-run result keeping it, never the reverse — which is
+why the order rule is stated first and the composition is subordinate to it rather than the
+other way round.
+
+Group forms SHALL emit ONE minimal edit list for the whole transformation, satisfying the
+existing minimal-edit guarantee against the ORIGINAL document: lines no root's transformation
+semantically requires SHALL be byte-identical, with ordered-run renumbering the same documented
+exception it already is. An implementation MAY perform the surgery in one pass rather than
+literally re-parsing between steps, but its output tree SHALL equal the composition above.
+
+A group of exactly one root SHALL produce a result identical to the single-node form, edits
+included, so no existing behaviour changes when the operand resolves to one node.
+
+#### Scenario: A sibling run indents as a block
+- **WHEN** the group indent of `- a` / `- b` / `- c` is invoked for the run `[b, c]`
+- **THEN** `b` and `c` both become children of `a`, in that order, after any children `a`
+  already had
+
+#### Scenario: A run moves down past its own neighbour, not past itself
+- **WHEN** the group move down of `- a` / `- b` / `- c` is invoked for the run `[a, b]`
+- **THEN** the result is `- c` / `- a` / `- b` — the run moved below `c` as a unit, with `a`
+  and `b` keeping their relative order
+
+#### Scenario: A run moves up past its own neighbour
+- **WHEN** the group move up of `- a` / `- b` / `- c` is invoked for the run `[b, c]`
+- **THEN** the result is `- b` / `- c` / `- a`
+
+#### Scenario: A run keeps its order where a step-at-a-time composition would reverse it
+- **WHEN** the group move up is invoked for the run `[L1, L2]` in `- L0` / `L1` / `L2`, where
+  `L1` and `L2` are paragraphs — the shape in which the composition reverses the run, because
+  the arrangement the group would emit places `- L0` as a paragraph's following sibling and
+  has no markdown encoding
+- **THEN** the operation is rejected and the document is unchanged; the run's order is never at
+  risk here because the run does not move. Emitting `L1` / `L2` / `- L0` would re-parse with
+  `- L0` as `L2`'s child — a node the cover never named, carried a level deeper — which
+  "Sibling reordering" refuses for the same reason the single-node move up on this shape does
+
+#### Scenario: A run is refused when one of its steps is refused
+- **WHEN** a group reorder's composition reaches a step the single-node form refuses, even
+  though the arrangement the run would finally have emitted is expressible — a run of an atom
+  followed by a list item, moving down past a paragraph
+- **THEN** the whole group operation is rejected, with the same typed reason the single-node
+  step gave, and nothing is moved. The group form is the composition, so a step that cannot be
+  performed is a composition that does not exist
+
+#### Scenario: A heading run level-shifts
+- **WHEN** the group indent is invoked for a run of two sibling headings
+- **THEN** each heading and its whole heading subtree shifts one level deeper, exactly as the
+  single-node indent does for each
+
+#### Scenario: A mixed-kind run applies each root's own rule
+- **WHEN** the group indent is invoked for a run holding both a paragraph and a heading
+- **THEN** the paragraph reparents under the run's previous sibling and the heading shifts
+  level, matching what applying the single-node operation to each in document order produces
+
+#### Scenario: A mixed-depth cover operates group by group
+- **WHEN** the group outdent is invoked for a cover whose roots sit at two different depths,
+  so the operand holds two groups
+- **THEN** each group outdents within its own parent's scope, and the result equals applying
+  the single-node outdent to every root in document order
+
+#### Scenario: A reorder across scopes is rejected
+- **WHEN** the group move up is invoked for a cover whose roots sit under two different
+  parents
+- **THEN** the operation is rejected with `cannot-reorder-across-scopes` and the document is
+  unchanged — neither group is moved within its own scope
+
+#### Scenario: A reorder within one scope is unaffected
+- **WHEN** the group move up or move down is invoked for a cover whose roots are one
+  contiguous sibling run, and the arrangement it would emit is expressible
+- **THEN** the run moves as a unit exactly as the composition prescribes
+
+#### Scenario: A single-root group is the single-node operation
+- **WHEN** any group form is invoked with exactly one root
+- **THEN** its tree, its edits and its anchor are identical to those the single-node form
+  produces for that same root, blank lines included
+
+#### Scenario: Group closure
+- **WHEN** any group operation is applied to any generated cover of any generated tree
+- **THEN** either it is rejected, or `parse(encode(result.tree))` equals `result.tree`,
+  applying `result.edits` to the source text yields `encode(result.tree)`, and `result.tree`
+  equals, with blank lines set aside, the tree the sequential single-node composition produces
+
+#### Scenario: A group move keeps a seam between two selected roots
+- **WHEN** `a` and `> b`, written flush under `# X` below `> p`, are block-selected and moved up
+  together
+- **THEN** `a` and `> b` are still written with no blank line between them
+
+### Requirement: Boundary separation is judged on the kind the re-parse will read
+The boundary normalization every operation runs SHALL choose each seam's separator from the kind
+the node's lines PARSE AS where they are written, not from the kind the tree holds for them.
+
+The two differ wherever an operation has moved a node's column. `hr`, `quote`, `callout`, `html`
+and an ATX heading open a block only within three columns of the left margin — `HR_RE`,
+`QUOTE_RE`, `CALLOUT_RE`, `HTML_OPEN_RE` and `ATX_RE` are all written `^ {0,3}` — and a setext
+heading carries that anchor on its UNDERLINE rather than on its first line. `code` and `table`
+have no such limit. The margin is the one the parser measures from: column 0 outside every list
+item, and inside one the content column of the innermost item holding the node, so a node's
+children are judged at their parent's content column when the parent is a list item and at the
+parent's own margin otherwise. A heading and an HTML block are judged at column 0 wherever they
+sit, as the parser reads them. Normalization runs on the TREE and encoding runs after it, so a node a
+re-encode has pushed past that margin is separated as the kind it was and read back as the kind
+its new column makes it. Measured, a `quote` needs no separator before a paragraph and the
+paragraph it becomes at column 4 does: the two nodes come back as one, and the payload the
+operation inserted is a node short.
+
+This rule decides what the PARSE requires at a seam, and it is the floor under every seam. A seam away from the operation's edit site, such as one inside a moved run whose column the move changed,
+is separated exactly when this rule requires it, and so is every seam inside a list. A seam at the edit
+site outside a list is separated whatever the parse requires, per `A seam at an operation's edit site is separated`, and this rule is not what decides it there.
+
+Within that floor the rule both adds and removes separators, for one reason in both directions:
+the rule that applies is the rule for the node the document will contain. Where that node claims
+the line below it and the tree's kind did not, a separator is added; where the tree's kind claimed
+a line the written kind does not — an `html` block's unconditional separator below a node that is
+no longer an HTML block — the parse asks for no separator.
+
+What a demoted line becomes SHALL be read off the line rather than assumed to be a paragraph.
+`LIST_ITEM_RE` carries no margin, so a rule spelled `- - -` or `* * *` is an `hr` at column 3 and
+a LIST ITEM at column 4, where `---` is a paragraph; a list item claims nothing and needs no
+separator. Treating every demoted line as a paragraph writes a blank line for a node that is not
+there.
+
+The seam BELOW a node SHALL be judged on the block its LAST line lands in where written, and the
+seam above it on the block its first line opens. The two differ for a demoted node of more than
+one line: an `html` block runs to a blank line whatever its lines hold, so past the margin its
+later lines open blocks of their own, and the seam below it is the last of those.
+
+A table SHALL be separated from any following node whose first line contains a `|`. The table's
+own loop claims every such line, of whatever kind, so a separator chosen only against another
+table leaves a list item or a paragraph carrying a wikilink alias to be read as a row.
+
+#### Scenario: A quote re-indented into a heading scope keeps the node below it
+- **WHEN** a payload whose last root is a quote is inserted before a tab-indented paragraph in a
+  heading's children, so the quote is written at column 4
+- **THEN** a blank line stands between the quote's line and that paragraph, and the result holds
+  both payload nodes and the section's own paragraph
+
+#### Scenario: A separator that described a block the document no longer contains is not written
+- **WHEN** a payload ending in an HTML block is re-encoded at a list item's child column and the
+  next sibling is a list item, in a tight list
+- **THEN** no blank line is written between them, since the seam lies inside the list, and the
+  re-parse reads the same nodes as it would with one
+
+#### Scenario: A rule spelled with a marker becomes a list item, not a paragraph
+- **WHEN** a payload ending in `- - -` is re-encoded past the margin above an existing node
+- **THEN** no blank line is written between the rule and the list item above it, since both are
+  list items as written, every node survives, and the rule's line re-parses as a list item
+
+#### Scenario: A demoted html block is separated below by its last block
+- **WHEN** a payload holding an `html` block of `<div>` over a table is re-encoded past the
+  margin before an existing table
+- **THEN** a blank line stands between the payload's table rows and the existing table, and the
+  existing table re-parses with exactly its own rows
+
+#### Scenario: A table is separated from a line that carries a pipe
+- **WHEN** a payload ending in a table lands before a list item reading `- see [[a|b]]` with no
+  separation between them
+- **THEN** a blank line stands between the table and the list item, and the list item
+  re-parses as a list item
+
+#### Scenario: A seam inside the margin is unchanged
+- **WHEN** the same payload lands in a scope whose content sits at column 0
+- **THEN** the quote is still a quote, and the blank line below it is the one the edit-site rule writes, not one this rule requires
+
+#### Scenario: An atom at a list item's child column keeps its kind across the seam
+- **WHEN** a payload of `## H` over `---` is pasted after `  - two` below `- one`, so the rule is
+  written at column 4, the converted item's child column
+- **THEN** a blank line stands between `  - ## H` and the rule, and the rule re-parses as an `hr`,
+  a child of that item
+
+### Requirement: A run moves to a named destination as one operation
+
+The algebra SHALL offer an operation that moves a forest of whole subtrees to a NAMED destination —
+a parent and a position among its children — and returns a single result, in the same total and
+typed form every other operation returns.
+
+The destination SHALL be expressible as a parent and an index, including the index zero of a
+parent that has no children at all. An insertion stated only against an anchor SIBLING cannot name
+that destination, and it is the commonest reparenting destination there is: "make this the first
+child of that". The operation SHALL NOT be built on a private variant kept elsewhere for the case.
+
+The operation SHALL be the one place the move is expressed. A caller SHALL NOT compose it out of a
+removal followed by an insertion: both halves carry gap ownership and ordered-run renumbering, the
+destination's anchor moves when the run is removed from above it, and a second call site that
+half-remembers those rules is the failure mode the shared re-encoding call site already exists to
+prevent.
+
+The moved run SHALL be re-encoded for its destination by the SAME rule an insertion at that
+destination uses, so a run that lands in a different scope, at a different depth, or under a
+different encoding regime arrives encoded as that destination's own content — with the run's
+internal relative nesting preserved exactly.
+
+The result SHALL be rejected, rather than partially applied, whenever the destination cannot hold
+the run: a destination inside the run's own subtrees, a destination the insertion rule declines,
+or a destination that no longer exists. A rejection SHALL leave the document untouched.
+
+A move that begins and ends in ONE scope SHALL be a reorder. The run SHALL keep its own encoding,
+because a run that has not left its scope is already encoded for it, and the blank lines between
+that scope's members SHALL stay with the POSITIONS rather than with the nodes — the last position
+ends the file whichever node occupies it. A reorder's edit site is the seams at the moved run's edges, per
+`A seam at an operation's edit site is separated`: the positions' blank lines stay, and an empty seam there
+gains one. Re-encoding such a run against the siblings the removal
+leaves behind reads the scope's regime off the very evidence the run was counter-evidence to.
+
+A move whose destination is the run's CURRENT place SHALL produce no document change.
+
+#### Scenario: A run moves across the document as one result
+- **WHEN** two sibling subtrees are moved to a destination several levels deeper, elsewhere in the
+  document
+- **THEN** one result carries the whole change: both subtrees are gone from their old place, both
+  sit at the destination in their original order, and every descendant keeps its depth relative to
+  its own root
+
+#### Scenario: The run re-encodes for where it lands
+- **WHEN** a run is moved into a scope whose encoding differs from its own
+- **THEN** it arrives encoded as that scope's content, by the same rule an insertion there would
+  apply, with its internal nesting unchanged
+
+#### Scenario: A moved heading absorbs what follows it, as an inserted one does
+- **WHEN** a heading-rooted run is moved among siblings that are followed by more content at the
+  same depth
+- **THEN** that content re-parses as part of the moved heading's section, bounded by the
+  destination scope's end — the same result the insertion rule already states, reached by a move
+  rather than by a paste
+
+#### Scenario: Gaps are repaired on both sides
+- **WHEN** a run is moved out from between two siblings and into a destination between two others
+- **THEN** the place it left and the place it arrived at are each separated per `A seam at an operation's edit site is separated` — no blank line is doubled. Inside a list, a seam keeps the separation the insertion carries to it, which at a list's edge can loosen the list (#272)
+
+#### Scenario: Ordered runs renumber on both sides
+- **WHEN** an ordered item is moved out of one ordered run and into the middle of another
+- **THEN** both runs are numbered consecutively afterwards, and the moved item takes its new run's
+  numbering rather than carrying its old number
+
+#### Scenario: A childless parent is a destination
+- **WHEN** a run is moved to be the first child of a node that has no children
+- **THEN** the move is accepted and the run lands there, re-encoded for that scope
+
+#### Scenario: A leaf is not a destination
+- **WHEN** the named parent is an atom — a code fence, a table or another leaf the algebra does
+  not give children
+- **THEN** the operation is rejected and the document is unchanged, by the same guard every other
+  insertion path runs, rather than by a condition restated at this call site
+
+#### Scenario: A destination inside the run is rejected
+- **WHEN** the named destination lies inside one of the subtrees being moved
+- **THEN** the operation is rejected and the document is unchanged
+
+#### Scenario: A destination the insertion rule declines is rejected
+- **WHEN** the named destination is one the insertion rule refuses — a run whose own roots include
+  an atom, moved into a paragraph's children
+- **THEN** the operation is rejected, with the same reason the insertion would have given, and the
+  document is unchanged
+
+#### Scenario: A destination too deep for the run's own headings is rejected
+- **WHEN** a heading-rooted run is moved into a heading-bearing scope deep enough that the run's
+  DEEPEST heading would re-level past the last level markdown has
+- **THEN** the operation is rejected with the same reason the insertion gives, and the document is
+  unchanged — including where the run's ROOT alone would have fitted
+
+#### Scenario: A run that does not leave its scope keeps its own encoding
+- **WHEN** a list item is moved to another position among the same parent's children, in a scope
+  whose other members are paragraphs
+- **THEN** it is still a list item, and the blank lines between the scope's members are where they
+  were — a tight list stays tight and the file's terminating newline stays at the end
+
+#### Scenario: A move to the current place changes nothing
+- **WHEN** a run is moved to the destination it already occupies
+- **THEN** the result carries no document change
 
 ## REMOVED Requirements
 

@@ -36,12 +36,14 @@ every other seam at the paste's edit site, those inside the payload included, is
 `structural-operations`' `A seam at an operation's edit site is separated`. A TYPE-OVER reaches its destination through
 a deletion, which takes the replaced run's own gap with it, so its replacement SHALL inherit the
 separation that run had rather than whatever gap the payload's own text ended with. A type-over's payload
-is new, so its outer seams and the seams inside it are at its edit site, as for any insertion.
+is new, so its outer seams and the seams inside it are at its edit site, as for any insertion: an
+inherited separation of none gains one blank line outside a list, and stands inside one.
 
 A gap the caret was in and that is WIDER than a single blank line SHALL collapse to one with the
-insertion. A structural Enter opens a place there, separated on both sides — which is what makes
-the place parse as a node rather than a continuation line — and the paste that fills the place
-consumes it. A gap of one SHALL be left as it is, and a gap of none is separated only as the edit-site rule requires. This is chrome maintenance, not an editing semantic: the resulting tree
+insertion. A structural Enter opens a place there and widens the gap by two — a separator on each
+side is what makes the place parse as a node rather than a continuation line — and the paste that
+fills the place consumes it. A gap of one SHALL be left as it is: that is the separation the
+document already had. A gap of none is separated only where the edit-site rule requires it. This is chrome maintenance, not an editing semantic: the resulting tree
 is the same either way.
 
 *(Amendment 2026-09-16, `paste-lands-where-it-is-pointed`: the cross-regime case was assumed by
@@ -72,8 +74,9 @@ above the pasted content.)*
 
 #### Scenario: A type-over keeps the separation of what it replaced
 - **WHEN** a structural payload replaces a selection covering every node of a scope
-- **THEN** the run is separated from what follows it exactly as the replaced run was — no blank
-  line in a tight list, the document's terminating newline where that run ended the file
+- **THEN** the run is separated from what follows it as the replaced run was, save that an empty seam
+  outside a list gains one blank line — no blank line in a tight list, the document's terminating
+  newline where that run ended the file
 
 #### Scenario: A paste onto a place leaves no widened gap behind
 - **WHEN** a structural Enter opens a place and a structural payload is pasted onto it

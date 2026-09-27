@@ -11,15 +11,22 @@ structure, and the text it writes has to mean that structure in every view of th
 ## What Changes
 
 - **A seam at an operation's edit site, outside a list, is written with one blank line.** The edit site is every
-  seam next to a block the operation wrote, and every seam that joins blocks the operation brought together. A
-  block is written when it is new, or its text or kind changed, or it has a new parent or previous sibling.
-  That is decided the same way for every structural operation. It covers:
+  seam next to a block the operation wrote, and every seam that joins blocks the operation brought together. That
+  is decided the same way for every structural operation, on what the outline shows of each block:
+  - A block is written when it is new, or when its kind, its content or its heading level relative to its parent
+    changed. Content sets aside indentation, list marker, ordinal number and block id, so renumbering, a level
+    shift, a re-indent and an id attachment write no block.
+  - A seam is also at the edit site when its lower block's previous sibling changed, or its parent did where it
+    has no previous sibling.
+
+  It covers:
   - the seams around a pasted, dropped or moved run, and every seam inside a pasted payload
   - the seam a deletion leaves
-  - the seams around the blocks a split, a merge, a type-over, an indent or an outdent rewrites
+  - the seams around the blocks a split, a merge, a type-over, an indent or an outdent writes or re-parents
 
-  A moved subtree's inner seams are not at the edit site, and neither is any seam away from it. The
-  approaches reviewed before this one are recorded in `docs/research/created-seam-detection`.
+  A moved run's inner seams are not at the edit site, and neither is any seam away from it. A group operation has
+  one edit site for the whole gesture. The approaches reviewed before this one are recorded in
+  `docs/research/created-seam-detection`.
 - **Inside a list, the rule adds nothing.** Whether a list is tight or loose is the user's, and every seam inside
   a list is written as today (`lazy-continuation-at-seams`, "Measured: loose lists"). The seams between a list and
   the blocks above and below it are outside the list.
@@ -28,12 +35,13 @@ structure, and the text it writes has to mean that structure in every view of th
 - **A blank line never changes what a block is.** A block id stays on its block, a lone id line stays flush above
   the block below it, and no blank line goes above a block indented four columns past its margin, which
   CommonMark would read as code.
-- **An Enter place is separated on both sides outside a list,** and always adds its own line. Abandoning a
-  dissolved or carried place removes the separators it added. A Shift+Enter place stays adjacent.
 - **A move that gains or loses a blank line is still dispatched as a move.**
+- **A seam oracle checks the rule over generated notes and every operation,** and its figures are recorded before
+  and after the rule lands.
 - **BREAKING (encoding):** operations that wrote a flush seam at their edit site outside a list write a blank line
-  there instead. That includes a split's, a merge's and a type-over's outer seams. A note is unchanged away from
-  the edit sites of the operations run on it. The heading-first-child convention becomes a case of the rule.
+  there instead. That includes a split's, a merge's, a type-over's and a reorder's outer seams. A note is unchanged
+  away from the edit sites of the operations run on it. The heading-first-child convention becomes a case of the
+  rule.
 
 ## Capabilities
 
@@ -47,36 +55,37 @@ None.
   - boundary separation takes the edit-site rule, replacing "SHALL NOT widen beyond what the parse requires"
   - the heading-first-child convention is folded into the rule
   - the insertion's indent-unit round trip narrows to the payload's own lines
-  - the insertion, deletion, move, merge, split, sibling-heading and position-indentation requirements
-    state the rule for the seams they create
+  - the insertion, deletion, move, merge, reorder, heading-shift, outdent and sibling-heading requirements state
+    the rule for the seams they make
+  - closure counts the rule's blank lines among the lines an operation requires
+  - the group forms equal their sequential composition with blank lines set aside, and take one edit site for
+    the gesture
 - `outline-keyboard-grammar`:
-  - an Enter position is separated on both sides
-  - a Shift+Enter position stays adjacent
+  - a setext heading's split remainder is separated from it
   - Shift+Enter's drafted sibling heading is separated from the section above it, until #258 replaces it
 - `node-edit-enforcement`:
-  - a paste keeps the destination's separation inside a list, and separates every other seam it creates
-  - a type-over keeps the seams at its edges
+  - a paste keeps the destination's separation inside a list, and separates every other seam at its edit site
+  - a type-over's payload is separated from flush neighbours outside a list
   - a deletion separates the seam it leaves
-- `document-tree-mapping`: "Minimal re-encoding after tree edits" names a created seam's upper node as one
-  the operation touched.
-- `structural-history-integration`: abandoning a dissolved place leaves its neighbours separated as the rule
-  would.
-- `minimal-change-dispatch`: a relocation that gains a blank line at a created seam is still dispatched as a
+- `document-tree-mapping`: "Minimal re-encoding after tree edits" names a node whose gap holds a seam at the edit
+  site as one the operation touched.
+- `minimal-change-dispatch`: a relocation that gains a blank line at the edit site is still dispatched as a
   relocation.
 
 ## Impact
 
 - `src/ops.ts`:
-  - `finalize` indexes the document it started from by node id, finds the edit site within the changed text, and
-    separates its empty seams outside a list before the parse floor runs
+  - `finalize` indexes the document it started from by node id, finds the edit site by comparing each block's
+    outline, and separates its empty seams outside a list before the parse floor runs
   - `deleteSubtreeGroups` separates nothing when a splice follows
-  - `splitNode`, `insertEmptyBefore`, `unwrapListItem` and `outdentSurgery` write their places separated on both
-    sides outside a list, and a dissolving op records the lines it added so `finalize` can return its abandonment
-- `src/plugin/grammar.ts`, `src/plugin/main.ts` and `src/plugin/provisional-cleanup.ts`: a dissolved place's and a
-  carried place's abandonment removes the separators added with it.
+  - `splitNode` loses its own heading-child separator
+  - `Surgery`'s equivalence note is restated for blank lines
 - `src/plugin/dispatch.ts`: the relocation match sets blank lines aside.
-- Tests: many unit tests pin flush encodings at edit sites outside lists, and change with the rule. The e2e specs
-  that assert whole buffers across a structural edit change with them.
+- Tests:
+  - a seam oracle over generated notes, with `commonmark` as a dev dependency
+  - many unit tests pin flush encodings at edit sites outside lists, and change with the rule
+  - the group-composition oracle compares trees with blank lines set aside
+  - the e2e specs that assert whole buffers across a structural edit change with them
 
 ## Non-goals
 
@@ -85,6 +94,13 @@ None.
 - **Seams the user wrote.** Normalizing existing flush seams across a note is not done, on an edit or
   otherwise.
 - **Separation inside lists,** including the insertion's carry at a list's edge, which is #272.
+- **Provisional positions.** Where an Enter place is written, and what abandoning it leaves, are a change of their
+  own, which waits on #253's decision. This change writes nothing beside a place.
+- **Block-id corrections.** They are raw edits built outside the structural operations
+  (`src/block-ids.ts`), and write what `misplaced-block-ids` states.
+- **Separating only the seams some reader continues.** The oracle counts the seams the rule separates where no
+  reader would continue them. Whether to narrow the rule to the others is decided on that figure, before this
+  change lands.
 - **#258's heading keys.** This change states the drafted sibling heading's seams as they stand, and #258
   replaces that heading with a paragraph place.
 - **#255.** The parse floor already separates a flush quote, callout or rule under a list item on any operation.
