@@ -18,8 +18,10 @@
  * that run correctly rewrites `1. b` to `2. b`, a line above the operand. That
  * is the requirement working, not failing. Restricting the property to
  * documents whose every run already reads head, head+1, … separates the two
- * without the test having to re-implement the rule it is checking. Measured, the
- * filter keeps ~2650 of 3000 generated documents.
+ * without the test having to re-implement the rule it is checking. The
+ * generator writes runs with a repeated number on purpose, and blank-separated
+ * blocks with different starts join into one run, so the filter keeps ~2850
+ * of 5000 generated documents.
  *
  * ## Why "above" is fenced at the relocated node, not the subject
  *
@@ -40,7 +42,7 @@ import { indent, insertSubtrees, moveDown, moveUp, outdent, type OpOutput } from
 import type { OpResult } from '../src/result';
 import { arbLabeledDoc, labelOf } from './group-oracle';
 
-const RUNS = 3000;
+const RUNS = 5000;
 
 interface Contract {
   readonly op: (doc: OutlineDoc, nodeId: number) => OpResult<OpOutput>;

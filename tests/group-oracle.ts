@@ -63,27 +63,52 @@ export function labelsOf(doc: OutlineDoc): string[] {
 
 interface ItemShape {
   readonly ordered: boolean;
-  readonly kids: readonly ItemShape[];
+  readonly kids: ListShape;
 }
+
+/**
+ * A sibling run and how its ordered items are numbered: the item at index `i`
+ * is written `start + i * step`. The start leans on the numbers next to a
+ * digit boundary, where a renumbering changes a marker's width; a step of 0
+ * writes the same number on every item (`9.` / `9.`), a run that is not
+ * consecutive and that renumbering normalizes.
+ */
+interface ListShape {
+  readonly start: number;
+  readonly step: 0 | 1;
+  readonly items: readonly ItemShape[];
+}
+
+const arbStart: fc.Arbitrary<number> = fc.oneof(
+  { weight: 2, arbitrary: fc.constant(1) },
+  { weight: 4, arbitrary: fc.constantFrom(8, 9, 10, 98, 99, 100, 998, 999) },
+  { weight: 1, arbitrary: fc.integer({ min: 0, max: 1000 }) },
+);
+
+const arbList = (item: fc.Arbitrary<ItemShape>, minLength: number, maxLength: number): fc.Arbitrary<ListShape> =>
+  fc.record({
+    start: arbStart,
+    step: fc.constantFrom<0 | 1>(1, 1, 0),
+    items: fc.array(item, { minLength, maxLength }),
+  });
+
+const NO_ITEMS: ListShape = { start: 1, step: 1, items: [] };
 
 type Block =
   | { readonly t: 'heading'; readonly level: number }
-  | { readonly t: 'para'; readonly kids: readonly ItemShape[] }
-  | { readonly t: 'list'; readonly items: readonly ItemShape[] };
+  | { readonly t: 'para'; readonly kids: ListShape }
+  | { readonly t: 'list'; readonly items: ListShape };
 
 const arbItem = (depth: number): fc.Arbitrary<ItemShape> =>
   fc.record({
     ordered: fc.boolean(),
-    kids:
-      depth > 0
-        ? fc.array(arbItem(depth - 1), { maxLength: 3 })
-        : fc.constant([] as ItemShape[]),
+    kids: depth > 0 ? arbList(arbItem(depth - 1), 0, 3) : fc.constant(NO_ITEMS),
   });
 
 const arbBlock: fc.Arbitrary<Block> = fc.oneof(
   { weight: 2, arbitrary: fc.record({ t: fc.constant('heading' as const), level: fc.integer({ min: 1, max: 3 }) }) },
-  { weight: 2, arbitrary: fc.record({ t: fc.constant('para' as const), kids: fc.array(arbItem(1), { maxLength: 2 }) }) },
-  { weight: 3, arbitrary: fc.record({ t: fc.constant('list' as const), items: fc.array(arbItem(2), { minLength: 1, maxLength: 4 }) }) },
+  { weight: 2, arbitrary: fc.record({ t: fc.constant('para' as const), kids: arbList(arbItem(1), 0, 2) }) },
+  { weight: 3, arbitrary: fc.record({ t: fc.constant('list' as const), items: arbList(arbItem(2), 1, 4) }) },
 );
 
 /**
@@ -98,15 +123,16 @@ function render(blocks: readonly Block[]): string {
   const label = (): string => `L${n++}`;
   const lines: string[] = [];
 
-  const renderItems = (items: readonly ItemShape[], indentCols: number): void => {
-    items.forEach((item, i) => {
-      const marker = item.ordered ? `${i + 1}. ` : '- ';
+  const renderItems = (list: ListShape, indentCols: number): void => {
+    list.items.forEach((item, i) => {
+      const marker = item.ordered ? `${list.start + i * list.step}. ` : '- ';
       lines.push(`${' '.repeat(indentCols)}${marker}${label()}`);
       // Children indent to the parent's own CONTENT column, not by a fixed
-      // unit. An ordered marker is three characters wide, so a fixed two-space
-      // step renders a "child" the parser reads as a sibling — documents whose
-      // shape on screen is not the shape in the tree, which would make every
-      // property below reason about a structure that is not there.
+      // unit. An ordered marker is as wide as its number plus `. `, three
+      // characters for `9.` and five for `100.`, so a fixed step renders a
+      // "child" the parser reads as a sibling — documents whose shape on
+      // screen is not the shape in the tree, which would make every property
+      // below reason about a structure that is not there.
       renderItems(item.kids, indentCols + marker.length);
     });
   };

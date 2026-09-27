@@ -166,6 +166,7 @@ describe('2.8 group operations uphold closure, totality and minimal edits', () =
 
   it('every node above the operand keeps its own first line verbatim', () => {
     let checked = 0;
+    let shifted = 0;
     fc.assert(
       fc.property(arbLabeledDoc(), fc.nat(), fc.nat(), arbGroupOp, (doc, i, j, op) => {
         if ([...walkNodes(doc)].length === 0) return true;
@@ -174,12 +175,17 @@ describe('2.8 group operations uphold closure, totality and minimal edits', () =
         if (!result.ok) return true;
         const kept = firstLinesKeptAbove(doc, labels, result.value.doc);
         if (kept === undefined) return false;
-        checked += kept;
+        checked += kept.checked;
+        shifted += kept.shifted;
         return true;
       }),
       { numRuns: 2000 },
     );
     expect(checked).toBeGreaterThan(200);
+    // The generator draws ordered runs that start next to a digit boundary so
+    // that a renumbering above the operand changes a marker's width. This
+    // fails if it stops doing so and the shifted comparison goes unexercised.
+    expect(shifted).toBeGreaterThan(5);
   });
 
   /**
@@ -192,7 +198,7 @@ describe('2.8 group operations uphold closure, totality and minimal edits', () =
     const after = applied(doc, 'L2', moveGroupsUp);
 
     expect(encode(after).split('\n')).toEqual(['9. L2', '10. L0', '    - L1']);
-    expect(firstLinesKeptAbove(doc, ['L2'], after)).toBe(1);
+    expect(firstLinesKeptAbove(doc, ['L2'], after)).toEqual({ checked: 1, shifted: 1 });
   });
 
   /**
@@ -205,7 +211,7 @@ describe('2.8 group operations uphold closure, totality and minimal edits', () =
     const after = applied(doc, 'L3', outdentGroups);
 
     expect(encode(after).split('\n')).toEqual(['9. L0', '10. L1', '    - L2', '- L3']);
-    expect(firstLinesKeptAbove(doc, ['L3'], after)).toBe(1);
+    expect(firstLinesKeptAbove(doc, ['L3'], after)).toEqual({ checked: 1, shifted: 1 });
   });
 
   /**
@@ -218,7 +224,7 @@ describe('2.8 group operations uphold closure, totality and minimal edits', () =
     const after = applied(doc, 'L4', moveGroupsUp);
 
     expect(encode(after).split('\n')).toEqual(['8. L0', '9. L1', '   - L2', '10. L4', '- L3']);
-    expect(firstLinesKeptAbove(doc, ['L4'], after)).toBe(2);
+    expect(firstLinesKeptAbove(doc, ['L4'], after)).toEqual({ checked: 2, shifted: 1 });
   });
 
   /**
@@ -231,7 +237,7 @@ describe('2.8 group operations uphold closure, totality and minimal edits', () =
     const after = applied(doc, 'L2', moveGroupsUp);
 
     expect(encode(after).split('\n')).toEqual(['9. L2', '10. L0', '    - L1']);
-    expect(firstLinesKeptAbove(doc, ['L2'], after)).toBe(1);
+    expect(firstLinesKeptAbove(doc, ['L2'], after)).toEqual({ checked: 1, shifted: 0 });
     const drifted = parse(['9. L2', '10. L0', '     - L1'].join('\n'));
     expect(firstLinesKeptAbove(doc, ['L2'], drifted)).toBeUndefined();
   });
@@ -245,12 +251,12 @@ describe('2.8 group operations uphold closure, totality and minimal edits', () =
     const same = parse(['9.\tL0', '    - L1', '10.\tL2'].join('\n'));
     const kept = applied(same, 'L2', moveGroupsUp);
     expect(encode(kept).split('\n')).toEqual(['9.\tL2', '10.\tL0', '    - L1']);
-    expect(firstLinesKeptAbove(same, ['L2'], kept)).toBe(1);
+    expect(firstLinesKeptAbove(same, ['L2'], kept)).toEqual({ checked: 1, shifted: 0 });
 
     const wider = parse(['99.\tL0', '    - L1', '100.\tL2'].join('\n'));
     const moved = applied(wider, 'L2', moveGroupsUp);
     expect(encode(moved).split('\n')).toEqual(['99.\tL2', '100.\tL0', '        - L1']);
-    expect(firstLinesKeptAbove(wider, ['L2'], moved)).toBe(1);
+    expect(firstLinesKeptAbove(wider, ['L2'], moved)).toEqual({ checked: 1, shifted: 1 });
   });
 
   /**
@@ -263,7 +269,7 @@ describe('2.8 group operations uphold closure, totality and minimal edits', () =
     const after = applied(doc, 'L2', moveGroupsUp);
 
     expect(encode(after).split('\n')).toEqual(['9. L2', '10. L0', '    -    L1']);
-    expect(firstLinesKeptAbove(doc, ['L2'], after)).toBe(1);
+    expect(firstLinesKeptAbove(doc, ['L2'], after)).toEqual({ checked: 1, shifted: 1 });
   });
 });
 
@@ -294,8 +300,8 @@ function sameShiftedLine(was: string, is: string, by: number): boolean {
 
 /**
  * The minimal-edit oracle: every node above the operand's first root keeps its
- * first line in `after`. Returns how many nodes it checked, or `undefined` at
- * the first one that changed.
+ * first line in `after`. Returns how many nodes it checked and how many of
+ * those it expected to move, or `undefined` at the first one that changed.
  *
  * Scoped to nodes ABOVE the first moved root on purpose. Below it, an
  * operation legitimately rewrites lines it did not move: outdent re-parents
@@ -312,7 +318,7 @@ function firstLinesKeptAbove(
   before: OutlineDoc,
   labels: readonly string[],
   after: OutlineDoc,
-): number | undefined {
+): { checked: number; shifted: number } | undefined {
   const firstRootLine = Math.min(
     ...labels.map((label) => nodeStartLine(before, nodeByLabel(before, label)!.id)),
   );
@@ -343,6 +349,7 @@ function firstLinesKeptAbove(
     return start >= 0 && start + node.lines.length <= firstRootLine;
   });
   let checked = 0;
+  let shifted = 0;
   for (const node of above) {
     const moved = nodeByLabel(after, labelOf(node)!);
     if (!moved) return undefined;
@@ -351,8 +358,9 @@ function firstLinesKeptAbove(
     const by = shift.get(node.id)!;
     if (by === 0 ? is !== was : !sameShiftedLine(was, is, by)) return undefined;
     checked++;
+    if (by !== 0) shifted++;
   }
-  return checked;
+  return { checked, shifted };
 }
 
 /** Task 2.10 — a group of one is the single-node operation, exactly. */
