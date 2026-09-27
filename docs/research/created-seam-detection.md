@@ -4,7 +4,8 @@
 (`lazy-continuation-at-seams` has the why). That rule needs an answer to one question: which seams did
 this operation create? Six answers were proposed and reviewed in turn. This note records
 each answer, what the reviews found against it, and why it was dropped or kept, so the comparison can be
-re-run from another angle.
+re-run from another angle. A step-back review then read the whole record at once, alongside the two
+placement-grammar branches; what it found closes the note.
 
 Glyphs in the drawings: `┆` is a column's left edge, and `▒` is a block-selected line. Carets are not drawn.
 
@@ -254,11 +255,183 @@ What it leaves:
 | 5. marking | a per-op table | yes, by construction | ops that move a block across a list's edge |
 | 6. edit site | which blocks the op wrote, by id, within the changed text | yes, by construction | under review |
 
+## A step back: what the reviews were about
+
+After approach 6, one review read this whole record rather than a proposal, together with the two
+placement-grammar branches, `chore/node-placement-grammar` and `chore/placement-grammar-formalization`. Its
+question was whether the approaches were going in circles.
+
+### Two questions under "created"
+
+- **Q-a: may this seam be rewritten?** That is fidelity to what the user wrote, and it needs the note as it
+  was before the op.
+- **Q-b: what does a blank line do here?** That is structure: lists, block ids, indented code, places.
+
+Approaches 2 to 6 differ only in their answer to Q-a. Their answer to Q-b is the list under "What every answer
+had to satisfy", unchanged throughout. So a finding about Q-b recurs under every approach, and says nothing
+against any one of them.
+
+The review sorted the 31 findings recorded above. The families are its own reading of this note:
+
+| family | findings |
+| --- | --- |
+| the defect itself: a seam some reader continues was left flush | 8 |
+| spacing at a seam no reader continues | 8 |
+| a list turned loose | 5 |
+| a blank line changes a block: a lone id, indented code | 4 |
+| mechanics: dispatch, lineage, cost, #255 | 4 |
+| places | 2 |
+
+- **All 8 defect findings have a quote, a callout or a list item above the seam.** Five of them are a list item
+  directly above `> q`, which reading mode alone continues (`lazy-continuation-at-seams`, "Measured:
+  CommonMark").
+- **The 8 spacing findings exist because the rule writes a line at every created seam.** Each time a
+  classifier fired wrongly, the result was visible, whether or not any reader would have continued the seam.
+
+**The verdict: the classifier converges.** 6 closes by construction what failed 2 to 5: the identity lost in
+splits, merges and type-overs, and the rows missing from a per-op table. To leave a seam flush wrongly, 6 needs
+a seam whose two blocks were both unwritten and consecutive before. Any change to the upper block's containers
+gives the lower block a new previous sibling, so the review could not build such a case. That is not a proof.
+What keeps producing findings is the method: every design was checked only against cases built by hand.
+
+### Where 6 is still exposed: "written" is judged on text
+
+Some ops rewrite text they derive from position rather than from what the user asked for: an ordered list's
+numbers, and heading levels. The "today" columns are measured through `deleteSubtrees` and `indent` on the
+current ops. The last column is D1 as written, read by hand.
+
+**Deleting `1. a`.**
+```
+ before     today      D1, by text
+┆1. a      ┆1. b      ┆1. b
+┆2. b      ┆2. c      ┆2. c
+┆3. c      ┆para      ┆
+┆para                 ┆para
+```
+Renumbering rewrites `2. c`, so the seam below the list is at the edit site. Before the delete, CommonMark and
+reading mode both draw `para` inside item `c`, a lazy line the user wrote. D1 moves it out of the item, two
+items away from the deletion, and in a longer list the seam can be any distance away.
+
+**⇥ on `## B`.**
+```
+ before     today      D1, by text
+┆# A       ┆# A       ┆# A
+┆## B0     ┆## B0     ┆## B0
+┆## B      ┆### B     ┆
+┆text      ┆text      ┆### B
+┆### C     ┆#### C    ┆
+┆body      ┆body      ┆text
+┆### D     ┆#### D    ┆
+┆more      ┆more      ┆#### C
+                      ┆
+                      ┆body
+                      ┆
+                      ┆#### D
+                      ┆
+                      ┆more
+```
+Every heading in the run changes its text, so six seams gain a line, and no reader continues any of them.
+D1's table keeps a moved run's inner seams "unless it was re-indented into another kind". A heading run
+shifted a level changes no kind and still loses them. The moved-run scenario avoids this only because its run
+keeps its depth.
+
+### What the placement-grammar branches bring
+
+Both branch from `c6b12c5`, 24 commits behind `main`.
+
+- **`chore/node-placement-grammar`** (`docs/research/node-placement-grammar.md` there) writes down what `parse`
+  admits as a small tree grammar. It models every op as a tree edit plus one explicit conversion, with the
+  re-parse as a second, implicit one, and sweeps labelled nodes through drops, indents, outdents, moves and
+  pastes. Its principle: a mark an author wrote is kept, and the unmarked kind joins its neighbours.
+- **`chore/placement-grammar-formalization`** (`docs/research/placement-grammar-formalization.md` there) shows
+  that grammar is local.
+  - Its sibling rules only look at two adjacent blocks.
+  - A placement's verdict depends only on the parent, the two neighbours and the moved kind.
+  - It frames the tree-to-outline mapping as a lens: `get` forgets markers, indentation, blank lines and
+    numbers, and `put` re-derives them.
+  - It leaves open whether that locality survives the text layer in tight notes, which is this question seen
+    from the grammar's side.
+
+For this question, they give four things:
+
+- **Q-b is structural.** Outside a list, the canonical answer is one blank line. The node-placement principle,
+  applied to gaps, settles lists: a gap the author wrote is kept, and a gap nobody wrote takes the list's own
+  separation from before the op. That is #272's fix, and reading it from before avoids 3's failure.
+- **Q-a is not structural.** "A seam the user wrote is not touched" needs the note before the op. The lens
+  names the least history that answers it: the old and new outline, rather than the op's history or the text.
+  The seam rule is then a Retentiveness law: the layout between blocks whose outline is unchanged is kept, and
+  the rest is derived. That is approach 6 comparing outlines where it compares text, and it answers both cases
+  above.
+- **The same edit site, derived another way.** For moves, insertions and deletions, the formalization's seven
+  admissibility checks name the seams D1 names:
+  - the source seam
+  - the destination's left, right and parent pairs
+  - the converted roots
+  - columns
+  - whether the writing re-reads as intended
+
+  A uniform level shift is only a bounds check there, which again puts a shifted run's inner seams outside the
+  edit site.
+- **An oracle.** The labelled generator, the op sweeps and `prototypes/lazy-continuation/commonmark-lazy.mjs.txt`
+  combine into one test, so a review can check counts rather than build cases.
+
+### The alternatives
+
+**A. The edit site judged on the outline.**
+- **The rule.** A block is written when its outline changed: its kind as it will re-parse, its content without
+  indentation, list marker or ordinal, a heading's level relative to its parent heading, its parent, or its
+  previous sibling. Renumbering and a level shift no longer write a block.
+- **Lists, optionally.** A seam inside a list takes the list's separation from before the op, which closes
+  #272. A list that is new as a whole then needs a default.
+- **Cost.** 6's, plus the view, which has to be right for every kind, tasks and setext headings included.
+
+**B. Separate only a seam some reader could continue.** This is a change of goal, not of classifier.
+- **The rule.** Keep A's test for which seams may be rewritten. Outside a list, add a line only where the upper
+  block ends in or inside a quote, a callout or a list item, and the lower block does not open with an ATX
+  heading, a fence, or a `-`, `*`, `+` or `1.` marker.
+- **Why it is not approach 1.** Those openers interrupt a paragraph in CommonMark, and every measured reader
+  reads them as blocks of their own. It is the test `lazy-continuation-at-seams` already ran on the corpus.
+- **What it changes.**
+  - The 8 defect findings stay closed.
+  - The 8 spacing findings and the lone-id exemption do not arise.
+  - It reverses the settled "one line at every created seam".
+  - Spacing varies by kind within one op's result: the split of `para text` above `# H` leaves `text` flush
+    above `# H`.
+
+**C. The parser models lazy continuation (#261).**
+- **The rule.** Our parse reads a flush paragraph line under a quote, a callout or a list item as part of that
+  block. The floor alone then separates every such seam an op writes, with no history.
+- **What it misses.** A list item above `> q`, which is five of the 8 defect findings, a list item above a
+  `<div>`, and a quote above `2. x`. Reading mode alone continues those.
+- **Cost.** Existing notes read differently in the outline, and Live Preview and reading mode disagree on list
+  items, so the outline has to pick one.
+
+### Its recommendations
+
+1. Continue with 6.
+2. Judge "written" on the outline (A), and fold #272 in if it is in scope.
+3. Build the seam oracle before implementing, and record its figures here. Over generated notes whose gaps vary
+   (flush, one line, two, including flush seams the user wrote under containers), every op must:
+   - keep the bytes of a seam between unchanged blocks
+   - agree with CommonMark and reading mode's three extra rows at every derived seam outside a list
+   - flip no list between tight and loose
+   - re-attach no id
+   - write no indented code
+
+   The oracle also counts the seams that gained a line where no reader continues.
+4. Decide B once that count exists.
+5. Keep C on #261's own track, not as a substitute.
+6. Optionally, split places into a layer of their own: D5, their abandonment and the #253 extension. They do not
+   depend on how seams are chosen.
+
+The review left unverified that 6 misses no seam, its own cost estimates, how often user-written lazy lines occur
+in real notes (the corpus holds test notes only), and whether the view covers every kind.
+
 ## For another review
 
-- **Would the parser modelling lazy continuation make the writer simpler?** #261 is that question. With it,
-  the floor alone would separate every lazily continued seam. But the parser would then read existing notes
-  differently, which is why it was kept out.
+- **What the oracle counts.** How many seams each op separates where no reader continues, and whether any
+  derived seam still disagrees with a reader. B is decided on the first figure.
+- **Whether 6, or A, misses a seam.** The step-back review could not build a case, and the oracle is the check.
+- **How often a user writes a lazy line on purpose.** The corpus holds test notes only.
 - **Is every row of 5's table right?** A same-scope reorder and a type-over's outer seams are the ones a
   different reading of "created" would change.
-- **Do 5's accepted gaps matter in practice?** A sweep of real notes through indents and outdents would say.
