@@ -146,6 +146,10 @@ on.
   on some unrelated node
 - **THEN** the quote's own lines and trailing gap are byte-identical afterwards
 
+#### Scenario: A reorder leaves the seams between the blocks it passed as written
+- **WHEN** `## h3` is moved to the top of `| t1 | b |` / `| --- | --- |` / blank / blank / `> q2` / `## h3` / `x`
+- **THEN** `| --- | --- |` and `> q2` are still separated by two blank lines
+
 #### Scenario: A seam inside a moved run is left as written
 - **WHEN** the run `> q` / `body`, two sibling blocks written with no blank line between them, is dragged from
   under `## A` to the end of `## B`
@@ -961,10 +965,11 @@ or a destination that no longer exists. A rejection SHALL leave the document unt
 
 A move that begins and ends in ONE scope SHALL be a reorder. The run SHALL keep its own encoding,
 because a run that has not left its scope is already encoded for it, and the blank lines between
-that scope's members SHALL stay with the POSITIONS rather than with the nodes — the last position
-ends the file whichever node occupies it. A reorder's edit site is the seams at the moved run's edges, per
-`A seam at an operation's edit site is separated`: the positions' blank lines stay, and an empty seam there
-gains one. Re-encoding such a run against the siblings the removal
+that scope's members SHALL stay with the POSITIONS rather than with the nodes at the seams the reorder
+writes — the last position ends the file whichever node occupies it. A reorder's edit site is the seams at the
+moved run's edges and the seam its removal joins, per `A seam at an operation's edit site is separated`: the
+positions' blank lines stay there, and an empty seam gains one. A seam between two members the reorder left
+consecutive is away from its edit site, and keeps its own blank lines. Re-encoding such a run against the siblings the removal
 leaves behind reads the scope's regime off the very evidence the run was counter-evidence to.
 
 A move whose destination is the run's CURRENT place SHALL produce no document change.

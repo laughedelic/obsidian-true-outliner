@@ -27,25 +27,27 @@
 
 ## 2. The seam oracle, measured on today's operations
 
-- [ ] 2.1 Add `commonmark` as a dev dependency, and a reader model in `tests/` that says, for a seam's text, whether
+- [x] 2.1 Add `commonmark` as a dev dependency, and a reader model in `tests/` that says, for a seam's text, whether
   CommonMark or reading mode's three extra rows (`lazy-continuation-at-seams`) continue the lower block into the
   upper one. Verify it against every row of the note's tables. Negative control: dropping the reading-mode rows
   fails the list-item-above-`> quote` row.
-- [ ] 2.2 Build the generator (D11): labelled notes whose every gap is flush, one blank line or two, including flush
-  seams the user wrote under quotes, callouts and list items, and marking #255's shapes. Port what fits from
-  `chore/node-placement-grammar`'s sweeps (`docs/research/node-placement-grammar.md` there), and record what
-  was taken in the research note.
-- [ ] 2.3 Write the oracle's checks (D11) over every structural operation and every applicable node or cover, with
+- [x] 2.2 Build the generator (D11): notes whose every gap is flush, one blank line or two, including flush
+  seams the user wrote under quotes, callouts and list items. Written as text rather than ported from
+  `chore/node-placement-grammar`'s sweeps: those build trees valid by construction, which cannot hold a seam the
+  user wrote flush under a container.
+- [x] 2.3 Write the oracle's checks (D11) over every structural operation and every applicable node or cover, with
   the classifier of group 1 naming the edit site. Run it on today's operations, and record each check's failures
   in `docs/research/lazy-continuation-at-seams.md`, with the operation and a drawn case for each family. Verify
   that check 2 fails today on the pasted quote and the drag, and that check 1 holds.
-- [ ] 2.4 Leave the oracle's checks that today's operations fail recorded as expected failures, each with the task
+- [x] 2.4 Leave the oracle's checks that today's operations fail recorded as expected failures, each with the task
   that closes it, so a checkpoint's CI stays green.
 
 ## 3. The pass
 
 - [ ] 3.1 Separate each empty seam at the edit site outside a list (D3) that D4 does not exempt, in `finalize`,
-  before the parse floor runs. Skip a place (D5). Verify with unit tests of the pass:
+  before the parse floor runs, and restore every seam away from the edit site to the blank lines it had (D1).
+  Skip a place (D5). Verify with unit tests of the pass:
+  - a reorder to the top of a scope leaves the seams between the blocks it passed as written
   - one already holding a blank line is unchanged
   - one inside a list is unchanged
   - one below a lone id line is unchanged

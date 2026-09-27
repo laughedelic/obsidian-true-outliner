@@ -64,8 +64,14 @@ An operation's EDIT SITE is every seam where:
 - **the two blocks were not consecutive before the operation,** so something that stood between them was removed
   or moved away.
 
-Every seam at the edit site that is empty and lies outside a list gains one blank line. Every other seam is left
-to the parse floor, as today.
+Every seam at the edit site that is empty and lies outside a list gains one blank line. Every other seam keeps
+the blank lines it had before the operation, and then the parse floor applies, as today.
+
+Keeping them is not a no-op. A reorder keeps blank lines with the POSITIONS of its scope, so moving a block to
+the top of a scope hands each position's gap to whatever block now occupies it, and rewrites seams between
+blocks that never moved apart. The oracle found this (D11): every seam it saw change away from the edit site was
+a move's. The pass restores those seams from the note the operation started from, which also makes a move to a
+run's current place a no-op where the surgery put it somewhere the re-parse reads back as the same place.
 
 What that gives, all without a per-operation rule:
 

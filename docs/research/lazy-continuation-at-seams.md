@@ -122,3 +122,55 @@ creating tight lists that contain code fences". It meets the same trade-off from
 Keeping a list's looseness therefore leaves one shape ambiguous. A quote and a paragraph are both
 children of an item in a tight list, and the paragraph is written directly under the quote: reading
 mode continues it into the quote. Separating them would make the whole list loose.
+
+## Measured: the seam oracle, before the edit-site pass
+
+`tests/seam-oracle.ts` (`created-seams-are-separated`, design D11) generates notes as text, from blocks joined by
+none, one or two blank lines, so seams written flush under a quote, a callout or a list item are among them. It
+applies every structural operation to every applicable node, and pairs of adjacent siblings for the group forms,
+then judges each seam of what the operation wrote. The edit site is `src/edit-site.ts`'s. A seam is CONTINUED
+when a CommonMark 0.31.2 block holds both its lines, or when one of reading mode's three extra rows applies (the
+tables above).
+
+Seed 1, 400 notes of up to 8 blocks, on today's operations (`SEAM_ORACLE_NOTES=400`):
+
+| figure | count |
+| --- | --- |
+| operations applied / accepted | 28,107 / 19,280 |
+| seams at the edit site outside a list | 28,591 |
+| … written flush | 9,820 |
+| … continued by some reader | 4,146 |
+| … continued, but exempt: a lone id above, four columns in, a place | 11 |
+| seams away from the edit site whose blank lines changed | 519 |
+| … that the parse required | 4 |
+| lists whose items all stayed and whose tightness changed | 297 |
+| block ids whose host changed between two unchanged blocks | 145 |
+| indented code an operation created | 0 |
+
+What each says:
+- **4,146 continued seams are the defect.** Paste writes most of them (679 of the first 1,000 kept), then moves,
+  splits, group moves, deletes and merges.
+- **Separating every flush seam at the edit site adds 9,809 lines, 5,663 of them where no reader continues.**
+  That is the figure the narrower rule (design D11) would save, measured before the pass: 58% of the lines the
+  rule writes.
+- **Every seam that changed away from the edit site is a move's** (515 of 515 kept examples; the rest are the
+  parse's). A reorder keeps blank lines with the positions of its scope, so a block moved to the top hands each
+  position's gap to whatever block now sits there:
+  ```
+   before            move ## h3 to the top
+  ┆| t1 | b |      ┆## h3
+  ┆| --- | --- |   ┆
+  ┆                ┆
+  ┆                ┆<div>d4</div>
+  ┆> q2            ┆
+  ┆## h3           ┆
+  ┆                ┆| t1 | b |
+  ┆                ┆| --- | --- |
+  ┆<div>d4</div>   ┆> q2
+  ```
+  The table and the quote never moved apart, and lost their two blank lines.
+- **Tightness and ids change today,** by indent, group moves, moves, merges, pastes and deletes: an indent that
+  puts a quote under an item has the parse separate it (#255), and a move can leave a lone id under a different
+  block. The pass must add to neither.
+- **The generator writes no #255 shape,** a quote or callout written flush as an item's first child, so that
+  exclusion is not exercised here.

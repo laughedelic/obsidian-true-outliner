@@ -33,6 +33,8 @@ const NONE = 0;
 
 const LIST_MARKER_RE = /^[ \t]*(?:[-+*]|\d{1,9}[.)])(?:[ \t]+|$)/;
 const ATX_MARKER_RE = /^[ \t]*#{1,6}(?:[ \t]+|$)/;
+const EMPTY_ITEM_RE = /^[ \t]*(?:[-+*]|\d{1,9}[.)])(?:[ \t]+\[[ xX]\])?[ \t]*$/;
+const EMPTY_HEADING_RE = /^[ \t]*#{1,6}[ \t]*$/;
 const TRAILING_ID_RE = /\s\^[A-Za-z0-9-]+[ \t]*$/;
 
 /**
@@ -66,9 +68,13 @@ export function outlineView(node: OutlineNode, margin: number): string {
  * rule writes nothing beside one and judges no seam across one.
  */
 export function isPlace(node: OutlineNode): boolean {
-  if (node.kind === 'list-item' || node.kind === 'heading' || node.kind === 'paragraph') {
-    const view = outlineView(node, 0);
-    return view.slice(view.indexOf('\n') + 1).trim() === '' && node.blockId === undefined;
+  if (node.blockId !== undefined || node.children.length > 0) return false;
+  if (node.kind === 'paragraph') return node.lines.every((line) => line.trim() === '');
+  if (node.kind === 'list-item') {
+    return node.lines.length === 1 && EMPTY_ITEM_RE.test(node.lines[0]!);
+  }
+  if (node.kind === 'heading' && node.setext !== true) {
+    return node.lines.length === 1 && EMPTY_HEADING_RE.test(node.lines[0]!);
   }
   return false;
 }
