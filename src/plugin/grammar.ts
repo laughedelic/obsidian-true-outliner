@@ -175,6 +175,15 @@ function offsetInNewText(newLines: readonly string[], pos: EditorPos): number {
   return offset + pos.ch;
 }
 
+/** Whether a list item is among the node's ancestors. */
+function insideListItem(doc: OutlineDoc, nodeId: number): boolean {
+  const path = findPath(doc, nodeId) ?? [];
+  for (let depth = 1; depth < path.length; depth++) {
+    if (nodeAt(doc, path.slice(0, depth))?.kind === 'list-item') return true;
+  }
+  return false;
+}
+
 /**
  * The whitespace a list item's continuation line begins with: the item's own
  * indentation verbatim, padded with spaces out to the CONTENT COLUMN the
@@ -195,14 +204,6 @@ function offsetInNewText(newLines: readonly string[], pos: EditorPos): number {
  * spaces: the content column counts tab stops, which a tab-led item's own lead
  * already occupies.
  */
-function insideListItem(doc: OutlineDoc, nodeId: number): boolean {
-  const path = findPath(doc, nodeId) ?? [];
-  for (let depth = 1; depth < path.length; depth++) {
-    if (nodeAt(doc, path.slice(0, depth))?.kind === 'list-item') return true;
-  }
-  return false;
-}
-
 function continuationPrefix(line: string): string {
   const marker = parseListMarker(line);
   if (!marker) return '';
@@ -357,10 +358,10 @@ export function abandonEdit(
  * `consume` is the horizontal whitespace run immediately after the insertion
  * point, which the split-point whitespace rule drops: it separated two words
  * that are now on different lines and belongs to neither. That makes this a
- * REPLACEMENT rather than a pure insertion, which changes nothing about how the
- * transaction classifies — a single-line change inside one node's own line
- * still cannot cross a boundary — but `classify.ts`'s comment on the generic
- * `input` event is written against the insertion shape, so it says so there.
+ * REPLACEMENT rather than a pure insertion. `rewrite` adds a second change, to
+ * a later line of the same node: an attached id the new line would otherwise
+ * detach. The event it carries is plugin-own (`classify.ts`), so neither shape
+ * is judged as a boundary-crossing edit.
  */
 function insertionPlan(
   lines: readonly string[],
@@ -952,7 +953,7 @@ export function planKey(
       const idOwnLine =
         node.kind === 'paragraph' &&
         opensBlank &&
-        cursor.line < lastLine &&
+        cursor.line === lastLine - 1 &&
         isLoneBlockIdLine(node.lines[node.lines.length - 1] ?? '') &&
         (lines[lastLine + 1] ?? '').trim() !== '' &&
         !insideListItem(doc, node.id)

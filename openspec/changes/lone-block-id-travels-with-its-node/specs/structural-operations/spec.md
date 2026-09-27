@@ -20,7 +20,8 @@ document with it:
   (`misplaced-block-ids`), which offers attaching it to that item.
 - A split SHALL leave the id attached to the node that keeps the original's first line. So SHALL
   it an id written directly under a paragraph's or an item's text, which is that node's own last
-  line and names the whole node: a split anywhere above that line keeps it on the first half.
+  line and names the whole node: a split anywhere above that line keeps it on the first half,
+  together with any id lines written directly above it, in their order.
 - A merge SHALL keep the id of whichever of the two nodes carried one, and SHALL be rejected with
   `merge-not-expressible` when both did.
 - Unwrapping an empty list item that carries an id SHALL be rejected with
@@ -85,7 +86,7 @@ attached ids are the ones the operation's result states.
 - **THEN** the merge is rejected with `merge-not-expressible` and the document is unchanged
 
 #### Scenario: Unwrapping an empty item that carries an id is rejected
-- **WHEN** Enter is pressed on an empty `- ` item with `^x` attached below it
+- **WHEN** Enter is pressed on an empty top-level `- ` item with `^x` attached below it
 - **THEN** the operation is rejected with `item-carries-block-id`, and the document is unchanged
 
 #### Scenario: Closure with ids

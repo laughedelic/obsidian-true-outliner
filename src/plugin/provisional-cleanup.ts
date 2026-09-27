@@ -55,6 +55,7 @@ import { nodeAtLine, nodeStartLine } from '../locate';
 import { placeLineText } from '../model';
 import {
   nextNodeInOrder,
+  nodeContentEnd,
   nodeLastPlace,
   nodeContentStart,
   previousNodeInOrder,
@@ -539,6 +540,13 @@ export function cancelOnDelete(view: EditorView, forward: boolean): boolean {
   const node = nodeAtLine(outlineDoc, record.line);
   const offsetOf = (pos: { line: number; ch: number }): number =>
     view.state.doc.line(pos.line + 1).from + pos.ch;
+  // The last place of a node above the place: its attached id's end when the
+  // id is above the place too, and its content end when the place was opened
+  // between the node's text and its id.
+  const lastPlaceAbove = (above: NonNullable<typeof node>) => {
+    const last = nodeLastPlace(outlineDoc, above);
+    return last.line < record.line ? last : nodeContentEnd(outlineDoc, above);
+  };
 
   let target = 0;
   if (forward) {
@@ -546,7 +554,7 @@ export function cancelOnDelete(view: EditorView, forward: boolean): boolean {
     // content start rather than back where the keypress began.
     const next = node ? nextNodeInOrder(outlineDoc, node) : undefined;
     if (next) target = offsetOf(nodeContentStart(outlineDoc, next));
-    else if (node) target = offsetOf(nodeLastPlace(outlineDoc, node));
+    else if (node) target = offsetOf(lastPlaceAbove(node));
   } else if (record.startedAt !== undefined) {
     target = record.startedAt;
   } else if (node) {
@@ -554,7 +562,7 @@ export function cancelOnDelete(view: EditorView, forward: boolean): boolean {
     // caret returns to; an empty NODE place has the node above as its
     // predecessor in document order.
     const above = place.kind === 'gap' ? node : previousNodeInOrder(outlineDoc, node);
-    if (above) target = offsetOf(nodeLastPlace(outlineDoc, above));
+    if (above) target = offsetOf(lastPlaceAbove(above));
   }
   cancel(view, record, target);
   return true;

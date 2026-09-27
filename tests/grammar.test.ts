@@ -1192,6 +1192,7 @@ describe('grammar planner: keys on an attached block id', () => {
       expect(applyChanges(text, outcome.plan.abandon!)).toBe(md);
     }
     const mid = plan('- one two\n^abc\n', { line: 0, ch: 5 }, 'continue');
+    expect(mid && 'plan' in mid).toBe(true);
     if (mid && 'plan' in mid) {
       expect(applyPlan('- one two\n^abc\n', mid.plan).text).toBe('- one\n  two\n^abc\n');
     }
@@ -1212,8 +1213,15 @@ describe('grammar planner: keys on an attached block id', () => {
     }
     // With a blank line already below the id, nothing is added.
     const closed = plan('Lead.\n^id1\n\nNext.\n', { line: 0, ch: 5 }, 'continue');
+    expect(closed && 'plan' in closed).toBe(true);
     if (closed && 'plan' in closed) {
       expect(applyPlan('Lead.\n^id1\n\nNext.\n', closed.plan).text).toBe('Lead.\n\n^id1\n\nNext.\n');
+    }
+    // A line opened higher up leaves the id directly under the text: nothing is added.
+    const higher = plan('A\nB\n^id\n- x\n', { line: 0, ch: 1 }, 'continue');
+    expect(higher && 'plan' in higher).toBe(true);
+    if (higher && 'plan' in higher) {
+      expect(applyPlan('A\nB\n^id\n- x\n', higher.plan).text).toBe('A\n\nB\n^id\n- x\n');
     }
   });
 

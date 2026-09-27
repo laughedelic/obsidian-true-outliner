@@ -49,8 +49,8 @@ id as it was written. A Shift+Enter that carries text onto the new line leaves t
 
 ### Requirement: Shift+Enter keeps a paragraph's id line naming the paragraph
 Where a paragraph outside a list item ends in an id line with a block directly under it,
-Shift+Enter that opens an empty line above the id SHALL also write a blank line below the id, in
-the same edit. The empty line separates the id from the paragraph's text, and outside a list an
+Shift+Enter that opens an empty line directly above the id SHALL also write a blank line below the
+id, in the same edit. The empty line separates the id from the paragraph's text, and outside a list an
 id with a block directly under it names only its own line; with a blank line below it, it names
 the paragraph and is attached to it. Abandoning the line removes both lines. Once the line holds
 text, the blank line below the id stays, as the one a move writes there does.

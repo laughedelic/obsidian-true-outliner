@@ -1858,6 +1858,10 @@ describe('an attached block id travels with its node', () => {
     expect(encode(ok(splitNode(lines, first(lines, 'Lead one').id, { line: 0, ch: 8 })).doc)).toBe(
       'Lead one\n^id5\n\n\nlead two\n',
     );
+    const run = parse('Lead.\n^a\n^b\n\nNext\n');
+    expect(encode(ok(splitNode(run, first(run, 'Lead.').id, { line: 0, ch: 5 })).doc)).toBe(
+      'Lead.\n^a\n^b\n\n\n\nNext\n',
+    );
     const item = parse('- a\n  ^x\n- b\n');
     expect(encode(ok(splitNode(item, first(item, '- a').id, { line: 0, ch: 3 })).doc)).toBe(
       '- a\n  ^x\n- \n- b\n',

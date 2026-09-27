@@ -275,6 +275,18 @@ describe('keys on an attached block id', function () {
     expect(await h.getBuffer()).toMatch(/^Next\.\n\nLead\.\n(\n)?\n\^id1\n\n- a\n$/);
   });
 
+  it('returns Delete on a line opened above an item\'s id to the item\'s text', async function () {
+    const LAZY = '- one\n^abc\n';
+    await h.setBuffer(LAZY);
+    await browser.pause(150);
+    await h.setCursorSettled(0, 5);
+    await h.keys.shiftEnter();
+    await browser.waitUntil(async () => (await h.getBuffer()) !== LAZY, { timeout: 2000 });
+    await browser.keys(Key.Delete);
+    await browser.waitUntil(async () => (await h.getBuffer()) === LAZY, { timeout: 2000 });
+    expect(await h.getCursor()).toEqual({ line: 0, ch: 5 });
+  });
+
   it('returns Delete on the line opened after the note\'s last id to the id\'s end', async function () {
     const LAST = 'Para.\n\n^abc\n';
     await h.setBuffer(LAST);

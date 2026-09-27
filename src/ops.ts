@@ -1579,11 +1579,14 @@ export function splitNode(
   const remainderFirst = line.slice(ch);
   const lowerRest = isSetextHeading ? [] : node.lines.slice(lineIndex + 1);
   // An id written directly under the node's text is the node's own last line,
-  // and names the whole node; a split before it keeps it on the half that
-  // keeps the first line, as it keeps an attached id.
-  if (lowerRest.length > 0 && isLoneBlockIdLine(lowerRest[lowerRest.length - 1]!)) {
-    upperLines.push(lowerRest.pop()!);
+  // and names the whole node; a split before it keeps it, and any id lines
+  // written with it, on the half that keeps the first line, as it keeps an
+  // attached id.
+  const idRun: string[] = [];
+  while (lowerRest.length > 0 && isLoneBlockIdLine(lowerRest[lowerRest.length - 1]!)) {
+    idRun.unshift(lowerRest.pop()!);
   }
+  upperLines.push(...idRun);
   const emptyRemainder = remainderFirst.trim() === '' && lowerRest.length === 0;
 
   const parentPath = path.slice(0, -1);
