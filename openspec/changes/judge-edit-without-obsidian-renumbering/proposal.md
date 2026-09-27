@@ -47,9 +47,14 @@ Obsidian appends, where they sit and which class they give are measured in
 
 ## Non-goals
 
-- An edit that PASSES keeps Obsidian's renumbering, as a native edit does. That includes a
-  linewise cut in a list nested at three columns: the cut is a within-node edit, and Obsidian
-  also renumbers the parent list below it. Whether outline mode should keep Obsidian's
+- An edit that PASSES keeps Obsidian's renumbering, as a native edit does, with everything that
+  follows from it. A linewise cut in a list nested at three columns is a within-node edit, and
+  Obsidian renumbers the parent list below it and, reading three columns as its own level, the
+  children of that list's later items. A fold over such children opens, and a zoom that hides
+  them exits, as typing already does ("Known gaps" in the research note). One gesture moves into
+  this set: a ⌫ inside an item, zoomed, with an empty item below it at the document's end. On
+  `main` the appended change misclassified it, and the zoom check refused the ⌫; it now applies
+  and the zoom exits, as the same ⌫ does with no empty item below. Whether outline mode should keep Obsidian's
   renumbering off the edits it passes, typing included, is
   [#263](https://github.com/laughedelic/obsidian-true-outliner/issues/263).
 - Obsidian's renumbering of lines inside inserted text composes into the user's own range, and
@@ -72,8 +77,10 @@ None.
 
 ### Modified Capabilities
 
-- `transaction-classification`: a transaction is classified and judged on the user's own ranges;
-  a range rewriting only an ordered marker's number, appended by another filter, is set aside.
+- `transaction-classification`: a new requirement, "A transaction is judged on the user's own
+  changes", sets aside a change rewriting only an ordered marker's number that another filter
+  appends. "Programmatic and remote transactions pass through untouched" reads Obsidian's
+  `input.renumber` as no `userEvent`.
 - `node-edit-enforcement`: an ordered item's deletion that is rewritten ends with the numbers the
   structural operation writes, with scenarios for the gestures #260 reports.
 

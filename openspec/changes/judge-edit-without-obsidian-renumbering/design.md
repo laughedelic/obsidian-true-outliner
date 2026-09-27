@@ -67,7 +67,8 @@ The strict shape cannot be a keystroke of the user's.
 
 **Only when another change remains.** A transaction of marker rewrites alone is left whole.
 
-**Obsidian's `userEvent` does not classify.** On a dispatch with no `userEvent` of its own —
+**Obsidian's `userEvent` does not classify.** This restores "Programmatic and remote
+transactions pass through untouched". On a dispatch with no `userEvent` of its own —
 another plugin's edit, or one of ours through `Editor.transaction` — the first `userEvent` is
 Obsidian's `input.renumber`. Read as it stands, it takes the dispatch out of `programmatic`
 whenever Obsidian renumbered around it, and the dispatch is judged by shape. The adapter reads

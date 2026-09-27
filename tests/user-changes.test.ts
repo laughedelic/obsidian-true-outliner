@@ -43,7 +43,7 @@ function transaction(md: string, user: ChangeSpec, appended: readonly ChangeSpec
   const own = ChangeSet.of(user, state.doc.length);
   const mapped = appended.map((spec) => {
     const { from, to, insert } = spec as { from: number; to: number; insert: string };
-    return { from: own.mapPos(from, 1), to: own.mapPos(to, 1), insert };
+    return { from: own.mapPos(from, 1), to: own.mapPos(to, -1), insert };
   });
   return state.update({ changes: user }, { changes: mapped, sequential: true }).changes;
 }
@@ -236,6 +236,20 @@ describe('other gestures on an item with items after it', () => {
   });
 });
 
+describe('typing next to an appended change', () => {
+  it('an insertion that a renumbering on its left touches is read on its own', () => {
+    // Typing into the empty nested item: Obsidian rewrites `1. ` up to the
+    // insertion point, and `2. q` after it.
+    const md = '1. p\n   1. \n2. q\n';
+    const user = { from: at(md, 1, 6), insert: 'x' };
+    const appended = [renumber(md, 1, 3, '1. ', '2. '), renumber(md, 2, 0, '2. ', '3. ')];
+    const judged = judge(md, transaction(md, user, appended), at(md, 1, 6), 'input.type');
+    expect(judged.changes).toEqual([{ fromA: at(md, 1, 6), toA: at(md, 1, 6), insert: 'x' }]);
+    expect(judged.cls).toBe('within-node-edit');
+    expect(judged.verdict).toEqual({ kind: 'pass' });
+  });
+});
+
 describe('the class comes from the user\'s changes', () => {
   // The empty item is the document's last line: there a change covering its
   // marker covers the whole node, which the classifier reads as a deletion of it.
@@ -301,8 +315,8 @@ describe('what is not an appended renumbering', () => {
   it('not a change starting before the number', () => {
     expect(isMarkerRenumbering(doc, change(3, 0, 6, '   3. '))).toBe(false);
   });
-  it('not a change spanning a line break', () => {
-    expect(isMarkerRenumbering(doc, change(1, 4, 4, '2. '))).toBe(false);
+  it('not a change running past its own line', () => {
+    expect(isMarkerRenumbering(doc, change(2, 0, '13. c\n'.length, '2. '))).toBe(false);
   });
 
   it('a transaction of renumberings alone is kept whole', () => {
