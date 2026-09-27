@@ -37,11 +37,28 @@ fails when the moved block no longer parses as the tree it had.
 | Plain `- n` / `1. m` | 864 | 270 | 0 |
 | With a fence, quote or block id under `1. m` | 1 296 | 405 | 0 |
 
-No case that `main` keeps changes tree under the fix. The sweeps compare trimmed lines and write
+No case in these sweeps that `main` keeps changes tree under the fix. The sweeps compare trimmed lines and write
 a quote's second line in its first line's spelling, so they cannot see the quote case above;
 `tests/edit-ops.test.ts` carries it. A sweep of 1 956 pastes by the implementation's review, with
 quote and callout continuations spelled apart, found 25 quote and 25 callout cases broken on
-`main` and under a byte-exact rule for every atom, and none with fences or tables. Two narrower candidates were measured by the
+`main` and under a byte-exact rule for every atom, and none with fences or tables.
+
+A random sweep of 2 × 40 000 pastes and drops by the third review, with every tail line spelled
+independently, eight root prefixes, four root markers and twelve destinations, found no tree
+change for code, quotes, callouts, tables, rules, block ids, lazy lines or tab-marked and `10.`
+items. It found three shapes it did not rule out:
+
+- **HTML.** An HTML block opens only within three columns of the margin with no tab before it, so
+  a move by columns can turn a tab-indented `<div>` paragraph into an HTML block or back. About
+  100 cases in 40 000 change tree where `main` left the line where it stood.
+- **A fence's content spelled apart from the fence.** Only lines opening with the fence line's own
+  characters keep their bytes; `      \techo` under a `\t  ```` fence is shifted by columns and
+  its tab becomes spaces. `main` wrote `  \techo` there, also wrong; in 400 to 600 cases in
+  40 000 `main` kept the content exactly because it moved none of the atom. The tree never
+  changes.
+- **A normalized root marker.** `-\tp` or `-   p` over a fence holding `\techo` shifts the whole
+  block by the marker's change before the move, and the recipe's tab becomes spaces, on `main`
+  alike. Two narrower candidates were measured by the
 plan's review against the same sweeps and set aside:
 
 - **Guarding the swap only on lines that open with the root's prefix** still failed 595 cases of

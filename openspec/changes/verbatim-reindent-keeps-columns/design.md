@@ -8,7 +8,7 @@ The mechanism and the sweeps are in `docs/research/verbatim-reindent-columns`.
 ## Goals / Non-Goals
 
 **Goals:** the fallback keeps the block's tree for every spelling the sweeps generate, and keeps
-the bytes inside an atom.
+the bytes past a fence's own indentation on the lines that open with it.
 
 **Non-Goals:** see proposal.md.
 
@@ -30,6 +30,13 @@ the bytes inside an atom.
   what gains the columns.
 
 ## Risks / Trade-offs
+
+- [A normalized root marker run shifts the block, a fence's content included, before the move]
+  → as on `main`: `-\tp` over a fence holding `\techo` writes the recipe's tab as spaces. Folding
+  the marker's change into the move is left alone; `docs/research/verbatim-reindent-columns`.
+- [An HTML block opens only within three columns with no tab before it] → a move by columns can
+  turn a tab-indented `<div>` paragraph into an HTML block or back, where `main` sometimes left the
+  line in place by accident; `docs/research/verbatim-reindent-columns`.
 
 - [A shifted line is spelled in spaces after its own whitespace] → only where the swap would land
   elsewhere; the tree is what the fallback exists to keep.

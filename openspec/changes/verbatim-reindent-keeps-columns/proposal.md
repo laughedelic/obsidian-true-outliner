@@ -4,10 +4,12 @@
 
 A pasted or dropped block that the read-back sends to its own characters (#244) can lose a
 descendant to the wrong parent: a tab past the root's prefix absorbs the new prefix, and a line
-that does not open with the prefix stays behind while the block moves. The requirement says the
-block keeps "its own characters past its root's prefix", which the broken output satisfies
-literally, and says nothing of columns or of lines spelled apart from the root. Measured in
-`docs/research/verbatim-reindent-columns`.
+that does not open with the prefix stays behind while the block moves. The requirement's fallback
+sentence prescribes that mechanism ("keep its own characters past its root's prefix"), and the
+broken output satisfies it literally, while the same requirement's scenarios ("internal relative
+structure preserved", "its tree is unchanged") and `moveSubtreesTo`'s "internal relative nesting
+preserved exactly" forbid the result. #244 decides between them: the block keeps its tree, each
+line moved by the width. Measured in `docs/research/verbatim-reindent-columns`.
 
 ## What Changes
 
@@ -34,8 +36,9 @@ None.
 
 ### Modified Capabilities
 
-- `structural-operations`: "Subtree insertion at a boundary" — the verbatim fallback states the
-  columns its lines land on, and three scenarios pin it.
+- `structural-operations`: "Subtree insertion at a boundary" — the fallback moves the block whole
+  by its root's width instead of keeping its characters past the root's prefix, per atom kind, and
+  four scenarios pin it.
 
 ## Impact
 

@@ -28,16 +28,17 @@ line's prefix, keeping the tabs inside it. A child list of a paragraph SHALL kee
 offset from the paragraph, since it attaches by adjacency at any column.
 
 A block whose lines, so written and read back on their own, parse as a different tree
-from the block's own SHALL instead keep its own characters past its root's prefix,
-re-rooted at the destination depth. Every non-blank line of such a block SHALL move by the width
+from the block's own SHALL instead be moved whole to the destination depth. Every non-blank line of such a block SHALL move by the width
 its root moved, whether or not it opens with the root's prefix, and SHALL be written with the
 destination's prefix in place of the root's wherever that lands on the same column and puts no
 space in front of a tab that had none; elsewhere the line SHALL be shifted by the width. A blank
 line SHALL be left as it is. A fenced block's or an HTML block's first line SHALL move the same
-way, and each of its other lines that opens with the first line's indentation SHALL take the same
-change of indentation, keeping every character past it; its other lines move as any line does. A
-quote's, a callout's and a table's leading whitespace is structure, and each of their lines SHALL
-move as any line does.
+way, and each of its other lines that opens with the first line's indentation, in the same
+characters, SHALL take the same change of indentation, keeping every character past it; its other
+lines move as any line does. A normalized root marker run moves the block's lines by its change of
+width before this move, as any line is moved. A
+quote's, a callout's, a table's and a rule's leading whitespace is structure, and each of their
+lines SHALL move as any line does.
 
 When a block's kind converts for its destination, its own lines SHALL be converted as
 before, and its children SHALL be written in the document's unit: under a paragraph at the
@@ -113,8 +114,7 @@ blank to parse, so the separation a reader sees there is this one.
 
 #### Scenario: A block that would read as another tree keeps its own
 - **WHEN** a payload's converged lines would turn a lazy line into a quote or a table
-- **THEN** the payload is written with its own characters past its root's prefix, and its tree
-  is unchanged
+- **THEN** the payload is moved whole by its root's width, and its tree is unchanged
 
 #### Scenario: A tab-indented descendant keeps its parent when its own characters are kept
 - **WHEN** `- p` / blank / `  para` / blank / `  - n` / `\t1. m` is pasted, or dropped, after

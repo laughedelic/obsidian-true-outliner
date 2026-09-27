@@ -2500,8 +2500,8 @@ function convertInUnit(
 
 /**
  * `reindentSubtreeInUnit`, unless the lines it writes would parse as a
- * different tree from the one they were written as; then the block's own
- * characters past its root's prefix, as `reindentSubtreeVerbatim` carries them.
+ * different tree from the one they were written as; then the block moved
+ * whole by its root's width, as `reindentSubtreeVerbatim` moves it.
  *
  * Laying nested items out afresh moves them relative to lines that kept their
  * offset — a continuation, a lazy line — and a line that was text only because
@@ -2533,11 +2533,11 @@ function readsAsWritten(node: OutlineNode): boolean {
 }
 
 /**
- * The block's own characters past its root's prefix, re-rooted at
- * `indentText`: the re-indent a paste made before the document's unit was
- * written, kept for the block whose converged lines would read differently.
- * The root's marker run is normalized, and its lines and children move by the
- * change, before the prefix swap.
+ * The block moved whole to `indentText`, every line by the width its root
+ * moved: the re-indent a paste made before the document's unit was written,
+ * kept for the block whose converged lines would read differently. The root's
+ * marker run is normalized, and its lines and children move by the change,
+ * before the move.
  */
 function reindentSubtreeVerbatim(node: OutlineNode, indentText: string): OutlineNode {
   const first = node.lines[0] ?? '';
