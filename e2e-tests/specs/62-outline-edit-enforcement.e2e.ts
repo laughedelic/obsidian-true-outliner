@@ -314,6 +314,55 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     expect(snap.verdictCounts.rewrite).toBeGreaterThan(0);
   });
 
+  // ---- Obsidian's live list renumbering appended to the edit (#260) ------
+  // Deleting an ordered item with items after it makes Obsidian's "Smart
+  // lists" filter append new numbers for them to the same transaction. The
+  // verdict is the one the user's own range gets
+  // (docs/research/obsidian-list-renumbering).
+
+  it('Backspace on an emptied middle ordered item removes it, as on the last item', async function () {
+    await outlineNote('1. p\n2. a\n3. q\n');
+    await h.setCursor(1, '2. a'.length);
+    await browser.keys(Key.Backspace);
+    expect(await h.getBuffer()).toBe('1. p\n2. \n3. q\n');
+    await browser.keys(Key.Backspace);
+    expect(await h.getBuffer()).toBe('1. p\n2. q\n');
+    expect(await h.getCursor()).toEqual({ line: 0, ch: '1. p'.length });
+    await h.keys.undo();
+    expect(await h.getBuffer()).toBe('1. p\n2. \n3. q\n');
+  });
+
+  it('the same Backspace in a tab-indented nested list leaves the parent list alone', async function () {
+    await outlineNote('1. p\n\t1. a\n\t2. b\n\t3. c\n2. q\n');
+    await h.setCursor(2, '\t2. b'.length);
+    await browser.keys(Key.Backspace);
+    await browser.keys(Key.Backspace);
+    expect(await h.getBuffer()).toBe('1. p\n\t1. a\n\t2. c\n2. q\n');
+    expect(await h.getCursor()).toEqual({ line: 1, ch: '\t1. a'.length });
+  });
+
+  it('a block-selected nested ordered item deletes cleanly, and the parent list keeps its numbers', async function () {
+    await outlineNote('1. p\n   1. a\n   2. b\n   3. c\n2. q\n');
+    await h.setCursor(2, '   2. b'.length);
+    await browser.keys([Key.Shift, Key.ArrowDown]);
+    expect(await h.getSelection()).toEqual({ anchor: { line: 2, ch: 0 }, head: { line: 2, ch: '   2. b'.length } });
+    await browser.keys(Key.Backspace);
+    expect(await h.getBuffer()).toBe('1. p\n   1. a\n   2. c\n2. q\n');
+    expect(await h.getCursor()).toEqual({ line: 1, ch: '   1. a'.length });
+    await h.keys.undo();
+    expect(await h.getBuffer()).toBe('1. p\n   1. a\n   2. b\n   3. c\n2. q\n');
+  });
+
+  it('a deletion inside a quoted list stays native, with Obsidian\'s numbers', async function () {
+    await outlineNote('> 1. a\n> 2. b\n> 3. c\n');
+    await h.setCursor(1, '> 2. b'.length);
+    await browser.keys(Key.Backspace);
+    await browser.keys(Key.Backspace);
+    expect(await h.getBuffer()).toBe('> 1. a\n> 2.\n> 2. c\n');
+    const snap = await h.getStats();
+    expect(snap.verdictCounts.rewrite).toBe(0);
+  });
+
   it('marker-space Backspace merges a first list item into its parent paragraph (cross-kind join)', async function () {
     await outlineNote('Para.\n- item\n');
     await h.setCursor(1, 2); // content start of "- item"

@@ -1608,3 +1608,168 @@ describe('a replacement synthesized around a caret passes', () => {
     expect(applyVerdict('> alpha\n> beta\n', verdict)).toBe('a\n> \n');
   });
 });
+
+/**
+ * Obsidian's live list renumbering appends ranges to the user's own edit before
+ * the verdict layer sees it. Every range here is one measured in the app
+ * (docs/research/obsidian-list-renumbering, "The ranges it appends to a user
+ * edit"): the user's range first, then what Obsidian appended.
+ */
+describe('computeVerdictForRanges: the renumbering Obsidian appends (#260)', () => {
+  const renumber = (line: number, ch: number, from: string, to: string): EditFact => ({
+    from: pos(line, ch),
+    to: pos(line, ch + from.length),
+    insert: to,
+  });
+  const lineDeletion = (md: string, line: number): EditFact => ({
+    from: pos(line, 0),
+    to: pos(line, md.split('\n')[line]!.length),
+    insert: '',
+    cursorBefore: pos(line, md.split('\n')[line]!.length),
+  });
+  const markerSpace = (line: number, ch: number): EditFact => ({
+    from: pos(line, ch - 1),
+    to: pos(line, ch),
+    insert: '',
+    cursorBefore: pos(line, ch),
+  });
+
+  const cases: readonly {
+    readonly name: string;
+    readonly md: string;
+    readonly user: EditFact;
+    readonly appended: readonly EditFact[];
+    readonly expected: string;
+  }[] = [
+    {
+      name: 'a flat list, line deletion',
+      md: '1. a\n2. b\n3. c\n4. d\n',
+      user: lineDeletion('1. a\n2. b\n3. c\n4. d\n', 1),
+      appended: [renumber(2, 0, '3. ', '2. '), renumber(3, 0, '4. ', '3. ')],
+      expected: '1. a\n2. c\n3. d\n',
+    },
+    {
+      name: 'a flat list, Backspace on the emptied item',
+      md: '1. a\n2. \n3. c\n4. d\n',
+      user: markerSpace(1, 3),
+      appended: [renumber(2, 0, '3. ', '2. '), renumber(3, 0, '4. ', '3. ')],
+      expected: '1. a\n2. c\n3. d\n',
+    },
+    {
+      name: 'a list nested at three columns, line deletion',
+      md: '1. p\n   1. a\n   2. b\n   3. c\n2. q\n',
+      user: lineDeletion('1. p\n   1. a\n   2. b\n   3. c\n2. q\n', 2),
+      appended: [renumber(3, 3, '3. ', '2. '), renumber(4, 0, '2. ', '3. ')],
+      expected: '1. p\n   1. a\n   2. c\n2. q\n',
+    },
+    {
+      name: 'a list nested at three columns, Backspace on the emptied item',
+      md: '1. p\n   1. a\n   2. \n   3. c\n2. q\n',
+      user: markerSpace(2, 6),
+      appended: [renumber(3, 3, '3. ', '2. '), renumber(4, 0, '2. ', '3. ')],
+      expected: '1. p\n   1. a\n   2. c\n2. q\n',
+    },
+    {
+      name: 'a tab-indented list, Backspace on the emptied item',
+      md: '1. p\n\t1. a\n\t2. \n\t3. c\n2. q\n',
+      user: markerSpace(2, 4),
+      appended: [renumber(3, 1, '3. ', '2. ')],
+      expected: '1. p\n\t1. a\n\t2. c\n2. q\n',
+    },
+    {
+      name: 'a `)` list, line deletion',
+      md: '1) a\n2) b\n3) c\n',
+      user: lineDeletion('1) a\n2) b\n3) c\n', 1),
+      appended: [renumber(2, 0, '3) ', '2) ')],
+      expected: '1) a\n2) c\n',
+    },
+    {
+      name: 'a list crossing a digit boundary, line deletion',
+      md: '8. a\n9. b\n10. c\n11. d\n',
+      user: lineDeletion('8. a\n9. b\n10. c\n11. d\n', 1),
+      appended: [renumber(2, 0, '10. ', '9. '), renumber(3, 0, '11. ', '10. ')],
+      expected: '8. a\n9. c\n10. d\n',
+    },
+  ];
+
+  for (const { name, md, user, appended, expected } of cases) {
+    it(`${name}: judged as the user's range alone`, () => {
+      const doc = parse(md);
+      const alone = computeVerdict('boundary-crossing-edit', doc, user);
+      const withAppended = computeVerdictForRanges('boundary-crossing-edit', doc, [user, ...appended]);
+      expect(applyVerdict(md, withAppended)).toBe(expected);
+      expect(applyVerdict(md, alone)).toBe(expected);
+      expect((withAppended as Extract<Verdict, { kind: 'rewrite' }>).cursor).toEqual(
+        (alone as Extract<Verdict, { kind: 'rewrite' }>).cursor,
+      );
+    });
+  }
+
+  it('the order the ranges arrive in does not matter', () => {
+    const md = '1. a\n2. b\n3. c\n4. d\n';
+    const edits = [renumber(3, 0, '4. ', '3. '), lineDeletion(md, 1), renumber(2, 0, '3. ', '2. ')];
+    expect(applyVerdict(md, computeVerdictForRanges('boundary-crossing-edit', parse(md), edits))).toBe(
+      '1. a\n2. c\n3. d\n',
+    );
+  });
+
+  describe('a range that is not exactly a renumbering stays the user\'s', () => {
+    const md = '1. a\n2. b\n13. c\n';
+    const user = lineDeletion(md, 1);
+    const judged = (other: EditFact): Verdict =>
+      computeVerdictForRanges('boundary-crossing-edit', parse(md), [user, other]);
+
+    it('one digit deleted inside a number', () => {
+      expect(judged({ from: pos(2, 0), to: pos(2, 1), insert: '' })).toEqual({ kind: 'pass' });
+    });
+    it('the delimiter changed', () => {
+      expect(judged(renumber(2, 0, '13. ', '2) '))).toEqual({ kind: 'pass' });
+    });
+    it('text past the marker\'s space changed', () => {
+      expect(judged(renumber(2, 0, '13. c', '2. x'))).toEqual({ kind: 'pass' });
+    });
+    it('the same number written back', () => {
+      expect(judged(renumber(2, 0, '13. ', '13. '))).toEqual({ kind: 'pass' });
+    });
+    it('a range starting before the number', () => {
+      const nested = '1. a\n2. b\n   3. c\n';
+      expect(
+        computeVerdictForRanges('boundary-crossing-edit', parse(nested), [
+          lineDeletion(nested, 1),
+          renumber(2, 0, '   3. ', '   2. '),
+        ]),
+      ).toEqual({ kind: 'pass' });
+    });
+  });
+
+  it('a transaction of renumberings alone is judged as before', () => {
+    const md = '1. a\n3. b\n4. c\n';
+    const edits = [renumber(1, 0, '3. ', '2. '), renumber(2, 0, '4. ', '3. ')];
+    expect(computeVerdictForRanges('boundary-crossing-edit', parse(md), edits)).toEqual({ kind: 'pass' });
+  });
+
+  it('an appended range alone never makes a transaction boundary-crossing', () => {
+    for (const { md, appended } of cases) {
+      const doc = parse(md);
+      for (const range of appended) {
+        const facts: TransactionFacts = {
+          userEvent: 'input.renumber',
+          isComposition: false,
+          changedLineSpans: [
+            {
+              fromLine: range.from.line,
+              toLine: range.to.line,
+              insertedText: range.insert,
+              fromCh: range.from.ch,
+              toCh: range.to.ch,
+              rangeEnd: range.to,
+            },
+          ],
+          cursorBefore: pos(0, 0),
+          emptySelectionBefore: true,
+        };
+        expect(classify(facts, doc)).toBe('within-node-edit');
+      }
+    }
+  });
+});
