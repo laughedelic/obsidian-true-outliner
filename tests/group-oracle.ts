@@ -112,11 +112,13 @@ const arbBlock: fc.Arbitrary<Block> = fc.oneof(
 );
 
 /**
- * A list item directly after a paragraph with no blank line between them is
- * the paragraph's CHILD, never its sibling — the attachment rule. The
- * generator uses that deliberately (a `para` block's `kids` are rendered
+ * A list item after a paragraph or a heading is its CHILD, never its sibling
+ * — the attachment rule — and a blank line between them does not change that.
+ * The generator uses it deliberately (a `para` block's `kids` are rendered
  * tight beneath it) and separates every block from the next with a blank
- * line so nothing attaches across a block boundary.
+ * line. A `list` block after a `para` or a `heading` therefore attaches under
+ * it, and after a `para` joins the paragraph's own kids into one run; a
+ * `para` or a `heading` after a list starts a new top-level node.
  */
 function render(blocks: readonly Block[]): string {
   let n = 0;

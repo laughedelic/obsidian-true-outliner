@@ -19,9 +19,10 @@
  * is the requirement working, not failing. Restricting the property to
  * documents whose every run already reads head, head+1, … separates the two
  * without the test having to re-implement the rule it is checking. The
- * generator writes runs with a repeated number on purpose, and blank-separated
- * blocks with different starts join into one run, so the filter keeps ~2850
- * of 5000 generated documents.
+ * generator writes runs with a repeated number on purpose, and a list block
+ * after another list or after a paragraph's items joins their run whatever
+ * its start, so the filter drops a large share of documents and `RUNS` is
+ * sized for what remains.
  *
  * ## Why "above" is fenced at the relocated node, not the subject
  *
