@@ -88,12 +88,12 @@ Three probes, kept in [prototypes/node-placement-sweep/](prototypes/node-placeme
   items, root-level `h1` sections, and sub-headings one or two levels deeper than their parent.
   `arbTree` generates none of the first four, and the drop's committed agreement property runs on
   it, which is why the defects below did not surface there.
-- **Sweeps.** 150 generated notes, seed 42. Every labelled node was dragged, as a single-root run,
-  to every destination `dropSeams` offers: 341,585 destinations. For each, every labelled node's
+- **Sweeps.** 150 generated notes, seed 42, on `main` at `2c9dba2`. Every labelled node was
+  dragged, as a single-root run, to every destination `dropSeams` offers: 345,608 destinations. For each, every labelled node's
   parent after the release was compared with the one the preview names: the run under the
   candidate's parent, each absorbed row under the run, every other node where it was. Where the
-  run left its scope and the drop named no level, the same payload was pasted at the same parent
-  and index in the note with the run removed. Then the run was moved back to its original parent
+  run left its scope and the drop named no level, the same payload, taken to its own margin as a
+  clipboard holds it, was pasted at the same parent and index in the note with the run removed. Then the run was moved back to its original parent
   and index. Separately, every labelled node was indented, outdented, moved up and moved down, and
   a copy of each of the first twelve subtrees was pasted with the caret on every node, at the place
   the paste layer's own rule (`pasteAnchor` in `src/enforce.ts`) resolves.
@@ -109,44 +109,44 @@ Three probes, kept in [prototypes/node-placement-sweep/](prototypes/node-placeme
 
 ## What the sweeps found
 
-Of the 341,585 drop destinations, 299,240 land every labelled node where the preview says. The
+Of the 345,608 drop destinations, 306,782 land every labelled node where the preview says. The
 rest, by the shape that moves a node the preview did not account for (a destination can show more
 than one):
 
 | Shape | Destinations | Section |
 | --- | --- | --- |
-| The run lands under another node than the preview's | 16,897 | D1, D3 |
-| A row the run absorbs lands under the run's last node, not the run | 15,295 | A6 |
-| A descendant of the run falls out of it | 7,983 | D2 |
-| A row below the run lands under a node outside the run | 1,901 | A6 |
-| The run's removal re-parents a neighbour | 859 | A9, #206 |
+| A row the run absorbs lands under the run's last node, not the run | 15,596 | A6 |
+| The run lands under another node than the preview's | 13,724 | D1, D3 |
+| A descendant of the run falls out of it | 7,186 | D2 |
+| A row below the run lands under a node outside the run | 2,098 | A6 |
+| The run's removal re-parents a neighbour | 872 | A9, #206 |
 | The run adopts a list after it, undrawn | 297 | D5 |
-| A node is lost, merged into its neighbour | 176 | D2 |
+| A node is lost, merged into its neighbour | 175 | A6 |
 
-What the run was written as: its own kind at 253,220 destinations, a paragraph written as a list
-item at 54,502, a heading written as a list item at 17,156, and a list item written as a paragraph
-— the attachment rule's forced conversion — at 16,707.
+What the run was written as: its own kind at 263,047 destinations, a paragraph written as a list
+item at 50,174, a heading written as a list item at 17,097, and a list item written as a paragraph
+— the attachment rule's forced conversion — at 15,290.
 
 The other operations, over the same 150 notes:
 
 | Operation | Accepted | Every node where named | Differs |
 | --- | --- | --- | --- |
-| Indent | 1,315 | 1,156 | 124 land under another node (D3), 36 lose a descendant (D2), 3 take in what follows (D1) |
-| Outdent | 2,271 | 1,730 | 267 land under another node (D7, D1), 358 scatter the siblings they adopt (D7, D2), 152 lose a descendant (D2), 47 take in what follows (D1) |
-| Move up, move down | 3,689 | 3,662 | 27 re-parent a neighbour (A9) |
-| Paste | 41,483 | 40,738 | 431 absorb by design, 263 land under another node (D1, D8), 183 absorbed rows reach the payload's last node (A6), 36 adopt a list (D5) |
+| Indent | 1,291 | 1,159 | 99 land under another node (D3), 34 lose a descendant (D2), 3 take in what follows (D1) |
+| Outdent | 2,326 | 1,730 | 267 land under another node (D7, D1), 416 scatter the siblings they adopt (D7, D2), 152 lose a descendant (D2), 44 take in what follows (D1) |
+| Move up, move down | 3,759 | 3,732 | 27 re-parent a neighbour (A9) |
+| Paste | 42,249 | 41,506 | 429 absorb by design, 261 land under another node (D1, D8), 183 absorbed rows reach the payload's last node (A6), 35 adopt a list (D5) |
 
 Where the drop and the paste name the same destination — the run leaves its scope and the drop
-names no level of its own — they wrote the same node under the same parent at all 231,084
+names no level of its own — they wrote the same node under the same parent at all 237,843
 destinations compared. The one place they differ is the one
 [node-kind-grammar.md](node-kind-grammar.md) records as deliberate: at 1,088 destinations the drop
 keeps a heading a heading among a heading's list items and the paste writes it as a list item
 (A1 below).
 
-Moving the run back to its original parent and index restored the note's tree at 212,499 of
-338,119 destinations. The largest classes that did not: a paragraph that had become a list item
-(42,190), absorption (22,759), a heading that had become a list item carrying its `#` run
-(16,251), and a list item that had become a paragraph (10,739). A conversion into a list item is
+Moving the run back to its original parent and index restored the note's tree at 229,243 of
+342,098 destinations. The largest classes that did not: a paragraph that had become a list item
+(38,872), absorption (23,143), a heading that had become a list item carrying its `#` run
+(16,195), and a list item that had become a paragraph (9,632). A conversion into a list item is
 never undone on the way back, because a list item keeps its kind wherever it can stand; A5 below
 is the one conversion whose way back is written into the node.
 
@@ -161,7 +161,7 @@ conversion strips the list marker and leaves `### H`, which is a heading line. R
 list item is forced to a paragraph: dropped or pasted right after a section-level paragraph, or
 after a paragraph inside a list item (D6), or outdented into a paragraph's list. At section level
 the heading takes what follows it into its section; inside a list the line leaves the list for the
-top level. 1,464 drop destinations, 184 of the paste measurements, and the outdent cases above.
+top level. 1,464 drop destinations, 182 of the paste measurements, and the outdent cases above.
 
 ```
  before     drop H after P, under x
@@ -173,10 +173,7 @@ top level. 1,464 drop destinations, 184 of the paste measurements, and the outde
 **D2. A list item converted to a paragraph strands every child that is not a list item.** A
 paragraph holds only list items, so the item's code blocks, quotes and paragraph children fall out
 to the parent's level, and every list item after the first of them follows, since the atom now
-separates it from the paragraph. 7,983 drop destinations lose a descendant this way. Where a
-stranded line merges with a neighbour the node is lost, at 176: nearly all a quote nested past the
-opening margin, which reads as a paragraph there and runs into the converted paragraph's own line.
-One of them is a paragraph run merged into its neighbour, which this pass did not examine. The same
+separates it from the paragraph. 7,186 drop destinations lose a descendant this way. The same
 fall-out happens to a paragraph that owns a list when it lands under a list item beside a paragraph
 child, where it keeps its kind and its list items become the item's.
 
@@ -192,7 +189,7 @@ child, where it keeps its kind and its list items become the item's.
 **D3. A paragraph inside a list item is offered as a parent.** The grammar gives it no children.
 The drop offers the column one level inside it, the preview names it, and the run lands under the
 enclosing list item instead; indent accepts it as a target and writes nothing, where a refusal
-would say why. 15,433 drop destinations and all 124 indent cases.
+would say why. 12,260 drop destinations and all 99 indent cases.
 
 ```
  place    drop y at 2    ⇥ on y, with y after P under x
@@ -210,7 +207,7 @@ the choice; that the preview and the release disagree is the defect.
 kind rule reads its donor across atoms, so a paragraph arriving between an atom and a list, with
 another paragraph before the atom, keeps its kind and takes the list. The same adoption follows a
 reorder: the drop's in-scope path and move up and down refuse a list item landing after a
-paragraph, but not a paragraph landing before a list item. 297 drop destinations and 36 pastes.
+paragraph, but not a paragraph landing before a list item. 297 drop destinations and 35 pastes.
 
 ```
  before       drop Q between the code and y
@@ -462,10 +459,11 @@ Absorbed rows keep their own lines, so they re-parse against whatever the run's 
 with: its last sub-heading's section, the list its trailing paragraph adopts, the children of its
 trailing list item. At a heading's levelled column inside a list — written between a list item and
 its children — the rows keep an indentation that belonged to the list they were cut from, and an
-indented quote among them re-reads as a paragraph. 15,295 drop destinations send absorbed rows
-under the run's last node and 1,901 under a node outside the run. 13,768 of those are levelled
-columns inside a list, 2,226 levelled columns elsewhere, and 1,202 the plain and kept-heading
-columns.
+indented quote among them re-reads as a paragraph and runs into the line above it, which loses the
+node. 15,596 drop destinations send absorbed rows under the run's last node and 2,098 under a node
+outside the run. 14,266 of those are levelled columns inside a list, 2,226 levelled columns
+elsewhere, and 1,202 the plain and kept-heading columns. All 175 destinations that lose a node are
+levelled columns inside a list.
 
 The legitimate answers: the rows join the run's trailing edge, as written; the rows become the
 run's direct children, which needs them re-encoded, and is not always expressible — content cannot
@@ -525,7 +523,7 @@ setting**, with Logseq's "logical outdenting" as the precedent; not urgent.
 
 Two sides of one rule. A paragraph arriving right before a section-level list adopts it (D5); a
 removal that takes an atom out from between a paragraph and a list lets the paragraph adopt it
-(#206, 859 drop destinations and all 27 reorder cases). In the table, the clean answer on the
+(#206, 872 drop destinations and all 27 reorder cases). In the table, the clean answer on the
 arrival side is a list item.
 
 **Recommendation: on the arrival side, a rule — a paragraph whose next section-level sibling
@@ -534,7 +532,7 @@ already gives, read on the following side too; the reorder guard asks the same q
 node after the pair. On the removal side the choice #206 lists stays open; drawing the re-parented
 neighbour is the answer that rewrites nothing nobody moved. Both sides vanish under Q34's readings
 C and D, as do D2, D5 and D6 and A6's trailing-paragraph case: every forced conversion of a list
-item into a paragraph is the attachment rule's, 16,707 of the 341,585 drop destinations.
+item into a paragraph is the attachment rule's, 15,290 of the 345,608 drop destinations.
 
 ### A10. An arriving list item's marker, in a run of another type
 
@@ -595,7 +593,7 @@ Each is stated with what it would have caught; the figures are the sweeps above.
 5. **A move and its reverse restore the note, where nothing converted or absorbed.** Pins which
    conversions are reversible; with A5's rule the heading's round trip joins them.
 6. **Conservation over the labelled generator.** 5.5's node count, run where quotes and paragraphs
-   nest inside list items; catches D2's lost node, which the current generator cannot build.
+   nest inside list items; catches A6's lost node, which the current generator cannot build.
 7. **The context table as a unit test.** Twenty-five places by six kinds, bounded and exhaustive:
    the admissible writings and the chosen one per cell. It is the grammar's local rule written as
    data, and the place a changed recommendation shows up as a changed row.
