@@ -28,4 +28,4 @@
 - [x] 3.1 The unit suite, lint and typecheck.
 - [x] 3.2 e2e `20-structural-commands`, `30-keyboard-grammar`, `31-tab-indented-vault`,
       `81-node-dragging` in narrow mode; the full sweep runs in CI on the pushed checkpoint.
-- [ ] 3.3 Manual testing in Obsidian.
+- [x] 3.3 Manual testing in Obsidian, on #256: the tab-note ⇥ and ⇧⇥, a drag under another parent, a fold beside the edit, and a move inside a zoom.

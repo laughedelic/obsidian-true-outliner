@@ -79,9 +79,9 @@ parsed already.
 A run with NO member present beforehand — a sequence landing where no ordered run was — has no
 start to recover, and what it starts at depends on where it came from. A run of RELOCATED nodes
 (the arrival side of an indent or an outdent, siblings an outdent adopts into the outdented
-node's own child list, and a drag that lands under another parent or at another level) starts a new list, and SHALL be numbered from
-`1.`: the numbers its members carry belonged to the list they left, and a new list rendered from
-one of them reads as a list that starts part-way. A run of PASTED blocks SHALL keep the lowest
+node's own child list, and a drag that lands under another parent or at another level) starts a
+new list, and SHALL be numbered from `1.`: the numbers its members carry belonged to the list
+they left, and a new list rendered from one of them reads as a list that starts part-way. A run of PASTED blocks SHALL keep the lowest
 number its own members carry, since that numbering is what the clipboard held. A child list a
 merge adopts moves as one unit, the list it was, and SHALL keep its own numbers too.
 
