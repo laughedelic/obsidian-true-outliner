@@ -79,7 +79,7 @@ parsed already.
 A run with NO member present beforehand — a sequence landing where no ordered run was — has no
 start to recover, and what it starts at depends on where it came from. A run of RELOCATED nodes
 (the arrival side of an indent or an outdent, siblings an outdent adopts into the outdented
-node's own child list, and a drag to another level) starts a new list, and SHALL be numbered from
+node's own child list, and a drag that lands under another parent or at another level) starts a new list, and SHALL be numbered from
 `1.`: the numbers its members carry belonged to the list they left, and a new list rendered from
 one of them reads as a list that starts part-way. A run of PASTED blocks SHALL keep the lowest
 number its own members carry, since that numbering is what the clipboard held. A child list a
@@ -200,7 +200,7 @@ renumbers only the members that follow what moved.
   ordered run is
 - **THEN** it reads `1.`
 
-#### Scenario: A drag to another level that starts a new list numbers it from one
+#### Scenario: A drag under another parent that starts a new list numbers it from one
 - **WHEN** `moveSubtreesTo` moves `3. c` of `1. a` / `2. b` / `3. c` / `- d` to be the first
   child of `- d`
 - **THEN** `c` reads `1. c`

@@ -66,10 +66,19 @@ the same order from the other side).
 
 ## Filter order
 
-CM6 runs transaction filters from the last facet value to the first, so a filter wrapped in
-`Prec.highest` runs after every filter of default precedence. Measured: a `Prec.highest` filter
-registered by the plugin sees the transaction with Obsidian's renumbering already merged in, and
-a change it appends with `sequential: true` lands after it.
+CM6 runs transaction filters from the last facet value to the first. Obsidian's markdown editor
+builds its dynamic extensions with every plugin's `registerEditorExtension` extensions first and
+the renumbering filter after them (`getDynamicExtensions` in `app.js`), so at equal precedence it
+runs before every plugin filter. A plugin filter registered after the plugin's others runs next,
+and one wrapped in `Prec.highest` runs after all of them.
+
+The restoration first ran at `Prec.highest`. That fixed the text but not a fold: `fold-carry`, at
+default precedence, ran between Obsidian's filter and the restoration, read Obsidian's
+renumbering of a folded node's hidden lines as an edit to them, and opened the fold. ⏎ at the end
+of `   1. a` in `1. p` / `   1. a` / `   2. b` / `2. q` / `   1. c` / `   2. d`, with `q` folded,
+kept the text and lost the fold. Registered last at default precedence instead, the restoration
+runs before `fold-carry` and the enforcement funnel, and the fold stays closed (e2e
+`92-fold-through-edits`).
 
 Where our default-precedence enforcement filter sits relative to Obsidian's is read from its
 effects rather than from the bundle. ⌫ at the content start of `   2. b` in `1. p` / `   1. a` /
@@ -99,8 +108,8 @@ transaction, seen by the verdict layer, is the same order.
 
 ## After
 
-With the plugin's planned change set carried on each of those four dispatches and a
-`Prec.highest` filter restoring any ordered-marker number that differs from the planned document:
+With the plugin's planned change set carried on each of those four dispatches and a filter
+running right after Obsidian's, restoring any ordered-marker number that differs from the planned document:
 
 | Shape | Gesture | Result |
 | --- | --- | --- |

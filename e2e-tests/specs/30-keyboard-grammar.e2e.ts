@@ -1004,20 +1004,19 @@ describe('keyboard grammar', function () {
     }
 
     it('an ordered item Shift+Tab carried ahead of an adopted sibling ends as the fresh one does', async function () {
-      // With `2. b` after `a`, the Enter itself renumbers the parent's `q`
-      // (#252), and walking away from the FRESH item leaves that renumbering
-      // behind too. The carried item is compared against that control rather
-      // than against the original, which #252 alone keeps it from matching.
+      // With `2. b` after `a`: the fresh item and the carried one both walk
+      // back to the source, `q`'s number included, which Obsidian's own
+      // renumbering would otherwise change on every step.
       const src = '1. p\n   1. a\n   2. b\n2. q\n';
       await grammarNote(src, 1, 7);
       await press(['enter', 'up']);
-      const fresh = await h.getBuffer();
+      expect(await h.getBuffer()).toBe(src);
 
       await grammarNote(src, 1, 7);
       await press(['enter', 'shiftTab']);
       expect(await h.getBuffer()).toContain('\n2. \n');
       await press(['up']);
-      expect(await h.getBuffer()).toBe(fresh);
+      expect(await h.getBuffer()).toBe(src);
     });
 
     it('one Backspace removes a position Tab carried', async function () {

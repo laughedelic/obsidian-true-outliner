@@ -1,6 +1,6 @@
 /**
- * A transaction this plugin planned lands as planned, whatever a filter of
- * default precedence renumbers on top of it.
+ * A transaction this plugin planned lands as planned, whatever Obsidian's
+ * renumbering, which runs before it, changes on top of it.
  *
  * Obsidian's own renumbering filter is not reachable from here, so a stand-in
  * does what it was measured to do (`docs/research/obsidian-list-renumbering`):
@@ -73,9 +73,23 @@ describe('planned-changes', () => {
     expect(plannedEnter(state, false).newDoc.toString()).toBe('1. p\n   1. a\n   2. \n3. q\n');
   });
 
-  it('restores whichever order the two are registered in', () => {
+  it('a filter registered before the restoration reads the planned document', () => {
+    // Filters run from the last registered to the first, and Obsidian's comes
+    // after every plugin extension, so `fold-carry` and the enforcement funnel,
+    // registered before the restoration, run after it.
+    const seen: string[] = [];
+    const reader = EditorState.transactionFilter.of((tr) => {
+      if (tr.docChanged) seen.push(tr.newDoc.toString());
+      return tr;
+    });
+    const state = stateOf(SOURCE, [reader, plannedChangesExtension(), renumberingStandIn('3')]);
+    plannedEnter(state, true);
+    expect(seen).toEqual(['1. p\n   1. a\n   2. \n2. q\n']);
+  });
+
+  it('control: registered after the renumbering, the restoration runs before it and misses it', () => {
     const state = stateOf(SOURCE, [renumberingStandIn('3'), plannedChangesExtension()]);
-    expect(plannedEnter(state, true).newDoc.toString()).toBe('1. p\n   1. a\n   2. \n2. q\n');
+    expect(plannedEnter(state, true).newDoc.toString()).toBe('1. p\n   1. a\n   2. \n3. q\n');
   });
 
   it('a change set stated against the start state counts as planned, once', () => {

@@ -207,6 +207,8 @@ keys do".
 Two shapes behave as the table does not predict, and neither is this change's:
 
 - **With `   2. b` after the nested `a`,** ⏎ ⇧⇥ ↑ leaves `3. q`. The fresh ⏎ ↑ leaves the same, because
-  the Enter's renumbering of the parent run is not part of the removal its plan states (#252).
+  the Enter's renumbering of the parent run is not part of the removal its plan states (#252). That
+  renumbering was Obsidian's, and since #252's fix both return the source
+  (`docs/research/obsidian-list-renumbering`).
 - **On a line holding only `#`,** which ⇧⇥ leaves from a drafted `## `, the arrow keys do not move the
   caret, so ↑ never leaves the place. ⌫ removes it.

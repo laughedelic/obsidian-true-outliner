@@ -27,7 +27,7 @@ Obsidian's reading mode shows it so. Our parser still reads that shape as a list
 - A run with no member present beforehand starts at `1.` when its members were RELOCATED to it:
   - the arrival side of an indent or an outdent
   - the siblings an outdent adopts into the outdented node's own child list
-  - a drag to another level
+  - a drag that lands under another parent or at another level, which is every drop the reorder path does not take
 - A run of PASTED blocks keeps its own lowest number, as before.
 - Enter on an empty item outdents it, so an empty item that leaves its list for a place with no
   ordered run starts at `1.` too.
