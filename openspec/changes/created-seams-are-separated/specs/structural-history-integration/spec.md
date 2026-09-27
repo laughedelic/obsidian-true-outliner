@@ -49,9 +49,11 @@ Two forms, chosen by what the operation MEANT and not by which key ran:
   the same keypress did BEFORE it stands. Stating it in bytes is what makes this exact
   without anything having to decide which of those effects counts as part of the place.
 - An operation that DISSOLVED A NODE into a blank line, leaving the place as its residue,
-  SHALL state the REMOVAL OF THAT LINE instead, together with the blank lines it wrote to
-  separate the place. What remains between the place's neighbours is the seam the dissolving
-  created: one blank line outside a list, per `structural-operations`' `A seam an operation creates is separated`, and none inside one. Reversing such an operation would restore
+  SHALL state the REMOVAL OF THAT LINE instead, together with the blank lines it wrote beside the
+  place. The gap it leaves between the place's neighbours SHALL be one blank line where that seam
+  lies outside a list — the dissolve created it, per `structural-operations`' `A seam an operation creates is separated` — and, inside a list,
+  the larger of the two gaps the dissolved item had around it, so a loose list stays loose and a
+  tight one tight. Reversing such an operation would restore
   the node the user deliberately dissolved — the item they pressed Enter to leave — which is
   the opposite of abandoning the blank it left behind.
 

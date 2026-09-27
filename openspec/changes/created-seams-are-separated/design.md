@@ -14,204 +14,172 @@ Today, three mechanisms decide what stands in a seam:
   run lands in onto both sides of the run. A same-scope reorder keeps the blank lines with the
   positions.
 - **The operations that open a provisional position** (`splitNode`, `insertEmptyBefore`,
-  `unwrapListItem`) write the place's blank lines as gap text themselves.
+  `unwrapListItem`, `outdentSurgery`'s dissolve) write the place's blank lines as gap text themselves.
 
-Node ids survive a surgery: every re-encode spreads the node it rewrites. A new node gets a fresh id
-from the global counter, and a pasted payload is a separate parse, so all of its ids are new.
+`src/plugin/dispatch.ts` already aligns an operation's old and new lines (`alignLines`, anchored on
+lines unique to both sides), so that a moved block is dispatched as a move.
 
 ## Goals / Non-Goals
 
 **Goals:**
-- One rule decides every seam an operation creates outside a list, stated once, whichever mechanism
-  wrote the seam.
-- A note an operation has not touched stays byte-identical. So does every seam in it the operation did
-  not create, and every seam inside a list.
+- One rule decides every seam an operation creates outside a list, stated once, and decided from
+  the text before and after the operation, whichever op produced it.
+- A note an operation has not touched stays byte-identical. So does every seam the operation did not
+  create, and every seam inside a list.
 
 **Non-Goals:**
 - Choosing separators by what each reader continues. The rule separates every created seam outside a
   list, and needs no table of line kinds to maintain.
-- Deciding separation inside a list. The list's own tightness decides it, as today.
+- Deciding separation inside a list, including the insertion's carry at a list's edge (#272).
+- Tracking block identity. Three rounds of review found a hole in each identity-based design:
+  node-id pairs, then lineage for the ops that replace a block, then a kind clause on top.
 
 ## Decisions
 
-### D1. A seam is created when its two blocks were not adjacent before, following lineage
+### D1. A seam is created where the operation INSERTED text, not where it rewrote it
 
-A seam is a pair: the block whose last line is above it, and the block whose first line is below it.
-Adjacency is read from the document before the operation (`finalize`'s `oldDoc`), as the set of such
-pairs by node id. It covers:
-- the final descendant of each sibling, paired with the next sibling
-- each parent, paired with its first child
+The text before and after the operation is aligned line by line, with the alignment dispatch uses.
+The alignment leaves three kinds of region: lines matched on both sides, lines only removed, and
+lines only inserted. A run of removed lines directly followed by inserted lines is a REPLACEMENT.
 
-A pair counts as the same whichever relation it has, so an indent that turns `b`, the sibling after
-`a`, into `a`'s first child creates no seam.
+A SEAM is the boundary between two blocks in the result: the last content line of the block above
+it, and the first content line of the block below it. Each seam falls into one case:
 
-Some operations replace a block without moving the seam below it:
-- a split's lower half takes the original's last line
-- a merge's survivor takes the second node's last line
-- a drafted sibling heading, or a folded split's new block, ends where the original's section ended
+- **Both lines matched.** The seam is the user's when the two old lines were consecutive content lines
+  in the old text, with only blank lines between them. Otherwise, something was removed or inserted
+  between them, and the seam is created.
+- **At the edge of a replacement.** One line is matched, and the other is the first or last line of a
+  replacement directly next to it. The seam stands where the old seam at that edge stood, so it is the
+  user's, unless the kind as written of the block at that edge changed.
+- **Anywhere else.** The seam is created: inside a replacement, or at the edge of a pure insertion.
 
-Such an operation passes `finalize` a LINEAGE: the new block, and the old block that was directly
-above the seam it takes over. That is the original for a split, the second node for a merge, and the
-final descendant of the original's section for a drafted heading or a folded split. The lookup
-substitutes the lineage on the seam's UPPER side only: a merge's survivor keeps the first node's
-id, so the seam above it is read as it always was.
+Where the blank lines between the two blocks are themselves inserted, the seam is created too.
 
-So Enter mid-text in a paragraph written flush above `# H` leaves that seam as the user wrote it, and
-a merge leaves the merged node's seam below as it was.
+What that gives:
 
-A TYPE-OVER's replacement takes over the replaced run's seams the same way:
-- its first block takes the seam above the run
-- its last block takes the seam below the run
-
-Typing a character over a selected paragraph therefore leaves the user's spacing around it as it was.
-
-A seam is also created when a re-encode changes the kind, as written, of either of its blocks. An indent
-that turns `p2`, written directly above `> q`, into `- p2` changes what that seam means to every reader,
-though both blocks keep their ids.
-
-A seam in the result is created when its pair, read through lineage, is not in the old set, or when
-either block's kind as written changed.
+| operation | seams created |
+| --- | --- |
+| paste, drop, insert | the two seams around the new run, and every seam inside it |
+| delete | the seam that joins the blocks around the removed run |
+| move | the seams at the run's old place and at its new one; none inside the run |
+| Enter mid-text, merge | the new seam between the halves; the seams at the rewritten block's outer edges stay the user's |
+| type-over | the seams inside the payload; its outer edges stay the user's unless the kind at an edge changed |
+| an indent turning `p` above a flush `> q` into `- p` | the `- p` / `> q` seam, by the kind clause |
 
 Alternatives considered:
-- **By node id alone.** Rejected in review: a split, a merge or a drafted heading would count the
-  unmoved seam below it as created, and would separate a seam the user wrote.
-- **By position** (the line offset of the seam). A move carries a seam's blocks elsewhere, so a
-  positional reading would call the moved pair created and the vacated one kept.
-- **By kind** (separate only what some reader continues lazily). Rejected in review: the rule is
-  simpler and admits no reader-by-reader table.
+- **By node id, with lineage and a kind clause.** Rejected after three reviews. Every op that rewrites
+  a block needed its own exception, and each review found the next broken one: the type-over's
+  lineage could not be built, and the kind clause broke the drafted heading.
+- **By the single contiguous splice `diffLines` returns.** A move's removal and insertion would become
+  one region, and every seam between them would count as created.
 
 ### D2. A payload's own seams are created
 
-A paste parses the clipboard on its own, so every seam inside the payload pairs two new ids and is
-created. The payload's text is new to this note. Its separations come from wherever it was copied,
-and the rule is what makes the note unambiguous. A move is the contrast: its blocks keep their ids,
-so the seams inside the moved run existed before and are left as written.
+A paste's lines are inserted, so every seam inside the payload is created, and a flush `> q` over
+`para` in the clipboard arrives separated. Confirmed in review.
 
-Confirmed in review. The alternative was to treat a payload's adjacent roots as already adjacent,
-keeping the clipboard's own separation, so a flush quote over a paragraph would arrive flush and
-ambiguous.
+The indent-unit promise in `Subtree insertion at a boundary` ("A payload the document itself wrote in
+that unit SHALL come back byte-identical") narrows. The payload's own lines come back byte-identical,
+and only a created seam between its blocks may gain a blank line. A list item's subtree, which that
+requirement's scenario pastes, is inside a list, so it comes back byte-identical as before.
 
-### D3. A seam a removal leaves is created
+### D3. Inside a list, the rule adds nothing
 
-A delete, a move out, or a merge's adoption can bring two blocks together that were not adjacent.
-Their pair is new, so the seam is created, and it is separated unless it lies inside a list.
-
-When a splice will fill the place a removal leaves, as in a type-over or a paste onto an empty
-anchor, the removal SHALL NOT separate that seam. It is not a seam of the result: the payload goes
-there, and the insertion's own seams decide. `deleteSubtreeGroups` already receives that fact as
-`spliceFollows`.
-
-### D4. Inside a list, the list decides
-
-A LIST is a maximal run of adjacent sibling list items under one parent, judged by kind as written
-(`kindAsWritten`), whatever their markers. A seam INSIDE A LIST has its lower block inside one of the
-list's items, or is the list's next item, and its upper block inside that list. That covers:
-- an item's text and its first child block
-- two child blocks of one item
-- an item's last block and the next item
-- an item and its nested list
+A LIST is a maximal run of adjacent sibling list items under one parent, judged by kind as written,
+whatever their markers. A seam is INSIDE A LIST when its lower block is one of the list's items or lies
+inside one, and its upper block lies inside the same list. That covers an item and its child blocks,
+two child blocks of one item, an item's last block and the next item, and an item and its nested list.
 
 A blank line at any of these makes the list loose (`lazy-continuation-at-seams`, "Measured: loose
-lists"). So the created-seam rule does not apply inside a list. A seam inside a list that an operation creates
-takes THE LIST'S OWN SEPARATION instead. That separation is read from a seam between two of the list's
-items that the operation did not create, or is none for a list with no such seam.
+lists"), so the rule does not apply there. Those seams are written as today, by the insertion's carry,
+a split, and the parse floor.
 
-That corrects the insertion's carry where it crosses the list's edge. Pasting `- x` after `- b` in
-`- a` / `- b` / blank / `para` copies the list's exit gap onto the new in-list seam today, and loosens
-the list. Under this rule, the run's last block takes that exit gap, and the seam between `- b` and
-`- x` takes the list's own separation, which is none. A split still writes a sibling item flush, which
-is a tight list's separation. The parse floor adds what the parse requires.
+The seams between a list and a block outside it are not inside the list, and the rule separates them.
+That means a paragraph or heading directly above the list, and the block directly below the list's last
+line.
 
-The seams between a list and a block outside it are not inside the list: a paragraph or heading
-directly above the list, and the block directly below the list's last line. The rule separates those.
+Accepted cost: a paragraph written directly under a quote, or under a nested item, stays ambiguous when
+both are inside a tight list. The carry's own defect at a list's edge is #272.
 
-Cost, accepted in review: in a tight list, a quote and a paragraph that are children of the same item,
-with the paragraph written directly under the quote, stay flush, and reading mode continues the
-paragraph into the quote.
+### D4. The rule adds one blank line, only to an empty seam, and never where it would break a block id
 
-### D5. A place is a block, separated on both sides, and never an empty edit
+A created seam outside a list SHALL gain one blank line when it holds none. A seam that holds one or
+more blank lines keeps exactly what it holds.
 
-A provisional position stands for a paragraph the user is about to type. It must parse as a block of
-its own, so it is separated on both sides wherever it sits, inside a list too. A paragraph inside a
-list item already needs a blank line above it. The op that opens a place always writes the place's
-own line, and adds a blank line on each side only where that seam lacks one, so an Enter always
-changes the document. Every op that leaves a place is covered:
-- `splitNode`'s end-of-node and content-start positions, and its folded path
-- `insertEmptyBefore`
-- `unwrapListItem`
-- `outdentSurgery` when it dissolves an empty item into an empty paragraph The statements that a place "widens the gap by two" become "is separated on both sides".
+Block ids:
+- **An attached block-id line** is part of its block's encoding, so a separator is written after it,
+  never between the block and its id.
+- **A lone block-id line** our parse reads as a node of its own sits flush above a block. A seam whose
+  upper block is such a line is exempt, since a blank line below it would attach it to the block above.
+- **The parse floor wins.** Above a paragraph the lone line would join the paragraph's text, so a blank
+  line is required there, as today.
 
-This also settles the measured cases where a place sits flush today:
+### D5. A place is separated on both sides, and never an empty edit; a Shift+Enter place is adjacent
+
+An Enter place stands for a paragraph the user is about to type, and must parse as a block of its own. So
+it is separated on both sides wherever it sits, inside a list too, since a paragraph in a list item needs a
+blank line above it anyway. The op that opens it always writes the place's own line, and adds a blank line
+on each side only where that side lacks one, so an Enter always changes the document.
+
+The ops that leave a place are `splitNode` (including its folded path), `insertEmptyBefore`,
+`unwrapListItem`, and `outdentSurgery` when it dissolves an empty item. Today some of these write the place
+flush:
 - under a quote, a heading or a closing fence
-- above a heading's flush first child, where the typed text joins that child in our own parse
-- under an unwrapped item, where the spec scenario already asks for a blank line from the item above
-  and the code writes none
-- under the list an outdent-dissolve leaves, where the typed text would read as a lazy continuation of
-  the item above
+- above a heading's flush first child
+- under the item above an unwrapped or outdent-dissolved item
 
-Abandonment removes the place together with the blank lines it added:
-- **An operation that opened the place.** Its reversal is a diff back to the text it acted on, which
-  already covers them.
-- **An operation that dissolved a node,** such as leaving a list. Its stated removal covers the place's
-  line and the separators it added. It leaves the seam between the place's neighbours as the rule
-  writes that seam without a place: one blank line outside a list, and none inside it.
+Places sit in gap lines, and the rule only adds to an empty seam, so it never touches a place. That also
+leaves a Shift+Enter place ADJACENT to the node above it, as `outline-keyboard-grammar` requires. That
+includes #258's gapless paragraph place under a heading, the line where a heading's own block id is typed.
 
-### D6. The rule runs in `normalizeBoundaries`, given the old adjacency
+Abandoning a place:
+- **An operation that opened a place.** Its reversal is a diff back to the text it acted on, and restores
+  the source byte for byte.
+- **An operation that dissolved a node,** such as leaving a list. Its stated removal deletes the place's
+  line together with the blank lines the op added beside it. The gap left between the neighbours is then
+  set to:
+  - one blank line where the seam lies outside a list, since the dissolve created it
+  - inside a list, the larger of the two gaps the dissolved item had around it
 
-`finalize` computes `oldDoc`'s adjacency and hands it to `normalizeBoundaries`, along with the
-operation's lineage. At each empty seam outside a list, the pass now asks whether the seam is created
-before it asks whether the parse needs a separator. Existing gaps are never widened: the check runs
-only on an empty seam.
+  So a loose list stays loose and a tight one tight. The removal is built where every dissolving path
+  builds it (`abandonEdit`, used by both the keyboard grammar and the command path in `main.ts`).
 
-On a parsed tree every pair is old, so the pass stays a no-op there, and running it over the whole
-note stays safe. `spliceAtIndex` keeps carrying the destination's separation, with one correction
-(D4): where a run lands at a list's edge, the list's exit gap goes to the seam that leaves the list,
-and a created seam inside the list takes the list's own separation. Normalization separates whatever
-created seam outside a list the carry left empty. The places in D5 are written by the ops that open them, because those ops know where
-the place is.
+### D6. The rule runs in `finalize`, over one gesture's text
 
-### D7. A type-over keeps the seams of what it replaced
+`finalize` encodes the surgery, aligns the result with the document it started from, finds the created,
+empty seams outside a list, adds their blank lines to the tree's gaps, and encodes again. On a parsed tree
+nothing is inserted, so the pass is a no-op there. The alignment moves from `dispatch.ts` into a module both
+use.
 
-A type-over runs a deletion and an insertion through two `finalize` calls, with a re-parse between them
-that renews every id. Per D3, the deletion leaves its splice seam alone. The insertion's `finalize`
-receives the type-over's lineage (D1), stated against the re-parsed document: the payload's first block
-takes the seam above the replaced run, and its last block takes the seam below it.
+A gesture that runs two `finalize` calls is judged once, against the text before the gesture. That covers
+a type-over, and a paste onto an empty anchor (`deleteAndSplice`):
+- the deletion adds no separators when a splice follows, and already receives that fact as `spliceFollows`
+- the insertion's `finalize` aligns against the text the gesture started from
 
-So typing over a selected paragraph leaves the spacing around it as the user wrote it. A type-over of
-list items in a tight list stays tight. A payload whose first or last block is of another kind than
-what it replaced, such as a quote replacing a paragraph above another paragraph, changes that seam's
-kind and is separated. The seams inside the payload are created, as for any paste (D2).
+So a type-over is a replacement, and typing a character over a selected block keeps the user's spacing
+around it.
 
-### D8. A block id stays on its block
-
-An attached block-id line is part of its node's encoding, written before the node's trailing gap. A
-separator the rule adds lands in that gap, after the id, never between the block and its id.
-
-A LONE block-id line our parse leaves as a node of its own, one that sits flush above a block, is
-different: a blank line below it re-attaches it to the block above and moves every reference to it
-(`lazy-continuation-at-seams`, "What follows"). A seam whose upper block is such a line is exempt from
-the rule. The parse floor still wins: above a paragraph, the line would join the paragraph's text,
-so a blank line is required there and the id attaches, as it does today.
-
-### D9. A relocation that gains a blank line is still a relocation
+### D7. A relocation that gains a blank line is still a relocation
 
 `dispatch.ts` recognises a move only when the lines it removes equal the lines it inserts. A created
 seam's blank line breaks that equality, and the move would then be dispatched as an in-place rewrite,
-which is what `minimal-change-dispatch` forbids. The narrowing SHALL match the moved block with blank
-lines set aside, and dispatch the blank lines a created seam gains as insertions of their own.
+which `minimal-change-dispatch` forbids. The match sets blank lines aside and dispatches the added blank
+lines as insertions of their own. The cases to measure are a paragraph moved above a table it sat flush
+under, one moved below a table, and a removal that joins a table and a paragraph. That last one inserts
+directly under the table's last row, and the live table widget has to be checked there.
 
 ## Risks / Trade-offs
 
 - **Mixed spacing in a tight note.** Seams an operation creates arrive separated, while the user's own
   stay flush. → Accepted in review: the outline is for structure, and the source view stays for shaping
   the text by hand.
-- **One ambiguous shape stays inside tight lists** (D4). → Accepted in review, over loosening the list.
-- **Lineage has to be stated by every op that replaces a block.** An op that forgets it separates a seam
-  the user wrote. → A test per such op (a split mid-text and at the end, a folded split, a merge, a
-  drafted heading after a section, a type-over), each with dropping its lineage as the negative control.
+- **Alignment ambiguity.** Where a region repeats its lines, the alignment can match a line other than the
+  one the op moved, and classify a seam differently. → The rule only ever adds one blank line to an empty
+  seam, so a misread costs at most an extra separator, never a lost node. A property test checks that the
+  pass is a no-op on parsed documents and never widens.
 - **Test churn.** Many unit tests pin flush encodings of created seams (measured while planning), and the
-  e2e specs that assert whole buffers change with them. → Each updated expectation is checked against
-  the rule, not re-recorded.
+  e2e specs that assert whole buffers change with them. → Each updated expectation is checked against the
+  rule, not re-recorded.
 
 ## Migration Plan
 

@@ -1,131 +1,112 @@
 # Tasks
 
-## 1. The created-seam rule in normalization
+## 1. The created-seam rule
 
-- [ ] 1.1 Compute the pre-operation adjacency in `finalize` (`src/ops.ts`): the set of seam pairs by
-  node id, final descendant to next sibling and parent to first child, relation-agnostic, and each
-  block's kind as written. Verify with a unit test that a parsed tree's own pairs are all in the set and
-  that `finalize(doc, doc, …)` over it creates no seam. Negative control: recording pairs with their
-  relation fails an indent that re-nests a sibling as a first child.
-- [ ] 1.2 Add `finalize`'s lineage parameter (new block → the old block directly above the seam it takes
-  over), substituted on a seam's upper side only, and state it from every op that replaces a block.
-  Verify with unit tests that each leaves its seam below as written:
-  - a split mid-text and at the end of `para text` written directly above `# H`
-  - a folded split
-  - `p1` / blank / `p2` / `# H` merged, with `# H` / `p1` flush above staying flush too
-  - a drafted heading after `## Foo` / `text` / `## Bar`
+- [ ] 1.1 Move the line alignment out of `src/plugin/dispatch.ts` into a shared module, with dispatch
+  unchanged. Verify with the existing dispatch tests (`npm test`).
+- [ ] 1.2 Classify seams from the alignment (D1): the user's, at a replacement's edge (with the
+  kind-as-written check), or created. Verify with unit tests of the classifier:
+  - an insertion, a deletion and a move of a run
+  - a split mid-text
+  - a merge
+  - a replacement of one block by another of the same kind, and of another kind
 
-  Negative control: dropping each op's lineage fails its test. Substituting on both sides fails the merge.
-- [ ] 1.3 Mark a seam created when either block's kind as written changed. Verify with the indent
-  scenario (`p1` / blank / `p2` / `> q`, indent `p2`). Negative control: comparing ids only fails it.
-- [ ] 1.4 Classify lists (maximal runs of adjacent sibling items by kind as written) and seams inside
-  them (D4). In `normalizeBoundaries`, write one blank line at an empty created seam outside a list,
-  keeping the parse-required separator as the floor. Verify with unit tests for the new requirement's
+  Negative control: classifying every seam by whether its two lines are unchanged fails the split,
+  merge and replacement cases.
+- [ ] 1.3 In `finalize` (`src/ops.ts`), encode, classify, add one blank line to each created, empty seam
+  outside a list (D3, D4), and encode again. Verify with unit tests for the new requirement's
   scenarios:
-  - the pasted quote (with the blank line under `## H`), the drag, the removal
+  - the pasted quote, the drag, the removal
   - the run of list items and the code block in a tight list
+  - the split's and the merge's outer seams
+  - the re-encode that changes a kind
   - the untouched user boundary, the seam inside a moved run
 
   Negative controls:
-  - dropping the created-seam check fails the pasted quote, the drag and the removal
+  - skipping the pass fails the pasted quote, the drag and the removal
   - dropping the list scope fails the code block in a tight list
-  - reading every seam as created fails the untouched boundary and the moved run
-- [ ] 1.5 Verify the never-widen limit with a unit test where an operation creates a seam that already
-  holds one blank line. Negative control: appending the separator whether or not the seam is empty fails
-  it.
-- [ ] 1.6 Verify the block-id limits with unit tests: an attached id pasted above a paragraph keeps the
-  new blank line below the id; deleting `> q` from `Lead.` / blank / `^id3` / `> q` / `# H` keeps `^id3`
-  flush and unattached. Negative controls: writing the separator before the attached id fails the first,
-  and dropping the lone-id exemption fails the second.
-- [ ] 1.7 Remove `splitNode`'s own heading-child separator (`separateFromHeading`), which the rule now
-  provides. Verify with the heading-split scenario. Negative control: with both it and the rule's check
-  removed, the heading split's child is written flush.
-- [ ] 1.8 Keep the pass a no-op on a parsed tree. Verify with the roundtrip and closure properties, plus
-  a property that `finalize(doc, doc, …)` over generated documents leaves the text unchanged. Negative
-  control: treating every seam as created fails it.
-- [ ] 1.9 Re-check the existing unit tests that pin a flush created seam outside a list (edit-ops, ops,
+  - dropping the replacement-edge case fails the split and the merge
+- [ ] 1.4 Verify the never-widen limit with a unit test where an operation creates a seam that already
+  holds one blank line. Negative control: adding the separator whether or not the seam is empty fails it.
+- [ ] 1.5 Verify the block-id limits with unit tests:
+  - an attached id inserted above a paragraph keeps the new blank line below the id
+  - deleting `> q` from `Lead.` / blank / `^id3` / `> q` / `# H` keeps `^id3` flush and unattached
+
+  Negative controls: writing the separator before the attached id fails the first, and dropping the
+  lone-id exemption fails the second.
+- [ ] 1.6 Remove `splitNode`'s own heading-child separator (`separateFromHeading`), which the rule now
+  provides. Verify with the heading-split scenario. Negative control: with both it and the pass removed,
+  the child is written flush.
+- [ ] 1.7 Verify that the pass is a no-op on a parsed tree, with a property over generated documents that
+  `finalize(doc, doc, …)` leaves the text unchanged. Add a property that the pass never adds more than one
+  line to any seam, and never to a non-empty one. Negative controls: classifying every seam as created
+  fails the first, and appending unconditionally fails the second.
+- [ ] 1.8 Re-check the existing unit tests that pin a flush created seam outside a list (edit-ops, ops,
   grammar, split, enforce). Update each expectation to the rule, and record in the test's comment which
   created seam gained the line. Verify with `npm test`.
 
-## 2. Insertion, removal and reordering
+## 2. Gestures of two steps
 
-- [ ] 2.1 Give a list's exit gap to the seam that leaves the list, and a created in-list seam the list's
-  own separation, in `spliceAtIndex` and `moveSubtreesTo`'s splice. Verify `Subtree insertion at a
-  boundary`'s scenarios and the new requirement's as unit tests:
-  - a list item pasted or dragged after `- b` in `- a` / `- b` / blank / `para` keeps the list tight
-  - an item inserted before the only item of `# H` / blank / `- a`
-  - a paragraph between a heading and a code block is separated
-  - a run at the end takes over the terminator
+- [ ] 2.1 Make `deleteSubtreeGroups` add no separators when a splice follows, and judge the splice's
+  `finalize` against the text before the gesture, in `src/enforce.ts`'s type-over and empty-anchor paste
+  paths. Verify with unit tests through `computeVerdict`:
+  - `x` typed over a selected `para` in `> q` / `para` / `z` keeps both seams flush
+  - a type-over of `- b` in `- a` / `- b` / `> q` with `- x` / `- y` leaves `- a` / `- x` flush
+  - a quote typed over a paragraph that sat flush above another paragraph is separated from it
 
-  Negative control: the current carry loosens the first two.
-- [ ] 2.2 Make `deleteSubtreeGroups` leave its splice seam alone when `spliceFollows`. Verify with unit
-  tests:
-  - a deletion separates the seam it leaves (`> q` / `---` / blank / `after`)
-  - a deletion inside a tight list leaves it tight
+  Negative control: judging the splice against the text after the deletion fails the first two.
+- [ ] 2.2 Verify that a payload's own flush quote over a paragraph arrives separated, and that a paste onto
+  a place leaves exactly one blank line above the pasted content (`tests/enforce.test.ts`). Negative
+  control: skipping the pass fails the first, and keeping the place's full width fails the second.
+- [ ] 2.3 Verify the narrowed indent-unit round trip: a list item's subtree copied and pasted back after
+  itself is still byte-identical, in every unit the existing scenario covers. Negative control: applying
+  the rule inside lists fails it for a subtree with a flush child block.
 
-  Negative control: omitting removal-created pairs from the rule fails the first.
-- [ ] 2.3 Verify with unit tests that a same-scope reorder keeps its positional gaps and separates only a
-  created seam outside a list that the positions leave empty, and that a heading-section swap separates
-  a flush seam it creates. Negative control: reading reorder seams as old fails both.
+## 3. Places
 
-## 3. Places and sibling headings
-
-- [ ] 3.1 Write Enter's provisional positions separated on both sides, inside lists too, in every op
-  that leaves one: `splitNode` (including its folded path), `insertEmptyBefore`, `unwrapListItem`, and
-  `outdentSurgery` when it dissolves an empty item. Each always writes the place's own line, plus a blank
-  line on each side only where that side lacks one. Verify with unit tests for:
+- [ ] 3.1 Write Enter's provisional positions separated on both sides, inside lists too, in every op that
+  leaves one: `splitNode` (including its folded path), `insertEmptyBefore`, `unwrapListItem`, and
+  `outdentSurgery` when it dissolves an empty item. Each writes the place's own line, plus a blank line on
+  each side only where that side lacks one. Verify with unit tests for:
   - a content-start Enter under a flush `> q`, a heading and a closing fence, and under a flush `  > q`
     inside an item
   - an end-of-heading Enter above a flush first child, where the typed text must not join that child
   - an unwrap under `- item`
   - leaving a list under a paragraph (`para` / `- a` / `- ` / `next`)
-  - an Enter at the end of an item whose first child is a paragraph
   - an Enter in a gap already three lines wide, which still changes the document
 
   Negative control: the current place encodings fail the first four.
-- [ ] 3.2 Make a dissolving op's stated removal (`src/plugin/grammar.ts`) cover the place's line and the
-  separators it added. Verify in `tests/undo-on-abandon.test.ts`:
-  - abandoning an unwrap leaves `- item` / blank / `next`
-  - every opened place restores the source byte for byte
+- [ ] 3.2 Make a dissolving op's stated removal (`abandonEdit` in `src/plugin/grammar.ts`, used by the
+  keyboard grammar and `src/plugin/main.ts`'s command path) remove the place's line and the separators
+  beside it. It then leaves one blank line outside a list, and inside a list the larger of the item's two
+  gaps. Verify in `tests/undo-on-abandon.test.ts`:
+  - abandoning an unwrap under `- item` above `next` leaves `- item` / blank / `next`
+  - abandoning one in a loose list leaves one blank line, and in a tight list none
+  - every opened place still restores the source byte for byte
 
-  Negative control: the `drop-line` form alone leaves two blank lines.
-- [ ] 3.3 Separate `insertSiblingHeading`'s new heading from the section above it, with lineage for the
-  seam below it. Verify with the Shift+Enter heading scenarios in `tests/grammar.test.ts` and
-  `tests/ops.test.ts`. Negative control: the old flush encoding fails them.
+  Negative control: the `drop-line` form alone leaves two blank lines in the loose list.
+- [ ] 3.3 Verify that a Shift+Enter position stays adjacent, and that the drafted sibling heading is
+  separated on both sides, in `tests/grammar.test.ts` and `tests/ops.test.ts`. Negative control: the
+  pass applied to non-empty gaps separates the Shift+Enter position.
 - [ ] 3.4 Update the e2e specs whose buffer assertions cover Enter places, list departures or Shift+Enter
-  headings, and run each touched spec in narrow mode (`npm run test:e2e:narrow -- <spec>`).
+  headings. Run each touched spec in narrow mode (`npm run test:e2e:narrow -- <spec>`).
 
-## 4. Paste and type-over
+## 4. Dispatch and research
 
-- [ ] 4.1 State a type-over's lineage in `src/enforce.ts` (payload's first block → the replaced run's
-  upper seam, last block → its lower seam), and verify with unit tests through `computeVerdict`:
-  - a type-over of `- b` in `- a` / `- b` / `> q` with `- x` / `- y` leaves `- a` / `- x` flush
-  - a paste onto an empty `- ` between `- a` and `> q` does the same
-  - typing `x` over a selected `para` in `# H` / blank / `para` / `> q` keeps `x` flush above `> q`
-  - a quote typed over a paragraph that sat flush above another paragraph is separated from it
-
-  Negative controls: disabling task 2.2's `spliceFollows` check fails the first two, and dropping the
-  type-over's lineage fails the third.
-- [ ] 4.2 Verify that a payload's own flush quote over a paragraph arrives separated. Negative control:
-  treating the payload's own pairs as old fails it.
-- [ ] 4.3 Verify that a paste onto a place leaves exactly one blank line above the pasted content, in the
-  paste tests of `tests/enforce.test.ts`. Negative control: keeping the place's full width fails it.
-- [ ] 4.4 Run the clipboard e2e specs in narrow mode, and add the #264 manual case (`    first` / blank /
-  `    > quote` pasted at the end of `## H` above `below`) as an e2e case. Confirm it fails on the layer
-  below.
-
-## 5. Dispatch and research
-
-- [ ] 5.1 Make the relocation match in `src/plugin/dispatch.ts` set blank lines aside, and dispatch a
+- [ ] 4.1 Make the relocation match in `src/plugin/dispatch.ts` set blank lines aside, and dispatch a
   created seam's blank line as an insertion of its own. Verify with the new `minimal-change-dispatch`
-  scenario (a paragraph moved above a table it sat flush under) and the existing table-widget scenarios.
-  Negative control: the current exact-lines match rewrites the table.
-- [ ] 5.2 Re-run the seam sweep, the insertion differential and the drag sweep
+  scenario and the existing table-widget scenarios. Measure in the real app a paragraph moved below a
+  table and a removal that joins a table and a paragraph. Negative control: the current exact-lines match
+  rewrites the table.
+- [ ] 4.2 Add the #264 manual case (`    first` / blank / `    > quote` pasted at the end of `## H` above
+  `below`) and the drag case as e2e cases, and run the clipboard and dragging specs in narrow mode. Confirm
+  each fails on the layer below.
+- [ ] 4.3 Re-run the seam sweep, the insertion differential and the drag sweep
   (`docs/research/prototypes/seam-differential/`), and record the figures in
   `docs/research/lazy-continuation-at-seams.md`. Verify that no row loses a node.
-- [ ] 5.3 Comment on #261 that the drag case is closed by this change.
+- [ ] 4.4 Comment on #261 that the drag case is closed by this change.
 
-## 6. Validation
+## 5. Validation
 
-- [ ] 6.1 Run `npm test`, `npm run typecheck`, `npm run lint` and `npm run typecheck:e2e`.
-- [ ] 6.2 Run `openspec validate created-seams-are-separated --strict`.
+- [ ] 5.1 Run `npm test`, `npm run typecheck`, `npm run lint` and `npm run typecheck:e2e`.
+- [ ] 5.2 Run `openspec validate created-seams-are-separated --strict`.

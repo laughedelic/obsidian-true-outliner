@@ -4,9 +4,8 @@
 An operation that MOVES lines rather than rewriting them in place SHALL be dispatched as the
 removal of those lines from their old position and their insertion at the new one, wherever the
 narrowing can tell the rearranged blocks apart. A blank line a created seam gains
-(`structural-operations`' `A seam an operation creates is separated`) SHALL be dispatched as an
-insertion of its own. It does not make the move a rewrite: the moved lines are still the lines the
-move removed.
+(`structural-operations`' `A seam an operation creates is separated`) SHALL be dispatched as an insertion of its own. It does not make the move a
+rewrite: the moved lines are still the lines the move removed.
 
 Two things follow, and they hold to different strengths. First, unconditionally: no dispatched
 change SHALL begin or end partway into a line the operation leaves unchanged. A change MAY span

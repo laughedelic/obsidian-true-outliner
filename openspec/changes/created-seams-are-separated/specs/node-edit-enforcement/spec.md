@@ -35,10 +35,10 @@ A pasted run SHALL keep the separation of the boundary it lands in, on both side
 every other seam the paste creates, those inside the payload included, is separated per
 `structural-operations`' `A seam an operation creates is separated`. A TYPE-OVER reaches its destination through
 a deletion, which takes the replaced run's own gap with it, so its replacement SHALL inherit the
-separation that run had rather than whatever gap the payload's own text ended with: the payload's first
-block takes over the seam above the replaced run and its last block the seam below it, per
-`structural-operations`' `A seam an operation creates is separated`. Such a seam is created only where
-the payload's block is of another kind than the one it replaced.
+separation that run had rather than whatever gap the payload's own text ended with. A type-over is
+judged as one gesture against the text before it: its payload rewrites the replaced run in place,
+so the seams at the payload's outer edges stay as the user wrote them, unless the kind of the block
+at an edge changed.
 
 A gap the caret was in and that is WIDER than a single blank line SHALL collapse to one with the
 insertion. A structural Enter opens a place there, separated on both sides — which is what makes
@@ -148,6 +148,11 @@ above the pasted content.)*
 - **THEN** the pasted subtrees are re-indented to the replaced item's own depth —
   never left at the pasted content's own original depth
 
+#### Scenario: Typing over a selected block keeps the spacing around it
+- **WHEN** a single character is typed over a block-selected paragraph written with no blank line
+  above or below it, between two non-list blocks
+- **THEN** the typed paragraph is written with no blank line above or below it
+
 ### Requirement: Deleting across boundaries removes whole subtrees with their gaps
 A user deletion (or type-over) whose change range crosses node boundaries, OR whose
 range exactly covers one or more whole subtrees, SHALL be rewritten to the structural
@@ -187,8 +192,8 @@ places a merge's caret.)*
 - **WHEN** the user presses Backspace on a selection escalated to two sibling
   subtrees separated by a blank gap line
 - **THEN** both subtrees and their trailing gap lines are removed, and the remaining
-  neighbors are direct siblings with no leftover blank lines from the deleted nodes; the seam
-  between them holds one blank line only where it lies outside a list, per `structural-operations`' `A seam an operation creates is separated`
+  neighbors are direct siblings with no leftover blank lines from the deleted nodes; where the
+  seam between them lies outside a list and holds none, it gains one, per `structural-operations`' `A seam an operation creates is separated`
 
 #### Scenario: Deleting a multi-range selection of exact covers
 - **WHEN** the user deletes a selection of two ranges, each exactly covering a whole
