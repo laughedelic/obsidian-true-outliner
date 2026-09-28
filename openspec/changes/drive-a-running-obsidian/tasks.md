@@ -84,14 +84,15 @@
 
 ## 5. The skill and its pointers
 
-- [x] 5.1 Add `.agents/skills/driving-obsidian/SKILL.md` and the symlinks in `.claude/skills/`
-      and `.github/skills/`, alongside the existing ones. It gives the trigger (before claiming a
-      visual or caret fix, and to reproduce a report before fixing it, and not for what a spec
-      already covers), the loop, how to read a screenshot with the note's blind-test findings, the
-      caret's blink and `--caret`, the page-script recipes from `rendered-ui-observability`'s
-      "Re-running the probes", the macOS limit, and `stop`. Verified by `ls -L` reading the skill through
-      both symlinks, and by following the skill's own steps, from a fresh `start` to a `stop`, on
-      a case taken from an open issue.
+- [x] 5.1 Add `.agents/skills/driving-obsidian/` (`SKILL.md` and `measuring.md`) and the symlinks in
+      `.claude/skills/` and `.github/skills/`, alongside the existing ones. `SKILL.md` gives the
+      trigger as a description of two branches, a reproduce procedure and a verify procedure with
+      checkable endings, how to read a screenshot with the note's blind-test findings, the caret's
+      blink and `--caret`, the limits and `stop`; `measuring.md` holds the page-script recipes from
+      `rendered-ui-observability`'s "Re-running the probes" that were run against the app. Verified by `ls -L`
+      reading the skill through both symlinks, by running each recipe in `measuring.md` against the
+      running app, and by following the skill's own steps, from a fresh `start` to a `stop`, on
+      #257.
 - [x] 5.2 Add the `drive` script to `package.json`, a short section in `AGENTS.md` after "E2E
       testing" pointing at the skill, and a paragraph in `docs/cloud-sessions.md` under "Running
       the suites" saying the driver needs no `start-xvfb-and-run.sh`. Verified by

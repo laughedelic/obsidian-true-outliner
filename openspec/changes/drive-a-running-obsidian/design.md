@@ -112,11 +112,13 @@ means `.hotreload` or the plugin is missing from the vault copy.
 **Report the versions.** `start` and `status` print the installer and app versions the running app
 reports, because Q27 and #31 lost rounds to a harness and a tester on different builds.
 
-**The skill is short and about judgement.** The CLI's `--help` carries the syntax. `SKILL.md`
-carries what a session cannot get from it: when to start (a caret fix or visual fix before it is
-claimed, a report before it is fixed), what a screenshot proves and does not, the recipes for the
-readings the note lists as page scripts, and that a session ends with `stop`. It points to
-`presenting-examples` for how to hand a result to the user.
+**The skill is short and about judgement.** The CLI's `--help` carries the syntax, so the skill does
+not restate it. `SKILL.md` gives two procedures, reproducing a report and verifying a fix, each ending
+on a condition a session can check (the reproduction is red when `state` draws the report's `actual`,
+the fix green when it draws the expected column and the caret shot agrees), then what a screenshot
+proves and what it does not, and the limits nothing else records. The page scripts for a claim about
+a pixel, the caret's visibility or scroll sit in `measuring.md`, behind a pointer, because only some
+sessions reach them. The skill points to `presenting-examples` for how to hand a result over.
 
 ## Risks / Trade-offs
 

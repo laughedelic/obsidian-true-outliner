@@ -127,9 +127,8 @@ A cloud session needs its VM provisioned before any of this runs:
 ## Looking at the running app
 
 **Load the `driving-obsidian` skill before claiming a visual, caret, focus or scroll fix, and to
-reproduce a report before fixing it.** `npm run drive -- start` keeps one Obsidian running;
-`key`, `state`, `shot` and `rebuild` show a keystroke's result, drawn, in about a second, where a
-narrow run takes 40 s. It is for looking; the suite stays the check that a case keeps passing.
+reproduce a report before fixing it.** It is for looking; the suite stays the check that a case
+keeps passing.
 
 ## Conventions
 
