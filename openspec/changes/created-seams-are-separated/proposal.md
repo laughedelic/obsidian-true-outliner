@@ -55,8 +55,9 @@ None.
   - boundary separation takes the edit-site rule, replacing "SHALL NOT widen beyond what the parse requires"
   - the heading-first-child convention is folded into the rule
   - the insertion's indent-unit round trip narrows to the payload's own lines
-    - the insertion, deletion, move, merge, reorder, heading-shift, outdent and sibling-heading requirements state
-    the rule for the seams they make; an empty heading or item a key opens is a place, written as today
+      - one table states how many blank lines stand at every seam, and every operation inherits it
+  - the insertion, deletion, move, reorder and heading-shift requirements point to it where their own wording
+    fixed a seam's spacing; an empty heading or item a key opens is a place, written as today
   - closure counts the rule's blank lines among the lines an operation requires
   - the group forms equal their sequential composition with blank lines set aside, and take one edit site for
     the gesture
@@ -97,9 +98,11 @@ None.
   own, which waits on #253's decision. This change writes nothing beside a place.
 - **Block-id corrections.** They are raw edits built outside the structural operations
   (`src/block-ids.ts`), and write what `misplaced-block-ids` states.
-- **Separating only the seams some reader continues.** The oracle counts the seams the rule separates where no
-  reader would continue them. Whether to narrow the rule to the others is decided on that figure, before this
-  change lands.
+- **Separating only the seams some reader continues.** Measured by the oracle and declined: it would write 5,674
+  fewer lines over 400 generated notes, all where no reader continues the seam, at the cost of a per-reader table
+  and spacing that varies by kind within one result (design D11).
+- **Block ids that change host.** The oracle counts 125 on today's operations with the pass on, fewer than without
+  it. What each operation does to an id is its own change.
 - **#258's heading keys.** This change states the drafted sibling heading's seams as they stand, and #258
   replaces that heading with a paragraph place.
 - **#255.** The parse floor already separates a flush quote, callout or rule under a list item on any operation.

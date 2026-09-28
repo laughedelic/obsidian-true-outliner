@@ -126,8 +126,9 @@
 - [x] 5.2 Run the oracle over the pass, turn every expected failure of 2.4 that the pass closes into a passing
   check, and record the figures after the pass: each check's failures, and the seams separated where no reader
   would have continued them. Verify that checks 1 to 5 hold, #255's and #272's shapes aside.
-- [ ] 5.3 Bring the count of 5.2 to the maintainer, with the narrower rule of D11 drawn on the cases it would
-  change. Apply the decision, and state it in the new requirement and the research note.
+- [x] 5.3 Bring the count of 5.2 to the maintainer, with the narrower rule of D11 drawn on the cases it would
+  change. Apply the decision, and state it in the new requirement and the research note. Decided: the uniform
+  rule stays (design D11).
 - [x] 5.4 Measure the pass's cost on the 2000-line note `src/ops.ts`'s latency budget cites, and record it in
   `docs/research/lazy-continuation-at-seams.md`. Verify it stays within that budget.
 - [ ] 5.5 Update the e2e specs whose buffer assertions cover structural edits at flush seams outside a list. Add the

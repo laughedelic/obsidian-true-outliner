@@ -552,8 +552,9 @@ in real notes (the corpus holds test notes only), and whether the view covers ev
 
 ## For another review
 
-- **What the oracle counts.** How many seams each op separates where no reader continues, and whether any
-  derived seam still disagrees with a reader. B is decided on the first figure.
+- **Alternative B, decided.** The oracle (`lazy-continuation-at-seams`, "Measured: the seam oracle") counts 5,674
+  of the rule's 9,636 lines where no reader continues, and no seam at the edit site that a reader still continues.
+  B was declined: the lines are cosmetic, and B needs the per-reader table approach 1 was dropped for.
 - **Whether 6, or A, misses a seam.** The step-back review could not build a case against the classifier. The
   one 6's review built, repeated text, comes from the changed-region bound, not from the classifier. The oracle
   is the check.

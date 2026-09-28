@@ -273,11 +273,16 @@ oracle replaces that with counts over generated notes (`created-seam-detection`,
 - **Figures,** recorded in the research note: each check's failures on today's operations before the pass, and
   after it; and the number of seams the pass separated where no reader would have continued them.
 
-The last figure decides one question before the change lands: whether to separate only the seams some reader
-could continue. That narrower rule keeps the blocks this rule judges, and adds a line only where the upper block
-ends in or inside a quote, a callout or a list item, and the lower block does not open with an ATX heading, a
-fence or a list marker that interrupts a paragraph. It reverses the settled "one line at every seam at the edit
-site", so it is the maintainer's call, made on the count.
+The last figure decided one question: whether to separate only the seams some reader could continue. That
+narrower rule keeps the blocks this rule judges, and adds a line only where the upper block ends in or inside a
+quote, a callout or a list item, and the lower block does not open with an ATX heading, a fence or a list marker
+that interrupts a paragraph. Over 400 generated notes it would write 5,674 fewer lines, 59% of what the rule
+writes, all where no reader continues the seam.
+
+Declined. The saving is cosmetic: every one of those lines separates two blocks the outline already shows apart.
+The narrower rule brings back a table of what each reader continues, which is what approach 1 was dropped for
+(`created-seam-detection`), and makes one result's spacing vary by block kind. One blank line between blocks is
+also what `mdast-util-to-markdown` and markdownlint write by default.
 
 ## Risks / Trade-offs
 

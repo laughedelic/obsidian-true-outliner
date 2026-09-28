@@ -153,7 +153,8 @@ What each says:
 - **3,956 continued seams are the defect,** and the pass leaves none. Paste writes most of them, then moves,
   splits, group moves, deletes and merges.
 - **The pass writes 9,636 lines, 5,674 of them where no reader continues:** 59% of what it writes. That is what
-  the narrower rule (design D11) would not write.
+  the narrower rule (design D11) would not write. The narrower rule was declined on this figure: the lines it would save are
+  cosmetic, and it needs a per-reader table.
 - **Every seam that changed away from the edit site today is a move's** (515 of 515 kept examples; the rest are
   the parse's). A reorder keeps blank lines with the positions of its scope, so a block moved to the top hands
   each position's gap to whatever block now sits there:

@@ -31,6 +31,21 @@ a line written flush under a quote, a callout or a list item into that block
 seam at the edit site rather than the ones some reader would continue: a writer that knew which lines each reader
 continues would need that table kept current for every reader.
 
+How many blank lines stand at a seam, for every structural operation:
+
+| the seam | blank lines |
+| --- | --- |
+| at the edit site, outside a list, empty | one |
+| at the edit site, outside a list, already separated | what it holds |
+| at the edit site, inside a list | what `Subtree insertion at a boundary`, `Node split` and the parse write |
+| at the edit site, below a lone block-id line or above a block four columns in | none, unless the parse requires one |
+| away from the edit site | what it held before the operation, unless the parse requires one |
+| beside a place | what the keypress writes |
+
+Every structural operation inherits this table, a new one included. A requirement for one operation states which
+blocks it writes, moves or removes, and names this requirement for the blank lines at its seams rather than
+stating them again.
+
 Four limits bound it:
 
 - **Inside a list the rule adds nothing.** A LIST is a maximal run of adjacent sibling list items under one
@@ -141,6 +156,14 @@ on.
 - **WHEN** Shift+Tab is pressed on `### Monday` in `# Log` / `### Monday` / `text`, written with no blank lines
 - **THEN** the note reads `# Log` / `## Monday` / `text`
 
+#### Scenario: A remainder's heading is separated, and so is the original's first child
+- **WHEN** Shift+Enter carries `bar` out of `## Foo bar`, written directly above its child `text`
+- **THEN** the note reads `## Foo ` / blank / `text` / blank / `## bar`
+
+#### Scenario: A merge separates the merged paragraph from the list it heads
+- **WHEN** `- list parent1` is merged into `paragraph` above it, where the item has its own list children
+- **THEN** a blank line stands between the merged paragraph and its first child item
+
 #### Scenario: A seam away from the edit site is left alone
 - **WHEN** a document contains `> q` directly followed by `body`, and a structural operation runs
   on some unrelated node
@@ -205,43 +228,6 @@ levels. Indent SHALL be rejected at h6; outdent SHALL be rejected at h1.
 #### Scenario: Bound rejections
 - **WHEN** indent is applied to an h6 heading, or outdent to an h1 heading
 - **THEN** the operation is rejected with `at-h6-bound` / `at-h1-bound` respectively
-
-### Requirement: Non-heading outdent moves brother to uncle
-Outdent on a non-heading node SHALL make it the next sibling of its former parent
-(brother→uncle), subtree included, and SHALL be rejected with `at-top-level` when the node
-has no parent to escape. If the node has following siblings under the same former parent, they
-SHALL be re-parented as the outdented node's own trailing children — appended, in their
-original relative order, after any children the node already had — rather than remaining
-under the former parent. Re-parented following siblings SHALL have their encoding recomputed
-by the same context-determined rule used for the outdented node itself (Requirement:
-Context-determined encoding on reparent), evaluated against their new parent (the outdented
-node).
-
-#### Scenario: Outdent with children keeps the subtree attached
-- **WHEN** outdent is applied to list item `x` (child of paragraph `Para.`) where `x` has
-  child `y`
-- **THEN** `x` becomes `Para.`'s next sibling with `y` still its child, expressed via the
-  attachment rule
-
-#### Scenario: Outdent re-parents following siblings as the node's own children
-- **WHEN** outdent is applied to the middle item of `- p\n\t- x\n\t- y\n\t- z\n` (outdenting
-  `x`, which has no children of its own, where `y` and `z` are `x`'s former following
-  siblings under `p`)
-- **THEN** `x` becomes `p`'s next sibling, and `y`/`z` become `x`'s own children in that
-  order (`- p\n- x\n\t- y\n\t- z\n`), rather than `x` jumping out past `y`/`z` while they
-  remain under `p`
-
-#### Scenario: Re-parented following siblings append after the node's pre-existing children
-- **WHEN** outdent is applied to a node `x` that already has child `w`, and `x` has following
-  siblings `y`, `z` under its former parent
-- **THEN** `x`'s children become `[w, y, z]` in that order — `y`/`z` are appended after `w`,
-  not inserted before it
-
-#### Scenario: Outdent with no following siblings is unaffected
-- **WHEN** outdent is applied to a node that is the last child of its former parent (no
-  following siblings)
-- **THEN** no siblings are re-parented because none exist, and the node moves exactly as it would
-  without this rule
 
 ### Requirement: Sibling reordering
 MoveUp/moveDown SHALL swap a node (with its entire subtree) with its previous/next sibling,
@@ -364,120 +350,6 @@ it as well would separate the survivor from what lands beside it.
 #### Scenario: Heading deletion removes its section
 - **WHEN** `deleteSubtrees` targets a heading node
 - **THEN** the heading and every node in its subtree are removed together
-
-### Requirement: Adjacent-node merge
-A `mergeNodes` operation SHALL join a node (`first`) with its immediately following
-content-space neighbor (`second`) under a per-kind algebra, appending `second`'s
-content directly to the end of `first`'s content — never leaving a continuation-line
-remnant standing where the old separation was — consuming `first`'s trailing gap,
-and re-parenting `second`'s children under the merged node. Joins that would absorb
-a heading (and thereby its section's positional anchor), involve an atom on either
-side, or produce markdown that re-parses to a different structure than the merged
-tree SHALL be rejected with a typed reason.
-
-The merged node's seams are at the operation's edit site, per `A seam at an operation's edit site is
-separated`: one that is empty and lies outside a list gains one blank line, whichever gap the rules below
-leave it.
-
-When `first` is a heading, the merged node's trailing gap SHALL instead be whichever
-of `first`'s or `second`'s own trailing gap has MORE lines, rather than
-unconditionally `second`'s. A heading's own gap is its established separation from
-its content — a section-level property, not a property of whichever node happened to
-be absorbed — and SHALL NOT be silently shrunk merely because the absorbed node's own
-gap happened to be smaller (e.g. two adjacent list items needing no separation from
-each other). This preserves the ordinary (non-heading `first`) convention unchanged:
-only a heading `first` triggers the comparison, and even then `second`'s gap still
-wins whenever it is the longer of the two (e.g. when `second` is the document's own
-terminal node and carries the file's trailing-newline representation).
-
-*(Amended 2026-07-21 from the original conservative table, per the real-vault manual
-pass: cross-kind content joins ARE the expected behavior — a list item's text merges
-into its parent paragraph — and children re-parent rather than reject, matching
-content-space outliner semantics. See node-edit-enforcement's chrome-transparency
-requirement.)*
-
-*(Amended 2026-07-24, found via manual testing of the heading-Enter-splits-paragraph
-change: merging content into a heading then later splitting back out was silently
-shrinking the heading's own gap to whatever the absorbed node's gap happened to be —
-root cause predates that change, surfaced by it.)*
-
-Re-parented children's indentation SHALL be shifted to match the merged node's ACTUAL
-child indentation — sampled from a real surviving sibling child when one exists —
-rather than an assumed marker-width-aligned column formula. Many documents (tab-
-indented ones especially) indent children further than the formula assumes (e.g. a
-full tab past the marker rather than exactly its width), and shifting by the wrong
-delta corrupts a pure-tab-indented subtree with spaces at the fractional remainder.
-
-"Immediately following content-space neighbor" is the node's document-order
-successor: its own first child if it has one, else its next sibling, else the
-nearest ancestor's next sibling (`rawSuccessorPath`) — the same node whose content
-begins nearest below `first`'s content end, regardless of intervening gap lines.
-
-Preconditions checked before the kind table: no following neighbor at all (last
-node in the document) rejects with `no-following-neighbor`.
-
-The per-kind merge table (rows = `first`, columns = `second`), pinned by
-implementation and exercised by the property suite:
-
-| First ＼ Second | paragraph / list-item | heading | atom |
-|---|---|---|---|
-| **paragraph / list-item** | join: `second`'s first content line (its list marker stripped, and a TASK marker with it) appends to `first`'s last content line; `second`'s continuation lines become `first`-kind continuations; `first` keeps its own kind and marker; `second`'s children re-parent under the merged node at `second`'s former position, re-encoded for the new scope | reject `merge-not-expressible` — absorbing a heading destroys its section's positional anchor | reject `merge-not-expressible` — atoms are opaque units |
-| **heading** | join iff `second`'s content is a single line: it appends to the heading's text line, and `second`'s children re-parent as section children; multi-line content rejects `merge-not-expressible` (a markdown heading cannot hold continuation lines) | reject `merge-not-expressible` | reject `merge-not-expressible` |
-| **atom** | reject `merge-not-expressible` | reject `merge-not-expressible` | reject `merge-not-expressible` |
-
-#### Scenario: Paragraph merge appends at content end
-- **WHEN** `mergeNodes` joins two paragraphs separated by a blank gap line
-- **THEN** the result is one paragraph node whose last content line is the direct
-  concatenation of the two texts, the gap is gone, and all other lines are
-  byte-identical, save for a blank line an empty seam at the merged node's edges gains outside a list
-
-#### Scenario: Cross-kind join keeps the survivor's encoding
-- **WHEN** `mergeNodes` joins a paragraph with its first child list item
-- **THEN** the item's text (marker stripped) appends to the paragraph's text, the
-  merged node stays a paragraph, and the item's children re-parent under it
-
-#### Scenario: Children re-parent instead of rejecting
-- **WHEN** `mergeNodes` absorbs a node that has children of its own
-- **THEN** those children keep their order and relative structure under the merged
-  node, re-encoded for the new scope, and the result re-parses to exactly that tree
-
-#### Scenario: Single-line content joins a heading
-- **WHEN** `mergeNodes` joins a heading with a following single-line paragraph
-- **THEN** the paragraph's text appends to the heading's title line; a multi-line
-  paragraph in the same position is rejected with `merge-not-expressible`
-
-#### Scenario: A heading absorbing content keeps its OWN gap when it is the longer one
-- **WHEN** a heading with a real blank-line gap before its content absorbs a child
-  whose own trailing gap is empty (e.g. the child was itself tightly adjacent to a
-  following sibling)
-- **THEN** the merged heading's trailing gap is the heading's own original gap, not
-  the absorbed child's — whatever follows stays separated from the heading exactly
-  as it was before the merge
-
-#### Scenario: A heading absorbing its own terminal child still keeps that child's gap
-- **WHEN** a heading with NO gap of its own absorbs a child that is the document's
-  own last node (whose trailing gap carries the file's trailing-newline
-  representation)
-- **THEN** the merged heading's trailing gap is the absorbed child's (the longer of
-  the two), unchanged from before this amendment
-
-#### Scenario: Tab-indented grandchildren survive a merge without space corruption
-- **WHEN** `mergeNodes` absorbs a list item whose own children are indented a full
-  tab past the marker (not exactly the marker's own width), and those children have
-  further-nested tab-indented children of their own
-- **THEN** every re-parented line's indentation is shifted by whole tab units to
-  match the merged node's real child column — no line ends up with a mix of spaces
-  and tabs, and every re-parented node still parses as the same kind it was before
-
-A task marker on the ABSORBED node SHALL be stripped along with its list marker. It states
-something about a node that is ceasing to exist, and carrying it into the survivor's text
-produces a literal `[ ]` mid-line — neither a checkbox nor anything the user wrote. The
-SURVIVOR keeps its own marker, task marker included, exactly as it keeps its own kind.
-
-#### Scenario: An absorbed task item's box goes with its marker
-- **WHEN** `- [ ] bar` is merged into `- [x] foo`
-- **THEN** the result is `- [x] foobar` — the survivor's own box is unchanged and no `[ ]`
-  appears in its text
 
 ### Requirement: Subtree insertion at a boundary
 An `insertSubtrees` operation SHALL splice a parsed sequence of whole subtrees into
@@ -647,43 +519,6 @@ parse required no blank line — measured in `docs/research/paste-across-encodin
 *(Amendment 2026-09-25, `a-paste-writes-the-document-unit`: the levels below a pasted root were
 carried in the payload's own characters, so a clipboard from outside the vault left the
 document indented two ways — measured in `docs/research/paste-indent-convergence`.)*
-
-### Requirement: Sibling heading creation
-`insertSiblingHeading(doc, nodeId, remainder)` SHALL insert a heading at the SAME LEVEL
-as an existing heading, directly after it, carrying `remainder` as its title — the
-operation behind Shift+Enter on a heading, and the only path by which a heading gains a
-sibling from a keystroke.
-
-The new heading SHALL be written ATX at that level whatever the original's form: an empty
-setext heading has no encoding, so a setext original cannot produce a setext sibling in
-the common case, and one rule is better than two that differ by the original's underline.
-When `remainder` is non-empty it SHALL be removed from the original heading's title, which
-is otherwise unchanged in level, marker and setext-ness. The original's existing CHILDREN
-stay with it: heading scope is positional, so content already under it belongs to it, and
-the new sibling starts empty. An empty new heading is a place, written as today. A new heading carrying a
-remainder is a block, and so is the original it was cut from: the seams around both are at the operation's edit
-site, and each SHALL be separated per `A seam at an operation's edit site is separated`.
-
-A node that is not a heading SHALL be rejected with `cannot-split`. The anchor SHALL be
-the new heading's content start.
-
-#### Scenario: A sibling heading is created empty
-- **WHEN** the operation runs on `## Foo` with an empty remainder
-- **THEN** `## ` follows it as a sibling at level 2, `## Foo` keeps its children, and the
-  anchor is the new heading's content start
-
-#### Scenario: A remainder moves to the sibling
-- **WHEN** the operation runs on `## Foo bar` with the remainder `bar`
-- **THEN** the original becomes `## Foo ` and the sibling is `## bar`
-
-#### Scenario: A remainder's heading is separated, and so is the original's first child
-- **WHEN** the operation runs on `## Foo bar` with the remainder `bar`, where `## Foo bar` is written directly
-  above its child `text`
-- **THEN** the note reads `## Foo ` / blank / `text` / blank / `## bar`
-
-#### Scenario: A setext original produces an ATX sibling
-- **WHEN** the operation runs on a setext heading underlined `====`
-- **THEN** the new sibling is `# `, and the original keeps its setext encoding verbatim
 
 ### Requirement: Group forms of indent, outdent and reordering
 
