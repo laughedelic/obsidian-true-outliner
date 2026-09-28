@@ -79,6 +79,11 @@ it equals the clock baked into the new `main.js`. Three runs: 249, 244 and 235 m
 554, 504 and 913 ms from the copy until the running app reported the new stamp. The open note
 stayed open through the reload.
 
+The build's output has to go to a file. Run from Node with `spawnSync` and stdout a pipe, the same
+build took 1174 ms; with `stdio: 'ignore'` it took 250 ms and with a file 260 ms. We did not find what
+holds the pipe open. `scripts/drive.ts` reads the build's log from a file, and its `rebuild` then
+reported 271 and 237 ms to build and 500 and 765 ms to reload.
+
 ## What this settles for the skill
 
 - Start the binary directly rather than through `npx`, record the browser pid and user-data

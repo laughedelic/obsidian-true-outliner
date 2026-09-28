@@ -29,7 +29,7 @@ the app leaves a user-data directory behind when it closes.
   - `key`, `type` and `eval`: key chords through `Input.dispatchKeyEvent`, text through
     `Input.insertText`, and a page expression whose value is printed.
   - `shot`: a PNG of the whole window, of a clip, of an element, or of the caret's surroundings,
-    at a scale. Around the caret it retakes the shot until the caret shows.
+    at a scale. With `--caret` it clips around the caret and retakes the shot until the caret shows.
   - `state`: the document as a drawn column, caret, selections, `∅` and block-selected lines
     included, and `--raw` for the same as input to `layout.mjs`, so before and after states of
     one case draw side by side.

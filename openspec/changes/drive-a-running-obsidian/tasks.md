@@ -1,12 +1,12 @@
 ## 1. Chords to protocol events
 
-- [ ] 1.1 Add `scripts/drive-keys.ts`: `parseChord(chord, platform)` returns the fields
+- [x] 1.1 Add `scripts/drive-keys.ts`: `parseChord(chord, platform)` returns the fields
       `Input.dispatchKeyEvent` takes (`key`, `code`, `windowsVirtualKeyCode`, `modifiers`, and
       `text` only for a key that inserts one), and `expandKeys(args)` turns `Tab*3` into three
       chords. It covers letters, digits, the US punctuation keys and their shifted forms, Space,
       Enter, Tab, Backspace, Delete, Escape, the arrows, Home, End, PageUp, PageDown and F1 to F12,
       with `mod` as ⌘ on `darwin` and Ctrl elsewhere. An unknown key throws, naming the chord.
-      Verified by `tests/drive-keys.test.ts`, which pins the rows of
+      Verified by `tests/drive-keys.test.ts` (16 cases), which pins the rows of
       `docs/research/driving-a-running-obsidian.md`'s key table (ArrowDown, ArrowUp, Tab, Shift+Tab,
       Enter, `x`, Backspace, Shift+ArrowLeft, Ctrl+A) and the shifted symbols, `mod` on both
       platforms, repeat expansion, and the refusal of `Ctrl+Nonsense`. Negative controls: giving
@@ -15,7 +15,7 @@
 
 ## 2. State to drawing
 
-- [ ] 2.1 Add `scripts/drive-state.ts`: `stateMarkup(doc, ranges, blockLines)` writes the document in
+- [x] 2.1 Add `scripts/drive-state.ts`: `stateMarkup(doc, ranges, blockLines)` writes the document in
       `layout.mjs`'s input form (`┃` at each head, `«…»` around the part of each covered line a
       range spans, `∅` at the end, `▒` on a block-selected line, which carries neither `«»` nor
       `┃`), and `drawColumns(columns)` is the layout, copied from `layout.mjs` with a comment
@@ -30,7 +30,7 @@
 
 ## 3. A session: start, status, stop
 
-- [ ] 3.1 Add `scripts/drive.ts` with the session file, the protocol client and `start`, `status`
+- [x] 3.1 Add `scripts/drive.ts` with the session file, the protocol client and `start`, `status`
       and `stop`, and export `stampFromBundle` from `scripts/install-to-vault.ts`. `start`
       builds, copies `test-vault` to `.obsidian-cache/drive/vault`, starts an Xvfb when Linux has no
       `DISPLAY`, launches the launcher's binary detached on a free port with the flags
@@ -48,21 +48,23 @@
 
 ## 4. The commands
 
-- [ ] 4.1 `open`, `key`, `type` and `eval` in `scripts/drive.ts`. `open <note>` opens a note from
+- [x] 4.1 `open`, `key`, `type` and `eval` in `scripts/drive.ts`. `open <note>` opens a note from
       the vault, or with `--stdin` creates or overwrites it, then sets outline mode with
       `--outline on|off` and the caret with `--at <line>:<ch>`, and waits until each reads back.
       `key` sends each chord of `expandKeys`, `type` sends `Input.insertText`, and `eval` prints a
       value (a string raw, anything else as JSON), prints an exception to stderr and exits 1, reads
-      stdin for `-`, and evaluates with `replMode`. Verified against the running app: opening a
-      three-line note in outline mode, `key Tab` then `key shift+Tab` restore the text, `type` and
-      `key Backspace` leave the buffer as it began, `eval 'const a = 1; a'` and then
-      `eval 'const a = 2; a'` both print, and `eval 'nope()'` exits 1.
-- [ ] 4.2 `state` and `shot`. `state` reads the document, ranges, block-selected lines and focus
+      stdin for `-`, and evaluates with `replMode`. Verified against the running app: `open Repro.md --stdin
+      --outline on --at 0:6` on #257's four-line note, then `key shift+Enter shift+Tab` and
+      `key ArrowUp` twice, draw the four columns of that issue's Case 1 through `state --raw` and
+      `layout.mjs`; `type "new item"` then `key Backspace*8` removes the eight characters;
+      `eval 'const a = 1; a'` and then `eval 'const a = 2; a + 1'` print 1 and 3, and
+      `eval 'nope()'` exits 1.
+- [x] 4.2 `state` and `shot`. `state` reads the document, ranges, block-selected lines and focus
       through one page script, draws a column headed by the note's path (`--header` to change),
       prints outline mode and focus beneath it, and prints only the markup with `--raw`. `shot`
       waits two frames, then writes a PNG under `.obsidian-cache/drive/shots/` (`--out` to choose),
       prints its path and pixel size, and takes `--clip x,y,w,h`, `--selector <css>`,
-      `--caret [pad]` and `--scale n`. Around the caret it takes a caret-free reference, then
+      `--caret` (with `--pad`) and `--scale n`. Around the caret it takes a caret-free reference, then
       retakes up to eight times until a shot differs from it, and warns on stderr when none does.
       Verified against the running app: `state` after Ctrl+A in outline mode draws `▒` on the
       selected lines and no `┃`; twelve `shot --caret` runs in a row each differ from the
@@ -70,19 +72,19 @@
       shot is three times the pad's size; `--selector .cm-content` and a `--clip` match their
       rects. Negative control: with the retry loop reduced to one attempt the twelve-run check
       must fail on at least one run.
-- [ ] 4.3 `rebuild`. Runs the dev build (failing without touching the vault), copies
+- [x] 4.3 `rebuild`. Runs the dev build (failing without touching the vault), copies
       `styles.css`, `manifest.json` and then `main.js` into the vault copy's plugin folder,
       polls the loaded plugin's `buildStamp.clock` against the one in the bundle, and prints the
       build id and the elapsed time. A timeout reports whether the stamp moved. Verified against
-      the running app: three runs each print a new clock within the probe's 0.8 to 1.2 s, the
-      note open before is open after, and a syntax error inserted into `src/` makes `rebuild`
+      the running app: three runs each print a new clock, in 0.7 to 1.1 s from the start of the build, the
+      note open before is open after with its caret, and a syntax error inserted into `src/` makes `rebuild`
       exit 1 with the build's output and leaves the running app's stamp as it was. Negative
-      control: deleting `.hotreload` from the vault copy must make it time out and say the
-      stamp did not move.
+      control: disabling the `hot-reload` plugin in the running app must make it time out after
+      15 s, naming the build the app still runs.
 
 ## 5. The skill and its pointers
 
-- [ ] 5.1 Add `.agents/skills/driving-obsidian/SKILL.md` and the symlinks in `.claude/skills/`
+- [x] 5.1 Add `.agents/skills/driving-obsidian/SKILL.md` and the symlinks in `.claude/skills/`
       and `.github/skills/`, alongside the existing ones. It gives the trigger (before claiming a
       visual or caret fix, and to reproduce a report before fixing it, and not for what a spec
       already covers), the loop, how to read a screenshot with the note's blind-test findings, the
@@ -90,12 +92,12 @@
       "Re-running the probes", the macOS limit, and `stop`. Verified by `ls -L` reading the skill through
       both symlinks, and by following the skill's own steps, from a fresh `start` to a `stop`, on
       a case taken from an open issue.
-- [ ] 5.2 Add the `drive` script to `package.json`, a short section in `AGENTS.md` after "E2E
+- [x] 5.2 Add the `drive` script to `package.json`, a short section in `AGENTS.md` after "E2E
       testing" pointing at the skill, and a paragraph in `docs/cloud-sessions.md` under "Running
       the suites" saying the driver needs no `start-xvfb-and-run.sh`. Verified by
       `npm run drive -- --help` printing the commands, and by `node scripts/check-research-index.ts`.
 
 ## 6. Check the change as a whole
 
-- [ ] 6.1 `npm run typecheck:scripts`, `npm run typecheck`, `npm run lint` and `npm test` pass, and
+- [x] 6.1 `npm run typecheck:scripts`, `npm run typecheck`, `npm run lint` and `npm test` pass, and
       `openspec validate drive-a-running-obsidian --strict` passes.
