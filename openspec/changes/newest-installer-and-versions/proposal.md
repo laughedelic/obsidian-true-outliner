@@ -24,9 +24,13 @@ banner that came out of it names the app but not the installer
 - A workflow runs both platforms and every group on the newest installer weekly and on
   `workflow_dispatch`, with dispatch inputs for the app and installer versions. It does not gate
   pull requests.
-- The dev build's status-bar stamp names the app version and the Electron and Chrome versions
-  where the platform exposes them, in the item's text so a screenshot carries them. Mobile names
-  what it can read and says so when it can read nothing further.
+- The dev build's status-bar stamp names the app version and the full Chromium version, in the
+  item's text so a screenshot carries them. Both come from APIs the plugin may use
+  (`obsidian.apiVersion`, `navigator.userAgentData`): `process.versions` is a Node API and the
+  lint bans the user-agent string, so the Electron version is not in the stamp. It is fixed by
+  the Chromium version, and the harness's run record carries both
+  (`docs/research/e2e-runtime-versions`, "What the plugin may read"). Where the runtime exposes no
+  Chromium version, as on iOS, the stamp names the platform and says nothing more.
 - Title prefix: `fix`. The stamp is dev-build UI, so a release build behaves as before, but the
   change edits `src/` and `scripts/check-landed.ts` treats that as shipping: it takes a patch bump
   (`docs/research/e2e-runtime-versions`, "Which prefix"). `feat` would spend a minor version on
@@ -39,8 +43,9 @@ banner that came out of it names the app but not the installer
   runs is public; a beta's versions reach a report through the stamp instead.
 - Making the default installer the newest one. Pull requests keep the oldest compatible installer,
   the floor of what a user can have; the newest runs beside it.
-- Reading the versions on a real mobile device. The stamp reads what a mobile WebView exposes; what
-  a phone actually exposes is unmeasured here.
+- Measuring what a real phone exposes. Mobile emulation reports the desktop runtime
+  (`docs/research/e2e-runtime-versions`), so the Android and iOS answers stay unmeasured until a
+  device reports one.
 - A failure notification for the scheduled run beyond what GitHub sends for a failed workflow.
 - Putting the versions in the release build, which stays free of dev UI.
 

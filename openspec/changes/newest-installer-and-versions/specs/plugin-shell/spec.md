@@ -4,28 +4,30 @@
 
 ### Requirement: Dev builds state the runtime they run on
 
-A dev build's status-bar stamp SHALL name the Obsidian app version and the Chromium version the
-app runs on, in the stamp's visible text, and the Electron version as well where the platform
-exposes it through APIs the plugin may use. Where a version is not exposed the stamp SHALL say the
-platform it is running on and omit the version, not print a placeholder. A release build SHALL
-carry no stamp.
+A dev build's status-bar stamp SHALL name the Obsidian app version and the full Chromium version the
+app runs on, in the stamp's visible text, reading them only through APIs the plugin may use
+(`obsidian.apiVersion` and the web platform's `navigator.userAgentData`, neither a Node or Electron
+API nor a user-agent string). Where the Chromium version is not exposed, the stamp SHALL name the
+app version and the kind of platform and omit the Chromium version, not print a placeholder. A
+release build SHALL carry no stamp and read neither.
 
-#### Scenario: Desktop stamp names the runtime
+#### Scenario: The stamp names the app and Chromium versions
 
 - **WHEN** a dev build loads on desktop
-- **THEN** the stamp's text names the app version and the Chromium version the app reports, and
-  the item's label names them in full
+- **THEN** the stamp's text names the app version and the full Chromium version the runtime
+  reports, and the item's label names them as well
 
-#### Scenario: Mobile emulation follows the platform it emulates
+#### Scenario: The Chromium version arrives after the stamp is drawn
 
-- **WHEN** a dev build loads under mobile emulation
-- **THEN** the stamp names only what the emulated platform exposes, and shows no Electron version
-  that a real mobile app would not have
+- **WHEN** the runtime reports its full Chromium version asynchronously
+- **THEN** the stamp already shows the app version when it loads and gains the Chromium version
+  when the report arrives, without waiting on it
 
-#### Scenario: A version the platform does not expose is left out
+#### Scenario: A version the runtime does not expose is left out
 
-- **WHEN** the runtime exposes no Chromium version
-- **THEN** the stamp names the app version and the platform, and no version is invented
+- **WHEN** the runtime exposes no Chromium version, or the request for it is rejected
+- **THEN** the stamp names the app version and the platform, and nothing is printed in place of
+  the missing version
 
 #### Scenario: Release build has no stamp
 
