@@ -68,7 +68,7 @@ that produced it, and draw each result the same way, as a column.
 | `┆` | Left edge of a column, touching the content |
 | `▒` | A block-selected line, in place of the edge. A block selection has no caret: the editor gives up focus while it holds |
 | `┃` | Caret |
-| `x̲` | Selection inside one item's text, underlined |
+| `x̲` | A selection, underlined. It may run across lines, each line's part underlined |
 | `‸` | Insertion or paste point, when it differs from where the caret ends up |
 | `⏵   ` | Tab, padded to its visual width |
 | `·` | A space touching a tab, and a trailing space (a line of only spaces is all `·`). Every other space stays plain |
@@ -83,8 +83,10 @@ Generate the block with [`layout.mjs`](layout.mjs) rather than aligning it by ha
 underlines, tab glyphs and column padding all have to add up. It reads columns on stdin, each
 starting with an `=== <header>` line, so a Markdown heading stays content. Each column is
 written as the document itself: real tabs and spaces, including lines of only spaces, `▒`
-opening a block-selected line, `«…»` around a selection inside a line, and `┃`, `‸`, `∅` where
-they go.
+opening a block-selected line, `«…»` around a selection (`«` on one line and `»` on a later line
+draw a selection across lines, the line breaks between them included), and `┃`, `‸`, `∅` where they
+go. With `┃` touching one end, the selection's head is that end: `«big»┃` runs forward, `┃«big»`
+backward.
 
 ```bash
 node .agents/skills/presenting-examples/layout.mjs <<'EOF'
@@ -100,6 +102,19 @@ EOF
 ```
 
 Paste its output into a fenced block.
+
+The script reads the other way too. A drawn block from an issue or a PR, on stdin with `--read`,
+prints the columns that draw it, which is the input a case file takes (see below); `·` reads as a
+space. `--case` draws a case file's columns under its keys and setup, for a PR's manual-test
+section.
+
+```bash
+node .agents/skills/presenting-examples/layout.mjs --read <<'EOF'
+ before    after
+┆- a      ┆- a┃
+▒- b      ┆∅
+EOF
+```
 
 ## Copy-paste version
 

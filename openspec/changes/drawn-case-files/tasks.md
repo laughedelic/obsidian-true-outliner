@@ -2,29 +2,29 @@
 
 ## 1. The notation module
 
-- [ ] 1.1 Move the reading of columns, the drawing of a line and the layout out of
+- [x] 1.1 Move the reading of columns, the drawing of a line and the layout out of
       `.agents/skills/presenting-examples/layout.mjs` into `notation.mjs`, add `notation.d.mts`, and
       leave `layout.mjs` as the command line over it (D1). Verify with `tests/notation.test.ts`: the
       skill's own example, and the five tracker blocks below, laid out from their column input, equal
       the blocks `layout.mjs` printed at `main`, stored in the test as strings; negative control:
       changing the column gap in the module fails it.
-- [ ] 1.2 Add `readDocument` and `drawDocument` with D2's rules, including a selection across lines
+- [x] 1.2 Add `readDocument` and `drawDocument` with D2's rules, including a selection across lines
       and the `∅` cases, and the underline that continues across lines in the layout. Verify with a
       fast-check property in `tests/notation.test.ts` — drawing a random text with a random range
       and reading it back returns both — and with the spec's scenarios spelled out; negative
       control: dropping the rule that a touching `┃` names the head fails the backward-selection
       case.
-- [ ] 1.3 Add `undraw` and `layout.mjs --read` (D1). Verify with five drawn blocks copied verbatim
+- [x] 1.3 Add `undraw` and `layout.mjs --read` (D1). Verify with five drawn blocks copied verbatim
       from the tracker (one with a tab, one with `▒`, one with `∅`, one with a `clipboard` column,
       one hand-aligned) that read into columns and lay out again to the same rows; negative
       control: reading `⏵` and its padding as one space fails the tab block.
-- [ ] 1.4 Extend `SKILL.md`: the multi-line selection in the glyph table, `--read`, and a pointer to
+- [x] 1.4 Extend `SKILL.md`: the multi-line selection in the glyph table, `--read`, and a pointer to
       case files (section 5 fills it in). Verify by running the SKILL.md `layout.mjs` example and
       comparing its output with the block printed beside it.
 
 ## 2. The case file
 
-- [ ] 2.1 Add `parseCase` and `parseKeys` to `notation.mjs` with the grammar of D3 and every refusal
+- [x] 2.1 Add `parseCase` and `parseKeys` to `notation.mjs` with the grammar of D3 and every refusal
       in the spec. Verify with `tests/notation.test.ts` cases for each refusal (`tabs: yes`, a step
       `⇥⇥⇥`, `⌘V` without a clipboard column, a wrong count of result columns, a stray line in the
       preamble) asserting the line number in the message; negative control: accepting an unknown
