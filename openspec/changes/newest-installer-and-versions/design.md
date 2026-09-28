@@ -73,11 +73,13 @@ waits on stay exactly as they are. The cost is the group-list job and the node v
 a second file, which a comment in each points at.
 
 The action gains an `installer-version` input, passed as `OBSIDIAN_INSTALLER_VERSION`. Its cache key
-gains `-installer-<value>` always, with a blank input keyed as `latest`. The keys pull requests use
-today therefore change once, which is right: what a `latest` key holds changes from installer 1.5.8
-to the newest, and a restored 1.5.8 cache would only be downloaded around. The key carries the
-installer and the week, and `restore-keys` stays within one installer, so a dispatch of one
-installer cannot restore a build for another.
+gains `-installer-<value>` always, with a blank input keyed as `latest`. No existing entry matches
+the new key, deliberately: what a `latest` key holds changes from installer 1.5.8 to the newest, and a
+restored 1.5.8 cache would only be carried along as dead weight. So every run misses and downloads
+until a push to `main` saves the entry (a pull request's cache is visible to that pull request
+only, and it may restore from `main`'s), after which pull requests restore it as before. The key
+carries the installer and the week, and `restore-keys` stays within one installer, so a dispatch of
+one installer cannot restore a build for another.
 
 **D5. The stamp is a pure function of what the runtime reports, and the reads stay in
 `main.ts`.** `src/plugin/runtime-stamp.ts` takes `{ appVersion, chromium, platform }` and returns
@@ -98,6 +100,30 @@ and the harness record carries both.
 the user-agent string (banned by `obsidianmd/platform`, and an inline disable would sit in the
 source the directory scan reads); a version table in the plugin (goes stale with each Electron).
 
+**D8. A red scheduled run is filed by a script, from a last job.** `oldest-installer.yml` ends with a
+`report` job that `needs` the matrix and runs `if: always() && github.event_name == 'schedule'`,
+so a dispatch, watched by whoever started it, files nothing. It has `issues: write` and
+`actions: read`, and calls `scripts/report-scheduled-run.ts` with the matrix result and the run id;
+the script is TypeScript under `scripts/` like the other tooling. It reads the failed jobs from
+`GET /repos/{repo}/actions/runs/{run_id}/jobs`, and finds an earlier issue by a fixed title among the
+open issues labelled `area/ci`. Three outcomes follow from `(result, open issue?)`: `failure` with no
+issue opens one; `failure` with one comments; `success` with one comments and leaves it open;
+everything else, including `cancelled`, does nothing. That decision is a pure function with unit
+tests; the script's `--dry-run` prints the API calls it would make.
+
+The issue takes `kind/bug`, `area/ci`, `area/testing`, `p2` and `needs/diagnosis`, all in the declared
+set, and needs no new label. `p2` follows the `triage` skill's rule of taking the lower rung where two
+are arguable: one red weekly run does not make every change pay, and whoever triages can raise
+it. `needs/diagnosis` says the failure reproduced in CI and its cause is not yet located. The body
+names the versions *requested* (`latest` app, `earliest` installer) and links the run, whose jobs
+each carry the resolved versions in their summary rows; the resolved record stays in the jobs
+because it is written on their runners and the report job runs on another.
+
+*Alternatives:* the default email (goes to whoever last edited the cron line, and only there);
+closing the issue on a green run (a transient pass would hide a flake, and looking into a red run is
+the person's call, not the workflow's); a new `ci-failure` label (the label set is declared in one
+file and the existing four axes already say everything the issue needs).
+
 **D6. The stamp is verified against the record.** A spec asserts the stamp's app and Chromium
 versions equal the ones in `e2e-target.json`. That ties three sources to each other, the launcher's
 table, the process that started, and the plugin's own reading, and is what makes the weekly run's
@@ -109,6 +135,12 @@ the value is the running runtime.
 `npm version patch`, on the branch, in the landing step.
 
 ## Risks / Trade-offs
+
+- **Known flakes will open an issue now and then** (`docs/research/e2e-ci-budgets`). The failed-job
+  list on the issue and one comment per further red run show whether the same group fails again,
+  which separates a flake from a regression without re-running anything.
+- **The report job runs with a write token on a schedule.** It is limited to `issues: write` and
+  `actions: read`, runs no code from a pull request, and reads only job names and results.
 
 - **Pull requests now gate on the newest installer, and 47 of 55 spec files have not run on it.**
   Eight passed under both installers, none failed. This pull request's own CI is the first full

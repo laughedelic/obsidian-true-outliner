@@ -27,6 +27,9 @@ banner that came out of it names the app but not the installer
   on `workflow_dispatch`, with dispatch inputs for the app and installer versions. The oldest
   installer is what a long-time user still runs, since Obsidian's auto-update replaces the app and
   leaves the installer alone. The workflow does not gate pull requests.
+- A red scheduled run is filed as an issue by the workflow, so it reaches the tracker where
+  triage happens instead of an email to whoever last edited the cron line. One issue stays open
+  while the run stays red, later runs comment on it, and a green run comments without closing it.
 - The dev build's status-bar stamp names the app version and the full Chromium version, in the
   item's text so a screenshot carries them. Both come from APIs the plugin may use
   (`obsidian.apiVersion`, `navigator.userAgentData`): `process.versions` is a Node API and the
@@ -51,7 +54,8 @@ banner that came out of it names the app but not the installer
 - Measuring what a real phone exposes. Mobile emulation reports the desktop runtime
   (`docs/research/e2e-runtime-versions`), so the Android and iOS answers stay unmeasured until a
   device reports one.
-- A failure notification for the scheduled run beyond what GitHub sends for a failed workflow.
+- Notifying anywhere but the tracker, and closing the issue automatically: a person decides that a
+  red run was looked into.
 - Putting the versions in the release build, which stays free of dev UI.
 
 ## Capabilities
@@ -72,7 +76,8 @@ banner that came out of it names the app but not the installer
   `e2e-tests/wdio.shared.mts` and `e2e-tests/docker/docker-compose.yml` for the override and the
   record.
 - `.github/actions/e2e/action.yml` for the input, the cache key and the summary row; a new
-  `.github/workflows/oldest-installer.yml`.
+  `.github/workflows/oldest-installer.yml` and `scripts/report-scheduled-run.ts`, which files the
+  issue.
 - `src/plugin/main.ts` and a new pure module beside it for the stamp; `manifest.json`,
   `versions.json`, `package.json` and `package-lock.json` for the patch bump.
 - `docs/research/e2e-runtime-versions.md` and its row in `docs/research/index.md`.

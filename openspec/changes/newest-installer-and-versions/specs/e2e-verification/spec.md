@@ -78,3 +78,33 @@ waits on, and a pull request SHALL run on the newest compatible installer.
 - **WHEN** a pull request runs CI
 - **THEN** its e2e jobs run on the newest compatible installer, and the scheduled workflow neither
   starts nor is required
+
+### Requirement: A red scheduled run is filed in the tracker
+
+When a scheduled run on the oldest installer fails, the workflow SHALL open one issue in the
+repository's tracker naming the failed jobs, the run and the versions requested, carrying a
+`kind/`, an `area/`, a priority and a `needs/` label from the declared set. While an issue from an
+earlier red run is open, a further red run SHALL comment on it and SHALL NOT open another. A green
+scheduled run SHALL comment on an open issue and SHALL NOT close it. A cancelled run, and a run
+started by `workflow_dispatch`, SHALL file nothing.
+
+#### Scenario: The first red run opens an issue
+
+- **WHEN** a scheduled run finishes with a failed job and no such issue is open
+- **THEN** one issue is opened listing the failed platform and group jobs and linking the run, with
+  the reproduction command for the oldest installer
+
+#### Scenario: A repeated red run comments
+
+- **WHEN** a scheduled run fails while an issue from an earlier red run is open
+- **THEN** the run is added to that issue as a comment and no second issue exists
+
+#### Scenario: A green run leaves the issue open
+
+- **WHEN** a scheduled run passes while such an issue is open
+- **THEN** a comment says the run passed, and the issue stays open
+
+#### Scenario: Dispatched and cancelled runs file nothing
+
+- **WHEN** a run is started by `workflow_dispatch`, or a scheduled run is cancelled
+- **THEN** no issue is opened and no comment is added

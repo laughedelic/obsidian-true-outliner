@@ -33,6 +33,12 @@
       the default branch's workflow list, or by `actionlint`, and by reading one job's summary row
       for `installer 1.13.7`. A workflow dispatched from a branch needs the file on the default branch
       first: if it cannot run before landing, say so in the PR.
+- [ ] 2.3 Add `scripts/report-scheduled-run.ts` (D8) with its decision as a pure function, and a
+      `report` job at the end of `oldest-installer.yml` with the permissions and condition the
+      design states. Verify with `tests/report-scheduled-run.test.ts` over each outcome and
+      `--dry-run` against a real run id printing the issue it would open; negative control: treating
+      `cancelled` as `failure` fails the do-nothing case. A dispatch files nothing by design, so the
+      live path is first exercised by a scheduled run after the merge; say so in the pull request.
 
 ## 3. The stamp
 
