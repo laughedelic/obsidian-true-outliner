@@ -1,0 +1,19 @@
+case: a list and a table pasted under a tight item stay apart (#197)
+keys: ⌘V
+
+=== clipboard
+- alpha
+
+| x |
+| - |
+=== before
+- top┃
+  - see [[a|b]]
+=== expected
+- top
+  - alpha
+
+  | x |
+  | - |┃
+
+  - see [[a|b]]

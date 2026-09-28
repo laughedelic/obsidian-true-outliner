@@ -49,6 +49,8 @@ the last line — is refused with the line it is on.
 - **THEN** the columns it prints, laid out again, give the block back, apart from the padding a
   hand alignment chose
 
+**Covered by**: `tests/notation.test.ts`
+
 ### Requirement: A case file states its setup, keys and columns
 
 A case file SHALL be a preamble of `name: value` lines followed by `=== <header>` columns. The
@@ -80,6 +82,8 @@ count of phases (one when there is no `keys` line) — is refused with its line 
 - **WHEN** a case file also holds an `actual` column
 - **THEN** the run ignores it and compares the `expected` column
 
+**Covered by**: `tests/notation.test.ts`
+
 ### Requirement: Case files are checked without Obsidian
 
 Every file under `e2e-tests/cases/` SHALL be parsed by the unit suite, which refuses one that does
@@ -91,6 +95,8 @@ being drawn.
 
 - **WHEN** a case file sits under a directory that names no capability
 - **THEN** the unit suite fails and names the file
+
+**Covered by**: `tests/case-files.test.ts`
 
 ### Requirement: The runner executes case files in the real app on both platforms
 
@@ -128,17 +134,19 @@ SHALL write the case file with its result columns filled from the app.
 
 - **WHEN** a case file with a `before` column and keys but no result column runs with `--record`
 - **THEN** the case does not fail, and a case file with the result column as the app read it is
-  written under `.obsidian-cache/cases/`
+  written under `.obsidian-cache/cases/` and printed
 
 #### Scenario: A phase that presses ⌘V pastes
 
 - **WHEN** a case has a `clipboard` column and a ⌘V step
 - **THEN** the pasted document is the clipboard column's text, arrived by the editor's own paste
 
+**Covered by**: `e2e-tests/specs/98-drawn-cases.e2e.ts` (the shipped case files under `e2e-tests/cases/`)
+
 ### Requirement: A failing case prints a drawing
 
 A case that fails SHALL throw an error whose first line names the case, what differs (`text`,
-`caret`, `block selection`, or `before`) and the platform, and whose remaining lines are the keys
+`caret`, `selection`, `block selection`, or `before`) and the platform, and whose remaining lines are the keys
 line and setup and one drawing: `before`, and for the first phase that differs, `expected` and
 `actual`, the caret and selection read from the editor's state. A phase whose `expected` column
 draws no caret or selection SHALL be reported as not asserting one, and its `actual` column SHALL
@@ -154,6 +162,8 @@ still show the caret.
 
 - **WHEN** the second of three phases differs
 - **THEN** the drawing has `before`, and that phase's `expected` and `actual`, and no later phase
+
+**Covered by**: `tests/case-report.test.ts`
 
 ### Requirement: The editor's state draws through one helper
 
@@ -178,3 +188,5 @@ time when the read cannot be made.
 
 - **WHEN** a case fails with no markdown view open
 - **THEN** the case's own error is what is reported
+
+**Covered by**: `e2e-tests/specs/98-drawn-cases.e2e.ts` ("the editor drawn as it is read")

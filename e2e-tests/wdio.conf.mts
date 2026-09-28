@@ -5,7 +5,7 @@ import {
   maxInstances,
   reporters,
   resetE2eReports,
-  screenshotOnFailure,
+  onTestFailure,
   writeFailureSummary,
 } from './wdio.shared.mjs';
 
@@ -100,7 +100,7 @@ export const config: WebdriverIO.Config = {
     await waitForMetadataCache();
   },
 
-  afterTest: screenshotOnFailure('desktop'),
+  afterTest: onTestFailure('desktop'),
   onComplete: writeFailureSummary,
 
   services: ['obsidian'],

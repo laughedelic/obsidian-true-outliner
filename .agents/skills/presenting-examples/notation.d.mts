@@ -43,4 +43,4 @@ export function drawDocument(state: DrawnState): string[];
 export function layout(columns: readonly Column[]): string;
 export function undraw(block: string): Column[];
 export function parseKeys(value: string): KeyStep[][];
-export function parseCase(source: string): ParsedCase;
+export function parseCase(source: string, options?: { record?: boolean }): ParsedCase;

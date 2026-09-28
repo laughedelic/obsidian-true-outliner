@@ -112,6 +112,16 @@ nothing to gain by skipping those steps.
 `npm run test:e2e[:mobile]` runs a whole group (`--group <name>`) or the whole suite: a final
 check before a checkpoint, not a per-edit loop.
 
+**A bug's repro is a drawn case file first.** Put the drawing in `layout.mjs`'s input with a
+keys line and settings (`.agents/skills/presenting-examples/SKILL.md`, "Case files"), and run it in
+the real app, desktop and mobile emulation, with `npm run case -- <file> [--mobile] [--record]`.
+`--record` prints what the app did as the `expected` column, so a bug's first reply and a fix's
+`expected` carry carets that were measured. A failing case prints `before`, `expected` and
+`actual` as a drawing. A case that stays lives under `e2e-tests/cases/<capability>/`, the
+capability being a directory of `openspec/specs/`, and a spec's `Covered by` line may name it the
+way it names a spec title. Every failing e2e case also prints the editor's drawing
+(`e2e-tests/drawing.ts`), and `drawEditor()` is there for any spec that wants one.
+
 Every run overwrites `.obsidian-cache/e2e-summary.json` with what failed:
 
 ```bash

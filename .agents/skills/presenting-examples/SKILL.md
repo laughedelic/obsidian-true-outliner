@@ -126,3 +126,54 @@ Where it lands decides its wrapping. On GitHub (issues, PRs, comments), the sect
 `<details><summary>To reproduce</summary>` … `</details>`, with a blank line after the summary
 line so the fences inside still render. The chat renders no raw HTML, so there it is the last
 section of the message, under its own heading.
+
+## Case files: a drawing that runs
+
+A case drawn for an issue or a PR runs as written. The file is the `layout.mjs` input with a
+preamble and a keys line, saved as `<name>.case`:
+
+```
+case: ⇥ indents under the sibling above (#123)
+tabs: on
+keys: ⇥ | ⇧⇥
+
+=== before
+- a
+- b┃
+=== after ⇥
+- a
+	- b┃
+=== after ⇧⇥
+- a
+- b┃
+```
+
+- **Preamble**, all optional: `case` (a title), `outline: off` (default on), `tabs: on` ("Indent
+  using tabs"; default off), `platform: desktop` or `mobile` (default both), `keys`.
+- **Keys** are phases separated by ` | `, each a run of steps as the sentence above a drawing
+  writes them: ⌘⇧⌥⌃ in front of ⇥ ⏎ ⌫ ⌦ ↑ ↓ ← → ⎋ or one character, spelled keys (`Home`, `End`,
+  `PageUp`, `PageDown`, `Esc`) and chords (`mod-shift-enter`), `×N` for a repeat, `"quoted text"`
+  typed as characters. ⌘ is the platform's Mod key. ⌘V pastes the `clipboard` column.
+- **Columns**: `clipboard` (read by a ⌘V step), `before` (the state the case starts from) and
+  `expected` or `after …` (the state after each phase, one per phase). Any other header, `actual` included, is a reference the run
+  ignores, so a failure report runs again as it was printed. A result column with no caret,
+  selection or `▒` does not compare one.
+- **`before` is the start.** A drawing of the state after the first key belongs in a result
+  column. A `before` the editor cannot hold (a caret inside a marker, say) fails before any key
+  is pressed, and the failure draws what the editor holds.
+
+Turn an issue's block into a case file with `layout.mjs --read`, add the keys line and settings,
+and run it in the real app, desktop and mobile emulation:
+
+```bash
+npm run case -- path/to/x.case            # pass, or a drawing of before, expected and actual
+npm run case -- path/to/x.case --mobile
+npm run case -- path/to/x.case --record   # never fails; writes the file with its results filled
+                                          # from the app to .obsidian-cache/cases/
+```
+
+`--record` on a file with a `before` and keys and no result column is a bug's first reply: the
+carets in it are measured, not predicted. A case that stays goes under
+`e2e-tests/cases/<capability>/`, where `<capability>` is a directory of `openspec/specs/`, and
+runs with the rest. `layout.mjs --case < x.case` draws it under its keys and settings for a PR's
+manual-test section.

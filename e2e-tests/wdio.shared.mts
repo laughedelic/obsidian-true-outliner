@@ -61,6 +61,41 @@ export function screenshotOnFailure(label: string) {
   };
 }
 
+/**
+ * An `afterTest` hook that prints what the active editor holds, drawn as the notation a case is
+ * written in, for a failing test. Best effort, as the screenshot is: a session with no markdown
+ * view open has nothing to draw, and the test's own error is the one worth reading.
+ */
+export function drawOnFailure() {
+  return async function (
+    test: { title: string },
+    _context: unknown,
+    { passed }: { passed: boolean },
+  ): Promise<void> {
+    if (passed) return;
+    try {
+      const { drawEditor } = await import('./drawing.js');
+      console.log(`[e2e] the editor after "${test.title}":\n${await drawEditor('at failure')}`);
+    } catch (e) {
+      console.warn(`[e2e] could not draw the editor for "${test.title}": ${String(e).split('\n')[0]}`);
+    }
+  };
+}
+
+/** The `afterTest` both configs use: the screenshot, then the drawing. */
+export function onTestFailure(label: string) {
+  const screenshot = screenshotOnFailure(label);
+  const draw = drawOnFailure();
+  return async function (
+    test: { title: string; parent: string },
+    context: unknown,
+    result: { passed: boolean },
+  ): Promise<void> {
+    await screenshot(test, context, result);
+    await draw(test, context, result);
+  };
+}
+
 // ---- Structured failure reporting --------------------------------------
 //
 // `reporters: ['obsidian']` prints to stdout only: after a full-group run

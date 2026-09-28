@@ -144,7 +144,7 @@ Each phase then presses its keys and reads. The settings are restored after the 
 
 ### D6. The failure is a verdict and a drawing
 
-The first line names the case, what differs (`text`, `caret`, `block selection`) and the platform,
+The first line names the case, what differs (`text`, `caret`, `selection`, `block selection`) and the platform,
 because `writeFailureSummary` prints only that line on stdout. Under it the keys line and setup,
 then one drawing: `before`, and for the first phase that differs, `expected` and `actual`. Later
 phases are not drawn, since they depend on it. A phase whose `expected` draws no caret prints
@@ -155,7 +155,9 @@ filled from the app, which is a bug's first reply and a fix's `expected`.
 ### D7. The read is a function of `app` and returns data
 
 `readEditorState` in `e2e-tests/drawing.ts` is one function of `{ app, obsidian }` with no
-closure: `{ text, ranges, blockLines, focused }`. It is passed to `browser.executeObsidian` here
+closure: `{ text, ranges, main, blockLines, focused }`. Drawing a state and comparing it with a
+column are pure and sit in `state-drawing.ts` and `case-report.ts`, which the unit suite imports;
+`drawing.ts` is what needs a browser. It is passed to `browser.executeObsidian` here
 and can be serialised with `toString()` for the DevTools-protocol evaluation of #287 and #290.
 `blockLines` comes from the lines carrying `to-decor-node-selected`, so `▒` says what is painted;
 lines off screen have no element, and a drawing with a selection cover that reaches past the

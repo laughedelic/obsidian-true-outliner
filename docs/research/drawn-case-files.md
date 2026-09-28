@@ -113,6 +113,9 @@ sets the selection settles it without the poll, and a mismatch there is worth re
 stands (see below). 29 derived cases ran in 5.8 s on desktop and 6.4 s on mobile inside the spec's
 own run, after Obsidian had launched.
 
+The runner that came of this puts each case in a note of its own. The six case files it ships and
+four helper cases ran in 4.5 s on desktop and 4 s on mobile emulation, in the spec's own run.
+
 An error thrown with a multi-line drawing as its message reaches the reporter intact: the
 `obsidian` reporter prints it with its column padding, and the JSON report keeps it whole.
 `writeFailureSummary` prints only the first line of each message on stdout, so a drawing's
@@ -153,7 +156,7 @@ separator row as `---` and mobile read back the pasted text, in one full run. Ru
 gave the same reading twice; mobile matched on one of the two and not on the other. The
 difference did not settle and stays unexplained. It is recorded because the prototype set every
 case in one shared note, and a widget left by an earlier case is one way it could reach a later
-one.
+one. With a note of its own per case, #197's first table paste passed on both platforms.
 
 ## Existing specs
 

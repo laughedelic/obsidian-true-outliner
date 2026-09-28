@@ -23,7 +23,8 @@ shows the state after the first key, so the drawing is right about the state and
 - The notation moves out of `layout.mjs` into a module beside it that the layout script, the runner
   and the helper all import: a column of the literal document reads to text and selection, a state
   draws to a column, and a drawn block reads back into columns. `layout.mjs` keeps its command line
-  and gains `--read`, which turns a block from an issue into column input.
+  and gains `--read`, which turns a block from an issue into column input, and `--case`, which
+  draws a case file under its keys and settings.
 - The notation gains a selection across lines: `«` on one line closes with `»` on a later line, and
   the underline continues between them. The tracker's #203 already draws one that way, and a
   stock-mode Shift+Arrow produces one.
@@ -60,7 +61,7 @@ it, specified as its own capability rather than as more requirements there.
 - **Moving existing specs.** 181 of 958 cases reach only state and keys, 144 of them asserting
   equality on buffer, caret or selection alone (`docs/research/drawn-case-files`, "Existing
   specs"); most read layout, statistics or the DOM. Cases move when a change touches them, not in
-  bulk, and the change ships case files for five repros that already ran unchanged.
+  bulk, and the change ships case files for six repros that already ran unchanged.
 - **Pointer gestures, commands run by name, timing.** Ten tracker cases drag, some run a command by
   name between keys, some name a time bound. A case file drives the keyboard and the clipboard.
 - **Several ranges, folds, zoom, scroll, a rendered screen.** The notation draws the main range and
@@ -79,10 +80,12 @@ it, specified as its own capability rather than as more requirements there.
 
 - `.agents/skills/presenting-examples/`: `notation.mjs` and its declarations added, `layout.mjs`
   reduced to the command line, `SKILL.md` extended. The two symlinked copies follow.
-- `e2e-tests/`: `drawing.ts`, `cases.ts` (parse and key mapping), `specs/98-drawn-cases.e2e.ts`,
+- `e2e-tests/`: `state-drawing.ts` and `case-report.ts` (pure, unit-tested), `drawing.ts` (the
+  page-side read), `cases.ts` (finding files, pressing keys), `specs/98-drawn-cases.e2e.ts`,
   `cases/`; both wdio configs chain the drawing into `afterTest`.
 - `scripts/`: `run-case.ts`; `spec-groups.ts` gains the group, marked exclusive because ⌘V writes
   the machine's clipboard.
-- `tests/`: `notation.test.ts`, `case-files.test.ts`.
+- `tests/`: `notation.test.ts`, `case-report.test.ts`, `case-files.test.ts`; `.editorconfig`
+  keeps trailing spaces in `*.case`.
 - `docs/research/drawn-case-files.md` and its index row; `AGENTS.md`'s e2e section.
 - CI: one more group in the matrix, desktop and mobile, whose cost is the launch and a few seconds.

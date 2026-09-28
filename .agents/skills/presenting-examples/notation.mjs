@@ -351,9 +351,10 @@ function choice(value, options) {
  *
  * Returns the settings, the phases, and the columns read into text and selection: `before`, the
  * optional `clipboard`, and `results`, one per phase in order. Any other column, `actual`
- * included, is kept as a reference. Errors name the file's line.
+ * included, is kept as a reference. Errors name the file's line. With `record`, a file with no
+ * result column at all is accepted: recording is what fills them in.
  */
-export function parseCase(source) {
+export function parseCase(source, { record = false } = {}) {
 	const lines = source.replace(/\r\n/g, '\n').split('\n');
 	const settings = { title: undefined, outline: true, tabs: false, platform: undefined, keys: [] };
 	let first = lines.findIndex((l) => l.startsWith('=== '));
@@ -393,13 +394,20 @@ export function parseCase(source) {
 	const resultColumns = columns.filter((c) => /^(expected|after)(\s|$)/.test(c.header));
 	const phases = settings.keys;
 	const wanted = Math.max(1, phases.length);
-	if (resultColumns.length !== wanted) {
+	if (resultColumns.length !== wanted && !(record && resultColumns.length === 0)) {
 		throw new Error(
 			`${phases.length} keys phase(s) need ${wanted} "expected" or "after" column(s), found ${resultColumns.length}`,
 		);
 	}
 	const pastes = phases.flat().some((s) => s.kind === 'chord' && s.mods.length === 1 && s.mods[0] === 'mod' && s.key === 'v');
 	if (pastes && !clipboards.length) throw new Error('⌘V needs a "=== clipboard" column');
+
+	// A column's trailing empty lines only separate it from the next, as in `layout`.
+	const trimmed = (lines) => {
+		const kept = [...lines];
+		while (kept.length && kept.at(-1) === '') kept.pop();
+		return kept;
+	};
 
 	return {
 		title: settings.title,
@@ -409,8 +417,8 @@ export function parseCase(source) {
 		phases,
 		before: read(before),
 		clipboard: clipboards.length ? read(clipboards[0]).text : undefined,
-		results: resultColumns.map((c) => ({ header: c.header, ...read(c), lines: c.lines })),
-		beforeLines: before.lines,
+		results: resultColumns.map((c) => ({ header: c.header, ...read(c), lines: trimmed(c.lines) })),
+		beforeLines: trimmed(before.lines),
 		references: columns.filter((c) => c !== before && !clipboards.includes(c) && !resultColumns.includes(c)).map((c) => c.header),
 	};
 }
