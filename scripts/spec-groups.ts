@@ -37,15 +37,22 @@ const LABELS: Record<string, string> = {
   // move — `guideColumnPoint`/`clickAtPoint` drive an actual OS-level cursor,
   // not a synthesised event. Under `max-instances` > 1, several Obsidian
   // windows share one Xvfb display and one OS cursor, and another worker's own
-  // move can land on/near the same coordinates and steal it mid-test — nothing
-  // else in the suite depends on the cursor having STAYED somewhere, so
-  // nothing else is exposed the same way. Reproduced only on CI (twice,
+  // move can land on/near the same coordinates and steal it mid-test — few
+  // specs depend on the cursor having STAYED somewhere (93 and 81 are the
+  // others, each in a group of its own), so little else is exposed the same
+  // way. Reproduced only on CI (twice,
   // identically): locally `E2E_MAX_INSTANCES` is unset, so there is only ever
   // one worker and nothing to contend with. Its own job removes the other
   // workers it could collide with, which — unlike `EXCLUSIVE_GROUPS` — also
   // costs nothing: the group holds one spec, so there is no sibling to
   // serialise against within it either.
   94: 'guide-pointer',
+  // Its own group, for 94's reason: the hover cases hold a real OS cursor over
+  // a mark and read the colour it takes, and a sibling worker's Obsidian window
+  // opening on the shared Xvfb display (no window manager) maps on top and
+  // takes the pointer from under the marked element. The other folding specs
+  // drive no pointer, so they stay in `folding`.
+  93: 'fold-chrome',
   // Lifted out of `selection` and run one-at-a-time: see EXCLUSIVE_GROUPS.
   61: 'clipboard',
   62: 'clipboard',
