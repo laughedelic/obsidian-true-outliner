@@ -6,21 +6,21 @@
 
 Both e2e configurations (desktop and mobile emulation) SHALL take the installer version from the
 `OBSIDIAN_INSTALLER_VERSION` environment variable, a blank value counting as unset, and SHALL
-default to the oldest installer compatible with the app under test. The variable SHALL accept
+default to the newest installer compatible with the app under test. The variable SHALL accept
 `earliest`, `latest` or an exact version. A value that names no installer SHALL fail the run before
 any Obsidian starts, naming the value.
 
-#### Scenario: Unset or blank keeps the oldest compatible installer
+#### Scenario: Unset or blank selects the newest compatible installer
 
 - **WHEN** `OBSIDIAN_INSTALLER_VERSION` is unset, and separately when it is set to the empty string
-- **THEN** the run resolves the oldest installer compatible with the app under test, as it did
-  before the variable existed
+- **THEN** the run resolves the newest installer compatible with the app under test, on desktop and
+  under mobile emulation, and the running app reports the Chrome version of that installer
 
-#### Scenario: The newest installer is selected on both platforms
+#### Scenario: The oldest installer is selected on both platforms
 
-- **WHEN** `OBSIDIAN_INSTALLER_VERSION=latest` is set for a desktop run and for a mobile-emulation
-  run
-- **THEN** each run launches the newest installer compatible with the app under test, and the
+- **WHEN** `OBSIDIAN_INSTALLER_VERSION=earliest` is set for a desktop run and for a
+  mobile-emulation run
+- **THEN** each run launches the oldest installer compatible with the app under test, and the
   running app reports the Chrome version of that installer
 
 #### Scenario: An unknown installer fails before launch
@@ -38,8 +38,8 @@ survive into a run that fails before it writes its own.
 
 #### Scenario: The record resolves aliases
 
-- **WHEN** a run is started with `OBSIDIAN_VERSION=latest` and
-  `OBSIDIAN_INSTALLER_VERSION=latest`
+- **WHEN** a run is started with `OBSIDIAN_VERSION=latest` and `OBSIDIAN_INSTALLER_VERSION`
+  unset
 - **THEN** the record holds exact version numbers, not the words `latest`, and the banner prints
   the same numbers
 
@@ -54,18 +54,18 @@ survive into a run that fails before it writes its own.
 - **WHEN** a run fails before Obsidian starts, after an earlier run left a record
 - **THEN** no record from the earlier run remains
 
-### Requirement: A scheduled run on the newest installer
+### Requirement: A scheduled run on the oldest installer
 
-CI SHALL run every spec group, on desktop and under mobile emulation, on the newest installer
-weekly and on `workflow_dispatch`, which SHALL also accept an app version and an installer
-version. The run SHALL NOT be part of the checks a pull request waits on, and a pull request
-SHALL keep running on the oldest compatible installer.
+CI SHALL run every spec group, on desktop and under mobile emulation, on the oldest installer
+compatible with the newest public app weekly and on `workflow_dispatch`, which SHALL also accept
+an app version and an installer version. The run SHALL NOT be part of the checks a pull request
+waits on, and a pull request SHALL run on the newest compatible installer.
 
 #### Scenario: Weekly run
 
 - **WHEN** the weekly schedule fires
-- **THEN** every group runs on both platforms with the newest installer for the newest public app,
-  and each job's step-summary row names them
+- **THEN** every group runs on both platforms with the oldest compatible installer for the newest
+  public app, and each job's step-summary row names them
 
 #### Scenario: Dispatch pins the versions
 
@@ -76,5 +76,5 @@ SHALL keep running on the oldest compatible installer.
 #### Scenario: Pull requests are unaffected
 
 - **WHEN** a pull request runs CI
-- **THEN** its e2e jobs run on the oldest compatible installer, and the scheduled workflow neither
+- **THEN** its e2e jobs run on the newest compatible installer, and the scheduled workflow neither
   starts nor is required

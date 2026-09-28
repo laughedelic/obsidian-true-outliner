@@ -16,7 +16,8 @@ motivation.
 
 - One place resolves the target, and the run, the banner, the record and the summary row all read
   what it resolved, so none can disagree with the Obsidian that started.
-- The newest installer runs on a schedule without changing what a pull request waits on.
+- The harness runs on the installer a fresh install has, by default, and the oldest supported one
+  runs on a schedule without changing what a pull request waits on.
 
 **Non-Goals:**
 
@@ -27,7 +28,7 @@ motivation.
 
 **D1. The installer is resolved once, in the launcher process, and handed to the service as an
 exact version.** `resolveObsidianTarget` reads `OBSIDIAN_INSTALLER_VERSION` through a
-`pinnedInstallerVersion` twin of `pinnedVersion` (blank is unset; default `earliest`), resolves the
+`pinnedInstallerVersion` twin of `pinnedVersion` (blank is unset; default `latest`), resolves the
 pair with the launcher, and returns the resolved installer for both configs to put in
 `installerVersion`. Handing over the exact number is what makes the record true: the service
 resolves an exact version to itself, so it cannot pick another installer than the one written down.
@@ -60,9 +61,10 @@ row says `not resolved` and keeps the requested app version, so a red job still 
 was asked to run. `jq` is on the hosted runners; the row is composed in the step that already
 writes it.
 
-**D4. The scheduled run is its own workflow.** `newest-installer.yml` has a weekly `schedule` and
-`workflow_dispatch` with `obsidian-version` and `installer-version` inputs (blank meaning
-`latest`), and one job over a platform × group matrix calling the `e2e` action. The desktop and
+**D4. The scheduled run is its own workflow.** `oldest-installer.yml` has a weekly `schedule` and
+`workflow_dispatch` with `obsidian-version` and `installer-version` inputs (blank meaning `latest`
+for the app and `earliest` for the installer), and one job over a platform × group matrix calling
+the `e2e` action, which the schedule feeds `earliest`. The desktop and
 mobile jobs are two trees in `ci.yml` only so mobile can have a softer gate; this workflow has
 no gate to differ on. Separate from `ci.yml` because a `schedule` trigger there would start lint,
 unit tests and the directory scan as well, or need an `if` on each; a separate concurrency group
@@ -71,10 +73,11 @@ waits on stay exactly as they are. The cost is the group-list job and the node v
 a second file, which a comment in each points at.
 
 The action gains an `installer-version` input, passed as `OBSIDIAN_INSTALLER_VERSION`. Its cache key
-gains `-installer-<value>` **only when the input is non-blank**, so the keys pull requests use today
-do not change and their warm caches survive; the weekly job's key carries the installer and the
-week, and `restore-keys` stays within one installer, so an exact-pair dispatch cannot restore a
-build for another pair.
+gains `-installer-<value>` always, with a blank input keyed as `latest`. The keys pull requests use
+today therefore change once, which is right: what a `latest` key holds changes from installer 1.5.8
+to the newest, and a restored 1.5.8 cache would only be downloaded around. The key carries the
+installer and the week, and `restore-keys` stays within one installer, so a dispatch of one
+installer cannot restore a build for another.
 
 **D5. The stamp is a pure function of what the runtime reports, and the reads stay in
 `main.ts`.** `src/plugin/runtime-stamp.ts` takes `{ appVersion, chromium, platform }` and returns
@@ -107,16 +110,18 @@ the value is the running runtime.
 
 ## Risks / Trade-offs
 
-- **The newest installer may not be green on its first run.** Eight of 55 spec files passed under
-  both installers, none failed, but the rest are unmeasured. The workflow is not a required check,
-  so a red first run is information rather than a blocked merge. Any failure it finds is filed as
-  an issue, not fixed inside this change.
-- **A scheduled failure notifies whoever last edited the cron line.** GitHub's own rule; a
-  dedicated notification is out of scope (proposal, Non-goals).
-- **Exact installer handed to the service skips its compatibility guard for `latest`.**
-  `resolveVersion` for `latest` already restricts to installers no newer than the app, so the
-  record's installer is one the service would have chosen. An exact dispatch value outside the app's
-  range still gets the launcher's incompatible-versions warning.
+- **Pull requests now gate on the newest installer, and 47 of 55 spec files have not run on it.**
+  Eight passed under both installers, none failed. This pull request's own CI is the first full
+  run on Chrome 150, so a red group shows here before the default reaches any other pull request.
+  A failure that is a real regression on the newer Chrome is fixed in this change, since it would
+  otherwise block every pull request.
+- **A regression only the oldest Chrome shows is found up to a week after it merges.** The weekly
+  run bounds the delay, and a dispatch checks a suspicious change sooner. Nothing checks the app
+  version below the newest, before or after this change.
+- **Exact installer handed to the service skips its compatibility guard.** `resolveVersion` for
+  `latest` and `earliest` already restricts to installers compatible with the app, so the record's
+  installer is one the service would have chosen. An exact dispatch value outside the app's range
+  still gets the launcher's incompatible-versions warning.
 - **Two workflows now carry the node version and the group list.** Kept in step by a comment at
   each; moving them into a reusable workflow is the follow-up if a third caller appears.
 - **`userAgentData` on real mobile is unmeasured.** The omission rule is the mitigation: the stamp

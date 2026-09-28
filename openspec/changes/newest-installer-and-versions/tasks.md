@@ -14,20 +14,20 @@
       opens; negative control: reading the variable without `.trim()` fails the whitespace case.
 - [ ] 1.3 Use the returned installer in `wdio.conf.mts` and `wdio.mobile-emulation.conf.mts`, add the
       record's path to `resetE2eReports` in `wdio.shared.mts`, and pass `OBSIDIAN_INSTALLER_VERSION`
-      through `e2e-tests/docker/docker-compose.yml`. Verify: a `latest` run's banner and
+      through `e2e-tests/docker/docker-compose.yml`. Verify: an unset run's banner and
       `.obsidian-cache/e2e-target.json` name 1.13.7/Chrome 150 and the smoke spec passes on desktop and
-      with `--mobile`; an unset run names 1.5.8/Chrome 120; a run that fails in the resolver leaves no
-      record. Negative control: hard-coding `earliest` in one config makes that config's `latest` run
-      report Chrome 120.
+      with `--mobile`; an `OBSIDIAN_INSTALLER_VERSION=earliest` run names 1.5.8/Chrome 120; a run that
+      fails in the resolver leaves no record. Negative control: hard-coding `latest` in one config
+      makes that config's `earliest` run report Chrome 150.
 
 ## 2. CI: the summary row and the weekly run
 
 - [ ] 2.1 In `.github/actions/e2e/action.yml`, add the `installer-version` input, pass it as
-      `OBSIDIAN_INSTALLER_VERSION`, add `-installer-<value>` to the cache key and restore key only when
-      non-blank, and write the row's app, installer and Chrome from `e2e-target.json`, with
+      `OBSIDIAN_INSTALLER_VERSION`, add `-installer-<value>` to the cache key and restore key, a blank input keyed as
+      `latest`, and write the row's app, installer and Chrome from `e2e-target.json`, with
       `not resolved` when it is missing (D3, D4). Verify with `actionlint` if present and with a pull
       request run whose cache key and row are read from the job.
-- [ ] 2.2 Add `.github/workflows/newest-installer.yml` (D4): weekly schedule, dispatch inputs, one
+- [ ] 2.2 Add `.github/workflows/oldest-installer.yml` (D4), passing `earliest` on the schedule: weekly schedule, dispatch inputs, one
       platform × group matrix, its own concurrency group, comments naming `ci.yml` as the other holder
       of the node version and group list. Verify by dispatching it from the branch once it exists on
       the default branch's workflow list, or by `actionlint`, and by reading one job's summary row
@@ -52,10 +52,13 @@
 
 ## 4. Landing
 
-- [ ] 4.1 Run the eight-spec sweep from `docs/research/e2e-runtime-versions` once more through the
-      final code with `OBSIDIAN_INSTALLER_VERSION=latest`, and note in the research note anything
-      the weekly run's first result adds. File each failure it finds as an issue with the user's
-      go-ahead (AGENTS.md, "A follow-up is an issue").
+- [ ] 4.1 Read this pull request's CI, the first full run of the suite on the newest installer, and
+      dispatch `oldest-installer.yml` from the branch (or, if a workflow cannot run before it is on
+      the default branch, run `OBSIDIAN_INSTALLER_VERSION=earliest` over the eight-spec sweep from
+      `docs/research/e2e-runtime-versions`). Fix each regression the newest Chrome shows in this change,
+      and note in the research note which of the 55 specs each installer ran. File any failure that is
+      not this change's to fix as an issue with the user's go-ahead (AGENTS.md, "A follow-up is an
+      issue").
 - [ ] 4.2 Validate, sync and archive the change, and bump the patch version with `npm version patch`.
       Verify with `openspec validate newest-installer-and-versions --strict` and
       `node scripts/check-landed.ts origin/main "fix(e2e): name the installer and runtime versions in

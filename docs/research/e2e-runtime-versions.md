@@ -17,7 +17,10 @@ Both wdio configs pass `installerVersion: 'earliest'`. Resolved through the laun
 | `latest` | 1.13.7 | 43.3.0 | 150.0.7871.212 |
 
 `earliest` is the oldest installer the app supports, so it is the floor of what a user can run;
-`latest` is what a fresh install runs. The two differ by fifteen Electron majors. The installer
+`latest` is what a fresh install runs. The two differ by fifteen Electron majors. Both are real
+users: Obsidian's self-update replaces the app bundle and leaves the installer alone
+(`wdio-obsidian-service`'s README, "Obsidian App vs Installer Versions"), so a long-time user runs
+the newest app on the installer they first installed. We have no figures for how many that is. The installer
 1.13.7 is 339 MB on disk beside 278 MB for 1.5.8, and its chromedriver (Electron 43.3.0) is fetched
 on first use.
 
@@ -41,8 +44,8 @@ order, through `npm run test:e2e:narrow` with the installer read from an environ
 All 193 cases passed under both, desktop only. The mobile-emulation config was probed, not
 swept. Chrome 150 finished each file faster (for example `80-outline-zoom`, 171 s against 114 s of
 test time), but each pair ran earliest first on one VM, so the order is not controlled and the
-figure is not a claim about Chrome. Eight of 55 spec files is not the suite: whether a weekly run
-starts green is unknown until it runs.
+figure is not a claim about Chrome. Eight of 55 spec files is not the suite: whether the whole suite is
+green on Chrome 150 is unknown until it runs.
 
 ## What a running app says about itself
 
