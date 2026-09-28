@@ -1,9 +1,9 @@
 ## Context
 
 See proposal.md, "Why". The figures the design rests on, and the probes that produced them, are in
-[`docs/research/driving-a-running-obsidian.md`](../../../docs/research/driving-a-running-obsidian.md),
+[`docs/research/driving-a-running-obsidian.md`](../../../../docs/research/driving-a-running-obsidian.md),
 and, for the protocol's own costs and what a screenshot lets a model read,
-[`docs/research/rendered-ui-observability.md`](../../../docs/research/rendered-ui-observability.md).
+[`docs/research/rendered-ui-observability.md`](../../../../docs/research/rendered-ui-observability.md).
 
 Three facts from the notes shape the CLI:
 

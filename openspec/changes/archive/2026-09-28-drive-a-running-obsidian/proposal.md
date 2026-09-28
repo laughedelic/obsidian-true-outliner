@@ -2,7 +2,7 @@
 
 An agent's only view of the real app is a spec run. A narrow run of `00-smoke` takes 40 s, 21 s of
 it inside the spec, and starts a fresh Obsidian each time
-([`docs/research/rendered-ui-observability.md`](../../../docs/research/rendered-ui-observability.md),
+([`docs/research/rendered-ui-observability.md`](../../../../docs/research/rendered-ui-observability.md),
 "Measurements"). So an agent checks a fix by writing a case for what it already expects, and never
 looks at the result the way the tester does. Where its expectation and the app disagreed, the
 tester found out, over several rounds (`open-questions` Q27, #28, #31). #290 asks for one Obsidian
@@ -10,7 +10,7 @@ kept running and driven over the DevTools protocol, and #297 places it among the
 that need nothing else to land first.
 
 The costs that make it worth doing are measured in
-[`docs/research/driving-a-running-obsidian.md`](../../../docs/research/driving-a-running-obsidian.md):
+[`docs/research/driving-a-running-obsidian.md`](../../../../docs/research/driving-a-running-obsidian.md):
 a launch that is ready in 1.7 s once the first has been paid, a key or an evaluation at about
 5 ms, a rebuild and reload at 0.8 to 1.2 s. The same note records what a driver has to handle
 that the earlier note did not reach: half the screenshots of a still screen show no caret, and
