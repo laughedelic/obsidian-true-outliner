@@ -102,7 +102,7 @@ None.
   fewer lines over 400 generated notes, all where no reader continues the seam, at the cost of a per-reader table
   and spacing that varies by kind within one result (design D11).
 - **Block ids that change host.** The oracle counts 125 on today's operations with the pass on, fewer than without
-  it. What each operation does to an id is its own change.
+  it. What each operation does to an id is its own change, #281.
 - **#258's heading keys.** This change states the drafted sibling heading's seams as they stand, and #258
   replaces that heading with a paragraph place.
 - **#255.** The parse floor already separates a flush quote, callout or rule under a list item on any operation.
