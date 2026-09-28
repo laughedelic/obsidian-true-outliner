@@ -34,6 +34,18 @@ WebDriver commands SHALL keep working while a connection is open and after it cl
 - **WHEN** a spec subscribes to console output and a script run through WebDriver logs a message
 - **THEN** the subscriber receives that message
 
+#### Scenario: A window handle with a prefix still finds the page
+
+- **WHEN** a spec opens a connection with WebDriver's window handle given a `CDwindow-` prefix
+- **THEN** the connection reaches the page, and an evaluation of the viewport equals WebDriver's
+  reading
+
+#### Scenario: A handle that matches no target fails by name
+
+- **WHEN** a spec opens a connection with a window handle that no page target carries
+- **THEN** the connection is rejected with an error that names that handle and the targets that
+  were listed
+
 #### Scenario: A new connection follows an Obsidian reload
 
 - **WHEN** Obsidian is reloaded through the harness and a spec then opens a connection and
@@ -50,5 +62,4 @@ WebDriver commands SHALL keep working while a connection is open and after it cl
 
 - **WHEN** a spec sends a command that takes longer than the limit it gave that command, and a
   later command is sent on the same connection
-- **THEN** the first is rejected with an error that names it, the late reply is ignored, and the
-  later command completes
+- **THEN** the first is rejected with an error that names it, and the later command completes

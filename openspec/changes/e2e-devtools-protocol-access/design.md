@@ -28,12 +28,11 @@ its own Obsidian, and so its own debugger address, read from the session's capab
 ## Decisions
 
 **A raw WebSocket, not `puppeteer-core`.** Node's global `WebSocket` and the protocol's JSON
-framing are about eighty lines. `browser.getPuppeteer()` needs `puppeteer-core` installed, which
-adds a package with seven dependencies of its own, changed eleven packages already installed in
-the measurement, and opened its connection roughly twenty times slower (note). It buys typed
-domains and page helpers, which the modules built on this one do not need: each sends a handful of
-commands with known payloads. If a later change wants puppeteer's page model, the dependency can
-come with that change.
+framing need nothing installed. `browser.getPuppeteer()` needs `puppeteer-core`, and the note
+gives what installing it adds and what its connection costs against opening the socket. It buys
+typed domains and page helpers, which the modules built on this one do not need: each sends a
+handful of commands with known payloads. If a later change wants puppeteer's page model, the
+dependency can come with that change.
 
 **The target is the one WebDriver's window handle names.** The handle equals the page target's
 `id` in the measurement, on both runs, so the module lists `/json` and takes that target. The
@@ -54,14 +53,19 @@ browser-level connection would be the route to several targets, which is a non-g
 replaces the one read from WebDriver, so a case can check the lookup's failure by asking for a
 target that does not exist. The scoped form is what a case uses.
 The two-call form exists for a monitor that opens in `beforeEach` and closes in `afterEach`, which
-the flicker work will do, and it leaves closing to the caller. The smoke case uses both.
+the flicker work will do, and it leaves closing to the caller. The smoke case runs on `withCdp`,
+which is built on `connectCdp`, and calls `connectCdp` itself for the lookup that finds no target.
+No case holds a two-call connection open yet.
 
 **`send` rejects instead of hanging.** Every command carries a limit, `waitBudget(10_000)` unless
 the call gives its own, and rejects with an error naming the method when it passes. A protocol
 error reply rejects with the method and the protocol's message. A socket that closes with commands
-in flight rejects each of them. The wdio wrapper gives a case 60 s (`docs/research/e2e-ci-budgets.md`),
-and a hung screenshot would otherwise show as a bare `Timeout` with no method named. A late
-reply for a command already rejected is dropped.
+in flight rejects each of them, and so does a frame that cannot be sent. Listing the targets,
+opening the socket and closing it each carry a limit of their own and reject naming what was being
+done. The wdio wrapper gives a case 60 s (`docs/research/e2e-ci-budgets.md`), and a hung
+screenshot would otherwise show as a bare `Timeout` with no method named. A late reply for a
+command already rejected is dropped. A subscriber that throws, and a frame that is not JSON, are
+reported with `console.warn` and do not stop the other subscribers or the connection.
 
 **`on(event, handler)` returns its own remover.** Events are not enabled by the module; the
 caller sends `Runtime.enable` or `Page.startScreencast` itself, since enabling has costs the
@@ -74,7 +78,7 @@ it to a single Obsidian launch.
 
 **One case per run, as #287 asks, with the failure modes inside it.** The case walks the
 requirement's scenarios in order. It is one case because each step needs the state the one before
-left, and because the reload step is the slow one and should run once.
+left.
 
 ## Risks / Trade-offs
 
@@ -86,10 +90,9 @@ left, and because the reload step is the slow one and should run once.
   case to be careful with; the follow-ups that send `Emulation.*` should say so in their own
   design.
 - [`Input.dispatchKeyEvent` needs the window to have focus] → `document.hasFocus()` was true in
-  the measurement under Xvfb with no window manager. The smoke case reads the key's effect back,
+  the measurement under Xvfb with no window manager (note). The smoke case reads the key's effect back,
   so a run where focus is lost fails there, naming the key.
 - [A connection left open by a case that throws] → The scoped form closes in `finally`. The
-  two-call form leaves that to its caller, which is the reason the smoke case's use of it closes
-  in `finally` as well.
+  two-call form leaves that to its caller.
 - [The 10 s limit is wrong for a slow command such as a CPU profile's stop] → A call passes its
   own limit. No command in this change needs one.

@@ -18,7 +18,9 @@
       Negative controls: caching the address in a module variable must fail the reload step;
       dropping the close in `withCdp`'s `finally` must fail the released-connection step, since
       the connection is still open when the case sends on it; removing the limit's rejection must
-      fail the limit step, the slow command resolving where it was expected to reject.
+      fail the limit step, the slow command resolving where it was expected to reject; sending
+      the key without its `text` must fail the key step; clipping the screenshot must fail the
+      size step; and not sending `Runtime.enable` must fail the event step.
 - [x] 2.2 Check the target lookup in the same case: a handle carrying a `CDwindow-` prefix
       resolves to the page, and a handle that matches no target rejects with an error naming the
       handle and the ids found. Both go through `connectCdp`'s `handle` option. Verified by the

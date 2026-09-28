@@ -2,8 +2,8 @@
  * Smoke for `e2e-tests/cdp.ts`: a spec reaches the page WebDriver is driving over the DevTools
  * protocol, on the desktop run and under mobile emulation.
  *
- * One case, because each step needs the state the one before left and the reload step is the
- * slow one. It walks the `e2e-verification` requirement "DevTools-protocol access from a spec".
+ * One case, because each step needs the state the one before left. It walks the
+ * `e2e-verification` requirement "DevTools-protocol access from a spec".
  */
 
 import { browser, expect } from '@wdio/globals';

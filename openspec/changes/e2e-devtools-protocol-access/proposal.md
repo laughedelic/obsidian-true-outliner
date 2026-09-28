@@ -28,8 +28,8 @@ emulation, with no new dependency: see
 - **The monitors** for flicker and latency, and the ambient invariants of #288. Those edit the
   shared wdio hooks; this change edits neither `wdio.conf.mts`, `wdio.mobile-emulation.conf.mts`
   nor `wdio.shared.mts`, which is why the helper has its own file.
-- **Touch through `Input.dispatchTouchEvent`.** The 54 cases that return early under
-  `IS_MOBILE_RUN` and `e2e-tests/dragging.ts` stay as they are. Moving them is its own change
+- **Touch through `Input.dispatchTouchEvent`.** The cases that return early under
+  `IS_MOBILE_RUN`, which #287 counts, and `e2e-tests/dragging.ts` stay as they are. Moving them is its own change
   once this one is in.
 - **Wrappers for particular commands.** The module carries `send` and `on`. A key, an evaluation
   and a screenshot are payloads the smoke case writes out; a helper for a command arrives with the

@@ -244,8 +244,8 @@ end.
 Measured on 2026-09-28 in the same cloud session, on `main` at `685d3f8`, from a probe spec run
 under `npm run test:e2e:narrow`, once on the desktop config and once under mobile emulation. The
 probes are in `docs/research/prototypes/cdp-in-a-spec/`. Each figure is one reading from a fresh
-session, the first of its kind in that session, so they run higher than the warm readings in the
-table above.
+session, the first of its kind in that session, so it does not compare one-for-one with the
+warm readings in the table above.
 
 | Reading | Desktop | Mobile emulation |
 | --- | --- | --- |
@@ -254,7 +254,7 @@ table above.
 | Node's global `WebSocket` (Node 22.22.2) | present | present |
 | `/json` request | 7.3 ms | 7.9 ms |
 | WebSocket open | 6.8 ms | 5.0 ms |
-| `Runtime.evaluate` of the viewport | 4.7 ms: 1024×800, no touch points | 17.1 ms: 390×844, one touch point |
+| `Runtime.evaluate` of the viewport | 4.7 ms: 1024×800, device pixel ratio 1, no touch points, `document.hasFocus()` true | 17.1 ms: 390×844, device pixel ratio 1, one touch point, `document.hasFocus()` true |
 | `Input.dispatchKeyEvent` down and up for `x` | 31.4 ms; `- b` read back as `- bx` | 35.3 ms; the same |
 | `Page.captureScreenshot`, whole page | 95 ms, 1024×800 | 62.8 ms, 390×844 |
 | The same with `clip` 200×100 at `scale: 2` | 36.1 ms, 400×200 | 63.5 ms, 400×200 |
@@ -268,15 +268,17 @@ table above.
 - **Emulation reaches the second client.** Under mobile emulation the socket reads a 390×844
   viewport with one touch point, and a screenshot through it is 390×844. The emulation applies to
   the page, not only to the session chromedriver holds.
-- **A reload changes both the address and the handle.** After `browser.reloadObsidian()` the
-  capabilities read `localhost:40769` where they had read `localhost:43987`, and the handle
-  changed with the target. `/json` listed only the new page. Neither value survives a reload, so
-  neither can be read once and kept.
-- **`puppeteer-core` works and costs more.** `browser.getPuppeteer()` connected in 133 ms once
-  `puppeteer-core@24` was installed, read the page's own viewport (`viewport()` was `null`, so it
-  applied no override), and screenshotted it at 390×844 in 54 ms. The install added 7 packages,
-  removed 2 and changed 11, and `puppeteer-core` alone is about 8.9 MB unpacked; the raw socket
-  adds nothing. Connecting took 133 ms against 5.0 ms for the raw socket in the same run.
+- **A reload changes both the address and the handle.** Under mobile emulation, after
+  `browser.reloadObsidian()` the capabilities read `localhost:40769` where they had read
+  `localhost:43987`, and the handle changed with the target. `/json` listed only the new page.
+  Neither value survives a reload, so neither can be read once and kept.
+- **`puppeteer-core` works and costs more.** Under mobile emulation, `browser.getPuppeteer()`
+  connected in 133 ms once `puppeteer-core@24` was installed, read the page's own viewport
+  (`viewport()` was `null`, so it applied no override), and screenshotted it at 390×844 in 54 ms.
+  The 133 ms is the whole call, module load and target discovery included, where the raw socket's
+  5.0 ms in the table is the open alone; the two come from different probe files. The install
+  added 7 packages, removed 2 and changed 11, and `npm view` puts `puppeteer-core` at about 8.9 MB
+  unpacked; the raw socket adds nothing.
 
 The launcher's starter, `sh e2e-tests/docker/start-xvfb-and-run.sh`, leaves Xvfb running after the
 command it wraps has finished, holding whatever stdout it was started with. Piped into `tail`, the
