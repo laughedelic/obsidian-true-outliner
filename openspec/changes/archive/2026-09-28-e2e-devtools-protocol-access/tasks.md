@@ -39,8 +39,8 @@
 
 ## 4. Land
 
-- [ ] 4.1 `npm test`, `npm run build`, `npm run typecheck:e2e`, `npm run typecheck:scripts` and
+- [x] 4.1 `npm test`, `npm run build`, `npm run typecheck:e2e`, `npm run typecheck:scripts` and
       `npm run lint` all pass, and a full `smoke` group run passes on both platforms in CI.
-- [ ] 4.2 Sync the delta into `openspec/specs/e2e-verification/spec.md` and archive the change.
+- [x] 4.2 Sync the delta into `openspec/specs/e2e-verification/spec.md` and archive the change.
       No version bump: the change ships nothing. Verified by the `Landed` check on the ready PR.
 - [x] 4.3 `openspec validate e2e-devtools-protocol-access --strict`
