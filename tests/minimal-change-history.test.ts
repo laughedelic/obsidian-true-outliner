@@ -47,7 +47,7 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import { EditorSelection, EditorState, Transaction } from '@codemirror/state';
-import { history, redo, undo } from '@codemirror/commands';
+import { history, isolateHistory, redo, undo } from '@codemirror/commands';
 import { encode } from '../src/encode';
 import { parse } from '../src/parse';
 import { walkNodes } from '../src/model';
@@ -223,6 +223,56 @@ describe('a selection-only transaction keeps adjacent changes in separate undo s
     const view = makeView(indentThenOutdent(false));
     undo(view);
     // One press reverted BOTH — the regression this pins.
+    expect(view.state.doc.toString()).toBe(DOC);
+  });
+});
+
+/**
+ * The same join, reached from the other side: a KEYPRESS of ours dispatches its
+ * caret with its change, so its event has no `selectionsAfter` either, and CM6
+ * checks only the NEW change's `userEvent`. A command run right after the key
+ * joins the key's event unless the history is isolated first — which is what
+ * `runOp` does before its dispatch.
+ */
+describe('isolating the history before a command keeps it apart from the key before it', () => {
+  const DOC = '- one\n- foo\n';
+  const OPENED = '- one\n- foo\n  \n';
+
+  /** Shift+Enter as the keymap dispatches it, then an indent as `Editor.transaction` does. */
+  function keyThenCommand(isolateFirst: boolean): EditorState {
+    let state = EditorState.create({
+      doc: DOC,
+      selection: EditorSelection.cursor(11),
+      extensions: [history()],
+    });
+    state = state.update({
+      changes: { from: 11, insert: '\n  ' },
+      selection: EditorSelection.cursor(14),
+      userEvent: 'input.structure.continue',
+    }).state;
+    if (isolateFirst) state = state.update({ annotations: isolateHistory.of('before') }).state;
+    return state.update({
+      changes: [
+        { from: 6, insert: '  ' },
+        { from: 12, insert: '  ' },
+      ],
+      selection: EditorSelection.cursor(18),
+    }).state;
+  }
+
+  it('isolated, one undo reverts only the command', () => {
+    const view = makeView(keyThenCommand(true));
+    expect(view.state.doc.toString()).toBe('- one\n  - foo\n    \n');
+    undo(view);
+    expect(view.state.doc.toString()).toBe(OPENED);
+    expect(view.state.selection.main.head).toBe(14);
+    undo(view);
+    expect(view.state.doc.toString()).toBe(DOC);
+  });
+
+  it('NOT isolated, the key and the command merge into a single undo step', () => {
+    const view = makeView(keyThenCommand(false));
+    undo(view);
     expect(view.state.doc.toString()).toBe(DOC);
   });
 });

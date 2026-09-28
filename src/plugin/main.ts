@@ -115,6 +115,7 @@ import { placeOutline } from './decorate';
 import { carriedRecordOf, openPlaceLine, recordDispatch } from './provisional-cleanup';
 import { abandonEdit, dispatchAbandon, STRUCTURAL_DISPATCH, type StructuralKey } from './grammar';
 import { ChangeSet } from '@codemirror/state';
+import { isolateHistory } from '@codemirror/commands';
 
 const CONFLICTING_PLUGINS = ['obsidian-outliner', 'obsidian-zoom'];
 
@@ -1450,8 +1451,19 @@ export default class TrueOutlinerPlugin extends Plugin {
     // userEvent already fails CM6's `joinableUserEvent` test. Guarded by a unit
     // test on that CM6 behaviour in tests/minimal-change-history.test.ts and by
     // 20-structural-commands' "one undo step each way".
+    //
+    // The same join reaches back to whatever came BEFORE the command. A
+    // keypress of ours dispatches its caret with its change, so its event has
+    // no `selectionsAfter` either, and CM6 checks only the new change's
+    // `userEvent` — an indent run within `newGroupDelay` of such a key merges
+    // into the key's undo step. `isolateHistory` ends that window without
+    // recording anything on the key's event, and carries no selection for
+    // anything watching to react to. It goes before `before` is read:
+    // `planned-changes` drops its statement on the next transaction from that
+    // state, whatever the transaction is.
     const changes: EditorChange[] = [...outcome.changes];
     if (changes.length > 0) {
+      view?.dispatch({ annotations: isolateHistory.of('before') });
       const selectionAfter =
         outcome.to === undefined
           ? { from: outcome.from }

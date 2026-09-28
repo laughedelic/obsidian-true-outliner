@@ -359,6 +359,42 @@ describe('structural commands', function () {
     expect(await h.getCursor()).toEqual(keyboardCaret);
   });
 
+  it('a command run straight after a structural key is its own undo step', async function () {
+    // A keypress of ours dispatches its caret with its change, so its history
+    // entry has no `selectionsAfter`, and CM6 joins the command's
+    // `userEvent`-less change into it when the two land within
+    // `newGroupDelay`. The key and the command go out in one task, so they
+    // always land inside that window and the case cannot pass for want of
+    // timing. A move lands no change adjacent to the place, so it is the
+    // indent that joins.
+    const start = '- one\n- foo\n';
+    const opened = '- one\n- foo\n  \n';
+    await outlineNote(start, 1, '- foo'.length);
+    await browser.executeObsidian(({ app, obsidian }, id) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      const cm = (view.editor as any).cm;
+      cm.contentDOM.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'Enter',
+          code: 'Enter',
+          keyCode: 13,
+          shiftKey: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+      (app as any).commands.executeCommandById(id);
+    }, `${h.PLUGIN_ID}:indent-node`);
+    expect(await h.getBuffer()).toBe('- one\n  - foo\n    \n');
+
+    await h.keys.undo();
+    expect(await h.getBuffer()).toBe(opened);
+    expect(await h.getCursor()).toEqual({ line: 2, ch: 2 });
+    await h.keys.undo();
+    expect(await h.getBuffer()).toBe(start);
+  });
+
   it('indent via the palette leaves a blank line the user AUTHORED alone', async function () {
     // The other half of the same rule: with no place recorded, a gap line is a
     // gap. The caret sits between two paragraphs and only the paragraph that
