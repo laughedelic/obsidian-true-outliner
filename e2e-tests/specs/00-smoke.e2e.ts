@@ -7,7 +7,16 @@
 
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
-import { IS_MOBILE_RUN, openNote, getBuffer, readVaultFile, clickClear } from '../helpers.js';
+import {
+  IS_MOBILE_RUN,
+  openNote,
+  getBuffer,
+  readVaultFile,
+  clickClear,
+  getCursor,
+  setCursor,
+  waitForCursor,
+} from '../helpers.js';
 
 describe('smoke', function () {
   it('boots with the plugin loaded', async function () {
@@ -22,6 +31,45 @@ describe('smoke', function () {
     const buffer = await getBuffer();
     const disk = await readVaultFile('Notes/Sourdough Log.md');
     expect(buffer).toBe(disk);
+  });
+
+  it('waitForCursor waits for a caret that arrives late, and rejects naming where it was when it never does', async function () {
+    await openNote('Notes/Sourdough Log.md');
+    await setCursor(0, 0);
+    // What the editor settles a request to is its own business (a list line pulls the caret to its
+    // content start), so the case reads where the caret is and waits for the next column.
+    const at = await getCursor();
+    const target = at.ch + 1;
+
+    // A caret that arrives after the wait has begun: a wait that read once would reject.
+    await browser.executeObsidian(
+      ({ app, obsidian }, line, ch) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+        window.setTimeout(() => view?.editor.setCursor({ line, ch }), 300);
+      },
+      at.line,
+      target,
+    );
+    await waitForCursor(at.line, target);
+
+    /** The message of a wait that gives up; fails the case when the wait resolves. */
+    const gaveUp = async (line: number, ch: number): Promise<string> => {
+      try {
+        await waitForCursor(line, ch, 300);
+      } catch (e) {
+        return (e as Error).message;
+      }
+      throw new Error(`the wait for ${line}:${ch} resolved`);
+    };
+    const gaveUpAt = Date.now();
+    const wrongColumn = await gaveUp(at.line, target + 1);
+    // Its own 300 ms limit, not the default's seconds.
+    expect(Date.now() - gaveUpAt).toBeLessThan(2500);
+    expect(wrongColumn).toContain(`never reached ${at.line}:${target + 1};`);
+    expect(wrongColumn).toContain(`last read ${at.line}:${target}`);
+    // The same column on another line is another position.
+    expect(await gaveUp(at.line + 1, target)).toContain(`never reached ${at.line + 1}:${target};`);
+    await waitForCursor(at.line, target, 300);
   });
 
   it('reports the platform mode this config requested', async function () {
