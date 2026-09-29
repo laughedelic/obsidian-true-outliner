@@ -1,0 +1,25 @@
+case: reproduction: ⇧⏎ ⇧⇥ ↑ (#274)
+keys: ⇧⏎ | ⇧⇥ | ↑
+
+=== before
+## Foo┃
+body
+## Bar
+text
+=== after ⇧⏎
+## Foo
+body
+## ┃
+## Bar
+text
+=== after ⇧⇥
+## Foo
+body
+# ┃
+## Bar
+text
+=== after ↑
+## Foo
+body┃
+## Bar
+text

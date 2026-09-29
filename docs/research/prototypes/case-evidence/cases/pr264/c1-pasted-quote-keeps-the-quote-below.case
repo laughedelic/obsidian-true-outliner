@@ -1,0 +1,17 @@
+case: case 1: a pasted quote keeps the quote below it (#264)
+keys: ⌘V
+
+=== clipboard
+    first
+
+    > quoted
+=== before
+## H┃
+> real quote
+=== after ⌘V
+## H
+first
+
+> quoted
+
+> real quote

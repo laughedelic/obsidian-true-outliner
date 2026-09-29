@@ -1,0 +1,13 @@
+case: probe: #270 case 1, then fold the node above
+keys: ⌘V | ↑ | ⌘⌥↑
+
+=== clipboard
+- p
+
+  para
+
+  - n
+	1. m
+=== before
+- a
+  1. b┃

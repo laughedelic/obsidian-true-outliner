@@ -1,0 +1,22 @@
+case: case 4: a quote whose second line is spelled with a tab (#270)
+keys: ⌘V
+
+=== clipboard
+- p
+
+  para
+
+  > a
+  	> b
+=== before
+- a
+  1. b┃
+=== after ⌘V
+- a
+  1. b
+  - p
+
+    para
+
+    > a
+  	  > b

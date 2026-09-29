@@ -1,0 +1,12 @@
+case: control: case 1's clipboard at the end of a lone item (#270)
+keys: ⌘V
+
+=== clipboard
+- p
+
+  para
+
+  - n
+	1. m
+=== before
+- a┃

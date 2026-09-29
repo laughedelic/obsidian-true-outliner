@@ -1,0 +1,15 @@
+case: case 2: a pasted comment over a list keeps the node below (#264)
+keys: ⌘V
+
+=== clipboard
+    <!-- c -->
+    - x
+=== before
+## H┃
+below
+=== after ⌘V
+## H
+<!-- c -->
+
+- x
+below
