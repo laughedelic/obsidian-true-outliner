@@ -370,7 +370,14 @@ export async function writeMonitorReport(): Promise<void> {
   const records: CaseRecord[] = [];
   for (const file of (await fsp.readdir(MONITOR_RECORD_DIR)).filter((f) => f.endsWith('.jsonl'))) {
     const text = await fsp.readFile(path.join(MONITOR_RECORD_DIR, file), 'utf-8');
-    for (const line of text.split('\n')) if (line.trim()) records.push(JSON.parse(line) as CaseRecord);
+    for (const line of text.split('\n')) {
+      if (!line.trim()) continue;
+      try {
+        records.push(JSON.parse(line) as CaseRecord);
+      } catch {
+        // A worker killed mid-write leaves half a line; the report is worth more than that case.
+      }
+    }
   }
 
   const coverage: MonitorReport['coverage'] = {};

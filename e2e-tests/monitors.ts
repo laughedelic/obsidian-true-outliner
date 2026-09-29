@@ -89,7 +89,7 @@ export function exempt(reason: string, ...only: MonitorName[]): void {
 
 /** A case that waits for a notice, or reads the notices on screen, is not surprised by them. */
 export function expectNotices(...texts: string[]): void {
-  expectedNotices.push(...texts);
+  for (const t of texts) if (!expectedNotices.includes(t)) expectedNotices.push(t);
 }
 
 interface HookTest {
@@ -165,6 +165,8 @@ export async function afterCase(test: HookTest, passed: boolean): Promise<void> 
 
   if (!passed) {
     for (const name of MONITORS) record.skipped[name] = 'the case failed, timed out or was skipped';
+    // Not read, so nothing else would stop them before the next case installs its own.
+    await guarded(browser.execute(stopInPage), HOOK_BUDGET_MS).catch(() => undefined);
     await write();
     return;
   }
@@ -250,6 +252,9 @@ function installInPage(): void {
     touched: new Map<any, { min: number; max: number }>(),
     stop: () => stops.forEach((s) => s()),
   };
+  // Published before anything is registered, so a failure part-way still leaves a handle that
+  // stops what was.
+  w.__toMonitors = M;
   // Per editor: its document as of the last change seen, to diff the next one against.
   const docs = new Map<any, string>();
   const remember = (cm: any): void => {
@@ -373,7 +378,7 @@ function installInPage(): void {
 
   // The lines an edit touched, as a span, by diffing the document at each change. A change to an
   // editor first seen after the change began has nothing to diff against, so it touches all of it.
-  const ref = w.app.workspace.on('editor-change', (ed: any) => {
+  const ref = w.app?.workspace?.on?.('editor-change', (ed: any) => {
     const cm = ed?.cm;
     if (!cm) return;
     const doc = cm.state.doc;
@@ -399,7 +404,7 @@ function installInPage(): void {
     const seen = M.touched.get(cm);
     M.touched.set(cm, seen ? { min: Math.min(seen.min, span.min), max: Math.max(seen.max, span.max) } : span);
   });
-  stops.push(() => w.app.workspace.offref(ref));
+  stops.push(() => ref && w.app.workspace.offref(ref));
 
   // Uncaught errors, and what CodeMirror logs when one of its plugins throws.
   const onError = (ev: ErrorEvent) => {
@@ -414,7 +419,11 @@ function installInPage(): void {
   window.addEventListener('unhandledrejection', onRejection);
   const originalConsoleError = console.error;
   console.error = (...args: unknown[]) => {
-    M.errors.push(`console.error: ${args.map((a) => String((a as Error)?.message ?? a)).join(' ').slice(0, 160)}`);
+    try {
+      M.errors.push(`console.error: ${args.map((a) => String((a as Error)?.message ?? a)).join(' ').slice(0, 160)}`);
+    } catch {
+      M.errors.push('console.error: (an argument that cannot be printed)');
+    }
     originalConsoleError.apply(console, args as []);
   };
   stops.push(() => {
@@ -439,8 +448,14 @@ function installInPage(): void {
   mo.observe(document.body, { childList: true, subtree: true });
   stops.push(() => mo.disconnect());
 
-  w.__toMonitors = M;
   /* eslint-enable @typescript-eslint/no-explicit-any */
+}
+
+/** Stops whatever `installInPage` started, for a case that is not read. */
+function stopInPage(): void {
+  const w = window as unknown as { __toMonitors?: { stop(): void } | undefined };
+  w.__toMonitors?.stop();
+  w.__toMonitors = undefined;
 }
 
 /**
@@ -455,10 +470,19 @@ function readInPage(expected: string[], final: boolean): PageReading | null {
   const cm = w.app?.workspace?.activeEditor?.editor?.cm ?? null;
   const out = {} as PageReading;
   const r = (n: number, d = 2): string => String(+n.toFixed(d));
+  // One reading that throws (a stale height map, a document changed under it) costs that reading
+  // and not the other six.
+  const guard = (reading: () => PageResult): PageResult => {
+    try {
+      return reading();
+    } catch (e) {
+      return { skipped: `unreadable: ${String(e).slice(0, 80)}`, observations: [] };
+    }
+  };
   M.flushShifts?.();
 
   // ---- caret -----------------------------------------------------------
-  out.caret = ((): PageResult => {
+  out.caret = guard((): PageResult => {
     if (!cm) return { skipped: 'no editor', observations: [] };
     const main = cm.state.selection.main;
     const ds = window.getSelection();
@@ -521,10 +545,10 @@ function readInPage(expected: string[], final: boolean): PageReading | null {
       }
     }
     return { observations: obs };
-  })();
+  });
 
   // ---- scroll ----------------------------------------------------------
-  out.scroll = ((): PageResult => {
+  out.scroll = guard((): PageResult => {
     const obs: PageResult['observations'] = [];
     const byCm = new Map<any, any[]>();
     for (const s of M.scroll) byCm.set(s.cm, [...(byCm.get(s.cm) ?? []), s]);
@@ -561,10 +585,10 @@ function readInPage(expected: string[], final: boolean): PageReading | null {
       }
     }
     return byCm.size === 0 ? { skipped: 'no editor was scrolled or visible', observations: obs } : { observations: obs };
-  })();
+  });
 
   // ---- grid ------------------------------------------------------------
-  out.grid = ((): PageResult => {
+  out.grid = guard((): PageResult => {
     if (!cm) return { skipped: 'no editor', observations: [] };
     const content: HTMLElement = cm.contentDOM;
     const cb = content.getBoundingClientRect();
@@ -591,9 +615,9 @@ function readInPage(expected: string[], final: boolean): PageReading | null {
 
     const obs: PageResult['observations'] = [];
     let checked = 0;
-    const BOX = 'HyperMD-codeblock, .cm-embed-block, .to-decor-widget-line, .cm-gap, .cm-callout';
+    const BOX = '.HyperMD-codeblock, .cm-embed-block, .to-decor-widget-line, .cm-gap, .cm-callout';
     for (const child of Array.from(content.children) as HTMLElement[]) {
-      if (child.matches(BOX) || child.classList.contains('HyperMD-codeblock')) continue;
+      if (child.matches(BOX)) continue;
       let n: number;
       try {
         n = cm.state.doc.lineAt(cm.posAtDOM(child)).number - 1;
@@ -691,10 +715,10 @@ function readInPage(expected: string[], final: boolean): PageReading | null {
       }
     }
     return checked === 0 ? { skipped: 'no rendered line on the grid', observations: [] } : { observations: obs };
-  })();
+  });
 
   // ---- height map ------------------------------------------------------
-  out.heightMap = ((): PageResult => {
+  out.heightMap = guard((): PageResult => {
     if (!cm) return { skipped: 'no editor', observations: [] };
     const obs: PageResult['observations'] = [];
     let checked = 0;
@@ -724,10 +748,10 @@ function readInPage(expected: string[], final: boolean): PageReading | null {
       }
     }
     return checked === 0 ? { skipped: 'no rendered line to round-trip', observations: [] } : { observations: obs };
-  })();
+  });
 
   // ---- layout shift ----------------------------------------------------
-  out.layoutShift = ((): PageResult => {
+  out.layoutShift = guard((): PageResult => {
     if (M.shiftsUnsupported) return { skipped: 'no Layout Instability API', observations: [] };
     if (M.touched.size === 0) return { skipped: 'the case edited no document', observations: [] };
     const obs: PageResult['observations'] = [];
@@ -750,7 +774,7 @@ function readInPage(expected: string[], final: boolean): PageReading | null {
       });
     }
     return { observations: obs.slice(0, 20) };
-  })();
+  });
 
   // ---- errors ----------------------------------------------------------
   out.errors = {
@@ -761,9 +785,11 @@ function readInPage(expected: string[], final: boolean): PageReading | null {
   };
 
   // ---- notices ---------------------------------------------------------
+  // WebDriver's `getText` puts line breaks where `textContent` has none.
+  const norm = (t: string): string => t.replace(/\s+/g, '');
   out.notices = {
     observations: (M.notices as string[])
-      .filter((t) => !expected.some((e) => t.includes(e)))
+      .filter((t) => !expected.some((e) => norm(t).includes(norm(e))))
       .map((t) => ({ rule: 'unexpected-notice', detail: `"${t.slice(0, 100)}"` })),
   };
 

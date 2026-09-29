@@ -193,4 +193,11 @@ is filed: each needs a re-measurement against the code before it is a claim.
   can be missed. The self-test's shift rows wait for the entry for that reason.
 - **A caret in a case that never focused the editor.** 157 desktop cases and 333 mobile ones.
 - **A case that reloads the page.** Three of them, whose monitors were gone by the read.
+- **What the recorders cost inside a case.** The 22 ms a case is the install and the read. A frame
+  sampler, a layout-shift observer, a notice observer and a document diff at each edit run through
+  the body, exempt cases included, and that cost is not measured. The cases that time the plugin
+  pass with them on; `E2E_MONITORS=off` is the way to time one without them.
+- **A popout window, or a window whose frames are throttled.** The caret, grid and notice readings
+  use the main window's `document`; a sampler in a throttled window records nothing and still reports
+  the monitor as read.
 - **Anything a person reads off the screen.** Ink, colour and motion are #294 and #287.

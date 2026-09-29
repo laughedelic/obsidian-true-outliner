@@ -139,7 +139,7 @@ describe('spike S5: what a hub note costs', function () {
 
     // Away from the end, so the widget is genuinely unmounted: CodeMirror
     // virtualises, and a footer already in the DOM would measure nothing.
-    exempt('the case scrolls the footer into view, away from the caret', 'scroll');
+    exempt('the case scrolls the note away from the footer and back to time the footer’s first paint', 'scroll');
     await browser.executeObsidian(() => {
       const scroller = document.querySelector('.workspace-leaf.mod-active .cm-scroller');
       if (scroller) scroller.scrollTop = 0;

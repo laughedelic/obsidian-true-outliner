@@ -148,8 +148,11 @@ the hooks for a run that measures something else.
   rule is grouped by name in the report with its first examples, so a rule's noise is countable; a
   case that sets up an odd state on purpose takes an exemption with its reason, and a rule that is
   wrong for a whole kind is corrected in its own change.
-- [Hooks add time to every case] → Each case costs one install and one read call. The note records
-  the total against the run's length; `E2E_MONITORS=off` removes it.
+- [Hooks add time to every case] → Each case costs one install and one read call, which the note
+  records against the run's length. The recorders also run inside the body: a frame sampler, two
+  observers and a document diff at each edit. That cost is not measured, and an exempt case keeps
+  them; the cases that time the plugin (`60`, `62`, `76`, `80`, `81`) pass with them on, and
+  `E2E_MONITORS=off` removes both.
 - [The observers change what they observe] → They only read: no dispatch, no style write, no
   focus. The one node added to the page, a probe for the gutter's width, is removed in the same call.
 - [A quiet report mistaken for a clean one] → Coverage is part of the report: a monitor that read 40

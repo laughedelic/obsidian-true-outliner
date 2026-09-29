@@ -26,8 +26,9 @@
       by narrow runs on desktop and with `--mobile`, each printing the `[e2e] monitors:` line and
       leaving `.obsidian-cache/e2e-monitors.json`.
 - [x] 2.3 `e2e-tests/helpers.ts`: `waitForNotice`, `noticeTexts` and `recordedNoticeTexts` report
-      what a case expected. Verified by the notices row of 3.1, and by `20-structural-commands`, whose
-      cases that wait for a refusal report no unexpected notice.
+      what a case expected. Verified by `20-structural-commands`, whose cases that wait for a refusal
+      report no unexpected notice, and by 3.1's row for a notice with block children, which reads the
+      text the way WebDriver does. The helpers' calls themselves have no row of their own.
 - [x] 2.4 `E2E_MONITORS=off` skips both hooks. Verified by a narrow run with it set, which writes no
       record and no report.
 
@@ -38,7 +39,7 @@
       state, then breaking the thing on purpose and reading again. Rows: a caret clipped by
       `overflow: hidden` on its line; a caret whose line is covered, or moved out of the scroller, or
       already out of view when the case began; a scroll that leaves and returns;
-      a step with the caret in view; a line's padding changed; a wrapped row off its item's hang; a
+      a step with the caret in view; a line moved by `left` or `top`; a wrapped row off its item's hang; a
       mark moved a pixel; a line moved sideways by a style write that touches no text, and another
       pushed down by an edit above it; a thrown error, a `console.error`; a notice, awaited and not;
       and a case with no focus. Negative controls, one per row: weakening the rule (dropping the hit
@@ -59,7 +60,8 @@
       `docs/research/ambient-e2e-monitors.md` states what each reported.
 - [x] 4.3 A case whose findings are deliberate takes an `exempt` with its reason, and each rule that
       reports in more than a few cases is named in the note with what its findings turned out to be.
-      Verified by a second sweep, whose reports carry only findings the note accounts for.
+      Verified by the CI sweeps after the corrections, whose remaining findings the note lists by rule and
+      case; nine rules stay unexplained there, and are candidates, not claims.
 
 ## 5. Document and close
 

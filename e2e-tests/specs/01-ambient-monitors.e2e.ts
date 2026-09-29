@@ -91,6 +91,8 @@ const LINE = `
 
 describe('ambient monitors', function () {
   before(async function () {
+    // With the hooks off there are no records and no running case for these rows to drive.
+    if (process.env.E2E_MONITORS === 'off') this.skip();
     await obsidianPage.resetVault();
     await h.resetPluginState();
     await h.pinPositionIndicatorsOff();
@@ -134,8 +136,11 @@ describe('ambient monitors', function () {
         veil.style.cssText = 'position:fixed;z-index:9999;background:transparent;left:' + (sel.left - 20) + 'px;top:' + (sel.top - 10) + 'px;width:40px;height:' + (sel.height + 20) + 'px';
         document.body.appendChild(veil);
       `);
-      expect(await rules('caret')).toContain('caret-covered');
-      await inPage(`document.getElementById('ambient-monitor-veil')?.remove();`);
+      try {
+        expect(await rules('caret')).toContain('caret-covered');
+      } finally {
+        await inPage(`document.getElementById('ambient-monitor-veil')?.remove();`);
+      }
     });
 
     it('reports a caret the case moved out of the scroller', async function () {
@@ -145,8 +150,11 @@ describe('ambient monitors', function () {
       expect(await rules('caret')).toEqual([]);
       // Moved rather than scrolled, so the scroll monitor has nothing to read.
       await inPage(`cm.contentDOM.style.transform = 'translateY(-3000px)';`);
-      expect(await rules('caret')).toContain('caret-outside-scroller');
-      await inPage(`cm.contentDOM.style.transform = '';`);
+      try {
+        expect(await rules('caret')).toContain('caret-outside-scroller');
+      } finally {
+        await inPage(`cm.contentDOM.style.transform = '';`);
+      }
     });
 
     it('does not report a caret that was already out of view when the case began', async function () {
@@ -358,6 +366,9 @@ describe('ambient monitors', function () {
       await install();
       await browser.keys(['x']);
       await inPage(`${LINE} const e = lineEl(5); e.style.position = 'relative'; e.style.top = '30px';`);
+      // The entry for the move is recorded when the browser next renders, so a read straight
+      // after would pass with or without the rule; the wait is what gives the control its edge.
+      await browser.pause(600);
       expect(await rules('layoutShift')).toEqual([]);
       await inPage(`${LINE} const e = lineEl(2); e.style.position = 'relative'; e.style.top = '30px';`);
       await reported('layoutShift', 'shift-above-edit');
@@ -408,6 +419,44 @@ describe('ambient monitors', function () {
       await browser.pause(150);
       expect(await rules('notices', ['ambient awaited'])).toEqual([]);
     });
+
+    it('matches a notice with block children against the text WebDriver reads from it', async function () {
+      await open(SHORT);
+      await install();
+      await browser.executeObsidian(({ obsidian }) => {
+        const fragment = document.createDocumentFragment();
+        for (const line of ['ambient first', 'ambient second']) {
+          const div = document.createElement('div');
+          div.textContent = line;
+          fragment.appendChild(div);
+        }
+        void new obsidian.Notice(fragment, 4000);
+      });
+      await browser.pause(150);
+      // `getText` puts a line break between the blocks; `textContent` has none.
+      expect(await rules('notices', ['ambient first\nambient second'])).toEqual([]);
+    });
+  });
+
+  describe('one reading failing', function () {
+    it('costs that reading and not the others', async function () {
+      await open(SHORT);
+      await h.setCursorSettled(2, 4);
+      await install();
+      await inPage(`cm.coordsAtPos = () => { throw new Error('a stale height map'); };`);
+      const reading = await read();
+      expect(reading?.caret.skipped).toMatch(/^unreadable: .*a stale height map/);
+      expect(reading?.heightMap.skipped).toMatch(/^unreadable: /);
+      expect(reading?.grid.skipped).toBeUndefined();
+      expect(reading?.errors.skipped).toBeUndefined();
+    });
+
+    it('does not let an argument that cannot be printed stop console.error', async function () {
+      await open(SHORT);
+      await install();
+      await inPage(`console.error(Object.create(null));`);
+      expect((await read())?.errors.observations.map((o) => o.rule)).toEqual(['console-error']);
+    });
   });
 
   describe('hooks and exemptions', function () {
@@ -428,6 +477,8 @@ describe('ambient monitors', function () {
       expect(last.test).toBe('a made-up case');
       expect(Object.values(last.skipped)).toEqual(Array(7).fill('the case failed, timed out or was skipped'));
       expect(last.observations).toEqual([]);
+      // Nothing else would stop the recorders of a case that is not read.
+      expect(await browser.execute(() => (window as any).__toMonitors === undefined)).toBe(true);
     });
 
     it('ignores a late hook for a case that is no longer the running one', async function () {
