@@ -16,6 +16,7 @@
     "dev": "node scripts/build.ts",
     "vault:install": "node scripts/build.ts production --dev",
     "vault:reset": "git checkout -- test-vault",
+    "drive": "node scripts/drive.ts",
     "obsidian:fetch": "node scripts/obsidian-fetch.ts",
     "test:e2e": "node scripts/run-e2e.ts desktop",
     "test:e2e:mobile": "node scripts/run-e2e.ts mobile",
