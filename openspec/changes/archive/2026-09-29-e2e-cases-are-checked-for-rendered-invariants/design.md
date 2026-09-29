@@ -1,12 +1,12 @@
 ## Context
 
 See proposal.md, "Why". Every reading, the hook order and the false-positive census this design
-rests on are in [`docs/research/ambient-e2e-monitors`](../../../docs/research/ambient-e2e-monitors.md);
+rests on are in [`docs/research/ambient-e2e-monitors`](../../../../docs/research/ambient-e2e-monitors.md);
 what a run can read at all is in
-[`docs/research/rendered-ui-observability`](../../../docs/research/rendered-ui-observability.md).
+[`docs/research/rendered-ui-observability`](../../../../docs/research/rendered-ui-observability.md).
 What "aligned" means comes from the same place the grid specs get it:
-[`docs/research/native-list-decoration`](../../../docs/research/native-list-decoration.md) and
-[`docs/research/decoration-lessons`](../../../docs/research/decoration-lessons.md). The design
+[`docs/research/native-list-decoration`](../../../../docs/research/native-list-decoration.md) and
+[`docs/research/decoration-lessons`](../../../../docs/research/decoration-lessons.md). The design
 depends on these facts from the note:
 
 - Under wdio's mocha, `beforeTest` runs after the spec's `beforeEach` and immediately before the

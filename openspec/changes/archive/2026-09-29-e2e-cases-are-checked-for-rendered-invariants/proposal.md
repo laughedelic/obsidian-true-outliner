@@ -6,9 +6,9 @@ footer's fold jump), a guide or mark off the grid on a shape no fixture had. Eac
 afterwards, by a case written for that one shape. The harness can read all of these on any
 document, after any case, and none of the 56 spec files does unless it asks: the height map's
 round trip exists in one of them, and no spec checks that a keystroke leaves the scroll alone.
-[`docs/research/rendered-ui-observability`](../../../docs/research/rendered-ui-observability.md)
+[`docs/research/rendered-ui-observability`](../../../../docs/research/rendered-ui-observability.md)
 measures what a run can read, and
-[`docs/research/ambient-e2e-monitors`](../../../docs/research/ambient-e2e-monitors.md) measures
+[`docs/research/ambient-e2e-monitors`](../../../../docs/research/ambient-e2e-monitors.md) measures
 the readings this change installs. #288 is the first of the umbrella #297's items that the sweeps
 in #294 build on.
 
