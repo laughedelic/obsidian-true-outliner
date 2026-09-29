@@ -1,10 +1,10 @@
 ## Context
 
 See proposal.md, "Why". The readings, their thresholds and the census of what the monitors reported
-are in [`docs/research/ambient-e2e-monitors`](../../../docs/research/ambient-e2e-monitors.md); the
+are in [`docs/research/ambient-e2e-monitors`](../../../../docs/research/ambient-e2e-monitors.md); the
 measurements behind each correction below are in its "Precision corrections (#315)" section. What a
 monitor can read at all is in
-[`docs/research/rendered-ui-observability`](../../../docs/research/rendered-ui-observability.md).
+[`docs/research/rendered-ui-observability`](../../../../docs/research/rendered-ui-observability.md).
 
 ## Goals / Non-Goals
 

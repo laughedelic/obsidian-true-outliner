@@ -7,7 +7,7 @@ case raises a refusal it never waits for
 no rule can be promoted to a failure (#316), and the invariant sweeps over real notes (#294) would
 drown in it, since real notes hold the quotes, tables and folds these rules misread. Each item is
 measured in the running app; the figures are in
-[`docs/research/ambient-e2e-monitors`](../../../docs/research/ambient-e2e-monitors.md), "Precision
+[`docs/research/ambient-e2e-monitors`](../../../../docs/research/ambient-e2e-monitors.md), "Precision
 corrections (#315)". The umbrella is #297.
 
 ## What Changes

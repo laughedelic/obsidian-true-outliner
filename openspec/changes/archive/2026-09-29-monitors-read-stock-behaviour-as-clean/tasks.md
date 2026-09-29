@@ -33,16 +33,16 @@
 
 ## 3. Sweep
 
-- [ ] 3.1 Push the checkpoint. Verified by the CI matrix, desktop and mobile: each job's
+- [x] 3.1 Push the checkpoint. Verified by the CI matrix, desktop and mobile: each job's
       `[e2e] monitors:` report is read from its log (the step summary carries the same file), and
       `docs/research/ambient-e2e-monitors.md` states which rules read clean over the whole suite,
       which still report and why, for #316 and #294. The rows of its "What is left" table that read
       "A rule to correct: #315" are rewritten to the sweep's result.
-- [ ] 3.2 Each rule the sweep still reports has an issue or a line in the note saying it is
+- [x] 3.2 Each rule the sweep still reports has an issue or a line in the note saying it is
       reference. Verified by reading the note against the issues the sweep cites.
 
 ## 4. Close
 
-- [ ] 4.1 Sync the delta into `openspec/specs/e2e-verification/spec.md`. Verified by the `Landed`
+- [x] 4.1 Sync the delta into `openspec/specs/e2e-verification/spec.md`. Verified by the `Landed`
       check, which also holds the archive.
-- [ ] 4.2 `openspec validate monitors-read-stock-behaviour-as-clean --strict`.
+- [x] 4.2 `openspec validate monitors-read-stock-behaviour-as-clean --strict`.
