@@ -187,6 +187,54 @@ be the plugin's:
 | `unexpected-notice` | 2, 2 | `62`'s vetoed-edit case raises a refusal it never waits for. A case to fix: #315 |
 | `scroll-excursion`, `caret-outside-scroller`, `shift-sideways` | 2, 0; 1, 1; 1, 0 | One case each in `77`, `93` and `57`, not reproduced; listed in #315 |
 
+## Precision corrections (#315)
+
+Re-measured on 2026-09-29 with `npm run drive` in a Claude cloud session on `main` at `a52c495`:
+Obsidian 1.13.7 on installer 1.5.8 (Chrome 120.0.6099.283), Xvfb, a 1024×800 window, outline mode on
+unless stated. The driver runs the desktop app, so nothing here measures mobile emulation.
+
+**A quote's marker.** First ink of each visual row, relative to `contentDOM`, for a quote of one
+wrapped paragraph at depth 1 (column 32 + gutter 14 = 46):
+
+| Line | Marker | Text, first row | Text, wrapped rows |
+| --- | --- | --- | --- |
+| `> text` | 46 | 64.5 | 64 |
+| `> > text` | 46 | 83 | 83 |
+| `  > text` in a list item (depth 2, column 78) | 78 | 96.5 | 96 |
+| `> text`, outline mode off | 0 | 18.5 | 18 |
+
+The marker is the first ink of the first row, and the hang under the text is the same 18 px with
+outline mode off. Outline mode draws an icon in place of the `>`, which stays in the line as a
+transparent glyph with its box, and the second level of a nested quote is a `.cm-blockquote-border`
+widget the rule already skips. Treating the marker as chrome alone leaves every row at +18, so the
+rule reads the marker as the line's column anchor and compares the text rows with each other, with a
+pixel of tolerance for the first row.
+
+**A table's source line.** A note that opens with a table keeps a 21 px `.cm-line`
+(`HyperMD-table-2 HyperMD-table-row`) with no text ahead of the widget; `posAtCoords` at its
+coordinates is null with outline mode on and off. A table after a heading or a paragraph leaves no
+such line among `contentDOM`'s children, and a table in a list item is three ordinary 25 px lines with
+no widget.
+
+**The caret beside a widget.** After typing `!` at the end of `- one`, folded, the painted caret is
+at x 426.19, top 157.23, 19.00 high, `coordsAtPos(head)` gives 430.94, 156.23, 21.89, and
+`coordsAtPos(head, -1)` gives 426.19, 157.23, 19.00. Typing once more, the second side stays within
+0.02 px of the painted caret (445.44 against 445.42) and the first is 4.75 px on (450.19). One step
+left, off the line's end, the two sides agree. `domAtPos` for the head at the line's end is the
+`.cm-line` with a `cm-widgetBuffer` as the next child.
+
+**Set-up in the body.** `67-node-selection-extension` run on its own, monitors on, before the
+correction: 10 `shift-above-edit` observations in 7 cases, e.g. line 2 moved −101 px with the edit
+touching line 6. `outlineNote` creates the note, turns the mode on and calls `setBuffer` with the text
+the note already holds; the `editor-change` that produces has an identical document, which the diff
+read as an edit of the last line, and the shifts followed it by 2.4 ms in a debug dump. Judging a
+shift against the edits before it left 9 observations in 9 cases; not counting a change to identical
+text as well left none, in 46 cases.
+
+**Not corrected.** The readings the issue lists as reported and not reproduced are left in the
+report: `caret-off-coords` in `77` and `caret-covered` in `75` on mobile, `heightmap-wrong-line` in
+`10`, `59` and `90`, and `shift-sideways` in `57`.
+
 ## What the monitors do not read
 
 - **A shift the browser has not rendered yet.** A layout shift reaches the observer when the browser
