@@ -9,7 +9,7 @@ import { obsidianPage } from 'wdio-obsidian-service';
 import { Key } from 'webdriverio';
 import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
-import { expectNotices } from './monitors.js';
+import { exempt, expectNotices } from './monitors.js';
 
 export const PLUGIN_ID = 'true-outliner';
 
@@ -550,6 +550,7 @@ export async function clickClear(selector: string): Promise<void> {
   for (let attempt = 0; ; attempt++) {
     try {
       if (IS_MOBILE_RUN) await collapseLeftDrawer();
+      exempt('the case scrolls the target into view before clicking it', 'scroll');
       // The plain DOM call, not webdriverio's own scrollIntoView: 9.31+ gates its
       // Actions-API wheel scroll behind an `isPainted` heuristic that, against
       // this suite's Chromium, reports the element already painted with zero

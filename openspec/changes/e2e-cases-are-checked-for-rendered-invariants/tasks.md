@@ -36,7 +36,8 @@
 - [x] 3.1 `e2e-tests/specs/01-ambient-monitors.e2e.ts`, exempt from every monitor in each case
       because each drives the install and read itself: one case per rule, each first reading a clean
       state, then breaking the thing on purpose and reading again. Rows: a caret clipped by
-      `overflow: hidden` on its line; a caret whose line is covered; a scroll that leaves and returns;
+      `overflow: hidden` on its line; a caret whose line is covered, or moved out of the scroller, or
+      already out of view when the case began; a scroll that leaves and returns;
       a step with the caret in view; a line's padding changed; a wrapped row off its item's hang; a
       mark moved a pixel; a line moved sideways by a style write that touches no text, and another
       pushed down by an edit above it; a thrown error, a `console.error`; a notice, awaited and not;

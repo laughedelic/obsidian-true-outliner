@@ -306,6 +306,17 @@ function installInPage(): void {
   };
   // The baseline is taken now, not on the first frame: a case's first action can land before it.
   const first = activeCm();
+  // A caret the case found out of view is not one it put there.
+  M.caretOutAtStart = null as null | { cm: any; out: boolean };
+  if (first) {
+    try {
+      const c = first.coordsAtPos(first.state.selection.main.head);
+      const sr = first.scrollDOM.getBoundingClientRect();
+      M.caretOutAtStart = { cm: first, out: !c || c.top < sr.top || c.bottom > sr.bottom };
+    } catch {
+      M.caretOutAtStart = { cm: first, out: true };
+    }
+  }
   if (first) {
     lastCm = first;
     lastTop = first.scrollDOM.scrollTop;
@@ -488,9 +499,12 @@ function readInPage(expected: string[], final: boolean): PageReading | null {
     }
     if (!at) return { skipped: 'no position to read the caret at', observations: obs };
     const sr = cm.scrollDOM.getBoundingClientRect();
-    // A case that scrolled the editor may have left the caret behind on purpose; the scroll
-    // monitor reads what the scrolling did.
-    const scrolled = M.scroll.some((x: any) => x.cm === cm && x.step);
+    // A case that scrolled the editor may have left the caret behind on purpose, and a case that
+    // began with the caret out of view did not put it there; the scroll monitor reads what the
+    // scrolling did.
+    const scrolled =
+      M.scroll.some((x: any) => x.cm === cm && x.step) ||
+      (M.caretOutAtStart?.cm === cm && M.caretOutAtStart.out);
     if (at.x < sr.left || at.x > sr.right || at.y < sr.top || at.y > sr.bottom) {
       if (!scrolled) obs.push({
         rule: 'caret-outside-scroller',

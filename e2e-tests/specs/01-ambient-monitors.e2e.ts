@@ -127,15 +127,24 @@ describe('ambient monitors', function () {
       await inPage(`document.getElementById('ambient-monitor-veil')?.remove();`);
     });
 
-    it('reports a caret left outside the scroller', async function () {
+    it('reports a caret the case moved out of the scroller', async function () {
       await open(LONG);
       await h.setCursorSettled(0, 2);
       await install();
       expect(await rules('caret')).toEqual([]);
-      // Scrolled before the recorders start, so the case itself did not scroll.
+      // Moved rather than scrolled, so the scroll monitor has nothing to read.
+      await inPage(`cm.contentDOM.style.transform = 'translateY(-3000px)';`);
+      expect(await rules('caret')).toContain('caret-outside-scroller');
+      await inPage(`cm.contentDOM.style.transform = '';`);
+    });
+
+    it('does not report a caret that was already out of view when the case began', async function () {
+      await open(LONG);
+      await h.setCursorSettled(0, 2);
+      // Scrolled before the recorders start.
       await inPage(`cm.scrollDOM.scrollTop = cm.scrollDOM.scrollHeight;`);
       await install();
-      expect(await rules('caret')).toContain('caret-outside-scroller');
+      expect(await rules('caret')).not.toContain('caret-outside-scroller');
     });
 
     it('leaves a caret the case scrolled away from to the scroll monitor', async function () {

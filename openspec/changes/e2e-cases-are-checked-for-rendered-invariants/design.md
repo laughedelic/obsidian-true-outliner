@@ -73,8 +73,9 @@ the service injects and which is absent for a moment after a reload. Alternative
   The painted rect is the DOM range's first client rect. It must be within 0.5 px horizontally and
   1 px vertically of `coordsAtPos(head)`. Where the range has no rect — an empty line — the position
   CodeMirror reports stands in for it, so visibility is still read and agreement is not. The point
-  must be inside the scroller's rect, unless the case itself scrolled the editor: it may have left
-  the caret behind on purpose, and the scroll monitor reads what the scrolling did. And
+  must be inside the scroller's rect, unless the case itself scrolled the editor, which may have left
+  the caret behind on purpose, or the caret was already out of view when the case began, which the
+  case did not do. The scroll monitor reads what the scrolling did. And
   `elementFromPoint` there must land in the caret's own `.cm-line` or widget: a clip by
   `overflow: hidden`, as in #128, sends the hit test to an ancestor.
 - **Scroll.** Stores a sample only when the active editor's `scrollTop` changes, so a jump that
