@@ -294,6 +294,17 @@ What follows from the table:
 - **`before` held in all 13**, including #146's caret in a table row, and the case produced the
   issue's `actual`. Whether the table's own editor took the ↑ was not examined.
 
+**What the measurement left for other issues.** A one-line clipboard is pasted inline, and only one
+of two lines reaches the structural paste, so #272's and #279's reproductions take two lines: with
+them #272 gives the blank line inside the list, and #279's task paste is refused with "Markdown
+can't express that content here." (desktop). #255's second case differs from its drawing only by
+the indentation unit, which is four spaces in the app and two in the drawings. The three issues
+carry the measured drawings. A case cannot declare the notice a refusal raises, which the monitors
+report as unexpected (#269's case, and #279's two-line paste in a scratch case); #322 tracks it, and
+its case for a refusal that a bug leaves out meets `known-failing` there. One
+`77-footer-controls` failure under mobile emulation on Chrome 120, in cases that read straight after
+`clickAtPoint`, is recorded on #329.
+
 **What a run can hand to a report.** A case that passes leaves the reporter with its name, its
 timing and `passed`: the JSON dump of a passed or a skipped test holds no message, so a drawing
 cannot travel to `writeFailureSummary` through the reporter. A worker's `console.log` reaches the
