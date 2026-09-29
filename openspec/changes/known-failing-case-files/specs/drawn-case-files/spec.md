@@ -161,7 +161,8 @@ column by the same comparison — the text, and the caret or selection when `act
 the block-selected lines when it draws `▒` — the case SHALL pass; when it does not, the case SHALL
 fail, its first line being
 `case <name> differs from its recorded actual (<platform>): known-failing #<issue>`, and its drawing
-showing `before`, that phase's `expected`, `actual (recorded)` and `actual (now)`. These two first
+showing `before`, that phase's `expected`, `actual (recorded)` and `actual (now)`, and, as for any
+failure, saying so when that `expected` draws no caret or selection. These two first
 lines replace the rule of "A failing case prints a drawing" that a first line names what differs; its
 other rules, and every other failure, are unchanged. A `before` the editor does not hold, an error
 while pressing keys, and a file that does not parse SHALL fail as they do for any case. A marker

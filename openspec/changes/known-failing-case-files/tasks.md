@@ -54,8 +54,7 @@
       after the first differing phase of a marked case and is tested with fake key and read
       functions, and the body of a case is `runCase`, which the spec's own in-app tests call with
       sources given inline. `passes` and `changed` throw their messages, `holds` logs the drawing and
-      writes the record of 4.2. `before`,
-      key errors and parse errors stay as they are, and `--record` on a marked file uses 2.3. Verify
+      writes the record of 4.2. `before`, key errors and parse errors stay as they are, and `--record` on a marked file uses 2.3. Verify
       with `npm run test:e2e:narrow -- drawn-cases` and `--mobile` against scratch files under
       `TO_CASE_FILES`, one per outcome (the prototypes' `228-1.case` and `255-1.case` marked with
       their `actual`, a two-phase file with a later phase that would differ, and a file whose `before`
@@ -86,7 +85,7 @@
       `.obsidian-cache/e2e-summary.json` holds them under `knownFailing` and none under `failures`
       (`jq '.knownFailing, .failures'`); negative control: with one shipped marker removed, the same run
       lists one entry and one failure.
-- [ ] 4.3 Add `scripts/known-failing-summary.ts`, reading the summary file and printing 4.1's
+- [x] 4.3 Add `scripts/known-failing-summary.ts`, reading the summary file and printing 4.1's
       rendering, and two changes in `.github/actions/e2e/action.yml`: the summary file is removed
       before the run, so a restored one is never read, and one step appends the rendering to
       `$GITHUB_STEP_SUMMARY` after the run whatever its status. Verify with
@@ -111,8 +110,8 @@
 
 ## 6. Validation
 
-- [ ] 6.1 `npm run lint`, `npm run typecheck`, `npm run typecheck:e2e`, `npm run typecheck:scripts`
+- [x] 6.1 `npm run lint`, `npm run typecheck`, `npm run typecheck:e2e`, `npm run typecheck:scripts`
       and `npm test` pass, and every file the delta spec's `Covered by` lines name exists (`ls`).
-- [ ] 6.2 `npm run test:e2e:narrow -- drawn-cases` and with `--mobile` pass, and CI's `drawn-cases`
+- [x] 6.2 `npm run test:e2e:narrow -- drawn-cases` and with `--mobile` pass, and CI's `drawn-cases`
       jobs on both platforms are green with the two cases listed in their step summaries.
-- [ ] 6.3 `openspec validate known-failing-case-files --strict`.
+- [x] 6.3 `openspec validate known-failing-case-files --strict`.

@@ -211,7 +211,6 @@ carets in it are measured, not predicted. A case that stays goes under
 runs with the rest. `node scripts/layout.ts --case < x.case` draws it under its keys and settings for a PR's
 manual-test section.
 
-
 ### A case that waits on a fix
 
 A case for an open bug fails until the fix lands. `known-failing: #<issue>` says it waits on that
