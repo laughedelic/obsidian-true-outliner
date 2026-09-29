@@ -88,6 +88,22 @@ rounds, in ms from the start of the click:
   `pointerdown`, which is the likely reason and was not tested. It fits D2, which clicks a marker
   in the same file as D1 and did not fail in any of the spec 65 runs above.
 
+## In CI on the newest installer
+
+`newest-installer.yml` dispatched by hand, one run each, four instances per job:
+
+| Job | `main` at `a52c495` | This change at `0ec20cf` (the helper's first form) |
+| --- | --- | --- |
+| `mobile (selection)` | `65` D1 and `66` code-fence D8 failed | green |
+| `mobile (clipboard)` | `61` "double-click word selection is untouched" failed | the same case failed, and failed again on the re-run of the failed jobs |
+| `desktop (selection)` | `66` "D8: a table row: Home/End match off-mode parity" failed | `63` "a drag past a node's end onto its gap line gets chrome…" failed once and passed on the re-run |
+
+D1 and D8 fail on `main` and pass with the wait, in a run each. The other three failures are outside
+this change's files: the `61` double-click case failed on both branches and passed locally in 8 of
+8 mobile runs (three unloaded, five loaded), the `63` drag case passed in 10 of 10 desktop runs
+here (four unloaded, six loaded), and `66`'s table-row case is the one `e2e-runtime-versions.md`
+records failing once in CI and never reproducing. Their causes are not diagnosed here.
+
 ## What waiting does
 
 With `browser.waitUntil` polling `getCursor()` for the expected position in place of the one read,
