@@ -10,6 +10,12 @@ inputs:
   obsidian-version:
     description: Obsidian build to run against ("latest" or an exact version).
     required: true
+  installer-version:
+    description: >
+      Obsidian installer, which fixes Electron and so Chrome: "latest", "earliest"
+      or an exact version. Blank is the oldest installer compatible with the app.
+    required: false
+    default: ""
   group:
     description: >
       Spec group to run — one of `node scripts/run-e2e.ts --list-groups`.
@@ -41,8 +47,10 @@ runs:
       shell: bash
 
     # Caches the downloaded Obsidian app+installer used by
-    # wdio-obsidian-service. The key includes the requested version so two
-    # matrix entries keep separate caches. `latest` is a moving target, so it
+    # wdio-obsidian-service. The key includes the requested app and installer
+    # so matrix entries on different builds keep separate caches. A blank
+    # installer adds nothing to the key: it is the oldest, which the keys held
+    # before the input existed. `latest` is a moving target, so it
     # also carries the week: on a hit actions/cache does not save, meaning a
     # newly-released Obsidian would be re-downloaded on every run forever
     # without something to roll the key over. restore-keys still gives a warm
@@ -54,16 +62,18 @@ runs:
     - uses: actions/cache@v6
       with:
         path: .obsidian-cache
-        key: obsidian-cache-${{ runner.os }}-${{ inputs.obsidian-version }}-${{ steps.cache-key.outputs.week }}
+        key: obsidian-cache-${{ runner.os }}-${{ inputs.obsidian-version }}${{ inputs.installer-version && format('-installer-{0}', inputs.installer-version) || '' }}-${{ steps.cache-key.outputs.week }}
         restore-keys: |
-          obsidian-cache-${{ runner.os }}-${{ inputs.obsidian-version }}-
+          obsidian-cache-${{ runner.os }}-${{ inputs.obsidian-version }}${{ inputs.installer-version && format('-installer-{0}', inputs.installer-version) || '' }}-
 
     - run: npm run build
       shell: bash
 
     # Obsidian is an Electron app and needs a display even "headless" in CI.
-    # OBSIDIAN_VERSION is read by e2e-tests/obsidian-target.mts, which also prints the
-    # resolved target and fails fast if a pinned version is not in the cache.
+    # OBSIDIAN_VERSION and OBSIDIAN_INSTALLER_VERSION are read by
+    # e2e-tests/obsidian-target.mts, which also prints the resolved target, writes it
+    # to .obsidian-cache/e2e-target.json, and fails fast if a pinned version is not in
+    # the cache or the installer does not exist.
     - run: |
         args=()
         if [ -n "$GROUP" ]; then args+=(--group "$GROUP"); fi
@@ -74,12 +84,23 @@ runs:
         xvfb-run --auto-servernum node scripts/run-e2e.ts "$PLATFORM" "${args[@]}"
         status=$?
         set -e
+        # What the run resolved, not what it was asked: `latest` says nothing a
+        # week later. A run that failed before resolving has no record, and its
+        # row keeps the request.
+        record=.obsidian-cache/e2e-target.json
+        if [ -f "$record" ]; then
+          app=$(jq -r '.app' "$record")
+          installer=$(jq -r '"\(.installer) (Chrome \(.chrome))"' "$record")
+        else
+          app="$OBSIDIAN_VERSION (not resolved)"
+          installer="${OBSIDIAN_INSTALLER_VERSION:-earliest} (not resolved)"
+        fi
         # Header included every time: each job writes its own summary, so a
         # bare row would not render as a table.
         {
-          echo "| platform | group | instances | obsidian | duration |"
-          echo "|---|---|---|---|---|"
-          echo "| $PLATFORM | ${GROUP:-all} | $E2E_MAX_INSTANCES | $OBSIDIAN_VERSION | $((SECONDS - start))s |"
+          echo "| platform | group | instances | obsidian | installer | duration |"
+          echo "|---|---|---|---|---|---|"
+          echo "| $PLATFORM | ${GROUP:-all} | $E2E_MAX_INSTANCES | $app | $installer | $((SECONDS - start))s |"
         } >> "$GITHUB_STEP_SUMMARY"
         exit $status
       shell: bash
@@ -87,12 +108,15 @@ runs:
         GROUP: ${{ inputs.group }}
         PLATFORM: ${{ inputs.platform }}
         OBSIDIAN_VERSION: ${{ inputs.obsidian-version }}
+        OBSIDIAN_INSTALLER_VERSION: ${{ inputs.installer-version }}
         E2E_MAX_INSTANCES: ${{ inputs.max-instances }}
 
     # Test Analytics: one upload per job, flagged by platform so the same
-    # test's desktop and mobile histories stay apart. The directory holds one
+    # test's desktop and mobile histories stay apart. A caller that passes no
+    # token (the scheduled run on the newest installer) uploads nothing, so its
+    # results do not mix into the pull requests' histories. The directory holds one
     # file per worker (e2e-tests/wdio.shared.mts).
-    - if: ${{ !cancelled() }}
+    - if: ${{ !cancelled() && inputs.codecov-token != '' }}
       uses: codecov/codecov-action@v7
       with:
         token: ${{ inputs.codecov-token }}
@@ -105,7 +129,7 @@ runs:
     - if: failure()
       uses: actions/upload-artifact@v7
       with:
-        name: failure-screenshots-${{ inputs.platform }}-${{ inputs.group || 'all' }}-${{ inputs.obsidian-version }}-${{ inputs.max-instances }}
+        name: failure-screenshots-${{ inputs.platform }}-${{ inputs.group || 'all' }}-${{ inputs.obsidian-version }}-${{ inputs.installer-version || 'earliest' }}-${{ inputs.max-instances }}
         path: .obsidian-cache/failure-screenshots/
         if-no-files-found: ignore
         retention-days: 7

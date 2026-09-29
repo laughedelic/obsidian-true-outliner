@@ -8,10 +8,18 @@
  * and aren't" failure this module exists to prevent.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import ObsidianLauncher from 'obsidian-launcher';
 import { obsidianBetaAvailable } from 'wdio-obsidian-service';
+import {
+  DEFAULT_INSTALLER,
+  TARGET_RECORD_FILE,
+  describeTarget,
+  pinnedInstallerVersion,
+  targetRecord,
+} from './target-record.mjs';
 
 /** One cache for the availability probe, the service, and `obsidian:fetch`.
  * `OBSIDIAN_CACHE` (the launcher's own env var) wins, so a shared machine-wide
@@ -102,31 +110,64 @@ export function assertCached(version: string, cacheDir: string): void {
 }
 
 /**
- * Resolves the target build and announces it. The banner names the fallback AS
- * a fallback: Q21 lost three rounds to a silent version mismatch and Q27 several
- * more, both times with a harness that was internally consistent and green. It
- * prints in the launcher process only — the config is re-loaded in every worker,
- * and 18 copies is noise that trains you to ignore it.
+ * Resolves the target build, records it and announces it. The banner names the
+ * fallback AS a fallback: Q21 lost three rounds to a silent version mismatch and
+ * Q27 several more, both times with a harness that was internally consistent and
+ * green. It prints in the launcher process only — the config is re-loaded in
+ * every worker, and 18 copies is noise that trains you to ignore it.
+ *
+ * The app and installer are resolved here, once, and handed to the service as
+ * exact versions. The service resolves an exact version to itself, so the record
+ * and the Obsidian that starts cannot name different builds.
  */
 export async function resolveObsidianTarget(
   root: string,
   label: string,
-): Promise<{ browserVersion: string; cacheDir: string }> {
+): Promise<{ browserVersion: string; installerVersion: string; cacheDir: string }> {
   const cacheDir = resolveCacheDir(root);
   const pinned = pinnedVersion();
+  const pinnedInstaller = pinnedInstallerVersion();
   const betaAvailable = await obsidianBetaAvailable({ cacheDir });
-  const browserVersion = pinned ?? (betaAvailable ? 'latest-beta' : 'latest');
+  const requestedApp = pinned ?? (betaAvailable ? 'latest-beta' : 'latest');
+  const requestedInstaller = pinnedInstaller ?? DEFAULT_INSTALLER;
 
-  assertCached(browserVersion, cacheDir);
+  assertCached(requestedApp, cacheDir);
+
+  const launcher = new ObsidianLauncher({ cacheDir });
+  let app: string;
+  let installer: string;
+  let installerInfo: { electron: string; chrome: string };
+  try {
+    [app, installer] = await launcher.resolveVersion(requestedApp, requestedInstaller);
+    installerInfo = await launcher.getInstallerInfo(installer);
+  } catch (e) {
+    throw new Error(
+      `Could not resolve the Obsidian target (OBSIDIAN_VERSION=${JSON.stringify(requestedApp)}, ` +
+        `OBSIDIAN_INSTALLER_VERSION=${JSON.stringify(requestedInstaller)}): ` +
+        `${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+
+  const record = targetRecord(
+    { app: requestedApp, installer: requestedInstaller },
+    { app, installer },
+    installerInfo,
+  );
 
   if (process.env.WDIO_WORKER_ID === undefined) {
-    const note =
+    mkdirSync(path.dirname(TARGET_RECORD_FILE), { recursive: true });
+    writeFileSync(TARGET_RECORD_FILE, `${JSON.stringify(record, null, 2)}\n`);
+    const appNote =
       pinned !== undefined
         ? `pinned via OBSIDIAN_VERSION=${pinned}`
         : betaAvailable
           ? 'current beta (cached or credentialed)'
           : 'FALLBACK to latest stable — no beta cached, so this may NOT match the build a bug was reported on';
-    console.log(`\n[e2e${label}] Obsidian target: ${browserVersion} — ${note}\n`);
+    const installerNote =
+      pinnedInstaller !== undefined
+        ? `pinned via OBSIDIAN_INSTALLER_VERSION=${pinnedInstaller}`
+        : `default: ${DEFAULT_INSTALLER} compatible installer`;
+    console.log(`\n${describeTarget(record, { appNote, installerNote }, label)}\n`);
   }
-  return { browserVersion, cacheDir };
+  return { browserVersion: app, installerVersion: installer, cacheDir };
 }

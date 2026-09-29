@@ -1,6 +1,6 @@
 {
   "name": "obsidian-true-outliner",
-  "version": "0.14.1",
+  "version": "0.14.2",
   "description": "A true outliner for Obsidian — mapping core library",
   "main": "src/index.ts",
   "directories": {
@@ -52,6 +52,7 @@
     "fast-check": "^4.10.2",
     "mocha": "^12.0.2",
     "obsidian": "^1.13.1",
+    "obsidian-launcher": "^3.2.1",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.70.1",
     "vite": "^8.3.1",
