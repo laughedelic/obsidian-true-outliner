@@ -14,8 +14,9 @@ import * as path from 'node:path';
  * behind. Read from the repository root, like `e2e-summary.json`. */
 export const TARGET_RECORD_FILE = path.join(process.cwd(), '.obsidian-cache', 'e2e-target.json');
 
-/** What an unset `OBSIDIAN_INSTALLER_VERSION` asks for. */
-export const DEFAULT_INSTALLER = 'latest';
+/** What an unset `OBSIDIAN_INSTALLER_VERSION` asks for: the oldest installer
+ * compatible with the app, which is what the configs always asked for. */
+export const DEFAULT_INSTALLER = 'earliest';
 
 /**
  * `OBSIDIAN_INSTALLER_VERSION`, treated as unset when blank, for the reason

@@ -13,7 +13,7 @@ import {
 const facts = {
   runUrl: 'https://github.com/o/r/actions/runs/7',
   failedJobs: ['desktop (folding)', 'mobile (smoke)'],
-  requested: { app: 'latest', installer: 'earliest' },
+  requested: { app: 'latest', installer: 'latest' },
   sha: 'abc1234',
 };
 
@@ -51,14 +51,14 @@ describe('the issue', () => {
     expect(body).toContain(facts.runUrl);
     expect(body).toContain('- desktop (folding)');
     expect(body).toContain('- mobile (smoke)');
-    expect(body).toContain('app `latest`, installer `earliest`');
+    expect(body).toContain('app `latest`, installer `latest`');
     expect(body).toContain('`abc1234`');
   });
 
   it('gives a command per failed job, with the platform and group', () => {
     const body = issueBody(facts);
-    expect(body).toContain('OBSIDIAN_INSTALLER_VERSION=earliest npm run test:e2e -- --group folding');
-    expect(body).toContain('OBSIDIAN_INSTALLER_VERSION=earliest npm run test:e2e:mobile -- --group smoke');
+    expect(body).toContain('OBSIDIAN_INSTALLER_VERSION=latest npm run test:e2e -- --group folding');
+    expect(body).toContain('OBSIDIAN_INSTALLER_VERSION=latest npm run test:e2e:mobile -- --group smoke');
   });
 
   it('still reads when no job was reported as failed', () => {
@@ -68,13 +68,13 @@ describe('the issue', () => {
   });
 
   it('has a fixed title, which is how a later run finds it', () => {
-    expect(ISSUE_TITLE).toBe('The weekly run on the oldest installer is red');
+    expect(ISSUE_TITLE).toBe('The weekly run on the newest installer is red');
   });
 });
 
 describe('reproduction', () => {
   it('is undefined for a job that is not a platform and group', () => {
-    expect(reproduction('report', 'earliest')).toBeUndefined();
+    expect(reproduction('report', 'latest')).toBeUndefined();
   });
 });
 

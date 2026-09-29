@@ -5,9 +5,8 @@
 Obsidian is two versions: the app bundle and the installer, which fixes Electron and so the Chrome
 that renders the editor. The harness pins the installer to `'earliest'`, which for app 1.13.7 is
 installer 1.5.8 with Chrome 120; a fresh install of 1.13.7 runs Chrome 150 (`docs/research/e2e-runtime-versions`,
-"What `'earliest'` resolves to"). Testers and developers run fresh installs, so the suite that gates
-a fix runs on a different Chrome than the one the fix is checked on by hand, and neither a CI job
-nor a tester's report says which installer it ran on. Version skew between harness and tester has already
+"What `'earliest'` resolves to"). Nothing runs the suite on the newer one, and neither a CI job nor
+a tester's report says which installer it ran on. Version skew between harness and tester has already
 cost several rounds of misdiagnosis twice (`docs/research/open-questions` Q21, Q27), and the target
 banner that came out of it names the app but not the installer
 ([#291](https://github.com/laughedelic/obsidian-true-outliner/issues/291), under
@@ -17,16 +16,15 @@ banner that came out of it names the app but not the installer
 
 - `OBSIDIAN_INSTALLER_VERSION` selects the installer for both e2e configs, read the way
   `OBSIDIAN_VERSION` is: blank is unset, and a value the launcher cannot resolve fails before any
-  Obsidian starts. **The default becomes the newest compatible installer**, for local runs and pull
-  requests alike, so the harness runs on what a fresh install runs.
+  Obsidian starts. The default stays the oldest compatible installer, for local runs and pull
+  requests alike.
 - Every run writes the build it resolved (app, installer, Electron, Chrome) to
   `.obsidian-cache/e2e-target.json`, and the target banner and each e2e job's step-summary row
   read from it. The row names the installer and its Chrome as well as the app, resolved rather than
   as requested (`latest` becomes a version number).
-- A workflow runs both platforms and every group on the **oldest compatible installer** weekly and
-  on `workflow_dispatch`, with dispatch inputs for the app and installer versions. The oldest
-  installer is what a long-time user still runs, since Obsidian's auto-update replaces the app and
-  leaves the installer alone. The workflow does not gate pull requests.
+- A workflow runs both platforms and every group on the **newest compatible installer** weekly and
+  on `workflow_dispatch`, with dispatch inputs for the app and installer versions. The newest
+  installer is what a fresh install runs. The workflow does not gate pull requests.
 - A red scheduled run is filed as an issue by the workflow, so it reaches the tracker where
   triage happens instead of an email to whoever last edited the cron line. One issue stays open
   while the run stays red, later runs comment on it, and a green run comments without closing it.
@@ -47,8 +45,13 @@ banner that came out of it names the app but not the installer
 
 - Running Obsidian betas in CI. The workflow holds no Catalyst credentials, so the app version it
   runs is public; a beta's versions reach a report through the stamp instead.
-- Dropping the oldest installer. It moves from every push to the weekly run; a regression that only
-  the oldest Chrome shows is found up to a week after it merges, not at the pull request.
+- Making the newest installer the default. It was tried: pull requests then ran on Chrome 150, and
+  the mobile-emulation legs failed intermittently on two gap-click cases
+  (`docs/research/e2e-runtime-versions`, "The first full runs on Chrome 150"). The oldest installer
+  is also what a long-time user still runs, since Obsidian's auto-update replaces the app and
+  leaves the installer alone. A regression only the newest Chrome shows is found up to a week
+  after it merges, and a dispatch checks a suspicious change sooner.
+- Diagnosing those two cases. The weekly run on the newest installer is where they keep showing.
 - Testing old app versions. CI runs the newest public app, so the manifest's `minAppVersion` is
   untested by this change and by today's CI alike.
 - Measuring what a real phone exposes. Mobile emulation reports the desktop runtime
@@ -65,7 +68,7 @@ banner that came out of it names the app but not the installer
 ### Modified Capabilities
 
 - `e2e-verification`: the installer is selectable by environment variable and defaults to the
-  newest, every run records the build it resolved, and a scheduled run exercises the oldest
+  oldest, every run records the build it resolved, and a scheduled run exercises the newest
   compatible installer.
 - `plugin-shell`: a dev build's status-bar stamp names the runtime it runs on; a release build
   carries no stamp.
@@ -76,7 +79,7 @@ banner that came out of it names the app but not the installer
   `e2e-tests/wdio.shared.mts` and `e2e-tests/docker/docker-compose.yml` for the override and the
   record.
 - `.github/actions/e2e/action.yml` for the input, the cache key and the summary row; a new
-  `.github/workflows/oldest-installer.yml` and `scripts/report-scheduled-run.ts`, which files the
+  `.github/workflows/newest-installer.yml` and `scripts/report-scheduled-run.ts`, which files the
   issue.
 - `src/plugin/main.ts` and a new pure module beside it for the stamp; `manifest.json`,
   `versions.json`, `package.json` and `package-lock.json` for the patch bump.

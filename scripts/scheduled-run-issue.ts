@@ -1,11 +1,11 @@
 /**
- * What a scheduled run on the oldest installer files in the tracker, as pure
+ * What a scheduled run on the newest installer files in the tracker, as pure
  * functions: whether to act, and the words. `report-scheduled-run.ts` makes the
  * API calls.
  */
 
 /** Fixed, because it is how a later run finds the issue an earlier one opened. */
-export const ISSUE_TITLE = 'The weekly run on the oldest installer is red';
+export const ISSUE_TITLE = 'The weekly run on the newest installer is red';
 
 /**
  * One label per axis, all declared in `.github/labels.yml` — the label set is
@@ -57,7 +57,7 @@ export function issueBody(facts: RunFacts): string {
     .map((j) => reproduction(j, facts.requested.installer))
     .filter((c): c is string => c !== undefined);
   return [
-    `The scheduled run on the oldest installer failed: ${facts.runUrl}`,
+    `The scheduled run on the newest installer failed: ${facts.runUrl}`,
     '',
     `Requested: app \`${facts.requested.app}\`, installer \`${facts.requested.installer}\`. Each job's summary row names the versions it resolved.`,
     '',

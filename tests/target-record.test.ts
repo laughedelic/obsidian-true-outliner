@@ -35,8 +35,8 @@ describe('pinnedInstallerVersion', () => {
 });
 
 describe('the default installer', () => {
-  it('is the newest compatible one', () => {
-    expect(DEFAULT_INSTALLER).toBe('latest');
+  it('is the oldest compatible one', () => {
+    expect(DEFAULT_INSTALLER).toBe('earliest');
   });
 });
 

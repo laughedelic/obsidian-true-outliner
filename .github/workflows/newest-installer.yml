@@ -1,10 +1,10 @@
-name: Oldest installer
+name: Newest installer
 
-# Pull requests run the suite on the newest installer, which is what a fresh
-# install has. Obsidian's auto-update replaces the app and leaves the installer
-# alone, so a long-time user runs the newest app on the installer they first
-# installed. This runs every group on the oldest one compatible with the newest
-# public app (docs/research/e2e-runtime-versions), weekly and on demand.
+# Pull requests run the suite on the oldest installer compatible with the app,
+# which is what a long-time user still runs: Obsidian's auto-update replaces the
+# app and leaves the installer alone. This runs every group on the newest one,
+# which is what a fresh install has (docs/research/e2e-runtime-versions),
+# weekly and on demand.
 #
 # It is not a check a pull request waits on. A red scheduled run is filed in the
 # tracker by the last job.
@@ -19,7 +19,7 @@ on:
         required: false
         default: ""
       installer-version:
-        description: "Obsidian installer: earliest, latest or an exact version. Blank = earliest."
+        description: "Obsidian installer: earliest, latest or an exact version. Blank = latest."
         required: false
         default: ""
 
@@ -66,7 +66,7 @@ jobs:
         with:
           node-version: ${{ env.node-version }}
           obsidian-version: ${{ inputs.obsidian-version || 'latest' }}
-          installer-version: ${{ inputs.installer-version || 'earliest' }}
+          installer-version: ${{ inputs.installer-version || 'latest' }}
           group: ${{ matrix.group }}
           platform: ${{ matrix.platform }}
           max-instances: ${{ env.max-instances }}
@@ -91,6 +91,6 @@ jobs:
           --result "${{ needs.e2e.result }}"
           --run-id "${{ github.run_id }}"
           --app latest
-          --installer earliest
+          --installer latest
         env:
           GH_TOKEN: ${{ github.token }}

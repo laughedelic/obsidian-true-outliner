@@ -15,26 +15,26 @@
 - [x] 1.3 Use the returned installer in `wdio.conf.mts` and `wdio.mobile-emulation.conf.mts`, add the
       record's path to `resetE2eReports` in `wdio.shared.mts`, and pass `OBSIDIAN_INSTALLER_VERSION`
       through `e2e-tests/docker/docker-compose.yml`. Verify: an unset run's banner and
-      `.obsidian-cache/e2e-target.json` name 1.13.7/Chrome 150 and the smoke spec passes on desktop and
-      with `--mobile`; an `OBSIDIAN_INSTALLER_VERSION=earliest` run names 1.5.8/Chrome 120; a run that
-      fails in the resolver leaves no record. Negative control: hard-coding `latest` in one config
-      makes that config's `earliest` run report Chrome 150.
+      `.obsidian-cache/e2e-target.json` name 1.5.8/Chrome 120 and the smoke spec passes on desktop and
+      with `--mobile`; an `OBSIDIAN_INSTALLER_VERSION=latest` run names 1.13.7/Chrome 150; a run that
+      fails in the resolver leaves no record. Negative control: hard-coding `earliest` in one config
+      makes that config's `latest` run report Chrome 120.
 
 ## 2. CI: the summary row and the weekly run
 
 - [x] 2.1 In `.github/actions/e2e/action.yml`, add the `installer-version` input, pass it as
-      `OBSIDIAN_INSTALLER_VERSION`, add `-installer-<value>` to the cache key and restore key, a blank input keyed as
-      `latest`, and write the row's app, installer and Chrome from `e2e-target.json`, with
+      `OBSIDIAN_INSTALLER_VERSION`, add `-installer-<value>` to the cache key and restore key only when the input is
+      non-blank, and write the row's app, installer and Chrome from `e2e-target.json`, with
       `not resolved` when it is missing (D3, D4). Verify with `actionlint` if present and with a pull
       request run whose cache key and row are read from the job.
-- [x] 2.2 Add `.github/workflows/oldest-installer.yml` (D4), passing `earliest` on the schedule: weekly schedule, dispatch inputs, one
+- [x] 2.2 Add `.github/workflows/newest-installer.yml` (D4), passing `latest` on the schedule: weekly schedule, dispatch inputs, one
       platform × group matrix, its own concurrency group, comments naming `ci.yml` as the other holder
       of the node version and group list. Verify by dispatching it from the branch once it exists on
       the default branch's workflow list, or by `actionlint`, and by reading one job's summary row
       for `installer 1.13.7`. A workflow dispatched from a branch needs the file on the default branch
       first: if it cannot run before landing, say so in the PR.
 - [x] 2.3 Add `scripts/report-scheduled-run.ts` (D8) over a pure `scripts/scheduled-run-issue.ts`, and a
-      `report` job at the end of `oldest-installer.yml` with the permissions and condition the
+      `report` job at the end of `newest-installer.yml` with the permissions and condition the
       design states. Verify with `tests/scheduled-run-issue.test.ts` over each outcome and
       `--dry-run` against a real run id printing the issue it would open; negative control: treating
       `cancelled` as `failure` fails the do-nothing case. A dispatch files nothing by design, so the
@@ -58,11 +58,11 @@
 
 ## 4. Landing
 
-- [x] 4.1 Read this pull request's CI, the first full run of the suite on the newest installer, and
-      dispatch `oldest-installer.yml` from the branch (or, if a workflow cannot run before it is on
-      the default branch, run `OBSIDIAN_INSTALLER_VERSION=earliest` over the eight-spec sweep from
-      `docs/research/e2e-runtime-versions`). Fix each regression the newest Chrome shows in this change,
-      and note in the research note which of the 56 specs each installer ran. File any failure that is
+- [x] 4.1 Read this pull request's CI and the first full runs of the suite on the newest installer
+      (before the default moved back), and, because a workflow cannot run before it is on the default
+      branch, run `OBSIDIAN_INSTALLER_VERSION=latest` over the groups that failed there. Fix each
+      failure that is a gap in the harness, record the ones that are not in the research note, and
+      note which of the 56 specs each installer ran. File any failure that is
       not this change's to fix as an issue with the user's go-ahead (AGENTS.md, "A follow-up is an
       issue").
 - [x] 4.2 Validate, sync and archive the change, and bump the patch version with `npm version patch`.

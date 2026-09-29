@@ -49,14 +49,15 @@ green on Chrome 150 is unknown until it runs.
 
 ## The first full runs on Chrome 150
 
-The change made the newest installer the default, so CI's matrix (56 spec files, desktop and mobile
-emulation, four instances per job) was the first run of the whole suite on Chrome 150. Two commits
-of the pull request gave two runs:
+The change first made the newest installer the default, so CI's matrix (56 spec files, desktop and
+mobile emulation, four instances per job) was the first run of the whole suite on Chrome 150. Three
+commits of the pull request gave three runs:
 
-| Run | Result |
-| --- | --- |
-| `b67d393` | 4 jobs red: the `position-indicators` and `selection` groups, on both platforms |
-| `9f678cb` | all 38 checks green, with the position-indicator fix below |
+| Run | Desktop | Mobile emulation |
+| --- | --- | --- |
+| `b67d393` | `position-indicators` and `selection` red | `position-indicators` and `selection` red |
+| `9f678cb` | green | green |
+| `35c9f87` | green | `selection` red |
 
 - **`position-indicators`, 11 cases, both platforms.** `55-position-indicators.e2e.ts` counted a
   line's guide colours by matching `rgb(…)` and `rgba(…)` in the computed `background-image`. Chrome
@@ -64,16 +65,40 @@ of the pull request gave two runs:
   count came back one short. The plugin's drawing is unchanged; the spec now reads both spellings.
   Reproduced locally (11 failing on Chrome 150, 33 passing on Chrome 120), and 33 pass on both after
   the change.
-- **`selection`, one or two cases per job, different cases on each platform.** Desktop failed a
-  table-row Home/End parity case in `66-content-space-caret-manual-pass`. Mobile failed a code-fence
-  vertical-motion case in the same spec and a gap-click case in another. It did not reproduce: the
-  group passed twice locally at four instances on Chrome 150, and again in the second CI run. We do
-  not know why it failed once. If it fails again on either installer it is a defect to diagnose, not
-  a flake to re-run.
+- **`selection` on desktop, once.** A table-row Home/End parity case in
+  `66-content-space-caret-manual-pass` failed in `b67d393`. It did not reproduce: the group passed
+  twice locally at four instances, and desktop was green in the next two CI runs.
+- **`selection` under mobile emulation, twice in three runs.** The same two real-pointer gap-click
+  cases failed each time: `65-content-space-caret` "D1 - click on a gap line lands at the node
+  above's content end" (the caret stays at the document's start instead of moving to the end of
+  the line above) and `66-content-space-caret-manual-pass` "D8: vertical motion inside a code fence
+  … a gap click before it lands on the previous node". Locally the mobile group had a failing case in
+  about five of seven runs on Chrome 150, whatever the instance count (1, 2 or 4), against about
+  one in eight on Chrome 120 with this change's code and none in five on `main`.
 
-With the final code, the `selection`, `position-indicators` and `shell` groups also pass on the
-oldest installer, locally at four instances. The workflow that runs every group on it cannot be
-dispatched before it is on the default branch.
+What the mobile cases showed, none of it a cause:
+
+- The click point is right. `elementFromPoint` at the coordinates the spec computes is the gap line,
+  and the coordinates do not move between reading them and clicking.
+- Emulation delivers the click as `pointerdown` (touch), `touchstart`, `pointerup`, `mousedown`,
+  `mouseup` and `click`, and CodeMirror's dispatch of the selection follows the `click`. A good run
+  shows one selection update, from the document's start to the end of the line above.
+- Pausing 150 ms or waiting two animation frames before the click did not change how often it failed.
+  The rate rose with the number of tests already run in the session.
+- Attaching event and dispatch hooks made it stop: 40 of 40 clicks landed with hooks, and the same
+  clicks failed about a third of the time without them, so no trace of a failing click exists.
+- The plugin has no touch-specific code, and mobile emulation reports the desktop runtime
+  (`userAgentData.mobile` is false), so what it approximates on a phone is not settled by it.
+
+Desktop on Chrome 150 was clean apart from the one case, so the newest installer was not what the
+mobile cases showed: emulation on it was. The default went back to the oldest installer, on both
+platforms, and the newest installer is the weekly run's. Its first scheduled result is expected to
+carry the mobile cases, and the issue it files is where they are investigated.
+
+With the final code, the `selection`, `position-indicators` and `shell` groups pass on the oldest
+installer locally at four instances, and the stamp spec passes on both installers on both
+platforms. The workflow that runs every group on the newest installer cannot be dispatched before it
+is on the default branch.
 
 ## What a running app says about itself
 

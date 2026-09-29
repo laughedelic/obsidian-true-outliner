@@ -1,6 +1,6 @@
 /**
  * Files a red scheduled run in the tracker, from the last job of
- * `.github/workflows/oldest-installer.yml`.
+ * `.github/workflows/newest-installer.yml`.
  *
  *   node scripts/report-scheduled-run.ts --result <needs.e2e.result> --run-id <id>
  *     --app <requested app> --installer <requested installer> [--dry-run]
