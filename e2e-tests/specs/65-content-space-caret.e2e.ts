@@ -595,6 +595,7 @@ describe('content-space-caret', function () {
     it("D1 - click on a gap line lands at the node above's content end", async function () {
       await outlineNote('Alpha one.\n\nBravo two.\n');
       await h.clickAt(1, 0);
+      // The click's selection can land after clickAt returns (docs/research/gap-click-timing).
       await h.waitForCursor(0, 'Alpha one.'.length);
     });
 

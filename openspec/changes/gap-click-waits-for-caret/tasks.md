@@ -5,28 +5,31 @@
       the last one read. The third argument is the limit in milliseconds, for 1.2. Verified by
       `npm run typecheck:e2e` and by 2.1 and 2.2 passing.
 - [x] 1.2 A case in `00-smoke` for the requirement's last three scenarios: with the caret read at
-      `L:C`, the page moves it to `L:C+1` 150 ms after `waitForCursor(L, C+1)` begins and the wait
+      `L:C`, the page moves it to `L:C+1` 300 ms after `waitForCursor(L, C+1)` begins and the wait
       resolves; `waitForCursor(L, C+2, 300)` rejects with a message naming `L:C+2` and `L:C+1`;
-      `waitForCursor(L, C+1, 300)` resolves. Verified by the case passing on both runs. Negative
-      controls: a `timeoutMsg` string built in the `waitUntil` options, where `last` is still
-      `undefined`, must fail the message check; a helper that reads once must fail the delayed move.
+      `waitForCursor(L+1, C+1, 300)` rejects naming `L+1:C+1`; `waitForCursor(L, C+1, 300)`
+      resolves. Verified by the case passing on both runs. Negative controls, each run against the
+      case and each failing it: a `timeoutMsg` string built in the `waitUntil` options, where `last`
+      is still `undefined`; a helper that reads once; a helper that ignores `line`.
 
 ## 2. The two cases
 
 - [x] 2.1 `65-content-space-caret` D1 waits for the caret after its gap click. Verified by the spec
-      passing under mobile emulation on the newest installer: ten runs of the whole file with four
-      busy loops beside it (`docs/research/gap-click-timing.md`, "Reproducing"), all green. Negative
-      control: the unmodified read, whose ten loaded runs the note records at 7 failing.
+      passing under mobile emulation on the newest installer, loaded as the note's "Reproducing"
+      describes: ten runs with the helper's first form and five with its final one, all green.
+      Negative control: the unmodified read, whose ten loaded runs the note records at 7 failing.
 - [x] 2.2 `66-content-space-caret-manual-pass`'s code-fence D8 waits for the caret after its gap
-      click. Verified the same way, eight runs, all green. Negative control: the unmodified read,
-      whose six loaded runs the note records at 3 failing.
+      click. Verified the same way, eight runs with the first form and four with the final one, all
+      green. Negative control: the unmodified read, whose six loaded runs the note records at 3
+      failing.
 - [x] 2.3 The same two specs pass on the oldest installer and on desktop, so the wait costs neither
       run anything: `npm run test:e2e:narrow -- <spec>` for each, with and without `--mobile`.
 
 ## 3. The check
 
-- [ ] 3.1 Dispatch `newest-installer.yml` by hand on the branch, and confirm the `selection` group
-      on mobile emulation is green on D1 and D8. Verified by that run's job results.
+- [ ] 3.1 Dispatch `newest-installer.yml` by hand on the branch head, and confirm the `selection`
+      group on mobile emulation is green on D1 and D8. Verified by that run's job results, recorded
+      in the note's "In CI on the newest installer".
 
 ## 4. Land
 

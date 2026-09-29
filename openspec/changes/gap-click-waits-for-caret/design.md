@@ -32,13 +32,14 @@ timeout message; `waitForCursor` sits beside `getCursor` and `waitForOutlineMode
 failing; wrapping them unmeasured would hide a race behind a wait rather than diagnose it. The
 weekly run reports one if it is real, and the requirement names the two cases, not every click.
 
-**Platform-wide.** The wait is not scoped to mobile emulation. On desktop the first read is
-already right and the wait returns on it, so scoping would add a branch to the spec for no
-difference in what it checks.
+**Platform-wide.** The wait is not scoped to mobile emulation. It resolves on its first read
+whenever the caret is already there, which is what the two cases did on desktop in every run in
+the note, so scoping would add a branch to the spec for no difference in what it checks.
 
 **The smoke case moves the caret itself.** A wait that read once would pass a case that only checks
 a caret already there or one that never arrives, so the case also moves the caret from the page
-150 ms after the wait begins.
+300 ms after the wait begins, and checks that the same column on another line is a different
+position.
 
 **No case file.** The defect is in how a spec reads the caret after a click, not in what the editor
 does with keys, which is what `e2e-tests/cases/` files draw.

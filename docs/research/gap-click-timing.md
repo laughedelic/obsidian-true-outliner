@@ -88,6 +88,19 @@ rounds, in ms from the start of the click:
   `pointerdown`, which is the likely reason and was not tested. It fits D2, which clicks a marker
   in the same file as D1 and did not fail in any of the spec 65 runs above.
 
+A third probe timed a double click (`doubleClickAt`'s two presses 10 ms apart) on `First
+paragraph.`, five rounds each, unloaded, in ms from the start of the click:
+
+| | first `select` | word-selecting `select` | `perform()` returned | word selection relative to the return |
+| --- | --- | --- | --- | --- |
+| Chrome 150 | 353 to 375 | 552 to 576 | 550 to 573 | 0 to 5 ms after |
+| Chrome 120 | 340 to 365 | 541 to 580 | 559 to 601 | 16 to 24 ms before |
+
+The word selection lands as `perform()` returns on Chrome 150 and before it on Chrome 120, the pattern
+of a single tap. A read taken between the two `select` transactions sees the first tap's collapsed
+caret. The first read in this probe followed the return by 8 to 15 ms and saw the word in all ten
+rounds.
+
 ## In CI on the newest installer
 
 `newest-installer.yml` dispatched by hand, one run each, four instances per job:
@@ -95,22 +108,33 @@ rounds, in ms from the start of the click:
 | Job | `main` at `a52c495` | This change at `0ec20cf` (the helper's first form) |
 | --- | --- | --- |
 | `mobile (selection)` | `65` D1 and `66` code-fence D8 failed | green |
-| `mobile (clipboard)` | `61` "double-click word selection is untouched" failed | the same case failed, and failed again on the re-run of the failed jobs |
+| `mobile (clipboard)` | `61` "double-click word selection is untouched" failed | the same case failed, and failed again on the re-run of the failed jobs (see below) |
 | `desktop (selection)` | `66` "D8: a table row: Home/End match off-mode parity" failed | `63` "a drag past a node's end onto its gap line gets chrome…" failed once and passed on the re-run |
 
 D1 and D8 fail on `main` and pass with the wait, in a run each. The other three failures are outside
-this change's files: the `61` double-click case failed on both branches and passed locally in 8 of
-8 mobile runs (three unloaded, five loaded), the `63` drag case passed in 10 of 10 desktop runs
-here (four unloaded, six loaded), and `66`'s table-row case is the one `e2e-runtime-versions.md`
-records failing once in CI and never reproducing. Their causes are not diagnosed here.
+this change's files. The `61` double-click case failed in all three CI runs and passed locally in 8
+of 8 mobile runs (three unloaded, five loaded). It asserts that a double click's selection is not
+collapsed (`anchor.ch` not equal to `head.ch`), read once straight after `doubleClickAt` returns,
+which is what the third probe's window would produce on a read that precedes the word selection; so
+it is a suspect for this same lateness, seen here in CI and not locally, and untested. The `63`
+drag case passed in 10 of 10 desktop runs here (four unloaded, six loaded), and `66`'s table-row
+case is the one `e2e-runtime-versions.md` records failing once in CI and never reproducing. Their
+causes are not diagnosed here.
 
 ## What waiting does
 
-With `browser.waitUntil` polling `getCursor()` for the expected position in place of the one read,
-loaded, Chrome 150: spec 65 passed 10 of 10 (7 of 10 failed without) and spec 66 passed 8 of 8 (3
-of 6 failed without). The helper as committed (`waitForCursor`) gave spec 65 10 of 10 and spec 66
-8 of 8 in its first form, and 5 of 5 and 4 of 4 in its final form, with every run one build; each
-spec also passes once per platform on both installers.
+Spec 65 and spec 66 on Chrome 150, four busy loops beside the suite, each run a fresh app:
+
+| Read after the click | Spec 65 (D1) | Spec 66 (code-fence D8) |
+| --- | --- | --- |
+| one `getCursor()`, as it was | 7 of 10 failed | 3 of 6 failed |
+| `waitUntil` inline, in a throwaway patch | 10 of 10 passed | 8 of 8 passed |
+| `waitForCursor`, first committed form | 10 of 10 passed | 8 of 8 passed |
+| `waitForCursor`, final form | 5 of 5 passed | 4 of 4 passed |
+
+The first row is the loaded baseline above; the second and third are separate sets of runs. Each
+spec also passes once per platform on both installers. The CI comparison is one run each, red on
+`main` and green with the wait.
 
 ## What was ruled out
 
@@ -120,6 +144,9 @@ spec also passes once per platform on both installers.
   every `pointerdown`, and a gap line in a note of paragraphs and a fence is neither a mark nor a
   guide column (`handleGuide` reads the line's guide class and geometry), so none of them takes the
   press.
+- **The plugin's own 350 ms.** `TOUCH_DWELL_MS` in `zoom-click.ts` is a touch's rest on a mark before
+  it becomes a drag (`armDwell` needs a mark), and a tap on plain text or a gap lags as much without
+  one.
 - **A delay before the click.** The selection change is recorded after the click, which is why
   waiting 150 ms or two frames before clicking changed nothing in the issue's measurements.
 
@@ -137,12 +164,14 @@ spec also passes once per platform on both installers.
   400 ms before reading landed 75 of 75, which the wait explains and which says nothing about
   hooks.
 - Whether the other thirteen `clickAt` call sites (specs 30, 59, 62, 65 D2, 66 lines 125 and 127,
-  and 80) and the `clickAtPoint` and `doubleClickAt` ones share the effect. None is observed
-  failing, and none was timed for this note; D2 is a marker click, which took another path above,
-  and 66's two are gap clicks in a case that skips itself under mobile emulation. The gap is not
-  yet tracked as an issue.
-- Whether the fix holds in CI on the newest installer: the run dispatched on the change's branch is
-  the first check, and the weekly run's results are the standing one.
+  and 80) and the `clickAtPoint` ones share the effect. None is observed failing, and none was
+  timed for this note; D2 is a marker click, which took another path above, and 66's two are gap
+  clicks in a case that skips itself under mobile emulation. The gap, with `61`'s double click, is
+  not yet tracked as an issue.
+- Whether the `61` double-click case is this same lateness: the timing fits, and no run has waited
+  for its selection.
+- Whether the fix holds outside the runs in "In CI": the weekly run's results are the standing
+  check.
 
 ## Reproducing
 

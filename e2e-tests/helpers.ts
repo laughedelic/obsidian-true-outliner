@@ -234,8 +234,8 @@ export function getCursor(): Promise<{ line: number; ch: number }> {
  * Waits for the caret to be at `line`:`ch`, and rejects naming both that position and the last one
  * read when it never is.
  *
- * For a caret placed by a real click under mobile emulation, whose selection update lands about
- * as late as the WebDriver call that sent the click returns (`docs/research/gap-click-timing`).
+ * For a caret placed by a real click under mobile emulation, which can land after the WebDriver
+ * call that sent the click returns (`docs/research/gap-click-timing`).
  */
 export async function waitForCursor(
   line: number,

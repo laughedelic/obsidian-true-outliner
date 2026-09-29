@@ -58,6 +58,7 @@ describe('content-space-caret: real-vault-style manual pass (node kinds outside 
     // A click on the gap line between "Before." and the fence lands on
     // "Before."'s own content end (gap ownership), same as any node pair.
     await h.clickAt(1, 0);
+    // The click's selection can land after clickAt returns (docs/research/gap-click-timing).
     await h.waitForCursor(0, 'Before.'.length);
   });
 

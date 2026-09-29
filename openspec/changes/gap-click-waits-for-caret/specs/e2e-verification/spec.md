@@ -19,7 +19,7 @@ sent the click returns.
 
 #### Scenario: A caret that arrives after the wait began is awaited
 
-- **WHEN** a spec starts waiting for a position, and the caret reaches it 150 ms later
+- **WHEN** a spec starts waiting for a position, and the caret reaches it 300 ms later
 - **THEN** the wait resolves
 
 #### Scenario: A caret that never arrives fails with where it was

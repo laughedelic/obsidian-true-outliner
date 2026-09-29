@@ -21,16 +21,19 @@ weekly run on the newest installer is where this shows, and a red weekly run fil
 ## Non-goals
 
 - **Every other read after a click.** The note lists the other thirteen `clickAt` call sites, among
-  them spec 65 D2, and the `clickAtPoint` and `doubleClickAt` ones, and none is observed failing.
-  D2's click is on a list marker, which the note found taking another path. They keep their reads
-  until a failure or a timing names one.
+  them spec 65 D2, and the `clickAtPoint` ones, and none is observed failing. D2's click is on a
+  list marker, which the note found taking another path. They keep their reads until a failure or
+  a timing names one.
+- **The double-click case in `61-selection-enforcement`.** It fails in every newest-installer CI
+  run, on `main` as well, and the note's timing of a double click fits the same lateness; no run
+  has waited for its selection. It is a suspect for a follow-up, not part of this change.
 - **`clickAt` itself.** It cannot know what the click should have done, and a fixed pause would
   spend that time on every click ([design](design.md)).
 - **What the click's delay is made of, and why `perform()` returns sooner on Chrome 150.** Both
   are recorded as unsettled in the note; neither changes what a case has to do.
-- **The other failures the newest installer shows.** The run dispatched on this branch also failed
-  `61-selection-enforcement`'s double-click case on mobile emulation and, once, a drag case in
-  `63-selection-visual-treatment` on desktop; neither file is touched here.
+- **The other failures the newest installer shows.** The runs dispatched on `main` and on this
+  branch also failed a drag case in `63-selection-visual-treatment` and a table-row case in
+  `66-content-space-caret-manual-pass`, on desktop, once each; neither is touched here.
 - **Any change under `src/` or `styles/`.** The plugin behaves the same.
 
 ## Capabilities

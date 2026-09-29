@@ -42,20 +42,30 @@ describe('smoke', function () {
     const target = at.ch + 1;
 
     // A caret that arrives after the wait has begun: a wait that read once would reject.
-    await browser.executeObsidian(({ app, obsidian }, line, ch) => {
-      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
-      window.setTimeout(() => view?.editor.setCursor({ line, ch }), 150);
-    }, at.line, target);
+    await browser.executeObsidian(
+      ({ app, obsidian }, line, ch) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+        window.setTimeout(() => view?.editor.setCursor({ line, ch }), 300);
+      },
+      at.line,
+      target,
+    );
     await waitForCursor(at.line, target);
 
-    let error: Error | undefined;
-    try {
-      await waitForCursor(at.line, target + 1, 300);
-    } catch (e) {
-      error = e as Error;
-    }
-    expect(error?.message).toContain(`never reached ${at.line}:${target + 1};`);
-    expect(error?.message).toContain(`last read ${at.line}:${target}`);
+    /** The message of a wait that gives up; fails the case when the wait resolves. */
+    const gaveUp = async (line: number, ch: number): Promise<string> => {
+      try {
+        await waitForCursor(line, ch, 300);
+      } catch (e) {
+        return (e as Error).message;
+      }
+      throw new Error(`the wait for ${line}:${ch} resolved`);
+    };
+    const wrongColumn = await gaveUp(at.line, target + 1);
+    expect(wrongColumn).toContain(`never reached ${at.line}:${target + 1};`);
+    expect(wrongColumn).toContain(`last read ${at.line}:${target}`);
+    // The same column on another line is another position.
+    expect(await gaveUp(at.line + 1, target)).toContain(`never reached ${at.line + 1}:${target};`);
     await waitForCursor(at.line, target, 300);
   });
 
