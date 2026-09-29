@@ -29,16 +29,16 @@
 
 ## 3. The check
 
-- [ ] 3.1 Dispatch `newest-installer.yml` by hand on the branch head, and confirm the `selection`
+- [x] 3.1 Dispatch `newest-installer.yml` by hand on the branch head, and confirm the `selection`
       group on mobile emulation is green on D1 and D8. Verified by that run's job results, recorded
       in the note's "In CI on the newest installer".
 
 ## 4. Land
 
-- [ ] 4.1 `npm run lint`, `npm run typecheck:e2e` and `npm test` pass, and CI is green on the branch
+- [x] 4.1 `npm run lint`, `npm run typecheck:e2e` and `npm test` pass, and CI is green on the branch
       head: the desktop and mobile e2e matrix included.
-- [ ] 4.2 Sync the delta spec into `openspec/specs/e2e-verification/spec.md` and archive the change
+- [x] 4.2 Sync the delta spec into `openspec/specs/e2e-verification/spec.md` and archive the change
       (`openspec archive gap-click-waits-for-caret`). No version bump: nothing under `src/` or
       `styles/` changes, and the PR is a `chore`. Verified by the `Landed` check on the ready PR.
-- [ ] 4.3 `openspec validate gap-click-waits-for-caret --strict` before the archive, and
+- [x] 4.3 `openspec validate gap-click-waits-for-caret --strict` before the archive, and
       `openspec validate --specs --strict` after it.
