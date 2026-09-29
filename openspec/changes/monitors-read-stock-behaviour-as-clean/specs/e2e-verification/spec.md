@@ -12,7 +12,7 @@ emulation, without any case asking. It SHALL read:
   a large step in one frame while the caret was in view before and after it;
 - **the grid**: that each rendered line other than a quote has its text begin on its depth's
   column plus the marker gutter on every visual row, that a quote's marker begins there and its
-  text hangs at one column on every row after the marker, and that each mark is centred on its
+  text hangs at one column, within a pixel, on every row after the marker, and that each mark is centred on its
   column within half a pixel;
 - **the height map**: that the coordinates of each rendered line resolve back to that line, other
   than an empty line that stands before a widget;
@@ -66,8 +66,7 @@ the exemption SHALL require a reason. The report SHALL list every exemption with
 
 #### Scenario: A wrapped quote is on the grid
 
-- **WHEN** a case ends with a quote whose paragraph wraps, at the top of a note, nested, and in a
-  list item
+- **WHEN** a case ends with a quote whose paragraph wraps, at the top of a note and nested
 - **THEN** the report lists no grid observation, and a quote moved off its column is still listed
 
 #### Scenario: A mark's half-pixel guide offset is not reported

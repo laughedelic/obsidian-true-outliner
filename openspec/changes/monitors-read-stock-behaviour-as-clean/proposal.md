@@ -61,7 +61,7 @@ None.
 ## Impact
 
 - `e2e-tests/monitors.ts`: four page-side readings.
-- `e2e-tests/specs/01-ambient-monitors.e2e.ts`: five rows and their controls.
+- `e2e-tests/specs/01-ambient-monitors.e2e.ts`: a row for each rule correction, with its control.
 - `e2e-tests/specs/62-outline-edit-enforcement.e2e.ts`: one wait.
 - `docs/research/ambient-e2e-monitors.md`: the measurements, and the sweep's list of clean and
   reporting rules.

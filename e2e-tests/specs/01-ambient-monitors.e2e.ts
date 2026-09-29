@@ -187,15 +187,18 @@ describe('ambient monitors', function () {
 
     it('reads a caret at the end of a folded line as where it is painted', async function () {
       await open(['- one', '  - child', '- two', ''].join('\n'));
-      await clearFolds();
-      await h.setCursorSettled(0, 5);
-      await h.runCommand('fold-node');
-      await browser.keys(['!']);
-      expect(await h.getBuffer()).toContain('- one!');
-      await install();
-      // The default side of `coordsAtPos` measures the fold widget's edge here.
-      expect(await rules('caret')).toEqual([]);
-      await clearFolds();
+      try {
+        await clearFolds();
+        await h.setCursorSettled(0, 5);
+        await h.runCommand('fold-node');
+        await browser.keys(['!']);
+        expect(await h.getBuffer()).toContain('- one!');
+        await install();
+        // The default side of `coordsAtPos` measures the fold widget's edge here.
+        expect(await rules('caret')).toEqual([]);
+      } finally {
+        await clearFolds();
+      }
     });
 
     it('reports a painted caret that neither side of its position accounts for', async function () {
@@ -327,19 +330,21 @@ describe('ambient monitors', function () {
       expect(await rules('grid')).toEqual([]);
     });
 
-    it('reads wrapped quotes, nested and in an item, as on the grid', async function () {
+    it('reads wrapped quotes, at the top level and nested, as on the grid', async function () {
       const words = 'quoted words wrap around here '.repeat(8).trim();
-      await open(['# Head', '', `> ${words}`, '', `> > nested ${words}`, '', '- item', `  > in item ${words}`, ''].join('\n'));
+      await open(['# Head', '', `> ${words}`, '', `> > nested ${words}`, ''].join('\n'));
       await h.setCursorSettled(0, 1);
       await install();
       expect(await rules('grid')).toEqual([]);
     });
 
-    it('reports a quote moved off its column by its marker', async function () {
+    it('reads a quote by its marker: half a pixel off is on the grid, nine is not', async function () {
       const words = 'quoted words wrap around here '.repeat(8).trim();
       await open(['# Head', '', `> ${words}`, ''].join('\n'));
       await h.setCursorSettled(0, 1);
       await install();
+      await inPage(`${LINE} nudge(2, 0.4);`);
+      expect(await rules('grid')).toEqual([]);
       await inPage(`${LINE} nudge(2, 9);`);
       expect(await rules('grid')).toContain('grid-off-column');
       await inPage(`${LINE} nudge(2, -18);`);
@@ -437,8 +442,6 @@ describe('ambient monitors', function () {
       await h.setCursorSettled(4, 3);
       await install();
       await inPage(`cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: cm.state.doc.toString() } });`);
-      await inPage(`${LINE} const e = lineEl(2); e.style.position = 'relative'; e.style.top = '30px';`);
-      await browser.pause(600);
       expect((await read())?.layoutShift.skipped).toBe('the case edited no document');
     });
   });

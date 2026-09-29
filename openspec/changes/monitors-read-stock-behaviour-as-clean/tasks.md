@@ -10,10 +10,11 @@
 ## 2. Correct the readings
 
 - [x] 2.1 `e2e-tests/monitors.ts`, grid: a quote's marker anchors the line and its text hangs.
-      Row: a wrapped quote at the top level, nested and in an item reads clean, and a quote nudged
-      off its column is reported by its marker. Negative control: the quote branch disabled makes
-      the first row report `grid-off-column` and `grid-wrap-hang`. Verified by
-      `npm run test:e2e:narrow -- 01-ambient`.
+      Rows: a wrapped quote at the top level and nested reads clean; a quote nudged half a pixel
+      reads clean, nine pixels right is `grid-off-column` and eighteen left is
+      `grid-left-of-column`. Negative control: the quote branch disabled makes the first row report
+      `grid-off-column` and `grid-wrap-hang`, and the half-pixel step report `grid-off-column`.
+      Verified by `npm run test:e2e:narrow -- 01-ambient`.
 - [x] 2.2 `e2e-tests/monitors.ts`, height map: an empty line whose next sibling is a widget is
       skipped. Row: a note that opens with a table reads clean. Negative control: the skip removed
       makes the row report `heightmap-no-position`. Verified likewise.

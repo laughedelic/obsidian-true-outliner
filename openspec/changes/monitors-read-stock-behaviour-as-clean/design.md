@@ -83,6 +83,9 @@ also makes the case fail if the veto stops raising it, which the case did not ch
   accepted); a line the plugin blanks beside a widget. The rows keep the controls on the defect
   side of each threshold for the quote and the caret. The sweep is read for a rule that goes to zero
   without a stated reason.
+- A quote in a list item is read for a column left of its own and for nothing else, as before this
+  change: its source begins with the item's indent, which the grid reading treats as standing
+  whitespace. The self-test holds no row for it.
 - Set-up in the body followed by a real edit is still judged as one span, so a shift the set-up
   causes after that edit is read as the case's own. The sweep decides whether any case does this.
 - The mobile-emulation readings are not re-measured: the driver runs the desktop app. The sweep in

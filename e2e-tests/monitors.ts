@@ -522,8 +522,9 @@ function readInPage(expected: string[], final: boolean): PageReading | null {
       const dH = painted.height - (coords.bottom - coords.top);
       // Beside a widget, the default side measures the widget's edge and the caret stands on the
       // text before it.
-      const before = disagrees(coords) ? cm.coordsAtPos(main.head, -1) : null;
-      if (disagrees(coords) && !(before && !disagrees(before))) {
+      const off = disagrees(coords);
+      const before = off ? cm.coordsAtPos(main.head, -1) : null;
+      if (off && !(before && !disagrees(before))) {
         obs.push({
           rule: 'caret-off-coords',
           detail: `painted caret is ${r(dx)}px right and ${r(dTop)}px down of coordsAtPos, ${r(dH)}px taller, at ${main.head}`,
