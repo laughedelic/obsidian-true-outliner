@@ -193,3 +193,19 @@ building every block's outline view and re-nesting every heading on both trees. 
 neither changes what the pass decides:
 - a block whose lines the surgery kept by reference, at the same margin, has the view it had;
 - a tree whose headings already sit where their levels put them, which every parsed tree does, is not re-nested.
+
+## Measured: what the pass does to the node-loss probes
+
+The three probes of `docs/research/prototypes/seam-differential/`, run on the rebased change (`main` at `a52c495`):
+
+| probe | on the layer below | with the pass |
+| --- | --- | --- |
+| insertion differential, rows short of a node | 0 of 924 | 0 of 924 |
+| bare-seam sweep, pairs wrong | 4 of 3249 | 4 of 3249 |
+| drag sweep, moves a node short | 0 of 933 | 0 of 933 |
+
+The 4 pairs the sweep leaves are the `---` / `---` ones settled in `paste-across-encoding-regimes`. The pass adds
+a blank line and never removes a node.
+
+Both drawn cases added with the change (`paste-a-quote-above-a-paragraph`, `enter-mid-paragraph-above-a-quote`) run
+in the real app on desktop: they fail on the layer below and pass with the pass.

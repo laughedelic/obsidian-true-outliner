@@ -136,12 +136,12 @@
   (`e2e-tests/cases/`). Verified in the real app: both pass on this change and fail on the layer below. The drag
   case is not expressible as a case file, which drives keys and a paste; its result is pinned through
   `moveSubtreesTo` in `tests/created-seams.test.ts`.
-- [ ] 5.6 Re-run the seam sweep, the insertion differential and the drag sweep
+- [x] 5.6 Re-run the seam sweep, the insertion differential and the drag sweep
   (`docs/research/prototypes/seam-differential/`), and record the figures in the note. Verify that no row loses a
   node.
 - [ ] 5.7 Comment on #261 that the drag case is closed by this change.
 
 ## 6. Validation
 
-- [ ] 6.1 Run `npm test`, `npm run typecheck`, `npm run lint` and `npm run typecheck:e2e`.
-- [ ] 6.2 Run `openspec validate created-seams-are-separated --strict`.
+- [x] 6.1 Run `npm test`, `npm run typecheck`, `npm run lint` and `npm run typecheck:e2e`.
+- [x] 6.2 Run `openspec validate created-seams-are-separated --strict`.
