@@ -70,16 +70,23 @@ the service injects and which is absent for a moment after a reload. Alternative
   The painted rect is the DOM range's first client rect. It must be within 0.5 px horizontally and
   1 px vertically of `coordsAtPos(head)`. Where the range has no rect — an empty line — the position
   CodeMirror reports stands in for it, so visibility is still read and agreement is not. The point
-  must be inside the scroller's rect, and `elementFromPoint` there must land in the caret's own
-  `.cm-line` or widget: a clip by `overflow: hidden`, as in #128, sends the hit test to an ancestor.
+  must be inside the scroller's rect, unless the case itself scrolled the editor: it may have left
+  the caret behind on purpose, and the scroll monitor reads what the scrolling did. And
+  `elementFromPoint` there must land in the caret's own `.cm-line` or widget: a clip by
+  `overflow: hidden`, as in #128, sends the hit test to an ancestor.
 - **Scroll.** Stores a sample only when the active editor's `scrollTop` changes, so a jump that
-  settles back is two entries, and resets the baseline when the active editor changes. An excursion
+  settles back is two entries, and resets the baseline when the active editor changes. The first
+  baseline is taken at install, not on the next frame: a case's first action can land before that
+  frame, and 7 of 20 runs of the self-test's excursion row lost it. An excursion
   is a position that leaves by more than the larger of 48 px and a quarter of the viewport and returns
   to within 2 px. A step is reported when it exceeds half the viewport in one frame while the caret
   was in view before it and after it; where the caret stood before is derived from where it stands
   now and the step, since the position sampler cannot ask CodeMirror in the past.
-- **Grid.** Reads every rendered line that carries `--to-depth`, minus the kinds that draw a box of
-  their own (fences, callouts, tables, embeds, other widgets), whose text origin is theirs to state.
+- **Grid.** Reads every rendered line whose own computed style carries `--to-depth` (an absent
+  property reads as `''`, which `Number` turns into depth 0), minus the kinds that draw a box of
+  their own (fences, callouts, tables, embeds, other widgets), whose text origin is theirs to state,
+  and right-to-left lines, which begin at the right edge. Text a decoration draws inside the line
+  (a fold's hidden count, a chip) is not the line's text and starts no row.
   A row's position is the first *ink* of the row's text nodes, from `Range.getClientRects` on the
   text past its leading whitespace, and never a wrapper's box: a wrapper reports where a run of
   whitespace begins. Text must not begin left of `depth × unit + gutter`. It must begin on it, to
@@ -88,17 +95,18 @@ the service injects and which is absent for a moment after a reload. Alternative
   right. Rows of a wrapped item must agree with each other on the same terms. A mark's centre is the
   bullet's `::after`, the icon's or the checkbox's box, and must be on the column to 0.5 px, which is
   the half pixel `native-list-decoration` records between a mark's centre and its guide's.
-- **Height map.** For every rendered, non-blank, non-collapsed line, `posAtCoords` at
-  `coordsAtPos(line.from)` shifted one pixel right must resolve to that line. Rendered lines are the
-  editor's own children, so a multi-line widget is one line, not several that all resolve to its
-  first.
+- **Height map.** For every rendered, plain `.cm-line`, non-blank, non-collapsed and inside the
+  scroller, `posAtCoords` at `coordsAtPos(line.from)` shifted one pixel right must resolve to that
+  line. A widget stands for several lines and resolves to its own position, and `posAtCoords`
+  returns null for a point outside the scroller, so neither is a line to round-trip.
 - **Layout shift.** A `PerformanceObserver` on `layout-shift`, with each source resolved to the
   document line of the child of `.cm-content` it sits in; sources outside the editor's content
   (the status bar, notices) are dropped. The lines an edit touched are the span between the first
-  and last differing line at each `editor-change`, unioned over the case. A source above the span is
-  reported for any movement; a source outside it is reported for sideways movement only, since a
-  line below an insertion legitimately moves down. Only the editor the case started in is read: if the
-  case moves to another note, its spans no longer describe what is on screen.
+  and last differing line at each `editor-change`, unioned over the case per editor, from a snapshot
+  taken when the editor is first seen. A source above the span is reported for any movement; a
+  source outside it is reported for sideways movement only, since a line below an insertion
+  legitimately moves down. A case that edited no document is not read: with no edit there is no
+  span to judge a line against, and a fold, a zoom or a setting moves lines on its own.
 - **Errors.** `error` and `unhandledrejection` on the window, and a wrapper on `console.error` that
   calls the original, since CodeMirror reports a plugin that threw there rather than raising it.
   Chromium's own "ResizeObserver loop" message is dropped.
@@ -108,8 +116,10 @@ the service injects and which is absent for a moment after a reload. Alternative
 
 **Exemptions live with the running case, per monitor, and require a reason.** `exempt(reason,
 ...monitors)` from the body applies at once; from a `beforeEach` it is held and taken by the next
-`beforeTest`, which is after the `beforeEach` and before any late hook of a previous case can clear
-it. With no monitor named it covers all seven. Alternatives:
+`beforeTest`. With no monitor named it covers all seven. One case loses it: when the previous case
+timed out, that case is still the running one at the next `beforeEach`, so the exemption lands on it
+and is dropped with it, and the next case is read in full. That is the direction a report-only
+monitor can afford. Alternatives:
 
 - *A table keyed by spec and title in one file* keeps reasons together and needs no spec edit, and
   drifts the moment a title changes.
