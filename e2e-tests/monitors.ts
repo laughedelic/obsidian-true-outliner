@@ -589,6 +589,8 @@ function readInPage(expected: string[], final: boolean): PageReading | null {
       const depthRaw = getComputedStyle(child).getPropertyValue('--to-depth').trim();
       const depth = Number(depthRaw);
       if (depthRaw === '' || child.textContent === '' || !Number.isFinite(depth)) continue;
+      // An inline embed puts a widget in the middle of a row, and its content is not the line's.
+      if (child.querySelector('.internal-embed, .markdown-embed, .cm-html-embed')) continue;
       // Right-to-left text begins at the right edge, and reads from there.
       if (/[\u0590-\u08FF]/.test(child.textContent ?? '') || getComputedStyle(child).direction === 'rtl') continue;
       const column = depth * unit;
@@ -608,8 +610,15 @@ function readInPage(expected: string[], final: boolean): PageReading | null {
         if (chrome || (drawn && drawn !== child && child.contains(drawn)) || text.trim() === '') continue;
         range.setStart(node, text.length - text.trimStart().length);
         range.setEnd(node, text.length);
+        // A code span pads its text in; the row starts where the span's box does.
+        const code = node.parentElement?.closest('.cm-inline-code, code');
+        const codeBoxes = code ? Array.from(code.getClientRects()) : [];
         for (const b of Array.from(range.getClientRects())) {
-          if (b.width > 0) boxes.push({ left: b.left - cb.left, top: b.top, bottom: b.bottom });
+          if (b.width === 0) continue;
+          const cover = codeBoxes.find(
+            (c) => Math.min(b.bottom, c.bottom) - Math.max(b.top, c.top) > 0.5 * Math.min(b.height, c.height),
+          );
+          boxes.push({ left: Math.min(b.left, cover?.left ?? b.left) - cb.left, top: b.top, bottom: b.bottom });
         }
       }
       // A visual row is the boxes that overlap vertically: an inline code span's padding puts its
@@ -634,7 +643,10 @@ function readInPage(expected: string[], final: boolean): PageReading | null {
       const ordered = !!child.querySelector('.cm-formatting-list-ol');
       const task = !!child.querySelector('.task-list-item-checkbox');
       // Whitespace after a marker beyond one space is left standing, at its own width.
-      const surplus = /^\s*(?:[-*+]|\d+[.)])(?: {2,}|\t)/.test(cm.state.doc.line(n + 1).text);
+      // So is the whitespace a line without a marker begins with, which renders as its characters.
+      const source: string = cm.state.doc.line(n + 1).text;
+      const marked = /^\s*(?:[-*+]|\d+[.)])(?:\s|$)/.test(source);
+      const surplus = /^\s*(?:[-*+]|\d+[.)])(?: {2,}|\t)/.test(source) || (!marked && /^\s/.test(source));
       const label = `line ${n + 1} "${cm.state.doc.line(n + 1).text.trim().slice(0, 24)}" (${child.className.replace(/\b(cm-line|cm-active|to-decor-guides)\b/g, '').trim().replace(/\s+/g, ' ').slice(0, 60)})`;
       const left = rows.find((d) => d < -0.5);
       if (left !== undefined) {

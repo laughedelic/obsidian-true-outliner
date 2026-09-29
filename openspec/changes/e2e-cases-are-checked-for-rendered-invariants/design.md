@@ -88,15 +88,17 @@ the service injects and which is absent for a moment after a reload. Alternative
 - **Grid.** Reads every rendered line whose own computed style carries `--to-depth` (an absent
   property reads as `''`, which `Number` turns into depth 0), minus the kinds that draw a box of
   their own (fences, callouts, tables, embeds, other widgets), whose text origin is theirs to state,
-  and right-to-left lines, which begin at the right edge. Text a decoration draws inside the line
+  right-to-left lines, which begin at the right edge, and lines holding an inline embed, whose
+  widget stands in the middle of a row. A row that begins in an inline code span begins where the
+  span's box does, since the span pads its text in. Text a decoration draws inside the line
   (a fold's hidden count, a chip) is not the line's text and starts no row.
   A row's position is the first *ink* of the row's text nodes, from `Range.getClientRects` on the
   text past its leading whitespace, and never a wrapper's box: a wrapper reports where a run of
   whitespace begins. Boxes belong to one row when they overlap vertically, not when their rounded
   tops agree: an inline code span's padding puts its box off the text beside it. Text must not begin left of `depth × unit + gutter`. It must begin on it, to
   0.5 px, on every row, unless the item carries an ordered marker wider than the gutter, a task
-  control, or whitespace after its marker beyond the one space, each of which the specs let move it
-  right. Rows of a wrapped item must agree with each other on the same terms. A mark's centre is the
+  control, whitespace after its marker beyond the one space, or whitespace a line without a marker
+  begins with, each of which the specs let move it right. Rows of a wrapped item must agree with each other on the same terms. A mark's centre is the
   bullet's `::after`, the icon's or the checkbox's box, and must be on the column to 0.5 px, which is
   the half pixel `native-list-decoration` records between a mark's centre and its guide's.
 - **Height map.** For every rendered, plain `.cm-line`, non-blank, non-collapsed and inside the
