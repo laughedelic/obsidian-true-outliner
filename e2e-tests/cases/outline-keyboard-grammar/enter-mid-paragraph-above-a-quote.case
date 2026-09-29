@@ -1,0 +1,15 @@
+case: Enter mid-text separates the halves and the quote below (#267)
+keys: ⏎
+
+=== before
+# H
+para┃ text
+> q
+=== expected
+# H
+
+para
+
+┃text
+
+> q

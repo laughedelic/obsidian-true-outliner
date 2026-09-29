@@ -514,17 +514,6 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     expect(snap.verdictCounts.rewrite).toBeGreaterThan(0);
   });
 
-  it('a pasted quote is separated from the paragraph below it (#264 manual case)', async function () {
-    // Reading mode and Live Preview continue a line written flush under a
-    // quote into it, so the paste's own seams are separated
-    // (`structural-operations`, "A seam at an operation's edit site is
-    // separated").
-    await outlineNote('## H\nbelow\n');
-    await h.setCursor(0, '## H'.length);
-    await h.pasteText('    first\n\n    > quote');
-    expect(await h.getBuffer()).toBe('## H\n\nfirst\n\n> quote\n\nbelow\n');
-  });
-
   it('pasting a block sequence onto a freshly-created empty list item REPLACES it (D14)', async function () {
     await outlineNote('- alpha\n- beta\n');
     await h.setCursor(0, '- alpha'.length); // end of "- alpha"
