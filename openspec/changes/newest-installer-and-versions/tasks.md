@@ -42,16 +42,16 @@
 
 ## 3. The stamp
 
-- [ ] 3.1 Add `src/plugin/runtime-stamp.ts` (D5): the fragment and label from `{ appVersion,
+- [x] 3.1 Add `src/plugin/runtime-stamp.ts` (D5): the fragment and label from `{ appVersion,
       chromium, platform }`, omitting what is missing. Verify with `tests/runtime-stamp.test.ts`
       covering the full version, the major-only fallback, a missing version, and the platform
       fallback; negative control: printing `undefined` for a missing version fails the omission case.
-- [ ] 3.2 In `showDevBuildStamp` (`src/plugin/main.ts`), read `apiVersion` and `userAgentData`, draw
+- [x] 3.2 In `showDevBuildStamp` (`src/plugin/main.ts`), read `apiVersion` and `userAgentData`, draw
       the app version at once, redraw when the full version settles, and compose the text in one place
       shared with the motion-probe readout. Nothing runs in a release build. Verify by `npm run
       typecheck`, `npm run lint` and a narrow run of the new spec; negative control: a build made
       with `--production` and no `--dev` shows no stamp.
-- [ ] 3.3 Add `e2e-tests/specs/97-runtime-stamp.e2e.ts` asserting the stamp's app and Chromium
+- [x] 3.3 Add `e2e-tests/specs/43-runtime-stamp.e2e.ts` (the shell group) asserting the stamp's app and Chromium
       versions equal `e2e-target.json`'s (D6), and that the motion-probe readout still appears after
       the redraw. Verify on `earliest` and `latest`, desktop and `--mobile`; negative control: dropping
       the redraw leaves the Chromium version out of the stamp and fails the spec.
