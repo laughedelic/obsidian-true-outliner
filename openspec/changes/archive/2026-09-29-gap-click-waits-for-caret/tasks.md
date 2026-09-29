@@ -24,7 +24,12 @@
       click. Verified the same way, eight runs with the first form and four with the final one, all
       green. Negative control: the unmodified read, whose six loaded runs the note records at 3
       failing.
-- [x] 2.3 The same two specs pass on the oldest installer and on desktop, so the wait costs neither
+- [x] 2.3 `61-selection-enforcement`'s double-click case waits for a selection whose ends differ
+      before it asserts. Verified by the spec passing on both platforms and both installers, and by
+      the newest-installer run dispatched on the branch: `mobile (clipboard)`, where the unmodified
+      case failed in each of three earlier runs, passed (`docs/research/gap-click-timing.md`, "In
+      CI on the newest installer").
+- [x] 2.4 The three specs pass on the oldest installer and on desktop, so the waits cost neither
       run anything: `npm run test:e2e:narrow -- <spec>` for each, with and without `--mobile`.
 
 ## 3. The check

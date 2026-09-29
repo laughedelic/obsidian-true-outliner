@@ -28,9 +28,15 @@ still be a guess about a delay the note has not explained.
 **A helper, not `browser.waitUntil` inline.** The two cases would each carry the same lines and a
 timeout message; `waitForCursor` sits beside `getCursor` and `waitForOutlineMode`.
 
-**Two cases only.** The other `clickAt` sites read the caret afterwards and none is observed
-failing; wrapping them unmeasured would hide a race behind a wait rather than diagnose it. The
-weekly run reports one if it is real, and the requirement names the two cases, not every click.
+**Three cases only.** The two gap-click cases, and the double-click case of `61`, which the
+newest-installer runs showed failing and whose timing the note measured. The other `clickAt` sites
+read the caret afterwards and none is observed failing; wrapping them unmeasured would hide a race
+behind a wait rather than diagnose it. The weekly run reports one if it is real, and the
+requirement names the three cases, not every click.
+
+**The double-click case waits inline.** It waits for a selection that is not collapsed, which is a
+condition of that one case, so it uses `browser.waitUntil` in the spec and not a helper beside
+`waitForCursor`. Its assertions after the wait are the ones it had.
 
 **Platform-wide.** The wait is not scoped to mobile emulation. It resolves on its first read
 whenever the caret is already there, so on desktop, where the note records each spec passing,

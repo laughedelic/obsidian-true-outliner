@@ -112,15 +112,22 @@ The first read in this probe followed the return by 8 to 15 ms and saw the word 
 
 A run on `777409a`, the final helper and smoke case, had `mobile (selection)` and `desktop (selection)`
 green and failed `mobile (clipboard)` on the `61` case again; the smoke case's elapsed-time check
-came after it. D1 and D8 fail on `main` and pass with the wait, in a run each. The other three failures are outside
-this change's files. The `61` double-click case failed in all three CI runs and passed locally in 8
-of 8 mobile runs (three unloaded, five loaded). It asserts that a double click's selection is not
-collapsed (`anchor.ch` not equal to `head.ch`), read once straight after `doubleClickAt` returns,
-which is what the third probe's window would produce on a read that precedes the word selection; so
-it is a suspect for this same lateness, seen here in CI and not locally, and untested. The `63`
-drag case passed in 10 of 10 desktop runs here (four unloaded, six loaded), and `66`'s table-row
-case is the one `e2e-runtime-versions.md` records failing once in CI and never reproducing. Their
-causes are not diagnosed here.
+came after it. D1 and D8 fail on `main` and pass with the wait, in a run each.
+
+The `61` double-click case asserts that a double click's selection is not collapsed (`anchor.ch`
+not equal to `head.ch`), read once straight after `doubleClickAt` returns, which is what the third
+probe's window would produce on a read that precedes the word selection. It failed in each of the
+three CI runs above and passed locally in 8 of 8 mobile runs (three unloaded, five loaded). With a
+wait for a selection whose ends differ, a run on `9391322` passed `mobile (clipboard)`: one run
+green against three red, and the only test of the hypothesis that reproduces the failure.
+
+The same run failed `desktop (selection)` on two cases outside this change: `63`'s drag case
+(`expect(sel.anchor)` received the drag's own `0:6` where the escalated cover starts at `0:0`), which
+had failed once before and passed on a re-run, and `66`'s table-row case, which had failed on `main`.
+Both pass locally (`63`: 10 of 10 desktop runs, four unloaded and six loaded; `66`: two desktop
+runs) and are filed as
+[#327](https://github.com/laughedelic/obsidian-true-outliner/issues/327) and
+[#328](https://github.com/laughedelic/obsidian-true-outliner/issues/328).
 
 ## What waiting does
 
@@ -172,12 +179,13 @@ line, and a wait that ignores its limit.
   400 ms before reading landed 75 of 75, which the wait explains and which says nothing about
   hooks.
 - Whether the other thirteen `clickAt` call sites (specs 30, 59, 62, 80, `65` D2 and the two gap
-  clicks of `66`'s table case, "a real click on the gap directly above/below a table") and the `clickAtPoint` ones share the effect. None is observed failing, and none was
-  timed for this note; D2 is a marker click, which took another path above, and 66's two are in a
-  case that skips itself under mobile emulation. The gap, with `61`'s double click, is
-  not yet tracked as an issue.
-- Whether the `61` double-click case is this same lateness: the timing fits, and no run has waited
-  for its selection.
+  clicks of `66`'s table case, "a real click on the gap directly above/below a table") and the
+  eighteen `clickAtPoint` ones share the effect. None is observed failing, and none was timed for
+  this note; D2 is a marker click, which took another path above, and 66's two are in a case that
+  skips itself under mobile emulation. It is tracked in
+  [#329](https://github.com/laughedelic/obsidian-true-outliner/issues/329).
+- Whether the `61` result holds: one green CI run against three red, no local run that fails
+  without the wait.
 - Whether the fix holds outside the runs in "In CI": the weekly run's results are the standing
   check.
 
