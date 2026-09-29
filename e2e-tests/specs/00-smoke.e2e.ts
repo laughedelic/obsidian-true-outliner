@@ -7,7 +7,16 @@
 
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
-import { IS_MOBILE_RUN, openNote, getBuffer, readVaultFile, clickClear } from '../helpers.js';
+import {
+  IS_MOBILE_RUN,
+  openNote,
+  getBuffer,
+  readVaultFile,
+  clickClear,
+  getCursor,
+  setCursor,
+  waitForCursor,
+} from '../helpers.js';
 
 describe('smoke', function () {
   it('boots with the plugin loaded', async function () {
@@ -22,6 +31,23 @@ describe('smoke', function () {
     const buffer = await getBuffer();
     const disk = await readVaultFile('Notes/Sourdough Log.md');
     expect(buffer).toBe(disk);
+  });
+
+  it('waitForCursor rejects naming the position it waited for and the caret it last read', async function () {
+    await openNote('Notes/Sourdough Log.md');
+    await setCursor(0, 0);
+    // What the editor settles the request to is its own business (a list line pulls the caret to
+    // its content start), so the case reads where the caret is and waits for the next column.
+    const at = await getCursor();
+    let error: Error | undefined;
+    try {
+      await waitForCursor(at.line, at.ch + 1, 300);
+    } catch (e) {
+      error = e as Error;
+    }
+    expect(error?.message).toContain(`never reached ${at.line}:${at.ch + 1};`);
+    expect(error?.message).toContain(`last read ${at.line}:${at.ch} `);
+    await waitForCursor(at.line, at.ch, 300);
   });
 
   it('reports the platform mode this config requested', async function () {

@@ -11,7 +11,9 @@ on the newest installer is where this shows, and a red weekly run files its own 
 ## What Changes
 
 - `e2e-tests/helpers.ts`: `waitForCursor(line, ch)`, which polls the caret until it is at the
-  position and throws with the last position read when it never is.
+  position and rejects naming both positions when it never is.
+- `00-smoke`: one case that the wait rejects with the position it waited for and the last one it
+  read, and returns at once on a caret already there.
 - `65-content-space-caret` D1 and `66-content-space-caret-manual-pass` D8 read the caret after
   their gap click through `waitForCursor` instead of `getCursor()` once.
 - `e2e-verification` gains a requirement that a caret placed by a real click is read once it has

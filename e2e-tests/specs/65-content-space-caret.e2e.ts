@@ -595,7 +595,7 @@ describe('content-space-caret', function () {
     it("D1 - click on a gap line lands at the node above's content end", async function () {
       await outlineNote('Alpha one.\n\nBravo two.\n');
       await h.clickAt(1, 0);
-      expect(await h.getCursor()).toEqual({ line: 0, ch: 'Alpha one.'.length });
+      await h.waitForCursor(0, 'Alpha one.'.length);
     });
 
     it('D2 - click on a marker lands on content start (unchanged)', async function () {

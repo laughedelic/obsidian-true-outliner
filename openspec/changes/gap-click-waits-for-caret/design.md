@@ -11,7 +11,8 @@ the runs that ruled out the alternatives are in
 ## Decisions
 
 **A wait for the caret, in the two cases.** `waitForCursor(line, ch)` polls `getCursor()` every
-20 ms for `waitBudget(3000)` and rejects with the last position read. Both cases assert one
+20 ms for `waitBudget(3000)`, or for a third argument's milliseconds, and rejects with the position
+it waited for and the last one read. Both cases assert one
 position after a click, so the wait states the assertion, and its message keeps what the old
 `toEqual` showed: the position the caret was left at.
 
@@ -24,6 +25,10 @@ the caret where it was is a legitimate outcome, so the helper cannot wait for a 
 pause after `perform()` would cover the measured 5 to 26 ms gap and cost that time on every click
 in every spec on every run, and it would still be a guess about a delay the note has not
 explained.
+
+**The message is built when the wait gives up.** `browser.waitUntil`'s `timeoutMsg` is a string
+fixed when the call is made, before any read, so it cannot carry the last position; the helper
+catches the timeout and throws its own error.
 
 **A helper, not `browser.waitUntil` inline.** The two cases would each carry the same eight
 lines and a timeout message; `waitForCursor` sits beside `getCursor` and `waitForOutlineMode`.

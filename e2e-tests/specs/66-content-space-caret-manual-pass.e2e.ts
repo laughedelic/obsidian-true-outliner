@@ -58,7 +58,7 @@ describe('content-space-caret: real-vault-style manual pass (node kinds outside 
     // A click on the gap line between "Before." and the fence lands on
     // "Before."'s own content end (gap ownership), same as any node pair.
     await h.clickAt(1, 0);
-    expect(await h.getCursor()).toEqual({ line: 0, ch: 'Before.'.length });
+    await h.waitForCursor(0, 'Before.'.length);
   });
 
   it('D8: a table row: Home/End match off-mode parity (Obsidian renders tables as an interactive widget, not plain text — measured: even NATIVE Home/End on a data row does not behave like a plain line)', async function () {

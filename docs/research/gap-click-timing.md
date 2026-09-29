@@ -60,8 +60,10 @@ pointer action, first read) and no others, loaded, in ms from the start of `clic
 ## What waiting does
 
 With `browser.waitUntil` polling `getCursor()` for the expected position in place of the one read,
-loaded, Chrome 150: spec 65 passed 10 of 10 (7 of 10 failed without), spec 66 passed 8 of 8 (3 of 6
-failed without).
+loaded, Chrome 150: spec 65 passed 10 of 10 (7 of 10 failed without) and spec 66 passed 8 of 8 (3
+of 6 failed without). The same figures from the helper as committed (`waitForCursor`, every run
+one build): spec 65 10 of 10 and spec 66 8 of 8 again, and each spec passes once per platform on
+both installers.
 
 ## What was ruled out
 
