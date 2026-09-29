@@ -124,8 +124,8 @@ digits and refuses anything after, and adding a word later changes no file writt
   worker's `console.log`, which reaches the launcher's output (the failure hook already does).
 - **The failure summary.** A passing case leaves the JSON reporter with a name, a duration and
   `passed`, so the drawing cannot come through it. A worker appends one JSON line per still-failing
-  case to `.obsidian-cache/known-failing/<worker>.jsonl`, in the repository as the recorded files
-  already are. `writeFailureSummary` collects the lines, skips a partial one, and adds
+  case to `.obsidian-cache/known-failing/<worker>.jsonl`, named by `WDIO_WORKER_ID` as the monitors'
+  records are (`e2e-tests/monitors.ts`). `writeFailureSummary` collects the lines, skips a partial one, and adds
   `knownFailing` to `.obsidian-cache/e2e-summary.json`, beside `failures`, with one line per entry
   after the failures on stdout. `resetE2eReports` clears the directory, as it does the reports.
   `failed` and `failures` do not change: a still-failing case passed.
@@ -139,9 +139,9 @@ The drawn cases are one group, so one job per platform runs every case file, and
 lists them. No group, matrix entry or workflow changes.
 
 Alternatives: **a mocha skip after the drawing** (pending tests appear in the JSON with no message,
-and Codecov's history would count them as skipped); **a separate report file**, as #303 adds for its
-monitors (the entries are a few lines and belong with the failures they are read beside, in the one
-file `AGENTS.md` names); **printing only**, which a passing job's log hides.
+and Codecov's history would count them as skipped); **a separate report file**, as the monitors' `e2e-monitors.json`
+is (the entries are a few lines and belong with the failures they are read beside, in the one file
+`AGENTS.md` names); **printing only**, which a passing job's log hides.
 
 ### D5. Recording writes `actual`
 
@@ -182,6 +182,3 @@ them in both `drawn-cases` step summaries.
   are recorded and compared before the file is committed, and CI runs both.
 - **The report is best effort: a worker killed mid-write leaves half a line** → the launcher skips
   a line that does not parse, and the summary still lists the rest.
-- **#303 changes the same lines of `wdio.shared.mts` and `action.yml`** → the change is written to
-  stand alone; the second to land resolves adjacent lines, or this change is stacked on #303 if a
-  maintainer prefers (`AGENTS.md`, "Branching and PR stacks": overlapping files mean stack it).

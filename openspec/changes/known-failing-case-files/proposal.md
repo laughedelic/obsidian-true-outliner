@@ -93,9 +93,9 @@ None.
 - `.agents/skills/presenting-examples/SKILL.md` (the symlinked copies follow), `AGENTS.md`,
   `docs/research/drawn-case-files.md` and `docs/research/prototypes/known-failing-cases/`, which
   hold the measurements this change rests on.
-- Overlap with an open pull request: [#303](https://github.com/laughedelic/obsidian-true-outliner/pull/303)
-  adds a per-worker record, a launcher-side report file and a step-summary script in the same
-  places (`wdio.shared.mts`, `action.yml`). The two do not depend on each other; whichever
-  lands second resolves a few adjacent lines. Stacking this on #303 is a maintainer's decision.
+- Follows [#303](https://github.com/laughedelic/obsidian-true-outliner/pull/303), which added a
+  per-worker record, a launcher-side collection and a step-summary script for the ambient monitors,
+  in the same files (`wdio.shared.mts`, `action.yml`). The known-failing report reuses that
+  pattern and stays in `e2e-summary.json`.
 - CI: no new group. The cases run in the existing `drawn-cases` job on both platforms, whose
   step summary gains the list.
