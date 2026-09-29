@@ -38,16 +38,27 @@ the last line — is refused with the line it is on.
 - **THEN** it reads as one range from the first to the last of those characters, including the
   line breaks between, and it draws with every character between the two underlined
 
-#### Scenario: The layout script's output is unchanged
+#### Scenario: Side by side is unchanged but for the tab
 
-- **WHEN** the layout script is given the input it accepted before the module existed
-- **THEN** it prints the same block, byte for byte
+- **WHEN** the layout script is given the input it accepted before the module existed, with
+  `--columns`
+- **THEN** it prints the same block, byte for byte, except that a tab is `→ ` in place of `⏵` and
+  its padding
+
+#### Scenario: A drawing is stacked blocks by default
+
+- **WHEN** the layout script is given columns with no option
+- **THEN** it prints each column under its header as a fenced block of the column as written, with a
+  tab drawn `→ `, a space that touches a tab or ends a line drawn `·`, and a selection left as
+  `«…»`; a fence longer than any run of backticks in the text is used, and reading the blocks back
+  returns the columns
 
 #### Scenario: A block from an issue reads back into columns
 
-- **WHEN** a drawn block is given to the layout script's `--read`
+- **WHEN** a drawn block is given to the layout script's `--read`, whether stacked or side by side,
+  and including one that draws a tab as `⏵` and padding
 - **THEN** the columns it prints, laid out again, give the block back, apart from the padding a
-  hand alignment chose
+  hand alignment chose and the tab's new drawing
 
 #### Scenario: A selection and a tab survive being drawn and read
 

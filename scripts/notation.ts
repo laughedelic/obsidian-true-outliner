@@ -11,7 +11,9 @@
 const UNDERLINE = '̲';
 const EDGE = '┆';
 const BLOCK = '▒';
-const TAB = '⏵   ';
+const TAB = '→ ';
+// What earlier drawings wrote for a tab: `⏵` and padding to four cells.
+const OLD_TAB = '⏵';
 const GAP = 3;
 
 const width = (s: string): number => [...s].filter((c) => c !== UNDERLINE).length;
@@ -164,6 +166,15 @@ export function drawDocument({ text, ranges = [], blockLines = [] }: DrawnState)
 
 // ---- Laying columns out ----------------------------------------------------------------------
 
+// Tabs become `→ `, a space touching a tab or ending a line becomes `·`, every other space stays.
+function showWhitespace(s: string): string {
+  const dots = (m: string): string => '·'.repeat(m.length);
+  return s
+    .replace(/ +(?=[┃‸∅]*$)/, dots)
+    .replace(/ +(?=\t)|(?<=\t) +/g, dots)
+    .replace(/\t/g, TAB);
+}
+
 // `open` carries a selection that began on an earlier line: its characters are underlined until
 // the `»` that closes it.
 function drawLine(raw: string, open: boolean): { text: string; open: boolean } {
@@ -173,11 +184,7 @@ function drawLine(raw: string, open: boolean): { text: string; open: boolean } {
     edge = BLOCK;
     s = s.slice(BLOCK.length);
   }
-  const dots = (m: string): string => '·'.repeat(m.length);
-  s = s
-    .replace(/ +(?=[┃‸∅]*$)/, dots)
-    .replace(/ +(?=\t)|(?<=\t) +/g, dots)
-    .replace(/\t/g, TAB);
+  s = showWhitespace(s);
   let drawn = '';
   let on = open;
   for (const c of s) {
@@ -214,6 +221,24 @@ export function layout(columns: readonly Column[]): string {
   return out.join('\n');
 }
 
+/**
+ * Prints each column as its own block under its header: the column as written, with only the
+ * whitespace made visible. Nothing depends on how wide a glyph is, so it reads the same in any
+ * font, and a selection stays `«…»` rather than an underline.
+ */
+export function stack(columns: readonly Column[]): string {
+  return columns
+    .map((col) => {
+      const lines = [...col.lines];
+      while (lines.at(-1) === '') lines.pop();
+      const body = lines.map(showWhitespace);
+      const longest = Math.max(0, ...body.map((l) => Math.max(0, ...[...l.matchAll(/`+/g)].map((m) => m[0].length))));
+      const fence = '`'.repeat(Math.max(3, longest + 1));
+      return [col.header, fence, ...body, fence].join('\n');
+    })
+    .join('\n\n');
+}
+
 // ---- Reading a drawn block -------------------------------------------------------------------
 
 // A visible character with the underline that follows it, so column offsets count what is seen.
@@ -231,8 +256,9 @@ interface DrawnChar {
   underlined: boolean;
 }
 
-// One drawn cell as characters with their underline. A tab is `⏵` and up to three padding cells,
-// which a row's trailing trim may have shortened; `·` is a space.
+// One drawn cell as characters with their underline. A tab is `→` and a padding cell, or the `⏵` and
+// three that earlier drawings wrote, either of which a row's trailing trim may have shortened;
+// `·` is a space.
 function cellChars(cell: string[]): { block: boolean; chars: DrawnChar[] } {
   const body = cell.slice(1);
   while (body.length && body.at(-1) === ' ') body.pop();
@@ -241,8 +267,8 @@ function cellChars(cell: string[]): { block: boolean; chars: DrawnChar[] } {
     const unit = body[i] ?? '';
     const underlined = unit.endsWith(UNDERLINE);
     const ch = underlined ? unit.slice(0, -1) : unit;
-    if (ch === '⏵') {
-      for (let n = 0; n < 3 && body[i + 1]?.replace(UNDERLINE, '') === ' '; n++) i++;
+    if (ch === OLD_TAB || ch === '→') {
+      for (let n = 0; n < (ch === OLD_TAB ? 3 : 1) && body[i + 1]?.replace(UNDERLINE, '') === ' '; n++) i++;
       chars.push({ ch: '\t', underlined });
     } else chars.push({ ch: ch === '·' ? ' ' : ch, underlined });
   }
@@ -285,8 +311,40 @@ function undrawColumn(cells: string[][]): string[] {
   return out;
 }
 
+// A tab is `→` and its padding space; the tail of a line that a trim shortened counts too. A `→`
+// with text right after it stays an arrow.
+function stackedLine(line: string): string {
+  return line
+    .replace(/→(?: |$)/g, '\t')
+    .replace(/⏵ {0,3}/g, '\t')
+    .replace(/·/g, ' ');
+}
+
+// Blocks under headers, as `stack` prints them: a header line, then a fenced block.
+function undrawStacked(block: string): Column[] {
+  const columns: Column[] = [];
+  const rows = block.split('\n');
+  let header = '';
+  for (let i = 0; i < rows.length; i++) {
+    const open = /^ *(`{3,})/.exec(rows[i] ?? '');
+    if (!open) {
+      if ((rows[i] ?? '').trim()) header = (rows[i] ?? '').trim();
+      continue;
+    }
+    const fence = open[1] ?? '```';
+    const lines: string[] = [];
+    for (i++; i < rows.length && !new RegExp(`^ *${fence}\\s*$`).test(rows[i] ?? ''); i++) {
+      lines.push(stackedLine(rows[i] ?? ''));
+    }
+    columns.push({ header, lines });
+    header = '';
+  }
+  return columns;
+}
+
 /**
- * Reads a drawn block back into columns of literal lines, the input `layout` takes.
+ * Reads a drawn block back into columns of literal lines, the input `layout` takes. Both forms
+ * read: side by side, and stacked under headers.
  *
  * A cell starts at an edge glyph at column 0 or after two spaces, so a header that a hand
  * alignment put over the wrong cells still labels the column it sits over. `·` reads as a space,
@@ -294,6 +352,7 @@ function undrawColumn(cells: string[][]): string[] {
  * selection that begins at the end of a line or ends at the start of one reads back shorter.
  */
 export function undraw(block: string): Column[] {
+  if (/^ *`{3,}/m.test(block)) return undrawStacked(block);
   const rows = block.split('\n');
   while (rows.length && rows[0]?.trim() === '') rows.shift();
   while (rows.length && rows.at(-1)?.trim() === '') rows.pop();

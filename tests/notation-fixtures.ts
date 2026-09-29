@@ -11,11 +11,11 @@ export const GOLD: Record<string, { input: string; output: string }> = {
   },
   "tabs, touching spaces and trailing spaces": {
     input: "=== before\n\t- a\n \t- b  \n   \n- c ┃\n∅\n\n=== after\n\t\t- «big»┃ c\n\t  - d ‸\n",
-    output: " before        after\n┆⏵   - a      ┆⏵   ⏵   - b̲i̲g̲┃ c\n┆·⏵   - b··   ┆⏵   ··- d·‸\n┆···\n┆- c·┃\n┆∅\n",
+    output: " before      after\n┆→ - a      ┆→ → - b̲i̲g̲┃ c\n┆·→ - b··   ┆→ ··- d·‸\n┆···\n┆- c·┃\n┆∅\n",
   },
   "a header wider than its column": {
     input: "=== a much longer header\nx┃\n\n=== b\n\ty\n",
-    output: " a much longer header    b\n┆x┃                     ┆⏵   y\n",
+    output: " a much longer header    b\n┆x┃                     ┆→ y\n",
   },
   "a selection inside one line": {
     input: "=== sel\n- «one two»┃ three\n┃«a»\n",

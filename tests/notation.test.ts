@@ -9,6 +9,7 @@ import {
   parseKeys,
   readColumns,
   readDocument,
+  stack,
   undraw,
 } from '../scripts/notation.ts';
 import { DRAWN, GOLD } from './notation-fixtures';
@@ -16,9 +17,22 @@ import { DRAWN, GOLD } from './notation-fixtures';
 const draw = (text: string, anchor: number, head = anchor) =>
   drawDocument({ text, ranges: [{ anchor, head }] });
 
+const chars = fc.constantFrom('a', 'b', ' ', '\t', '-', '\n', '\n');
+const state = fc
+  .array(chars, { maxLength: 24 })
+  .map((cs) => cs.join(''))
+  .chain((text) =>
+    fc.record({
+      text: fc.constant(text),
+      anchor: fc.integer({ min: 0, max: text.length }),
+      head: fc.integer({ min: 0, max: text.length }),
+    }),
+  );
+
 describe('layout', () => {
+  // What the layout script printed before the module, but for a tab, which is now `→ `.
   for (const [name, { input, output }] of Object.entries(GOLD)) {
-    it(`prints what the layout script printed before the module: ${name}`, () => {
+    it(`prints side by side as before: ${name}`, () => {
       expect(layout(readColumns(input)) + '\n').toBe(output);
     });
   }
@@ -128,18 +142,6 @@ describe('drawing a state', () => {
 });
 
 describe('reading what was drawn', () => {
-  const chars = fc.constantFrom('a', 'b', ' ', '\t', '-', '\n', '\n');
-  const state = fc
-    .array(chars, { maxLength: 24 })
-    .map((cs) => cs.join(''))
-    .chain((text) =>
-      fc.record({
-        text: fc.constant(text),
-        anchor: fc.integer({ min: 0, max: text.length }),
-        head: fc.integer({ min: 0, max: text.length }),
-      }),
-    );
-
   it('returns the text and the selection for any text and any range', () => {
     fc.assert(
       fc.property(state, ({ text, anchor, head }) => {
@@ -183,16 +185,56 @@ describe('reading what was drawn', () => {
   });
 });
 
+describe('the stacked form', () => {
+  const columns = [
+    { header: 'before', lines: ['- a', '\t- b  ', '▒- c┃'] },
+    { header: 'after', lines: ['- «x»┃', '∅'] },
+  ];
+
+  it('prints each column under its header with only the whitespace made visible', () => {
+    expect(stack(columns)).toBe(
+      ['before', '```', '- a', '→ - b··', '▒- c┃', '```', '', 'after', '```', '- «x»┃', '∅', '```'].join('\n'),
+    );
+  });
+
+  it('reads back into the columns it was drawn from', () => {
+    expect(undraw(stack(columns))).toEqual(columns);
+  });
+
+  it('opens a longer fence when a line holds backticks', () => {
+    const out = stack([{ header: 'x', lines: ['a ``` b'] }]);
+    expect(out.split('\n')[1]).toBe('````');
+    expect(undraw(out)).toEqual([{ header: 'x', lines: ['a ``` b'] }]);
+  });
+
+  it('keeps a lone arrow in the text and reads a tab whose padding a trim removed', () => {
+    expect(undraw(['x', '```', 'a→b', 'c →', '```'].join('\n'))[0]?.lines).toEqual(['a→b', 'c \t']);
+  });
+
+  it('returns the text and the selection after being stacked and read', () => {
+    fc.assert(
+      fc.property(state, ({ text, anchor, head }) => {
+        const [column] = undraw(stack([{ header: 'x', lines: draw(text, anchor, head) }]));
+        const back = readDocument(column?.lines ?? []);
+        expect(back.text).toBe(text);
+        expect(back.selection).toEqual({ anchor, head });
+      }),
+      { numRuns: 500 },
+    );
+  });
+});
+
 describe('reading a drawn block', () => {
   for (const [name, block] of Object.entries(DRAWN)) {
     it(`gives columns that lay out to the same rows: ${name}`, () => {
       const columns = undraw(block);
       const again = layout(columns);
       const rows = (s: string) => s.split('\n').filter((l) => l.trim());
-      // A hand alignment chose its own padding; the cells are what must survive.
+      // A hand alignment chose its own padding; the cells are what must survive. A tab is drawn
+      // differently now, so a block that has one is held to its rows and its columns only.
       const cells = (s: string) => rows(s).map((l) => l.trim().split(/ {2,}/));
       expect(rows(again).length).toBe(rows(block).length);
-      expect(cells(again)).toEqual(cells(block));
+      if (!block.includes('⏵')) expect(cells(again)).toEqual(cells(block));
       expect(undraw(again)).toEqual(columns);
     });
   }
@@ -218,6 +260,12 @@ describe('reading a drawn block', () => {
     for (const lines of ['\t«1»', '«\t1»', '1«\t»', '1\t', ' «\t»┃'].map((l) => [l])) {
       expect(undraw(layout([{ header: 'x', lines }]))[0]?.lines).toEqual(lines);
     }
+  });
+
+  it('reads the tab that earlier drawings wrote, and the arrow that draws it now', () => {
+    const old = ' x\n┆⏵   - a\n┆- b⏵\n';
+    expect(undraw(old)[0]?.lines).toEqual(['\t- a', '- b\t']);
+    expect(undraw(layout([{ header: 'x', lines: ['\t- a', '- b\t'] }]))[0]?.lines).toEqual(['\t- a', '- b\t']);
   });
 
   it('reads a block-selected line with its ▒', () => {
@@ -318,7 +366,7 @@ describe('case files', () => {
       input: 'case: a === b\nkeys: ⇥\n\n=== before\n- a┃\n',
       encoding: 'utf8',
     });
-    expect(out).toBe(['a === b', 'keys: ⇥ · outline on · tabs off · desktop and mobile', ' before', '┆- a┃', ''].join('\n'));
+    expect(out).toBe(['a === b', 'keys: ⇥ · outline on · tabs off · desktop and mobile', 'before', '```', '- a┃', '```', ''].join('\n'));
   });
 
   it('names the file line of a malformed column', () => {

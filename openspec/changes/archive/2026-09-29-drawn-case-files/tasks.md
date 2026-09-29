@@ -88,10 +88,24 @@
       `e2e-tests/specs/98-drawn-cases.e2e.ts`. Verify: every named file exists (`ls`) and
       `docs/research/drawn-case-files.md` is listed once (`npm run lint`).
 
-## 6. Validation
+## 6. The human-facing form
 
-- [x] 6.1 `npm run lint`, `npm run typecheck`, `npm run typecheck:e2e`, `npm run typecheck:scripts`
+- [x] 6.1 Draw a tab as `→ `, add `stack` (each column as a fenced block under its header, whitespace
+      made visible, a longer fence when the text holds backticks) and make it the layout script's
+      default, with `--columns` for the side-by-side form (D8). Verify with `tests/notation.test.ts`:
+      the stacked output of a column with a tab, a trailing space, `▒` and a selection is stated in
+      full, and stacking then reading returns the text and selection of random states; negative
+      control: reading `→` and its space as two characters fails the tab tests.
+- [x] 6.2 Read both forms and the earlier tab in `undraw`. Verify with a block written with `⏵` and
+      three spaces, and a stacked block whose tab lost its padding to a trim; negative control:
+      dropping the `⏵` branch fails the first.
+- [x] 6.3 Rewrite the skill's example, glyph table and drawing section for the stacked form. Verify by
+      running each command in `SKILL.md`.
+
+## 7. Validation
+
+- [x] 7.1 `npm run lint`, `npm run typecheck`, `npm run typecheck:e2e`, `npm run typecheck:scripts`
       and `npm test` pass.
-- [x] 6.2 `npm run test:e2e:narrow -- drawn-cases` and with `--mobile` pass, and a narrow run of
+- [x] 7.2 `npm run test:e2e:narrow -- drawn-cases` and with `--mobile` pass, and a narrow run of
       `00-smoke` on each config shows the failure hook did not change a passing run.
-- [x] 6.3 `openspec validate drawn-case-files --strict`.
+- [x] 7.3 `openspec validate drawn-case-files --strict`.

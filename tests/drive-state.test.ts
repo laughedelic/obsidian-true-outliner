@@ -67,7 +67,7 @@ describe('drawColumns', () => {
 
   it.each(Object.entries(cases))('matches layout.ts: %s', (_name, columns) => {
     const stdin = columns.map((c) => `=== ${c.header}\n${c.text}\n`).join('\n');
-    const expected = execFileSync(process.execPath, [layout], { input: stdin, encoding: 'utf8' }).replace(/\n$/, '');
+    const expected = execFileSync(process.execPath, [layout, '--columns'], { input: stdin, encoding: 'utf8' }).replace(/\n$/, '');
     expect(drawColumns(columns)).toBe(expected);
   });
 

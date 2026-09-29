@@ -24,6 +24,9 @@ first key as `before`.
   columns. The layout script keeps its command line and gains `--read`, which turns a block from an
   issue into column input, and `--case`, which draws a case file under its keys and settings.
   `scripts/drive-state.ts`, which copied the layout code until this change, imports it.
+- The layout script draws each state as a block under its label, with only whitespace made visible
+  (a tab is `→ `), so a drawing reads the same on GitHub, in chat and on a phone; `--columns` keeps
+  the side-by-side form for terminals. Reading a drawn block accepts both, and the earlier tab.
 - The notation gains a selection across lines: `«` on one line closes with `»` on a later line, and
   the underline continues between them. The tracker's #203 already draws one that way, and a
   stock-mode Shift+Arrow produces one.

@@ -158,6 +158,34 @@ difference did not settle and stays unexplained. It is recorded because the prot
 case in one shared note, and a widget left by an earlier case is one way it could reach a later
 one. With a note of its own per case, #197's first table paste passed on both platforms.
 
+## Glyphs and fonts
+
+The drawings quoted above predate this section and use the first glyph set. Measured on
+2026-09-29 for three monospace fonts installed on the session's VM, each glyph either has a
+one-cell advance or is missing:
+
+| Glyph | DejaVu Sans Mono | Liberation Mono | FreeMono |
+| --- | --- | --- | --- |
+| `⏵` tab | missing | missing | ok |
+| `┆` edge | ok | missing | ok |
+| `‸` paste point | missing | missing | ok |
+| `┃` caret | ok | missing | ok |
+| `∅` end | ok | missing | ok |
+| `│ → ¦ « » ▒ ·` | ok | ok | ok |
+
+A maintainer reported, from GitHub's rendering (Monaspace Neon, they believe) and from a phone,
+that `⏵` and `┆` are narrower than a space, which breaks the alignment of the columns to their
+right, that `⏵` is a missing-glyph box on mobile, that `‸` shifts the line and can be illegible,
+and that `│` may show the same narrowing on mobile. We have not reproduced these from a session;
+they agree with the table in kind, where a glyph a font lacks is drawn from another, narrower
+one.
+
+Two things follow. What a reader needs from a drawing is each state legible, with its tabs,
+trailing spaces and caret visible; the rows of two columns lining up carries no meaning, and it
+is the one property that depends on every glyph having a full cell. And `→` followed by one space
+is as wide as the two-space indent the vault uses, where `⏵` and three spaces read a tab-indented
+note as twice as deep as a space-indented one.
+
 ## Existing specs
 
 A TypeScript-compiler pass over the 958 `it` sites in `e2e-tests/specs/` (five are generated in

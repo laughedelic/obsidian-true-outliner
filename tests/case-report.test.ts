@@ -81,7 +81,7 @@ describe('the message of a failing case', () => {
       'keys: ⇥ · outline on · tabs off',
       ' before    expected ⇥    actual ⇥',
       '┆- a      ┆- a          ┆- a',
-      '┆- b┃     ┆⏵   - ┃b     ┆⏵   - b┃',
+      '┆- b┃     ┆→ - ┃b       ┆→ - b┃',
     ]);
   });
 

@@ -179,6 +179,28 @@ Alternative: derive `▒` in the test process from the ranges with the plugin's 
 Rejected: a helper that shares the plugin's logic reports what the plugin believes, and the
 measurement in `docs/research/rendered-ui-observability` is about what is painted.
 
+### D8. A drawing is stacked blocks; side by side is for terminals
+
+The first glyph set drew states side by side, with `┆` as each column's edge, `⏵` and three
+spaces as a tab, and an underline for a selection. On GitHub and on a phone those glyphs are not
+one cell wide, and columns to their right stop lining up (`docs/research/drawn-case-files`,
+"Glyphs and fonts"). The layout script now draws each column as its own fenced block under its
+header, in the case file's own form with only the whitespace made visible: a tab is `→ `, a space
+touching a tab or ending a line is `·`, a selection stays `«…»`. Nothing in it depends on a glyph's
+width. `--columns` keeps the side-by-side form for terminals, where failure output and the
+driver's `state` print it; it draws a tab the same way and keeps `┆` and the underline.
+`--read` reads either form, and reads the earlier tab (`⏵` with padding) too, so the drawings
+already in the tracker still read.
+
+`‸` stays, `┃ « » ▒ ∅` stay. `┃` and `∅` are absent from Liberation Mono, which is in GitHub's
+monospace stack; nothing has reported a problem with them.
+
+Alternative: a different edge glyph (`│`) for the side-by-side form. Rejected: it moves the problem
+to another glyph, and a maintainer reported the same narrowing for it on a phone. Alternative:
+render an image per state. Deferred to the evidence-clip work of #292, which needs hosting anyway.
+Alternative: an HTML table with a `<pre>` per cell. Rejected: GitHub-only, and chat shows the
+tags.
+
 ## Risks / Trade-offs
 
 - **`·` in a drawing is a space** → `--read` says so and a note containing a middle dot cannot be
