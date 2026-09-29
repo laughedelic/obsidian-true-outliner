@@ -13,6 +13,14 @@ running app in about a second; a narrow spec run takes 40 s and starts a fresh a
 Two views, and they can disagree: `state` is what the editor holds, drawn with the glyphs of
 `presenting-examples`; `shot` is what is painted. A disagreement is the finding.
 
+## Where it runs
+
+In a cloud session and locally, with the same commands. With no `DISPLAY` on Linux, `start` starts
+an Xvfb of its own and `stop` ends it; that needs the packages `docs/cloud-sessions.md` lists, and
+`start` says so when Xvfb is missing. On a desktop the app opens as a window; macOS is measured,
+and Windows has not been run. The Obsidian build comes from `OBSIDIAN_CACHE` (`/opt/obsidian-cache` in a cloud session),
+or `.obsidian-cache/` in the checkout.
+
 ## Reproduce a report
 
 1. `start`, then `open <note> --stdin --outline on|off --at <line>:<ch>` with the reporter's
