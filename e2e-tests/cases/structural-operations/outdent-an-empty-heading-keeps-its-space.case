@@ -1,0 +1,15 @@
+case: Shift+Tab on an empty heading keeps the space after its marker, so the arrows still move (#257)
+keys: ⇧⇥ | ↓ Home
+
+=== before
+## Foo
+## ┃
+## Bar
+=== after ⇧⇥
+## Foo
+# ┃
+## Bar
+=== after ↓ Home
+## Foo
+# 
+┃## Bar

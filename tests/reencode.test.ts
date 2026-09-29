@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { markerWidth, normalizeMarkerRun, reencodeForDestination, shiftSubtree } from '../src/reencode';
+import { headingWithLevel, markerWidth, normalizeMarkerRun, reencodeForDestination, shiftSubtree } from '../src/reencode';
 import { indentWidth, parse } from '../src/parse';
 import { walkNodes, type OutlineNode } from '../src/model';
+import { encode } from '../src/encode';
+import { outdent } from '../src/ops';
 
 /** A one-line list item carrying `ws` as its leading whitespace. */
 function itemWith(ws: string): OutlineNode {
@@ -213,5 +215,46 @@ describe('the prefix swap never puts a space in front of a tab that had none', (
     const node = parse('- a\n  \t  b\n').children[0]!;
     const out = reencodeForDestination(node, undefined, '\t');
     expect(out.lines).toEqual(['\t- a', '\t  \t  b']);
+  });
+});
+
+describe('headingWithLevel keeps what follows an empty title\'s marker (#257)', () => {
+  function heading(line: string): OutlineNode {
+    const node = parse(`${line}\n`).children[0]!;
+    expect(node.kind).toBe('heading');
+    return node;
+  }
+
+  it.each([
+    ['## ', 1, '# '],
+    ['## ', 3, '### '],
+    ['##', 1, '#'],
+    ['##\t', 1, '#\t'],
+    ['## Foo', 1, '# Foo'],
+  ])('%j at level %i is %j', (line, level, expected) => {
+    expect(headingWithLevel(heading(line), level).lines).toEqual([expected]);
+  });
+
+  it.each([
+    ['## ', '# '],
+    ['##\tBar', '#\tBar'],
+    ['##  Bar', '#  Bar'],
+    [' ## Bar', ' # Bar'],
+    ['## Bar ##', '# Bar ##'],
+  ])('in place, %j becomes %j: only the # run changes', (line, expected) => {
+    expect(headingWithLevel(heading(line), 1, true).lines).toEqual([expected]);
+  });
+});
+
+describe('a heading level shift touches only the # run (#257)', () => {
+  it.each([
+    ['## Foo\n##\tBar\n', '## Foo\n#\tBar\n'],
+    ['## Foo\n ## \n', '## Foo\n # \n'],
+    ['## Foo\n##  Bar\n### Sub\n', '## Foo\n#  Bar\n## Sub\n'],
+  ])('outdenting the second heading of %j gives %j', (src, expected) => {
+    const doc = parse(src);
+    const result = outdent(doc, doc.children[1]!.id);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(encode(result.value.doc)).toBe(expected);
   });
 });

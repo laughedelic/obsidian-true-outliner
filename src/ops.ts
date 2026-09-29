@@ -247,7 +247,7 @@ function subjectSpan(
 
 function shiftHeadingLevels(node: OutlineNode, delta: number): OutlineNode {
   const self =
-    node.kind === 'heading' ? headingWithLevel(node, (node.level ?? 1) + delta) : node;
+    node.kind === 'heading' ? headingWithLevel(node, (node.level ?? 1) + delta, true) : node;
   return { ...self, children: self.children.map((child) => shiftHeadingLevels(child, delta)) };
 }
 

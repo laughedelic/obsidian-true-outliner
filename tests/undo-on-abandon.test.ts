@@ -647,7 +647,8 @@ describe('a carried empty node is removed by reverting its carries', () => {
     ['Tab in a loose list', '- foo\n\n- bar\n', [0, 5], ['split', 'indent'], '- foo\n  - \n\n- bar\n'],
     ['Shift+Tab into the parent run', '1. p\n   1. a\n   2. b\n2. q\n', [1, 7], ['split', 'outdent'], '1. p\n   1. a\n2. \n   1. b\n3. q\n'],
     ['Tab in an ordered run', '1. a\n2. b\n', [0, 4], ['split', 'indent'], '1. a\n   1. \n2. b\n'],
-    ['a drafted heading, Shift+Tab', '## Foo\nbody\n## Bar\ntext\n', [0, 6], ['continue', 'outdent'], '## Foo\nbody\n#\n## Bar\ntext\n'],
+    ['a drafted heading, Shift+Tab', '## Foo\nbody\n## Bar\ntext\n', [0, 6], ['continue', 'outdent'], '## Foo\nbody\n# \n## Bar\ntext\n'],
+    ['a drafted heading, Tab', '## Foo\nbody\n## Bar\ntext\n', [0, 6], ['continue', 'indent'], '## Foo\nbody\n### \n## Bar\ntext\n'],
     ['Tab then Shift+Tab', '- a\n- b\n', [1, 3], ['split', 'indent', 'outdent'], '- a\n- b\n- \n'],
   ];
 
@@ -658,11 +659,6 @@ describe('a carried empty node is removed by reverting its carries', () => {
       expect(out.restored).toBe(src);
     });
   }
-
-  it('a drafted heading, Tab', () => {
-    const out = carryAndAbandon('## Foo\nbody\n## Bar\ntext\n', [0, 6], ['continue', 'indent']);
-    expect(out.restored).toBe('## Foo\nbody\n## Bar\ntext\n');
-  });
 
   it('the ladder under a paragraph, which dissolves the item and moves its sibling out', () => {
     const out = carryAndAbandon('para\n  - a\n  - b\n', [1, 5], ['split', 'split']);
