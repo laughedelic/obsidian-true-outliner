@@ -51,6 +51,17 @@ async function rules(monitor: MonitorName, expected: string[] = []): Promise<str
   return result.observations.map((o) => o.rule);
 }
 
+/**
+ * Waits for a rule to be reported. A layout shift reaches the page's observer when the browser
+ * next renders, which under load is later than the two frames `inPage` waits for.
+ */
+async function reported(monitor: MonitorName, rule: string): Promise<void> {
+  await browser.waitUntil(
+    async () => ((await read())?.[monitor].observations ?? []).some((o) => o.rule === rule),
+    { timeout: 5000, interval: 250, timeoutMsg: `${monitor} never reported ${rule}` },
+  );
+}
+
 /** Runs in the page: `body` gets the active `cm`, and the next two frames are waited for. */
 function inPage(body: string, ...args: unknown[]): Promise<unknown> {
   return browser.execute(
@@ -320,7 +331,7 @@ describe('ambient monitors', function () {
       await install();
       await browser.keys(['x']);
       await inPage(`${LINE} nudge(5, 11);`);
-      expect(await rules('layoutShift')).toContain('shift-sideways');
+      await reported('layoutShift', 'shift-sideways');
     });
 
     it('does not read a case that edited no document', async function () {
@@ -349,7 +360,7 @@ describe('ambient monitors', function () {
       await inPage(`${LINE} const e = lineEl(5); e.style.position = 'relative'; e.style.top = '30px';`);
       expect(await rules('layoutShift')).toEqual([]);
       await inPage(`${LINE} const e = lineEl(2); e.style.position = 'relative'; e.style.top = '30px';`);
-      expect(await rules('layoutShift')).toContain('shift-above-edit');
+      await reported('layoutShift', 'shift-above-edit');
     });
   });
 
