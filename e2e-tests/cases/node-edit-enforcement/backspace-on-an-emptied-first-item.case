@@ -1,0 +1,11 @@
+case: Backspace on an emptied first item changes nothing (#269)
+keys: ⌫
+
+=== before
+1. ┃
+2. b
+3. c
+=== expected
+1. ┃
+2. b
+3. c

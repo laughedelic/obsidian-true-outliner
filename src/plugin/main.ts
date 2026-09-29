@@ -9,6 +9,7 @@ import {
   PluginSettingTab,
   Setting,
   TFile,
+  apiVersion,
   setIcon,
   type Hotkey,
   type SettingDefinitionItem,
@@ -115,6 +116,15 @@ import { placeOutline } from './decorate';
 import { carriedRecordOf, openPlaceLine, recordDispatch } from './provisional-cleanup';
 import { abandonEdit, dispatchAbandon, STRUCTURAL_DISPATCH, type StructuralKey } from './grammar';
 import { ChangeSet } from '@codemirror/state';
+import {
+  chromiumFull,
+  chromiumMajor,
+  platformName,
+  runtimeFragment,
+  runtimeLabel,
+  type Runtime,
+  type UserAgentData,
+} from './runtime-stamp';
 
 const CONFLICTING_PLUGINS = ['obsidian-outliner', 'obsidian-zoom'];
 
@@ -1137,13 +1147,31 @@ export default class TrueOutlinerPlugin extends Plugin {
     const loadedAt = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
     const base = `⟳ ${loadedAt} · ${BUILD_STAMP.buildId} (built ${BUILD_STAMP.clock})`;
 
+    // The app and Chromium versions the stamp was seen on. The major is known at
+    // once; the full version arrives asynchronously and replaces it, and a
+    // runtime that gives neither leaves the platform in its place
+    // (./runtime-stamp.ts).
+    const uaData = (navigator as { userAgentData?: UserAgentData }).userAgentData;
+    const runtime: Runtime = {
+      appVersion: apiVersion,
+      chromium: chromiumMajor(uaData),
+      platform: platformName(Platform),
+    };
+    let motion = '';
+
     const item = this.addStatusBarItem();
     item.addClass('true-outliner-dev-stamp');
-    item.setText(base);
-    item.setAttribute(
-      'aria-label',
-      `True Outliner\nloaded ${loadedAt} · built ${BUILD_STAMP.clock} · ${BUILD_STAMP.buildId}\n${BUILD_STAMP.subject}\nchanged: ${BUILD_STAMP.changedSummary}`,
-    );
+    const label = `True Outliner\nloaded ${loadedAt} · built ${BUILD_STAMP.clock} · ${BUILD_STAMP.buildId}\n${BUILD_STAMP.subject}\nchanged: ${BUILD_STAMP.changedSummary}`;
+    const draw = (): void => {
+      item.setText([base, runtimeFragment(runtime), motion].filter(Boolean).join(' · '));
+      item.setAttribute('aria-label', `${label}\n${runtimeLabel(runtime)}`);
+    };
+    draw();
+    void chromiumFull(uaData).then((full) => {
+      if (full === undefined) return;
+      runtime.chromium = full;
+      draw();
+    });
 
     // Live keymap readout: does CM6 actually route each bound key to this
     // plugin's keymap, and do we consume it? Shown rather than assumed because
@@ -1156,10 +1184,10 @@ export default class TrueOutlinerPlugin extends Plugin {
       tally.invoked += 1;
       if (consumed) tally.consumed += 1;
       this.motionCounts[key] = tally;
-      const summary = Object.entries(this.motionCounts)
+      motion = Object.entries(this.motionCounts)
         .map(([k, t]) => `${k} ${t.consumed}/${t.invoked}`)
         .join(' ');
-      item.setText(`${base} · ${summary}`);
+      draw();
     });
     this.register(() => setMotionProbe(undefined));
   }

@@ -60,7 +60,7 @@ the OS appearance.
 
 ## Handing over
 
-Load `presenting-examples`. `state --raw` prints the document as its `layout.mjs` reads it: put
+Load `presenting-examples`. `state --raw` prints the document as its `scripts/layout.ts` reads it: put
 `=== before` above one and `=== after` above another, pipe both in, and they draw side by side.
 
 ## Ending

@@ -1,6 +1,6 @@
 {
   "name": "obsidian-true-outliner",
-  "version": "0.14.1",
+  "version": "0.14.2",
   "description": "A true outliner for Obsidian — mapping core library",
   "main": "src/index.ts",
   "directories": {
@@ -21,6 +21,7 @@
     "test:e2e": "node scripts/run-e2e.ts desktop",
     "test:e2e:mobile": "node scripts/run-e2e.ts mobile",
     "test:e2e:narrow": "node scripts/e2e-narrow.ts",
+    "case": "node scripts/run-case.ts",
     "test:e2e:docker": "node scripts/e2e-docker.ts desktop",
     "test:e2e:docker:mobile": "node scripts/e2e-docker.ts mobile",
     "typecheck:e2e": "tsc --noEmit -p e2e-tests",
@@ -52,6 +53,7 @@
     "fast-check": "^4.10.2",
     "mocha": "^12.0.2",
     "obsidian": "^1.13.1",
+    "obsidian-launcher": "^3.2.1",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.70.1",
     "vite": "^8.3.1",

@@ -99,11 +99,15 @@ async function overlayLayers(lineIndex: number): Promise<number> {
  * layer also carries a fully transparent stop (that is how a 1px/2px line is
  * drawn inside a unit-wide layer), so those are filtered out — otherwise every
  * line would report one extra "color" that is not a color.
+ *
+ * A stop is serialized as `rgb(…)`/`rgba(…)` or, for a translucent color the
+ * engine keeps in its own space, as `color(srgb r g b / a)`; both are read, so
+ * the count does not depend on which the installer's Chrome writes.
  */
 async function overlayColors(lineIndex: number): Promise<string[]> {
   const image = await h.getLinePseudoComputedStyle(lineIndex, 'background-image');
-  const found = image.match(/rgba?\([^)]*\)/g) ?? [];
-  return [...new Set(found.filter((c) => !/,\s*0\)$/.test(c)))];
+  const found = image.match(/rgba?\([^)]*\)|color\(srgb [^)]*\)/g) ?? [];
+  return [...new Set(found.filter((c) => !/(,|\/)\s*0\)$/.test(c)))];
 }
 
 /** Every line's rendered left edge plus the marker's own rect — the geometry
