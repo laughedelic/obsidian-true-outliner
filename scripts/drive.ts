@@ -30,6 +30,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { binPath } from './bin-path.ts';
 import { expandKeys, keyEvents, parseChord } from './drive-keys.ts';
+import { isLauncherProfile } from './drive-profile.ts';
 import { drawColumns, stateMarkup } from './drive-state.ts';
 import { stampFromBundle } from './install-to-vault.ts';
 
@@ -287,10 +288,11 @@ async function cleanUp(session: Session | undefined, keepShots: boolean): Promis
   if (session?.userDataDir) {
     // Only what the launcher makes, and only where it makes it: a damaged session file cannot
     // point a delete elsewhere.
-    const inTmp = path.dirname(session.userDataDir) === os.tmpdir();
-    if (inTmp && path.basename(session.userDataDir).startsWith('obsidian-launcher-config-')) {
+    if (isLauncherProfile(session.userDataDir)) {
       rmSync(session.userDataDir, { recursive: true, force: true });
       removed.push(session.userDataDir);
+    } else if (existsSync(session.userDataDir)) {
+      console.error(`left in place, not a launcher profile under ${os.tmpdir()}: ${session.userDataDir}`);
     }
   }
   if (session?.xvfb && pidAlive(session.xvfb.pid)) {
@@ -712,7 +714,7 @@ async function shot(args: string[]): Promise<void> {
       path.join(shotsDir, `${String(readdirSync(shotsDir).length + 1).padStart(3, '0')}-${new Date().toTimeString().slice(0, 8).replaceAll(':', '')}.png`);
     mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
     writeFileSync(file, png);
-    log(`${path.relative(process.cwd(), path.resolve(file))} ${png.readUInt32BE(16)}×${png.readUInt32BE(20)} px`);
+    log(`${path.resolve(file)} ${png.readUInt32BE(16)}×${png.readUInt32BE(20)} px`);
     if (caretNote) console.error(caretNote);
   } finally {
     cdp.close();

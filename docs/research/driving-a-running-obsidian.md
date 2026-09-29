@@ -31,7 +31,8 @@ and `cp -r test-vault` keeps it.
 app: no `obsidian` process remained after about 3 s. It does not remove the user-data directory, which
 is why `/tmp/obsidian-launcher-config-*` accumulates. `SystemInfo.getProcessInfo` names the browser
 process, and the renderer's own `process.argv` carries `--user-data-dir=`, so a session can record
-both when it starts. Xvfb, when we start it, is ours to stop.
+both when it starts. Xvfb, when we start it, is ours to stop. The directory is compared with the
+temporary directory as real paths ("On macOS", below).
 
 ## Keys
 
@@ -52,8 +53,7 @@ caret in `beta`:
 
 A key with text goes in as `keyDown` carrying `text`, a key without as `rawKeyDown`, and both are
 followed by `keyUp`. `require('obsidian')` does not resolve in the page; the editor is
-`app.workspace.activeEditor.editor`. Not measured: macOS, where Chromium routes some editing
-shortcuts (⌘←, ⌥←) through the application menu and a dispatched key may not reach them.
+`app.workspace.activeEditor.editor`. The menu-routed shortcuts on macOS are measured under "On macOS" below.
 
 ## The caret's blink
 
@@ -83,6 +83,28 @@ The build's output has to go to a file. Run from Node with `spawnSync` and stdou
 build took 1174 ms; with `stdio: 'ignore'` it took 250 ms and with a file 260 ms. We did not find what
 holds the pipe open. `scripts/drive.ts` reads the build's log from a file, and its `rebuild` then
 reported 271 and 237 ms to build and 500 and 765 ms to reload.
+
+## On macOS
+
+A local pass on macOS 26.3.1 (Apple Silicon, Node 26.5.0), built-in display at device pixel ratio 2,
+Obsidian 1.13.7 on installer 1.5.8, at `8c1aacf`.
+
+- **Menu-routed keys.** On `one two three` with outline mode off and the caret at 0:8, dispatched
+  `mod+ArrowLeft`, `alt+ArrowLeft`, `alt+ArrowRight` and `mod+ArrowRight` moved the caret to the line
+  start, the previous word, the next word and the line end. The same four shortcuts posted to the
+  app's process as OS key events through System Events gave the same four positions.
+- **Screenshot size.** The window is 1024×800 CSS px. A plain `shot` is 2048×1600, `--scale 2` gives
+  4096×3200, and `--caret` (a 120×49 CSS px clip at its default 3×) gives 720×294: the CSS size times
+  the scale times the ratio.
+- **Start.** 2.7 s to ready on the first `start`, then 1.7 s and 1.1 s. The window opened behind the
+  user's own Obsidian.
+- **Profile directory.** `os.tmpdir()` is `/var/folders/…/T` and the launcher's profile lives under
+  `/private/var/folders/…/T`, one path through a symlink. A comparison of the two as strings failed,
+  so `stop` left the directory behind and reported success. Compared as real paths, `stop` removed
+  it.
+- **Rebuild.** 186 ms to build and 414 ms to reload. A note open with outline mode off came back with
+  it on, the default: the reload restores the default, and we did not look for why.
+- **The theme** follows the OS appearance: `body` carried `theme-dark`.
 
 ## What this settles for the skill
 

@@ -24,7 +24,8 @@ Two views, and they can disagree: `state` is what the editor holds, drawn with t
 
 ## Verify a fix
 
-1. Edit, then `rebuild`. Open the reproduction's document again and `key` the same keys.
+1. Edit, then `rebuild`. The plugin reloads and a tab's outline mode returns to the default, so open
+   the reproduction's document again with its `--outline` and `key` the same keys.
 2. The fix is **green** when `state` shows the expected column and `shot --caret` shows the caret on
    the line and character `state` names.
 3. A claim about a pixel, the caret's visibility or scroll rests on a measurement: read
@@ -33,8 +34,9 @@ Two views, and they can disagree: `state` is what the editor holds, drawn with t
 
 ## Reading what comes back
 
-`shot` prints a path; open it with Read. The window is 1024×800 at device pixel ratio 1, in the
-light theme.
+`shot` prints an absolute path; open it with Read. The window is 1024×800 CSS px. A PNG is that size
+times `--scale` times the display's device pixel ratio (2 on a retina screen), and the theme follows
+the OS appearance.
 
 - The native caret blinks, so about half the shots of a still screen show none. `shot --caret`
   crops around the caret (`--pad` sets the half-width in px, 60 by default), defaults to 3×, and
@@ -60,9 +62,10 @@ says `not running`. `stop --shots` removes the saved screenshots too.
 
 ## Limits
 
-- On macOS the menu-routed shortcuts (⌘←, ⌥←) may not fire from a dispatched key; that is
-  unmeasured. Move the caret there with `eval`, and say so.
+- `start` does not raise the window. On a desktop it can open behind other windows, so raise it
+  before pressing a key by hand to compare with a dispatched one.
 - `start` launches `OBSIDIAN_VERSION` when set and the launcher's `latest` otherwise, and the
   harness may pick a beta the driver does not. Compare the versions each prints before comparing
   results.
-- A first launch in a session can take 20 s; later ones take 2 to 3.
+- A first launch on a cold cache (a download and an extraction) can take 20 s; with the versions
+  cached, `start` takes 1 to 5 s.
