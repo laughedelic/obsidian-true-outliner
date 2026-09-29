@@ -50,20 +50,20 @@
 
 ## 4. Report
 
-- [ ] 4.1 `scripts/e2e-monitors-summary.ts` renders the report; `.github/actions/e2e/action.yml`
+- [x] 4.1 `scripts/e2e-monitors-summary.ts` renders the report; `.github/actions/e2e/action.yml`
       appends it to `$GITHUB_STEP_SUMMARY` after the run, whatever its status, and uploads
       `.obsidian-cache/e2e-monitors.json` as an artifact. Verified by `npm run typecheck:scripts`, by
       running the script on a local report, and by the pushed checkpoint's job summary.
-- [ ] 4.2 The full sweep runs with the monitors on, desktop and mobile. Verified by the pushed
+- [x] 4.2 The full sweep runs with the monitors on, desktop and mobile. Verified by the pushed
       checkpoint's matrix: every job leaves a report, and the census in
       `docs/research/ambient-e2e-monitors.md` states what each reported.
-- [ ] 4.3 A case whose findings are deliberate takes an `exempt` with its reason, and each rule that
+- [x] 4.3 A case whose findings are deliberate takes an `exempt` with its reason, and each rule that
       reports in more than a few cases is named in the note with what its findings turned out to be.
       Verified by a second sweep, whose reports carry only findings the note accounts for.
 
 ## 5. Document and close
 
-- [ ] 5.1 `CLAUDE.md`, "E2E testing": where the report is, how a case exempts itself, and the
+- [x] 5.1 `CLAUDE.md`, "E2E testing": where the report is, how a case exempts itself, and the
       switch. `docs/research/refused-commands-in-e2e.md`: its closing thread points at the notices
       monitor. Verified by `npm run lint`.
 - [ ] 5.2 `npm test`, `npm run build`, `npm run typecheck`, `npm run typecheck:e2e`,

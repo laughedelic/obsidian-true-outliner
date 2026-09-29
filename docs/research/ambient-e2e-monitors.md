@@ -130,3 +130,67 @@ report keeps:
 - **The first frame.** A scroll baseline taken on the first `requestAnimationFrame` missed the
   case's first action in 7 of 20 runs, since the action lands before the frame. The recorders take
   it at install.
+
+## After the corrections: the sweep in CI
+
+The same monitors with the corrections the first sweep called for, run by CI on the pushed
+checkpoint (desktop and mobile emulation, four instances a job, one job per group). Each job
+uploads its report and renders it into the step summary; the figures below add the reports of the
+fourteen groups of each platform. The whole matrix took six minutes.
+
+| | Desktop | Mobile |
+| --- | --- | --- |
+| Cases | 1,016 | 972 |
+| Hook time in all | 22.3 s | 25.6 s |
+| Caret read | 771 of 1,016 | 513 of 972 |
+| Scroll read | 866 | 777 |
+| Grid read | 907 | 821 |
+| Height map read | 896 | 806 |
+| Layout shift read | 358 | 344 |
+| Errors and notices read | 980 | 890 |
+
+What kept the rest from being read, on desktop: the caret in 157 cases where the editor was not
+the page's active element, 25 with no editor and 27 with a range selected; layout shift in 552 cases
+that edited no document. On mobile the editor is not the active element in 333 cases, and 50 cases failed,
+timed out or skipped themselves, which the specs that skip under emulation account for.
+
+The corrections, each from a finding: rows are boxes that overlap vertically, so an inline code
+span's padding starts no row of its own; a row that begins in a code span begins where the span's box
+does; text a decoration draws inside a line and lines holding an inline embed are not read; the
+whitespace a marker-less line begins with is the line's own, as it is after a marker; the caret
+monitor asks whether the editor is the active element, and not CodeMirror's `hasFocus`, which several
+windows on one display take from each other (308 of 1,014 desktop cases before, 157 after); a caret
+the case found out of view is not one it put there; layout shift reads plain lines only, since a
+widget follows the text around it.
+
+**Exemptions.** Cases that do what a monitor reads on purpose take an exemption where it happens,
+each with its reason: the footer specs scroll the footer into view (the local `scrollToEnd` helpers,
+`scrollToFooter`, `clickClear`), three cases drive edits across a 2,000-line note, one scrolls a long
+note away from the top and one is a drag that autoscrolls, the drag and fold suites move the lines
+around an edit, the gap-line suite toggles its setting between reads, and one case holds whitespace
+after an ATX marker. They are 24 places in the specs and, in a desktop report, 122 cases exempt
+from `scroll` and 100 from `layoutShift`, of which 30 are the self-test's own.
+
+**What is left.** Nine rules, in cases the note has not explained. None was diagnosed here, and none
+is filed: each needs a re-measurement against the code before it is a claim.
+
+| Rule | Cases (desktop, mobile) | Where |
+| --- | --- | --- |
+| `shift-above-edit` | 12, 15 | `67-node-selection-extension`: a line above the edited one moves 48 to 80 px up while a selection extends |
+| `heightmap-wrong-line` | 12, 8 | `80-outline-zoom`: in a zoomed note, a line's coordinates resolve to the line above it |
+| `heightmap-no-position` | 11, 11 | notes holding a table (`20`, `30`, `52`, `57`, `62`, `67`, `90`): a line has no position at its own coordinates |
+| `grid-left-of-column` | 6, 4 | `57-misplaced-block-ids`: a lone `^abc` line's text begins at its column, without the gutter |
+| `caret-covered` | 5, 3 | `80-outline-zoom`: the scroller is at the caret's point after a gap line is deleted; `75`: on mobile the header's buttons |
+| `unexpected-notice` | 2, 2 | `62`: a vetoed edit raises a refusal the case never waits for |
+| `grid-off-column`, `grid-wrap-hang` | 0, 2 | `93-fold-chrome` on mobile: the second row of a wrapped quote begins 18 px in |
+| `caret-off-coords` | 1, 2 | `92` on a folded line, 4.75 px; `77` with a popover open, 176 px |
+| `scroll-excursion`, `caret-outside-scroller`, `shift-sideways` | 2, 0; 1, 1; 1, 0 | one case each in `77`, `93` and `57` |
+
+## What the monitors do not read
+
+- **A shift the browser has not rendered yet.** A layout shift reaches the observer when the browser
+  next renders; the read takes what has been recorded, so a shift produced by the body's last action
+  can be missed. The self-test's shift rows wait for the entry for that reason.
+- **A caret in a case that never focused the editor.** 157 desktop cases and 333 mobile ones.
+- **A case that reloads the page.** Three of them, whose monitors were gone by the read.
+- **Anything a person reads off the screen.** Ink, colour and motion are #294 and #287.
