@@ -6,6 +6,7 @@ import { existsSync } from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { browser } from '@wdio/globals';
+import { TARGET_RECORD_FILE } from './target-record.mjs';
 
 /**
  * How many Obsidian instances run at once; 1 unless E2E_MAX_INSTANCES says
@@ -146,8 +147,8 @@ export const reporters: NonNullable<WebdriverIO.Config['reporters']> = [
 ];
 
 /**
- * Clears `JSON_REPORT_DIR`, `JUNIT_REPORT_DIR` and any leftover `FAILURE_SUMMARY_FILE` before a
- * new invocation writes into them.
+ * Clears `JSON_REPORT_DIR`, `JUNIT_REPORT_DIR` and any leftover `FAILURE_SUMMARY_FILE` and
+ * `TARGET_RECORD_FILE` before a new invocation writes into them.
  *
  * The summary is removed here, not just the report dir: `writeFailureSummary`
  * only runs from `onComplete`, so if this invocation's wdio config or service
@@ -166,6 +167,7 @@ export async function resetE2eReports(): Promise<void> {
   await fsp.mkdir(JSON_REPORT_DIR, { recursive: true });
   await fsp.rm(JUNIT_REPORT_DIR, { recursive: true, force: true });
   await fsp.rm(FAILURE_SUMMARY_FILE, { force: true });
+  await fsp.rm(TARGET_RECORD_FILE, { force: true });
 }
 
 interface RawTest {

@@ -20,7 +20,7 @@ const root = path.resolve(e2eDir, '..');
 // version), and a stale summary from a previous run must not survive this
 // invocation failing before it gets anywhere near a test.
 await resetE2eReports();
-const { browserVersion, cacheDir } = await resolveObsidianTarget(root, ' mobile');
+const { browserVersion, installerVersion, cacheDir } = await resolveObsidianTarget(root, ' mobile');
 
 /**
  * Mobile-emulation variant of wdio.conf.mts: identical plugin/vault/specs,
@@ -45,7 +45,7 @@ export const config: WebdriverIO.Config = {
       browserName: 'obsidian',
       browserVersion,
       'wdio:obsidianOptions': {
-        installerVersion: 'earliest',
+        installerVersion,
         plugins: [
           root,
           { path: path.join(e2eDir, 'fixtures/obsidian-outliner-stub'), enabled: false },
