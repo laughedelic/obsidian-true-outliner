@@ -88,7 +88,8 @@ surfaces over many runs rather than one.
 ## Two routes toward a shared grammar
 
 The rules above were each settled locally, and a later operation keeps finding the seams between
-them. Two routes, complementary rather than alternative.
+them. Two routes, complementary rather than alternative. The first is taken, and the second as far
+as a recommendation per case, in [node-placement-grammar.md](node-placement-grammar.md).
 
 **A formal grammar.** The model is small enough to write down whole:
 

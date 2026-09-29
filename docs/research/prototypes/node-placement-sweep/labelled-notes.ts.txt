@@ -1,0 +1,206 @@
+// Labelled notes for the placement sweeps: a generator whose every node carries a unique label, and
+// helpers that follow a node across a re-parse by its label.
+import fc from 'fast-check';
+import { parse } from '../src/parse';
+import { encode } from '../src/encode';
+import { walkNodes, isAtom, type OutlineDoc, type OutlineNode } from '../src/model';
+
+// ---------------------------------------------------------------- generator
+// Every node carries a unique label nK somewhere in its lines, except hr.
+
+type Item = { marker: string; kids: ItemKid[] };
+type ItemKid = { t: 'item'; item: Item } | { t: 'leaf' } | { t: 'code' } | { t: 'quote' };
+type Block =
+  | { t: 'para'; list?: { items: Item[]; tight: boolean } }
+  | { t: 'list'; items: Item[] }
+  | { t: 'atom'; kind: 'code' | 'quote' | 'callout' | 'table' | 'html' | 'hr' };
+type Section = { content: Block[]; subs: { level: number; section: Section }[] };
+
+const MARKERS = ['- ', '- ', '- ', '* ', '1. ', '- [ ] ', '- [x] ', '- ## '];
+
+const arbItem = (depth: number): fc.Arbitrary<Item> =>
+  fc.record({
+    marker: fc.constantFrom(...MARKERS),
+    kids:
+      depth <= 0
+        ? fc.constant([] as ItemKid[])
+        : fc.array(
+            fc.oneof(
+              { weight: 4, arbitrary: arbItem(depth - 1).map((item) => ({ t: 'item', item }) as ItemKid) },
+              { weight: 1, arbitrary: fc.constant({ t: 'leaf' } as ItemKid) },
+              { weight: 1, arbitrary: fc.constant({ t: 'code' } as ItemKid) },
+              { weight: 1, arbitrary: fc.constant({ t: 'quote' } as ItemKid) },
+            ),
+            { maxLength: 3 },
+          ),
+  });
+
+const arbBlock: fc.Arbitrary<Block> = fc.oneof(
+  { weight: 3, arbitrary: fc.record({ t: fc.constant('para' as const) }) as fc.Arbitrary<Block> },
+  {
+    weight: 2,
+    arbitrary: fc
+      .record({ items: fc.array(arbItem(2), { minLength: 1, maxLength: 3 }), tight: fc.boolean() })
+      .map((list) => ({ t: 'para', list }) as Block),
+  },
+  { weight: 2, arbitrary: fc.array(arbItem(2), { minLength: 1, maxLength: 3 }).map((items) => ({ t: 'list', items }) as Block) },
+  {
+    weight: 2,
+    arbitrary: fc
+      .constantFrom('code', 'quote', 'callout', 'table', 'html', 'hr')
+      .map((kind) => ({ t: 'atom', kind }) as Block),
+  },
+);
+
+const arbSection = (level: number, depth: number): fc.Arbitrary<Section> =>
+  fc.record({
+    content: fc.array(arbBlock, { maxLength: 4 }),
+    subs:
+      depth <= 0 || level >= 6
+        ? fc.constant([] as Section['subs'])
+        : fc
+            .tuple(fc.integer({ min: 1, max: 2 }), fc.array(fc.constant(0), { maxLength: 2 }))
+            .chain(([step, n]) =>
+              fc.tuple(
+                ...n.map(() => arbSection(Math.min(6, level + step), depth - 1)),
+              ).map((sections) =>
+                sections.map((section) => ({ level: Math.min(6, level + step), section })),
+              ),
+            ),
+  });
+
+export const arbDocText: fc.Arbitrary<string> = fc
+  .tuple(fc.integer({ min: 0, max: 1 }), arbSection(0, 3))
+  .map(([rootStep, root]) => render(root, rootStep));
+
+function render(root: Section, rootStep: number): string {
+  let n = 0;
+  const label = () => `n${++n}`;
+  const lines: string[] = [];
+  const renderItem = (item: Item, indent: string): void => {
+    lines.push(`${indent}${item.marker}${label()}`);
+    const width = item.marker.startsWith('1.') ? 3 : 2;
+    const inner = indent + ' '.repeat(width);
+    for (const kid of item.kids) {
+      if (kid.t === 'item') renderItem(kid.item, inner);
+      else if (kid.t === 'leaf') lines.push('', `${inner}${label()}`, '');
+      else if (kid.t === 'code') lines.push(`${inner}\`\`\``, `${inner}${label()}`, `${inner}\`\`\``);
+      else lines.push(`${inner}> ${label()}`, '');
+    }
+  };
+  const renderBlock = (block: Block): void => {
+    switch (block.t) {
+      case 'para':
+        lines.push(label());
+        if (block.list) {
+          if (!block.list.tight) lines.push('');
+          for (const item of block.list.items) renderItem(item, '');
+        }
+        break;
+      case 'list':
+        for (const item of block.items) renderItem(item, '');
+        break;
+      case 'atom':
+        switch (block.kind) {
+          case 'code':
+            lines.push('```', label(), '```');
+            break;
+          case 'quote':
+            lines.push(`> ${label()}`);
+            break;
+          case 'callout':
+            lines.push(`> [!note] ${label()}`);
+            break;
+          case 'table':
+            lines.push(`| ${label()} | b |`, '| --- | --- |');
+            break;
+          case 'html':
+            lines.push(`<div>${label()}</div>`);
+            break;
+          case 'hr':
+            lines.push('***');
+            break;
+        }
+        break;
+    }
+    lines.push('');
+  };
+  const renderSection = (section: Section): void => {
+    for (const block of section.content) renderBlock(block);
+    for (const sub of section.subs) {
+      lines.push(`${'#'.repeat(sub.level)} ${label()}`, '');
+      renderSection(sub.section);
+    }
+  };
+  // Root: content then headings at level 1+rootStep.
+  for (const block of root.content) renderBlock(block);
+  for (const sub of root.subs) {
+    const level = Math.min(6, sub.level + rootStep);
+    lines.push(`${'#'.repeat(level)} ${label()}`, '');
+    renderSection(sub.section);
+  }
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------- labels
+
+export function labelOf(node: OutlineNode): string | undefined {
+  return /\b[np]\d+\b/.exec(node.lines.join(' '))?.[0];
+}
+
+/** label -> parent label ('ROOT' at top), plus kind and first line. */
+export function parentMap(doc: OutlineDoc): Map<string, { parent: string; kind: string; line: string; index: number }> {
+  const out = new Map<string, { parent: string; kind: string; line: string; index: number }>();
+  const walk = (nodes: readonly OutlineNode[], parent: string): void => {
+    nodes.forEach((node, index) => {
+      const label = labelOf(node);
+      if (label) out.set(label, { parent, kind: node.kind, line: node.lines[0]!, index });
+      walk(node.children, label ?? '?');
+    });
+  };
+  walk(doc.children, 'ROOT');
+  return out;
+}
+
+export function nodeByLabel(doc: OutlineDoc, label: string): OutlineNode | undefined {
+  for (const node of walkNodes(doc)) if (labelOf(node) === label) return node;
+  return undefined;
+}
+
+export function subtreeLabels(node: OutlineNode): string[] {
+  const out: string[] = [];
+  const walk = (n: OutlineNode): void => {
+    const l = labelOf(n);
+    if (l) out.push(l);
+    n.children.forEach(walk);
+  };
+  walk(node);
+  return out;
+}
+
+export function ancestorsOf(doc: OutlineDoc, label: string): string[] {
+  const map = parentMap(doc);
+  const out: string[] = [];
+  let at = map.get(label)?.parent;
+  while (at && at !== 'ROOT' && at !== '?') {
+    out.push(at);
+    at = map.get(at)?.parent;
+  }
+  return out;
+}
+
+export { parse, encode, isAtom };
+
+/** Shape of a node for classification: kind plus heading level, task, etc. */
+export function kindTag(node: { kind: string; line: string }): string {
+  if (node.kind === 'heading') return `h${/^#+/.exec(node.line.trim())?.[0].length ?? '?'}`;
+  if (node.kind === 'list-item') {
+    const t = node.line.trim();
+    if (/^[-*+] \[[ xX]\]/.test(t)) return 'task';
+    if (/^[-*+] #{1,6} /.test(t) || /^\d+[.)] #{1,6} /.test(t)) return 'item#';
+    if (/^\d/.test(t)) return 'ol';
+    return 'item';
+  }
+  if (node.kind === 'paragraph') return 'para';
+  return node.kind;
+}
