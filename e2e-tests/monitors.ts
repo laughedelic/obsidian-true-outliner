@@ -385,6 +385,8 @@ function installInPage(): void {
     const next: string = doc.toString();
     const prev = docs.get(cm);
     docs.set(cm, next);
+    // A change that leaves the text as it was touches no line.
+    if (prev === next) return;
     let span: { min: number; max: number };
     if (prev === undefined) {
       span = { min: 0, max: Infinity };
@@ -499,6 +501,10 @@ function readInPage(expected: string[], final: boolean): PageReading | null {
     const range = ds.getRangeAt(0);
     const coords = cm.coordsAtPos(main.head);
     const painted = range.getClientRects()[0] ?? null;
+    const disagrees = (c: any): boolean =>
+      Math.abs(painted!.left - c.left) > 0.5 ||
+      Math.abs(painted!.top - c.top) > 1 ||
+      Math.abs(painted!.height - (c.bottom - c.top)) > 1;
     const container =
       range.startContainer.nodeType === 3 ? range.startContainer.parentElement : (range.startContainer as Element);
     const line = container?.closest('.cm-line, .cm-embed-block') ?? null;
@@ -514,7 +520,11 @@ function readInPage(expected: string[], final: boolean): PageReading | null {
       const dx = painted.left - coords.left;
       const dTop = painted.top - coords.top;
       const dH = painted.height - (coords.bottom - coords.top);
-      if (Math.abs(dx) > 0.5 || Math.abs(dTop) > 1 || Math.abs(dH) > 1) {
+      // Beside a widget, the default side measures the widget's edge and the caret stands on the
+      // text before it.
+      const off = disagrees(coords);
+      const before = off ? cm.coordsAtPos(main.head, -1) : null;
+      if (off && !(before && !disagrees(before))) {
         obs.push({
           rule: 'caret-off-coords',
           detail: `painted caret is ${r(dx)}px right and ${r(dTop)}px down of coordsAtPos, ${r(dH)}px taller, at ${main.head}`,
@@ -638,7 +648,18 @@ function readInPage(expected: string[], final: boolean): PageReading | null {
       const range = document.createRange();
       const walker = document.createTreeWalker(child, NodeFilter.SHOW_TEXT);
       const boxes: { left: number; top: number; bottom: number }[] = [];
+      // A quote's marker is the first ink of its first row, and its text hangs after it.
+      let markerLeft: number | null = null;
       for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (node.parentElement?.closest('.cm-formatting-quote') && (node.textContent ?? '').trim() !== '') {
+          const t = node.textContent ?? '';
+          range.setStart(node, t.length - t.trimStart().length);
+          range.setEnd(node, t.length);
+          for (const b of Array.from(range.getClientRects())) {
+            if (b.width > 0) markerLeft = Math.min(markerLeft ?? Infinity, b.left - cb.left);
+          }
+          continue;
+        }
         const chrome = node.parentElement?.closest(
           '.cm-formatting-list, .cm-hmd-list-indent, .task-list-label, .internal-embed, .markdown-embed, .cm-html-embed',
         );
@@ -676,6 +697,8 @@ function readInPage(expected: string[], final: boolean): PageReading | null {
       }
       const rows = groups.map((g) => g.left - column - gutter);
       if (rows.length === 0) continue;
+      // What the column is judged on: a quote's marker, and otherwise the rows themselves.
+      const anchors = markerLeft === null ? rows : [markerLeft - column - gutter];
       checked++;
 
       const ordered = !!child.querySelector('.cm-formatting-list-ol');
@@ -686,14 +709,16 @@ function readInPage(expected: string[], final: boolean): PageReading | null {
       const marked = /^\s*(?:[-*+]|\d+[.)])(?:\s|$)/.test(source);
       const surplus = /^\s*(?:[-*+]|\d+[.)])(?: {2,}|\t)/.test(source) || (!marked && /^\s/.test(source));
       const label = `line ${n + 1} "${cm.state.doc.line(n + 1).text.trim().slice(0, 24)}" (${child.className.replace(/\b(cm-line|cm-active|to-decor-guides)\b/g, '').trim().replace(/\s+/g, ' ').slice(0, 60)})`;
-      const left = rows.find((d) => d < -0.5);
+      const left = anchors.find((d) => d < -0.5);
       if (left !== undefined) {
         obs.push({ rule: 'grid-left-of-column', detail: `${label}: text starts ${r(-left)}px left of column + gutter` });
-      } else if (!ordered && !task && !surplus && rows.some((d) => Math.abs(d) > 0.5)) {
-        const off = rows.find((d) => Math.abs(d) > 0.5) as number;
+      } else if (!ordered && !task && !surplus && anchors.some((d) => Math.abs(d) > 0.5)) {
+        const off = anchors.find((d) => Math.abs(d) > 0.5) as number;
         obs.push({ rule: 'grid-off-column', detail: `${label}: text starts ${r(off)}px right of column + gutter` });
       }
-      if (!ordered && !surplus && rows.length > 1 && rows.some((d) => Math.abs(d - rows[0]!) > 0.5)) {
+      // A quote's first row starts after its marker's advance, which is not a whole pixel.
+      const hang = markerLeft === null ? 0.5 : 1;
+      if (!ordered && !surplus && rows.length > 1 && rows.some((d) => Math.abs(d - rows[0]!) > hang)) {
         obs.push({ rule: 'grid-wrap-hang', detail: `${label}: wrapped rows start at ${rows.map((d) => r(d)).join(', ')}px past column + gutter` });
       }
 
@@ -734,6 +759,8 @@ function readInPage(expected: string[], final: boolean): PageReading | null {
       }
       const line = cm.state.doc.lineAt(pos);
       if (line.text.trim() === '' || child.getBoundingClientRect().height === 0) continue;
+      // A table's source line stays in the document ahead of its widget, and draws nothing.
+      if (child.textContent === '' && child.nextElementSibling?.classList.contains('cm-embed-block')) continue;
       const coords = cm.coordsAtPos(line.from);
       if (!coords || coords.top < sr.top || coords.bottom > sr.bottom) continue;
       checked++;

@@ -75,6 +75,9 @@ runs:
     # to .obsidian-cache/e2e-target.json, and fails fast if a pinned version is not in
     # the cache or the installer does not exist.
     - run: |
+        # The cache restores .obsidian-cache, and a job that dies before the launcher clears it
+        # would otherwise render a previous run's known-failing list.
+        rm -f .obsidian-cache/e2e-summary.json
         args=()
         if [ -n "$GROUP" ]; then args+=(--group "$GROUP"); fi
         start=$SECONDS
@@ -115,6 +118,12 @@ runs:
     # check: they are rendered here, and the report is kept for reading after the job.
     - if: ${{ !cancelled() }}
       run: node scripts/e2e-monitors-summary.ts >> "$GITHUB_STEP_SUMMARY"
+      shell: bash
+
+    # Known-failing cases that still differ as recorded pass, so nothing shows red: they are listed
+    # here, from the run's failure summary.
+    - if: ${{ !cancelled() }}
+      run: node scripts/known-failing-summary.ts >> "$GITHUB_STEP_SUMMARY"
       shell: bash
 
     - if: ${{ !cancelled() }}

@@ -1,0 +1,20 @@
+case: outdenting a later child leaves the quote above it flush (#255)
+known-failing: #255
+keys: ⇧⇥
+
+=== before
+- item
+  > quote
+
+  - boo┃
+=== expected
+- item
+  > quote
+
+- boo
+=== actual ⇧⇥
+- item
+
+  > quote
+
+- boo

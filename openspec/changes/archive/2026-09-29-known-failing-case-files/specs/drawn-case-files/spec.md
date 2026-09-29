@@ -1,77 +1,6 @@
-# drawn-case-files Specification
+# Spec Delta
 
-## Purpose
-Defines drawn case files: a case written in the presenting-examples notation with the keys and
-setup it needs, the runner that executes it in the real app on desktop and mobile emulation, the
-drawing it prints when the app disagrees, and the helper that draws the editor's state for any
-spec or agent.
-
-## Requirements
-
-### Requirement: One module reads and draws the notation
-
-The notation of the `presenting-examples` skill SHALL be defined by one module that the skill's
-layout script, the case runner and the state helper all use. It SHALL read a column of the literal
-document into text and a selection, draw a text and selection into a column, and read a drawn
-block back into columns. Reading what was drawn SHALL return the text and selection that were
-drawn.
-
-A selection MAY begin with `«` on one line and end with `»` on a later line; the line breaks
-between are part of it, and the drawn underline continues across them. A `┃` touching one end of a
-selection names its head. `▒` opens a block-selected line and a column with `▒` and a caret is
-refused. A column with no `∅` reads as text ending in one newline; `∅` after a line's text is a
-text with no final newline, and `∅` on a line of its own is a final newline and an empty last line.
-A malformed column — a second caret, an unclosed `«`, a `┃` not touching its selection, a `∅` off
-the last line — is refused with the line it is on.
-
-#### Scenario: A drawn state reads back as itself
-
-- **WHEN** a text and a selection are drawn, and the column is read
-- **THEN** the same text and selection come back, for a caret, a forward and a backward selection
-  in one line, a selection across lines, a block selection, and a text with no, one and two final
-  newlines
-
-#### Scenario: A selection across lines is one selection
-
-- **WHEN** a column opens `«` on its second line and closes `»` on its fourth
-- **THEN** it reads as one range from the first to the last of those characters, including the
-  line breaks between, and it draws with every character between the two underlined
-
-#### Scenario: Side by side is unchanged but for the tab
-
-- **WHEN** the layout script is given the input it accepted before the module existed, with
-  `--columns`
-- **THEN** it prints the same block, byte for byte, except that a tab is `→ ` in place of `⏵` and
-  its padding
-
-#### Scenario: A drawing is stacked blocks by default
-
-- **WHEN** the layout script is given columns with no option
-- **THEN** it prints each column under its header as a fenced block of the column as written, with a
-  tab drawn `→ `, a space that touches a tab or ends a line drawn `·`, and a selection left as
-  `«…»`; a fence longer than any run of backticks in the text is used, and reading the blocks back
-  returns the columns
-
-#### Scenario: A block from an issue reads back into columns
-
-- **WHEN** a drawn block is given to the layout script's `--read`, whether stacked or side by side,
-  and including one that draws a tab as `⏵` and padding
-- **THEN** the columns it prints, laid out again, give the block back, apart from the padding a
-  hand alignment chose and the tab's new drawing
-
-#### Scenario: A selection and a tab survive being drawn and read
-
-- **WHEN** a column holding a selection across lines, or a tab inside a selection or at the end of
-  a line, is laid out and read back with `--read`
-- **THEN** the column comes back as written; a selection that begins at the end of a line or ends at
-  the start of one comes back as the shorter selection the underline shows
-
-#### Scenario: A case file is drawn under its keys
-
-- **WHEN** the layout script is given a case file with `--case`
-- **THEN** it prints the title, the keys and settings, and the file's columns as a drawing
-
-**Covered by**: `tests/notation.test.ts`
+## MODIFIED Requirements
 
 ### Requirement: A case file states its setup, keys and columns
 
@@ -218,53 +147,8 @@ or `▒` only where that phase's `expected` draws one, and it SHALL say when no 
 
 **Covered by**: `e2e-tests/specs/98-drawn-cases.e2e.ts` (the shipped case files under `e2e-tests/cases/`), `tests/case-report.test.ts`
 
-### Requirement: A failing case prints a drawing
+## ADDED Requirements
 
-A case that fails SHALL throw an error whose first line names the case, what differs (`text`,
-`caret`, `selection`, `block selection`, or `before`) and the platform, and whose remaining lines are the keys
-line and setup and one drawing: `before`, and for the first phase that differs, `expected` and
-`actual`, the caret and selection read from the editor's state. A phase whose `expected` column
-draws no caret or selection SHALL be reported as not asserting one, and its `actual` column SHALL
-still show the caret.
-
-#### Scenario: A caret mismatch is drawn
-
-- **WHEN** the text is as drawn and the caret is one character off
-- **THEN** the first line says `caret`, and the drawing shows the caret in two places, one in each
-  column
-
-#### Scenario: Only the first differing phase is drawn
-
-- **WHEN** the second of three phases differs
-- **THEN** the drawing has `before`, and that phase's `expected` and `actual`, and no later phase
-
-**Covered by**: `tests/case-report.test.ts`
-
-### Requirement: The editor's state draws through one helper
-
-`e2e-tests/drawing.ts` SHALL read the editor's text, every range, whether the editor has focus and
-the lines that carry the selected-node chrome in one page-side function of the Obsidian app that
-takes no other input, and SHALL draw one or several such states as columns. A state with more than
-one range SHALL draw the main range and say how many there were. Every failing e2e case SHALL print
-the drawing of the editor's state beside its failure screenshot, without failing the case a second
-time when the read cannot be made.
-
-#### Scenario: Block-selected lines are what the editor paints
-
-- **WHEN** the selection has grown to cover a node's whole line by a second ⌘A
-- **THEN** the drawing marks that line `▒` and shows no caret
-
-#### Scenario: A failing spec draws the editor
-
-- **WHEN** any e2e case fails with a markdown view open
-- **THEN** its output includes the drawing of that editor's text and caret
-
-#### Scenario: A read that cannot be made does not hide the failure
-
-- **WHEN** a case fails with no markdown view open
-- **THEN** the case's own error is what is reported
-
-**Covered by**: `e2e-tests/specs/98-drawn-cases.e2e.ts` ("the editor drawn as it is read")
 ### Requirement: A known-failing case passes while the app gives its recorded result
 
 A case with `known-failing` SHALL run as any case does, on every platform it runs on, and be

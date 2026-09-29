@@ -15,6 +15,7 @@ import { obsidianPage } from 'wdio-obsidian-service';
 import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
 import * as h from '../helpers.js';
+import { clearFolds } from '../folding.js';
 import {
   MONITOR_RECORD_DIR,
   afterCase,
@@ -183,6 +184,37 @@ describe('ambient monitors', function () {
       expect(reading?.caret.skipped).toBe('the editor is not the active element');
       expect(reading?.grid.skipped).toBeUndefined();
     });
+
+    it('reads a caret at the end of a folded line as where it is painted', async function () {
+      await open(['- one', '  - child', '- two', ''].join('\n'));
+      try {
+        await clearFolds();
+        await h.setCursorSettled(0, 5);
+        await h.runCommand('fold-node');
+        await browser.keys(['!']);
+        expect(await h.getBuffer()).toContain('- one!');
+        await install();
+        // The default side of `coordsAtPos` measures the fold widget's edge here.
+        expect(await rules('caret')).toEqual([]);
+      } finally {
+        await clearFolds();
+      }
+    });
+
+    it('reports a painted caret that neither side of its position accounts for', async function () {
+      await open(SHORT);
+      await h.setCursorSettled(2, 4);
+      await install();
+      expect(await rules('caret')).toEqual([]);
+      await inPage(`
+        const at = cm.coordsAtPos.bind(cm);
+        cm.coordsAtPos = (pos, side) => {
+          const c = at(pos, side);
+          return c && { left: c.left + 6, right: c.right + 6, top: c.top, bottom: c.bottom };
+        };
+      `);
+      expect(await rules('caret')).toContain('caret-off-coords');
+    });
   });
 
   describe('scroll', function () {
@@ -298,6 +330,27 @@ describe('ambient monitors', function () {
       expect(await rules('grid')).toEqual([]);
     });
 
+    it('reads wrapped quotes, at the top level and nested, as on the grid', async function () {
+      const words = 'quoted words wrap around here '.repeat(8).trim();
+      await open(['# Head', '', `> ${words}`, '', `> > nested ${words}`, ''].join('\n'));
+      await h.setCursorSettled(0, 1);
+      await install();
+      expect(await rules('grid')).toEqual([]);
+    });
+
+    it('reads a quote by its marker: half a pixel off is on the grid, nine is not', async function () {
+      const words = 'quoted words wrap around here '.repeat(8).trim();
+      await open(['# Head', '', `> ${words}`, ''].join('\n'));
+      await h.setCursorSettled(0, 1);
+      await install();
+      await inPage(`${LINE} nudge(2, 0.4);`);
+      expect(await rules('grid')).toEqual([]);
+      await inPage(`${LINE} nudge(2, 9);`);
+      expect(await rules('grid')).toContain('grid-off-column');
+      await inPage(`${LINE} nudge(2, -18);`);
+      expect(await rules('grid')).toContain('grid-left-of-column');
+    });
+
     it('reports wrapped rows that do not start where their first row does', async function () {
       await open(LONG);
       await h.setCursorSettled(0, 1);
@@ -311,6 +364,15 @@ describe('ambient monitors', function () {
     it('reads a rendered note as coherent', async function () {
       await open(SHORT);
       await h.setCursorSettled(0, 1);
+      await install();
+      expect(await rules('heightMap')).toEqual([]);
+    });
+
+    it('reads a note that opens with a table as coherent', async function () {
+      // The table's first source line stays under its widget, with no text and no position.
+      await open(['| a   | b   |', '| --- | --- |', '| 1   | 2   |', '', 'Tail', ''].join('\n'));
+      await h.waitForContentChildCount('.cm-embed-block.cm-table-widget', 1);
+      await h.setCursorSettled(4, 1);
       await install();
       expect(await rules('heightMap')).toEqual([]);
     });
@@ -374,6 +436,14 @@ describe('ambient monitors', function () {
       await inPage(`${LINE} const e = lineEl(2); e.style.position = 'relative'; e.style.top = '30px';`);
       await reported('layoutShift', 'shift-above-edit');
     });
+
+    it('does not count a change that leaves the text as it was as an edit', async function () {
+      await open(SHORT);
+      await h.setCursorSettled(4, 3);
+      await install();
+      await inPage(`cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: cm.state.doc.toString() } });`);
+      expect((await read())?.layoutShift.skipped).toBe('the case edited no document');
+    });
   });
 
   describe('errors', function () {
@@ -391,6 +461,7 @@ describe('ambient monitors', function () {
       await browser.pause(200);
       const found = (await read())?.errors.observations ?? [];
       expect(found.map((o) => o.rule)).toContain('console-error');
+      expect(found.map((o) => o.rule)).toContain('uncaught-error');
       const details = found.map((o) => o.detail).join('\n');
       expect(details).toContain('ambient-boom');
       expect(details).toContain('ambient-rejected');

@@ -223,6 +223,98 @@ them.
 - A comparison column with a history name (`main`, `this PR`) has no role a runner can infer.
 - An annotation or an elision inside a cell.
 
+## Waiting on a fix: the tracker's open bugs as case files
+
+Measured on 2026-09-29 on `main` at `0b8169d`, in the environment above (Obsidian 1.13.7 on
+installer 1.5.8, Chrome 120), for the 13 open issues #307 names. The scripts and the case files
+are in `prototypes/known-failing-cases/`.
+
+**What the tracker holds.** The 13 issues carry 24 drawn blocks: 22 in the issue bodies and 2 in a
+comment on #115, whose body draws none; #307 counts 20. All 24 read back into columns with
+`layout.ts --read`, none failing. A block's headers name what happened, and a case file reads
+them as what should: the tracker's `after ⇧⇥` is the bug's result, so it becomes `actual`, and the
+`expected` column is the fix's. The drawings of #278 and #279 leave out the blank lines that their
+"To reproduce" sections have, and those lines decide whether `P` is a paragraph child of `x`; the
+case files use the reproduction's text.
+
+**What a case file needs, and which blocks have it.** A `before` the editor can hold, keys a
+runner presses, and a result that is a document. 13 of the 24 became case files and ran; 11 did not:
+
+| Blocks | Why they do not run |
+| --- | --- |
+| #279 case 1, #278 case 1 | a drag; the column is a landing place, not a document |
+| #250 | a command run by name within 500 ms of a key, from a custom hotkey |
+| #261 (3 blocks) | columns of parse trees, no `before` and no keys |
+| #228 case 2 | two candidate `expected` columns, headers `expected: reading 1` and `reading 2`; `parseCase` refuses it, since neither header starts a result column |
+| #146 case 2, #272 case 2 | no result drawn (#146 says the landing was not traced), and no gesture named for the insertion |
+| #198 case 2 | the same shape as case 1, not run |
+| #115 case 2 | a control drawn as one `after` column, with no bug in it |
+
+**The 13 that ran.** Each was run alone through `npm run case -- <files>` on desktop and under
+mobile emulation, once as written and once with `--record`, so the state the app produced is
+known for every case.
+
+| Case | Shape | Desktop | Mobile | The app's result against the issue's `actual` |
+| --- | --- | --- | --- | --- |
+| #228 case 1 | ⏎, carets drawn on both sides | differs | differs | same text, same caret |
+| #198 case 1 | paste, carets on both sides | differs | differs | same text, same caret |
+| #275 | two phases, `⌫ ⌫ \| ⌘Z` within 500 ms | differs | differs | same text, same caret |
+| #146 case 1 | ↑ out of a table's nested editor | differs | differs | same text, same caret |
+| #215 | tab indent, a tab-indented note | differs | differs | same text, no caret drawn |
+| #244 | paste with a tab in the clipboard | differs | differs | same text, no caret drawn |
+| #255 case 1 | ⇧⇥, no caret in the result | differs | differs | same text, no caret drawn |
+| #255 case 2 | ⇥, no caret in the result | differs | differs | text differs: the quote lands at column 4, the drawing has 2 |
+| #272 case 1 | a run pasted at a tight list's edge | differs | differs | text differs: a one-line paste lands inline, `- b- x` |
+| #279 case 2 | a task pasted after a paragraph child | differs | differs | the issue says "refused"; the app pastes inline, `P- [ ] t` |
+| #115 case 1 | ⌘⌫ at the end of a paragraph | differs | differs | text and caret differ: ⌘ is Ctrl on Linux, and Ctrl+Backspace deleted the `.` |
+| #278 case 3 | ⇥ on a paragraph after a paragraph | differs | differs | no `actual` drawn; the app makes it a list item, as the sentence says |
+| #278 case 2 | ⇥ on a list item, drawn `refused` | passes | passes | none drawn |
+
+What follows from the table:
+
+- **Desktop and mobile emulation agree.** All 13 ended the same way on both, and the recorded
+  state of every case is byte for byte the same on both (`cmp` on the 13 recorded files). The
+  earlier note's two table pastes (#197) are the only difference between the platforms found so far.
+- **A case that differs is not a case that differs as drawn.** Of the ten differing cases whose
+  issue draws an `actual`, seven match it, and three do not: #115, because the key means something
+  else on Linux; #255 case 2 and #272, because the drawing was measured on an operation and the
+  app's own gesture reaches another path. #279 case 2 is a fourth: it draws a refusal and the app
+  pastes inline. A marker that took any difference for the bug would hold for these four with no
+  bug behind it.
+- **A refusal is not a state of the document.** #278 case 2 draws `refused` as its result. The
+  bug there is that the operation reports success with no edits where a refusal would say why, and
+  the document is the same either way, so the case passes today and would pass after the fix. The
+  drawing carries a message, which a case file cannot compare.
+- **The timing case is stable.** #275 and #146 case 1 were run ten times each on each platform
+  in one spec run: 40 runs, all differing, each platform producing one distinct drawing per case.
+  #275's bug needs the two ⌫ within 500 ms, so they arrived that close through `browser.keys` in
+  every run.
+- **Eight of the 13 case files have an `expected` that draws no caret**, so the run compares text
+  only there. The drawings were measured on operations, and the issues say their carets were not
+  measured.
+- **`before` held in all 13**, including #146's caret in a table row, and the case produced the
+  issue's `actual`. Whether the table's own editor took the ↑ was not examined.
+
+**What the measurement left for other issues.** A one-line clipboard is pasted inline, and only one
+of two lines reaches the structural paste, so #272's and #279's reproductions take two lines: with
+them #272 gives the blank line inside the list, and #279's task paste is refused with "Markdown
+can't express that content here." (desktop). #255's second case differs from its drawing only by
+the indentation unit, which is four spaces in the app and two in the drawings. The three issues
+carry the measured drawings. A case cannot declare the notice a refusal raises, which the monitors
+report as unexpected (#269's case, and #279's two-line paste in a scratch case); #322 tracks it, and
+its case for a refusal that a bug leaves out meets `known-failing` there. One
+`77-footer-controls` failure under mobile emulation on Chrome 120, in cases that read straight after
+`clickAtPoint`, is recorded on #329.
+
+**What a run can hand to a report.** A case that passes leaves the reporter with its name, its
+timing and `passed`: the JSON dump of a passed or a skipped test holds no message, so a drawing
+cannot travel to `writeFailureSummary` through the reporter. A worker's `console.log` reaches the
+launcher's output (the failure drawing already does), and a worker writes under
+`.obsidian-cache/` in the repository (`--record` did, from the case spec). The failure summary
+keeps a failing case's whole multi-line message; only its stdout line is cut to the first line.
+The drawn cases are one group (`drawn-cases`, `scripts/spec-groups.ts`), so one job per platform
+runs every case file, and a report written by that spec lands in that job's step summary.
+
 ## Re-running
 
 The state read above is the function in "Reading the editor". The case cost is a spec that
@@ -231,3 +323,8 @@ columns out; it runs with `npm run test:e2e:narrow -- <spec>` and `--mobile`, un
 `e2e-tests/docker/start-xvfb-and-run.sh` in a cloud session. The tracker figures come from
 `gh api repos/{owner}/{repo}/issues` and the comment endpoints, read by explicit page number:
 `--paginate` followed a numeric repository URL the session's proxy truncated.
+
+The waiting-on-a-fix figures come from `prototypes/known-failing-cases/README.md`: the 24 blocks
+were read from the issue and comment bodies by `extract.mjs`, assembled into case files by
+`assemble.mjs`, run with `npm run case -- <files> [--mobile] [--record]` under
+`e2e-tests/docker/start-xvfb-and-run.sh`, and compared by `compare.mjs`.

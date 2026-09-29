@@ -1,0 +1,13 @@
+case: indenting a quote under an item adds no blank line (#255)
+keys: ⇥
+
+=== before
+- item
+> q┃
+=== actual
+- item
+
+  > q
+=== expected
+- item
+  > q

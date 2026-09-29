@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { drawDocument, parseCase, readDocument } from '../scripts/notation.ts';
+import { compareState } from '../e2e-tests/case-report';
 
 /**
  * Every drawn case file under e2e-tests/cases/ is checked here, without Obsidian: it parses (its
@@ -38,6 +39,8 @@ export function problems(file: string, source: string, cases = CASES, capabiliti
   const columns = [
     ['before', parsed.beforeLines],
     ...parsed.results.map((r): [string, string[]] => [r.header, r.lines]),
+    // A marked file's `actual` is a drawn state as well, and a reference in any other.
+    ...(parsed.actual ? [[parsed.actual.header, parsed.actual.lines] as [string, string[]]] : []),
   ] as [string, string[]][];
   for (const [name, lines] of columns) {
     const read = readDocument(lines);
@@ -45,6 +48,22 @@ export function problems(file: string, source: string, cases = CASES, capabiliti
       drawDocument({ text: read.text, ranges: read.selection ? [read.selection] : [], blockLines: read.blockLines }),
     );
     if (JSON.stringify(drawn) !== JSON.stringify(read)) found.push(`"${name}" does not read back as itself once drawn`);
+  }
+  if (parsed.actual) {
+    // The run compares `actual` with the state a phase gives, by `compareState`: a caret counts only
+    // where the column it is compared with draws one. A file whose `actual` matches every `expected`
+    // that way waits on a difference no run can see.
+    const drawn = parsed.actual;
+    const state = {
+      text: drawn.text,
+      ranges: drawn.selection ? [drawn.selection] : [],
+      main: 0,
+      blockLines: drawn.blockLines,
+      focused: true,
+    };
+    if (parsed.results.every((expected) => compareState(expected, state).length === 0)) {
+      found.push('the "actual" column matches every "expected" column, so the marker waits on no difference');
+    }
   }
   return found;
 }
@@ -67,6 +86,36 @@ describe('drawn case files', () => {
     expect(problems(file, '=== before\na┃\n=== expected\na┃\n')).toEqual([
       'no-such-capability is not a capability under openspec/specs/',
     ]);
+  });
+
+  describe('a known-failing file', () => {
+    const file = path.join(CASES, 'outline-mode', 'x.case');
+    const marked = (columns: string, keys = '⏎') => `known-failing: #1\nkeys: ${keys}\n\n${columns}`;
+
+    it('is accepted when its actual differs from its expected', () => {
+      expect(problems(file, marked('=== before\na┃\n=== expected\nb┃\n=== actual\nc┃\n'))).toEqual([]);
+    });
+
+    it('is refused when its actual is its expected', () => {
+      expect(problems(file, marked('=== before\na┃\n=== expected\nb┃\n=== actual\nb┃\n'))).toEqual([
+        'the "actual" column matches every "expected" column, so the marker waits on no difference',
+      ]);
+    });
+
+    it('is refused when its actual differs only by a caret its expected does not draw', () => {
+      expect(problems(file, marked('=== before\na┃\n=== expected\nb\n=== actual\nb┃\n'))).toEqual([
+        'the "actual" column matches every "expected" column, so the marker waits on no difference',
+      ]);
+    });
+
+    it('is accepted when its actual differs only by a caret its expected draws', () => {
+      expect(problems(file, marked('=== before\na┃\n=== expected\nb┃\n=== actual\nb\n'))).toEqual([]);
+    });
+
+    it('is accepted when its actual is the first expected of two phases and differs from the second', () => {
+      const columns = '=== before\na┃\n=== after ⏎\nb┃\n=== after ⇥\nc┃\n=== actual\nb┃\n';
+      expect(problems(file, marked(columns, '⏎ | ⇥'))).toEqual([]);
+    });
   });
 
   it('refuses a file that does not parse, naming the line', () => {

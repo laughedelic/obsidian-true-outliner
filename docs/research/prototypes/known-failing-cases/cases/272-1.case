@@ -1,0 +1,23 @@
+case: a run pasted at a tight list's last item keeps the list tight (#272)
+keys: ⌘V
+
+=== clipboard
+- x
+=== before
+- a
+- b┃
+
+para
+=== actual
+- a
+- b
+
+- x
+
+para
+=== expected
+- a
+- b
+- x
+
+para
