@@ -33,8 +33,8 @@ failing; wrapping them unmeasured would hide a race behind a wait rather than di
 weekly run reports one if it is real, and the requirement names the two cases, not every click.
 
 **Platform-wide.** The wait is not scoped to mobile emulation. It resolves on its first read
-whenever the caret is already there, which is what the two cases did on desktop in every run in
-the note, so scoping would add a branch to the spec for no difference in what it checks.
+whenever the caret is already there, so on desktop, where the note records each spec passing,
+scoping would add a branch to the spec for no difference in what it checks.
 
 **The smoke case moves the caret itself.** A wait that read once would pass a case that only checks
 a caret already there or one that never arrives, so the case also moves the caret from the page

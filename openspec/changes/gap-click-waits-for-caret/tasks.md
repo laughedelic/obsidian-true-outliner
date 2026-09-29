@@ -8,9 +8,11 @@
       `L:C`, the page moves it to `L:C+1` 300 ms after `waitForCursor(L, C+1)` begins and the wait
       resolves; `waitForCursor(L, C+2, 300)` rejects with a message naming `L:C+2` and `L:C+1`;
       `waitForCursor(L+1, C+1, 300)` rejects naming `L+1:C+1`; `waitForCursor(L, C+1, 300)`
-      resolves. Verified by the case passing on both runs. Negative controls, each run against the
-      case and each failing it: a `timeoutMsg` string built in the `waitUntil` options, where `last`
-      is still `undefined`; a helper that reads once; a helper that ignores `line`.
+      resolves, each of the two rejections within a bound well under the default limit. Verified by
+      the case passing on both runs. Negative controls, recorded in the note's "What waiting does",
+      each failing the case: a `timeoutMsg` string built in the `waitUntil` options, where `last` is
+      still `undefined`; a helper that reads once; a helper that ignores `line`; a helper that
+      ignores its limit.
 
 ## 2. The two cases
 

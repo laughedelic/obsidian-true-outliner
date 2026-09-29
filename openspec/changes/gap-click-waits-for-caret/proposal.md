@@ -3,8 +3,9 @@
 Two real-click cases fail intermittently under mobile emulation on the newest installer
 ([#304](https://github.com/laughedelic/obsidian-true-outliner/issues/304)): the click lands, and
 the case reads the caret before it has. The plugin's own record of the failing runs shows the
-click's selection change arriving, close to the moment the WebDriver call that sent the click
-returns ([`docs/research/gap-click-timing.md`](../../../docs/research/gap-click-timing.md)). The
+click's selection change arriving about 360 ms after the click began, and separately stamped runs
+put that at the moment the WebDriver call that sent the click returns
+([`docs/research/gap-click-timing.md`](../../../docs/research/gap-click-timing.md)). The
 weekly run on the newest installer is where this shows, and a red weekly run files its own issue.
 
 ## What Changes
@@ -24,8 +25,8 @@ weekly run on the newest installer is where this shows, and a red weekly run fil
   them spec 65 D2, and the `clickAtPoint` ones, and none is observed failing. D2's click is on a
   list marker, which the note found taking another path. They keep their reads until a failure or
   a timing names one.
-- **The double-click case in `61-selection-enforcement`.** It fails in every newest-installer CI
-  run, on `main` as well, and the note's timing of a double click fits the same lateness; no run
+- **The double-click case in `61-selection-enforcement`.** It failed in each of the three
+  newest-installer CI runs, `main`'s included, and the note's timing of a double click fits the same lateness; no run
   has waited for its selection. It is a suspect for a follow-up, not part of this change.
 - **`clickAt` itself.** It cannot know what the click should have done, and a fixed pause would
   spend that time on every click ([design](design.md)).
@@ -56,5 +57,6 @@ None.
 - No `src/` or `styles/` change and no plugin behaviour change, so no version bump: the `Landed`
   check asks for one only of a `feat` or `fix` that ships. The change is a `chore`.
 - The weekly newest-installer run (`.github/workflows/newest-installer.yml`) is the standing
-  check: its first scheduled result, Monday 2026-10-05, shows these two cases, and green weekly
-  runs close #304.
+  check: its first scheduled result, Monday 2026-10-05, shows these two cases, and #304 closes once
+  neither appears among the weekly run's failures. The change works around the lateness in the
+  specs; what the delay is made of stays open in the note.

@@ -61,7 +61,10 @@ describe('smoke', function () {
       }
       throw new Error(`the wait for ${line}:${ch} resolved`);
     };
+    const gaveUpAt = Date.now();
     const wrongColumn = await gaveUp(at.line, target + 1);
+    // Its own 300 ms limit, not the default's seconds.
+    expect(Date.now() - gaveUpAt).toBeLessThan(2500);
     expect(wrongColumn).toContain(`never reached ${at.line}:${target + 1};`);
     expect(wrongColumn).toContain(`last read ${at.line}:${target}`);
     // The same column on another line is another position.

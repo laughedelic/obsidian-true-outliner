@@ -60,10 +60,10 @@ A copy of D1 with `Date.now()` stamps around the same commands as `clickAt` (pos
 pointer action, first read) and no others, loaded, in ms from the start of `clickAt`, which includes
 the position lookup:
 
-| | `perform()` returned | `select` recorded | `select` relative to the return | first read right |
+| | `perform()` returned | `select` recorded | `select` relative to the return | first read after the return | first read right |
 | --- | --- | --- | --- | --- |
-| Chrome 150, 8 runs | 353 to 363 | 358 to 369 | 0 to 8 ms after | 5 of 8 |
-| Chrome 120, 4 runs | 392 to 423 | 349 to 378 | 43 to 45 ms before | 4 of 4 |
+| Chrome 150, 8 runs | 353 to 363 | 358 to 369 | 0 to 8 ms after | 5 to 26 ms | 5 of 8 |
+| Chrome 120, 4 runs | 392 to 423 | 349 to 378 | 43 to 45 ms before | 6 to 21 ms | 4 of 4 |
 
 A second probe timed one tap of each kind, three rounds each, unloaded, on both installers, in
 a fresh note: a gap line (`Alpha one.` / gap / `Bravo two.`, click on the gap), a text position in
@@ -80,9 +80,8 @@ rounds, in ms from the start of the click:
   new in Chrome 150, and a tap on plain text lags as a tap on a gap does.
 - On Chrome 150 the selection lands 0 to 8 ms after `perform()` returns in every run of both
   probes. On Chrome 120 it lands 17 to 45 ms before: 43 to 45 loaded, 17 to 26 unloaded.
-- The first read follows the return by 5 to 26 ms on Chrome 150 and 6 to 21 ms on Chrome 120. The
-  timeline's 5 of 8 right reads on Chrome 150 and spec 65's 7 of 10 failing runs are separate small
-  samples, and this note does not reconcile them.
+- The timeline's 5 of 8 right reads on Chrome 150 and spec 65's 7 of 10 failing runs are separate
+  small samples, and this note does not reconcile them.
 - A tap on a marker takes another path: the caret moved to the item's content start with no
   transaction other than `programmatic` recorded. `zoom-click.ts` takes a press on a mark on
   `pointerdown`, which is the likely reason and was not tested. It fits D2, which clicks a marker
@@ -97,21 +96,23 @@ paragraph.`, five rounds each, unloaded, in ms from the start of the click:
 | Chrome 120 | 340 to 365 | 541 to 580 | 559 to 601 | 16 to 24 ms before |
 
 The word selection lands as `perform()` returns on Chrome 150 and before it on Chrome 120, the pattern
-of a single tap. A read taken between the two `select` transactions sees the first tap's collapsed
-caret. The first read in this probe followed the return by 8 to 15 ms and saw the word in all ten
-rounds.
+of a single tap. A read taken between the two `select` transactions would see the first tap's
+collapsed caret; that is inferred, since the record keeps no selection and no read fell between them.
+The first read in this probe followed the return by 8 to 15 ms and saw the word in all ten rounds.
 
 ## In CI on the newest installer
 
 `newest-installer.yml` dispatched by hand, one run each, four instances per job:
 
-| Job | `main` at `a52c495` | This change at `0ec20cf` (the helper's first form) |
+| Job | `main` at `a52c495` | This change at `0ec20cf` (the helper's first form); the later run on `777409a` is under the table |
 | --- | --- | --- |
 | `mobile (selection)` | `65` D1 and `66` code-fence D8 failed | green |
 | `mobile (clipboard)` | `61` "double-click word selection is untouched" failed | the same case failed, and failed again on the re-run of the failed jobs (see below) |
 | `desktop (selection)` | `66` "D8: a table row: Home/End match off-mode parity" failed | `63` "a drag past a node's end onto its gap line gets chrome…" failed once and passed on the re-run |
 
-D1 and D8 fail on `main` and pass with the wait, in a run each. The other three failures are outside
+A run on `777409a`, the final helper and smoke case, had `mobile (selection)` and `desktop (selection)`
+green and failed `mobile (clipboard)` on the `61` case again; the smoke case's elapsed-time check
+came after it. D1 and D8 fail on `main` and pass with the wait, in a run each. The other three failures are outside
 this change's files. The `61` double-click case failed in all three CI runs and passed locally in 8
 of 8 mobile runs (three unloaded, five loaded). It asserts that a double click's selection is not
 collapsed (`anchor.ch` not equal to `head.ch`), read once straight after `doubleClickAt` returns,
@@ -133,8 +134,15 @@ Spec 65 and spec 66 on Chrome 150, four busy loops beside the suite, each run a 
 | `waitForCursor`, final form | 5 of 5 passed | 4 of 4 passed |
 
 The first row is the loaded baseline above; the second and third are separate sets of runs. Each
-spec also passes once per platform on both installers. The CI comparison is one run each, red on
-`main` and green with the wait.
+spec also passes once per platform on both installers, with the helper's first form and again with
+its final one. The two forms differ only in how the failure message is built. The CI comparison is
+one run each, red on `main` and green with the wait.
+
+The wait's own case, in `00-smoke`, moves the caret from the page 300 ms after the wait begins and
+then checks a wrong column, another line and a caret already there. It passes on desktop and mobile
+on the oldest installer and on mobile on the newest, and fails against each of four broken helpers,
+one run apiece: a message built before the first read, a single read, a wait that ignores the
+line, and a wait that ignores its limit.
 
 ## What was ruled out
 
@@ -163,10 +171,10 @@ spec also passes once per platform on both installers. The CI comparison is one 
   is the one variable this note shows to move the rate. A looped copy of D1, unloaded, that paused
   400 ms before reading landed 75 of 75, which the wait explains and which says nothing about
   hooks.
-- Whether the other thirteen `clickAt` call sites (specs 30, 59, 62, 65 D2, 66 lines 125 and 127,
-  and 80) and the `clickAtPoint` ones share the effect. None is observed failing, and none was
-  timed for this note; D2 is a marker click, which took another path above, and 66's two are gap
-  clicks in a case that skips itself under mobile emulation. The gap, with `61`'s double click, is
+- Whether the other thirteen `clickAt` call sites (specs 30, 59, 62, 80, `65` D2 and the two gap
+  clicks of `66`'s table case, "a real click on the gap directly above/below a table") and the `clickAtPoint` ones share the effect. None is observed failing, and none was
+  timed for this note; D2 is a marker click, which took another path above, and 66's two are in a
+  case that skips itself under mobile emulation. The gap, with `61`'s double click, is
   not yet tracked as an issue.
 - Whether the `61` double-click case is this same lateness: the timing fits, and no run has waited
   for its selection.
@@ -181,5 +189,5 @@ Four loops of `while :; do :; done` in the background, then
 OBSIDIAN_INSTALLER_VERSION=latest npm run test:e2e:narrow -- --mobile 65-content-space-caret
 ```
 
-repeated. Every rate above comes from a whole spec file per run; the one single-case run of D1
+repeated. Every rate in "Rates" and "What waiting does" comes from a whole spec file per run; the one single-case run of D1
 (`... "D1"`) passed and says nothing about a rate.
