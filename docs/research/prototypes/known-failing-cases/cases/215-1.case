@@ -1,0 +1,25 @@
+case: a paragraph indented into a tab list moves its children in tabs (#215)
+tabs: on
+keys: ⇥
+
+=== before
+- top
+	- sib
+
+Para.┃
+- x
+	- y
+=== actual
+- top
+	- sib
+
+	- Para.
+      - x
+	      - y
+=== expected
+- top
+	- sib
+
+	- Para.
+	  - x
+		- y

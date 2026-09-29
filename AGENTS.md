@@ -122,11 +122,30 @@ capability being a directory of `openspec/specs/`, and a spec's `Covered by` lin
 way it names a spec title. Every failing e2e case also prints the editor's drawing
 (`e2e-tests/drawing.ts`), and `drawEditor()` is there for any spec that wants one.
 
+**A repro of an open bug is committed with its report.** A case file with `known-failing: #<issue>`
+and an `actual` column passes while the app still gives that result and fails once it does not
+(`.agents/skills/presenting-examples/SKILL.md`, "A case that waits on a fix"). Commit it in the PR
+that plans the fix, from its proposal on, or in a `chore` PR of its own when nobody is fixing the
+bug yet, and remove the marker in the change that fixes it: once the bug is fixed and the marker is still
+there, CI fails the case.
+The still-failing cases are listed in each `drawn-cases` job's step summary and under
+`knownFailing` in `.obsidian-cache/e2e-summary.json`.
+
 Every run overwrites `.obsidian-cache/e2e-summary.json` with what failed:
 
 ```bash
 jq '.failures' .obsidian-cache/e2e-summary.json
 ```
+
+**Every case is also read by the ambient monitors** (`e2e-tests/monitors.ts`): the painted caret,
+the scroll, the grid, the height map, layout shift, errors and unexpected notices, installed and
+checked from the shared wdio hooks, so no case asks for them. They are report-only. A run leaves
+`.obsidian-cache/e2e-monitors.json` beside the summary, CI renders it into each job's step summary,
+and `node scripts/e2e-monitors-summary.ts` prints it after a local run. Read what a finding names
+before reaching for an exemption: a case that sets up a deliberately odd state calls
+`exempt(reason, ...monitors)` from `e2e-tests/monitors.ts`, in its body or its `beforeEach`, and
+the reason is required and listed in the report. `E2E_MONITORS=off` skips the hooks for a run that
+times something else.
 
 Narrow mode and `run-e2e.ts` both launch the real desktop app, so an Obsidian window pops on
 macOS and Windows. `npm run test:e2e:docker [-- --group <name> | <spec> [grep]]` runs the same

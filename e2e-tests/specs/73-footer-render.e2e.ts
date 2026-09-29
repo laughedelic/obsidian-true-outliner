@@ -5,6 +5,7 @@
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
+import { exempt } from '../monitors.js';
 
 const TARGET = 'Projects/Aurora Dashboard.md';
 /**
@@ -25,6 +26,7 @@ const ORGANIC = 'Projects/Severity rollout.md';
  * the bottom of — but every assertion about the footer has to reach it first.
  */
 async function scrollToEnd(): Promise<void> {
+  exempt('the case scrolls the footer into view, away from the caret', 'scroll');
   await browser.executeObsidian(() => {
     const scroller = document.querySelector('.workspace-leaf.mod-active .cm-scroller');
     if (scroller) scroller.scrollTop = scroller.scrollHeight;

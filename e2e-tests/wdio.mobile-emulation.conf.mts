@@ -5,8 +5,9 @@ import {
   maxInstances,
   reporters,
   resetE2eReports,
-  onTestFailure,
+  caseHooks,
   writeFailureSummary,
+  writeMonitorReport,
 } from './wdio.shared.mjs';
 
 const e2eDir = path.dirname(url.fileURLToPath(import.meta.url));
@@ -88,8 +89,11 @@ export const config: WebdriverIO.Config = {
     await waitForMetadataCache();
   },
 
-  afterTest: onTestFailure('mobile'),
-  onComplete: writeFailureSummary,
+  ...caseHooks('mobile'),
+  onComplete: async function () {
+    await writeFailureSummary();
+    await writeMonitorReport();
+  },
 
   services: ['obsidian'],
   reporters,

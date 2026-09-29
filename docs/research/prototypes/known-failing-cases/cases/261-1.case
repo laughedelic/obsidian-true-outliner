@@ -1,0 +1,11 @@
+case: a lazy continuation line is one node (#261)
+
+=== source
+- paragraph text
+second line here
+=== parse (our tree)
+item "paragraph text"
+para "second line here"
+=== CommonMark
+item "paragraph text
+     second line here"

@@ -1,0 +1,31 @@
+case: a pasted subtree moved right keeps a tab-indented child under its parent (#244)
+keys: ⌘V
+
+=== clipboard
+- p
+
+  para
+
+  - n
+	1. m
+=== before
+- a
+  1. b┃
+=== actual
+- a
+  1. b
+  - p
+
+    para
+
+    - n
+  	1. m
+=== expected
+- a
+  1. b
+  - p
+
+    para
+
+    - n
+	  1. m

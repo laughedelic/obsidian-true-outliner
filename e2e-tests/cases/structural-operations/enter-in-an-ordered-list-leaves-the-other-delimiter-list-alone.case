@@ -1,0 +1,18 @@
+case: an edit in one ordered list does not renumber the list after it (#228)
+known-failing: #228
+keys: ⏎
+
+=== before
+1. a┃
+1) b
+2) c
+=== expected
+1. a
+2. ┃
+1) b
+2) c
+=== actual ⏎
+1. a
+2. ┃
+3) b
+4) c

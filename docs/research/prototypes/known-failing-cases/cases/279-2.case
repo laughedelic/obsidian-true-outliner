@@ -1,0 +1,14 @@
+case: a task pasted after a list item's paragraph child is accepted (#279)
+keys: ⌘V
+
+=== clipboard
+- [ ] t
+=== before
+- x
+
+  P┃
+=== expected
+- x
+
+  P
+  - [ ] t

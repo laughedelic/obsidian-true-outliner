@@ -10,6 +10,7 @@ import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import { Key } from 'webdriverio';
 import * as h from '../helpers.js';
+import { exempt } from '../monitors.js';
 
 const NOTE = 'Scratch/marker-surplus.md';
 const MARK = '.to-decor-marker-surplus';
@@ -61,6 +62,7 @@ describe('a list marker\'s surplus whitespace', function () {
   });
 
   it('is scoped to the list and task markers, not an ATX prefix after them', async function () {
+    exempt('the note holds whitespace after an ATX marker inside a list item, drawn as its own characters', 'grid');
     // `- #  title` has its surplus AFTER the `#`, which plays no part in
     // Obsidian's nesting math — an ATX-like `#` is content here, not chrome
     // (`enter-and-shift-enter-grammar` D5) — so marking it would highlight a

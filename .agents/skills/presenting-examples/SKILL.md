@@ -177,15 +177,17 @@ keys: ⇥ | ⇧⇥
 ```
 
 - **Preamble**, all optional: `case` (a title), `outline: off` (default on), `tabs: on` ("Indent
-  using tabs"; default off), `platform: desktop` or `mobile` (default both), `keys`.
+  using tabs"; default off), `platform: desktop` or `mobile` (default both), `known-failing: #123`
+  (the case waits on that issue's fix, see below), `keys`.
 - **Keys** are phases separated by ` | `, each a run of steps as the sentence above a drawing
   writes them: ⌘⇧⌥⌃ in front of ⇥ ⏎ ⌫ ⌦ ↑ ↓ ← → ⎋ or one character, spelled keys (`Home`, `End`,
   `PageUp`, `PageDown`, `Esc`) and chords (`mod-shift-enter`), `×N` for a repeat, `"quoted text"`
   typed as characters. ⌘ is the platform's Mod key. ⌘V pastes the `clipboard` column.
 - **Columns**: `clipboard` (read by a ⌘V step), `before` (the state the case starts from) and
-  `expected` or `after …` (the state after each phase, one per phase). Any other header, `actual` included, is a reference the run
-  ignores, so a failure report runs again as it was printed. A result column with no caret,
-  selection or `▒` does not compare one.
+  `expected` or `after …` (the state after each phase, one per phase). Any other header, `actual`
+  included, is a reference the run ignores, so a failure report runs again as it was printed; a
+  file with `known-failing` is the exception, and holds an `actual` the run reads. A result column
+  with no caret, selection or `▒` does not compare one.
 - **Limits.** A case file cannot hold a note that contains `┃ « » ‸ ∅ ▒`. A selection that begins
   at the end of a line, or ends at the start of one, draws as the shorter selection its underline
   shows, since a line break has no underline; `--read` returns the shorter one.
@@ -208,3 +210,50 @@ carets in it are measured, not predicted. A case that stays goes under
 `e2e-tests/cases/<capability>/`, where `<capability>` is a directory of `openspec/specs/`, and
 runs with the rest. `node scripts/layout.ts --case < x.case` draws it under its keys and settings for a PR's
 manual-test section.
+
+### A case that waits on a fix
+
+A case for an open bug fails until the fix lands. `known-failing: #<issue>` says it waits on that
+issue, and an `actual` column holds what the app gives while the bug stands:
+
+```
+case: an edit in one ordered list does not renumber the list after it (#228)
+known-failing: #228
+keys: ⏎
+
+=== before
+1. a┃
+1) b
+2) c
+=== expected
+1. a
+2. ┃
+1) b
+2) c
+=== actual ⏎
+1. a
+2. ┃
+3) b
+4) c
+```
+
+- **While the bug stands** the case passes, if the app gives `actual` at the first phase that
+  differs from `expected` (the text, and the caret only where `expected` draws one). The run
+  reports it in its output, in `knownFailing` of `.obsidian-cache/e2e-summary.json`, and in the CI
+  job's step summary, and presses no key after that phase.
+- **Once every phase matches `expected`** it fails, saying `remove known-failing: #<issue>`. The
+  change that fixes the bug removes the marker, and the case guards the fix from then on.
+- **When the app gives a third result** it fails, drawing `actual (recorded)` beside `actual (now)`:
+  the bug changed, or the drawing was never what the app does (a key that means something else on
+  the platform, an operation the app's own gesture does not reach).
+- **To write one**, draft `before`, the keys, the marker and the `expected` the fix should give,
+  with no `actual`, and run it with `--record` on each platform. `--record` keeps the marker and
+  `expected` and writes the state at the first differing phase as `actual`, with a caret only where
+  `expected` draws one; the file it writes under `.obsidian-cache/cases/` is the case to commit,
+  once the two platforms agree. The tracker's `after <keys>` header names what happened; in a case
+  file that column is `actual`.
+- **Limits.** The marker holds on every platform the case runs on, so a bug seen on one platform
+  takes `platform:`. A result that is not a document, such as a refusal message or a drop's landing
+  place, cannot be compared, and its drawing stays in the issue. A case with two candidate results
+  is committed when one is chosen. `layout.ts --case` draws a marked file with its `actual`, and a
+  marked draft with no result column is refused there as it is by a run.

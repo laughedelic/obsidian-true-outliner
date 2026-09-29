@@ -16,6 +16,7 @@ import { $, browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
 import { pinBacklinksCapOff } from '../footer.js';
+import { exempt } from '../monitors.js';
 
 const TARGET = 'Backlinks/Reference target.md';
 const DORMANT = 'Notes/Sourdough Log.md';
@@ -26,6 +27,7 @@ const FOOTER = '.workspace-leaf.mod-active .to-backlinks';
 /** The footer sits at `doc.length`, and CodeMirror virtualises: until the
  * reader reaches the end of a long note, the widget has no DOM at all. */
 async function scrollToEnd(): Promise<void> {
+  exempt('the case scrolls the footer into view, away from the caret', 'scroll');
   await browser.executeObsidian(() => {
     const scroller = document.querySelector('.workspace-leaf.mod-active .cm-scroller');
     if (scroller) scroller.scrollTop = scroller.scrollHeight;
@@ -314,6 +316,7 @@ describe('backlinks footer: behaviour', function () {
     await ensureOutlineMode(HUB);
 
     // Caught as early as the widget exists, before groups have resolved.
+    exempt('the case scrolls the footer into view, away from the caret', 'scroll');
     await browser.executeObsidian(() => {
       const scroller = document.querySelector('.workspace-leaf.mod-active .cm-scroller');
       if (scroller) scroller.scrollTop = scroller.scrollHeight;
@@ -1010,6 +1013,7 @@ describe('backlinks footer: behaviour', function () {
     // suite runs, reports the element already painted with zero delta on the
     // first check — so it returns without ever scrolling, silently, with no
     // warning and no JS fallback. The plain DOM call has no such gate.
+    exempt('the case scrolls the footer into view, away from the caret', 'scroll');
     await browser.executeObsidian(() => {
       document.querySelector('[data-e2e-target="yes"]')?.scrollIntoView({ block: 'center' });
     });

@@ -42,6 +42,7 @@ if (mode === '--read') {
 } else if (mode === '--case') {
   const c = parseCase(input, { record: true });
   const setup = [`outline ${c.outline ? 'on' : 'off'}`, `tabs ${c.tabs ? 'on' : 'off'}`, c.platform ?? 'desktop and mobile'];
+  if (c.knownFailing !== undefined) setup.push(`known-failing #${c.knownFailing}`);
   if (c.title) console.log(c.title);
   console.log(`keys: ${keysLine(c.phases) || '(none)'} · ${setup.join(' · ')}`);
   const rows = input.split('\n');
