@@ -152,7 +152,7 @@ describe('ambient monitors', function () {
       await install();
       await inPage(`document.activeElement.blur();`);
       const reading = await read();
-      expect(reading?.caret.skipped).toBe('the editor has no focus');
+      expect(reading?.caret.skipped).toBe('the editor is not the active element');
       expect(reading?.grid.skipped).toBeUndefined();
     });
   });
@@ -260,6 +260,14 @@ describe('ambient monitors', function () {
       expect(await rules('grid')).toEqual([]);
       await nudge(0.8);
       expect(await rules('grid')).toContain('grid-marker-off-column');
+    });
+
+    it('reads a wrapped line holding inline code as on the grid', async function () {
+      const text = '- the flag is `--severity` ' + 'and then some more words '.repeat(12) + '`--other` ' + 'tail words '.repeat(10);
+      await open(['# Head', '', text, `\t- nested ${text}`, ''].join('\n'));
+      await h.setCursorSettled(0, 1);
+      await install();
+      expect(await rules('grid')).toEqual([]);
     });
 
     it('reports wrapped rows that do not start where their first row does', async function () {
@@ -398,7 +406,7 @@ describe('ambient monitors', function () {
       expect(after.length).toBe(before + 1);
       const last = after[after.length - 1]!;
       expect(last.test).toBe('a made-up case');
-      expect(Object.values(last.skipped)).toEqual(Array(7).fill('the case did not pass'));
+      expect(Object.values(last.skipped)).toEqual(Array(7).fill('the case failed, timed out or was skipped'));
       expect(last.observations).toEqual([]);
     });
 

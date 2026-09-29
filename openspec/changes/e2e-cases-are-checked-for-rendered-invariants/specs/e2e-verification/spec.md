@@ -67,10 +67,11 @@ the exemption SHALL require a reason. The report SHALL list every exemption with
   screen, and another appears during a case that waited for it by its text
 - **THEN** the report lists the first and not the second
 
-#### Scenario: A failed case is not read
+#### Scenario: A case that did not pass is not read
 
-- **WHEN** a case fails or times out
-- **THEN** every monitor's record for it says the case did not pass, and no observation is listed
+- **WHEN** a case fails, times out or is skipped
+- **THEN** every monitor's record for it says the case did not run to a pass, and no observation is
+  listed
 
 #### Scenario: An exemption names its reason
 
@@ -80,6 +81,6 @@ the exemption SHALL require a reason. The report SHALL list every exemption with
 
 #### Scenario: A monitor that cannot read says so
 
-- **WHEN** a case ends with no focused editor
-- **THEN** the caret monitor's record says the editor had no focus, and the other monitors are
+- **WHEN** a case ends with the editor not the page's active element
+- **THEN** the caret monitor's record says the editor was not the active element, and the other monitors are
   read as usual

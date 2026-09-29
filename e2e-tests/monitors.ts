@@ -164,7 +164,7 @@ export async function afterCase(test: HookTest, passed: boolean): Promise<void> 
   };
 
   if (!passed) {
-    for (const name of MONITORS) record.skipped[name] = 'the case did not pass';
+    for (const name of MONITORS) record.skipped[name] = 'the case failed, timed out or was skipped';
     await write();
     return;
   }
@@ -323,7 +323,8 @@ function installInPage(): void {
     if (!el || !cm.contentDOM.contains(el)) return null;
     let child: Element | null = el;
     while (child && child.parentElement !== cm.contentDOM) child = child.parentElement;
-    if (!child) return null;
+    // A widget (the footer, a table) follows the text around it, and is not a line that moved.
+    if (!child || !child.classList.contains('cm-line')) return null;
     try {
       return cm.state.doc.lineAt(cm.posAtDOM(child)).number - 1;
     } catch {
@@ -450,7 +451,11 @@ function readInPage(expected: string[], final: boolean): PageReading | null {
     if (!cm) return { skipped: 'no editor', observations: [] };
     const main = cm.state.selection.main;
     const ds = window.getSelection();
-    if (!cm.hasFocus) return { skipped: 'the editor has no focus', observations: [] };
+    // CodeMirror's `hasFocus` also asks whether the window has focus, which several Obsidian
+    // windows on one display take from each other. The DOM selection follows the active element.
+    if (cm.root.activeElement !== cm.contentDOM) {
+      return { skipped: 'the editor is not the active element', observations: [] };
+    }
     if (!main.empty) return { skipped: 'a range is selected, and paints as one', observations: [] };
     if (!ds || ds.rangeCount !== 1 || !ds.isCollapsed) {
       return { skipped: 'the page has no collapsed selection', observations: [] };
@@ -592,7 +597,7 @@ function readInPage(expected: string[], final: boolean): PageReading | null {
       // run of whitespace begins, and the first glyph is what a reader sees.
       const range = document.createRange();
       const walker = document.createTreeWalker(child, NodeFilter.SHOW_TEXT);
-      const rowLefts = new Map<number, number>();
+      const boxes: { left: number; top: number; bottom: number }[] = [];
       for (let node = walker.nextNode(); node; node = walker.nextNode()) {
         const chrome = node.parentElement?.closest(
           '.cm-formatting-list, .cm-hmd-list-indent, .task-list-label, .internal-embed, .markdown-embed, .cm-html-embed',
@@ -604,15 +609,25 @@ function readInPage(expected: string[], final: boolean): PageReading | null {
         range.setStart(node, text.length - text.trimStart().length);
         range.setEnd(node, text.length);
         for (const b of Array.from(range.getClientRects())) {
-          if (b.width === 0) continue;
-          const key = Math.round(b.top);
-          const left = b.left - cb.left;
-          if (!rowLefts.has(key) || left < (rowLefts.get(key) as number)) rowLefts.set(key, left);
+          if (b.width > 0) boxes.push({ left: b.left - cb.left, top: b.top, bottom: b.bottom });
         }
       }
-      const rows = Array.from(rowLefts.entries())
-        .sort((x, y) => x[0] - y[0])
-        .map((e) => e[1] - column - gutter);
+      // A visual row is the boxes that overlap vertically: an inline code span's padding puts its
+      // box a pixel or two off the text beside it, which a rounded `top` would call another row.
+      boxes.sort((x, y) => x.top - y.top);
+      const groups: { top: number; bottom: number; left: number }[] = [];
+      for (const b of boxes) {
+        const g = groups[groups.length - 1];
+        const overlap = g ? Math.min(b.bottom, g.bottom) - Math.max(b.top, g.top) : 0;
+        if (g && overlap > 0.5 * Math.min(b.bottom - b.top, g.bottom - g.top)) {
+          g.top = Math.min(g.top, b.top);
+          g.bottom = Math.max(g.bottom, b.bottom);
+          g.left = Math.min(g.left, b.left);
+        } else {
+          groups.push({ top: b.top, bottom: b.bottom, left: b.left });
+        }
+      }
+      const rows = groups.map((g) => g.left - column - gutter);
       if (rows.length === 0) continue;
       checked++;
 

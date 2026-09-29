@@ -65,8 +65,11 @@ the service injects and which is absent for a moment after a reload. Alternative
 
 **The readings, and the rule each one holds to.** Tolerances come from the measurements.
 
-- **Caret.** Applies when the editor has focus, the selection is empty and the page has one
-  collapsed selection: a range paints as a range, and an unfocused editor's DOM selection is stale.
+- **Caret.** Applies when the editor is the page's active element, the selection is empty and the page has one
+  collapsed selection: a range paints as a range, and the DOM selection of an editor that is not the
+  active element is stale. It asks for the active element and not for CodeMirror's `hasFocus`, which
+  also needs the window to have focus, and several Obsidian windows on one display take that from
+  each other: in CI's first sweep 308 of 1,014 desktop cases were unreadable for it.
   The painted rect is the DOM range's first client rect. It must be within 0.5 px horizontally and
   1 px vertically of `coordsAtPos(head)`. Where the range has no rect — an empty line — the position
   CodeMirror reports stands in for it, so visibility is still read and agreement is not. The point
@@ -89,7 +92,8 @@ the service injects and which is absent for a moment after a reload. Alternative
   (a fold's hidden count, a chip) is not the line's text and starts no row.
   A row's position is the first *ink* of the row's text nodes, from `Range.getClientRects` on the
   text past its leading whitespace, and never a wrapper's box: a wrapper reports where a run of
-  whitespace begins. Text must not begin left of `depth × unit + gutter`. It must begin on it, to
+  whitespace begins. Boxes belong to one row when they overlap vertically, not when their rounded
+  tops agree: an inline code span's padding puts its box off the text beside it. Text must not begin left of `depth × unit + gutter`. It must begin on it, to
   0.5 px, on every row, unless the item carries an ordered marker wider than the gutter, a task
   control, or whitespace after its marker beyond the one space, each of which the specs let move it
   right. Rows of a wrapped item must agree with each other on the same terms. A mark's centre is the
@@ -100,8 +104,8 @@ the service injects and which is absent for a moment after a reload. Alternative
   line. A widget stands for several lines and resolves to its own position, and `posAtCoords`
   returns null for a point outside the scroller, so neither is a line to round-trip.
 - **Layout shift.** A `PerformanceObserver` on `layout-shift`, with each source resolved to the
-  document line of the child of `.cm-content` it sits in; sources outside the editor's content
-  (the status bar, notices) are dropped. The lines an edit touched are the span between the first
+  document line of the plain `.cm-line` child of `.cm-content` it sits in; sources outside the
+  editor's content (the status bar, notices) and widgets (the footer, a table) are dropped. The lines an edit touched are the span between the first
   and last differing line at each `editor-change`, unioned over the case per editor, from a snapshot
   taken when the editor is first seen. A source above the span is reported for any movement; a
   source outside it is reported for sideways movement only, since a line below an insertion
