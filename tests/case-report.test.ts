@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { parseCase } from '../scripts/notation.ts';
 import {
   beforeMessage,
+  changedMessage,
   compareState,
+  holdsMessage,
+  judgeKnownFailing,
+  passesMessage,
   phaseMessage,
   recordedCase,
   type CaseContext,
@@ -154,5 +158,166 @@ describe('recording', () => {
     const out = recordedCase(parsed, [state('ax\n', 2)]);
     expect(out.split('\n').slice(0, 8)).toEqual(['case: t', 'tabs: on', 'platform: mobile', 'keys: ⌘V', '', '=== clipboard', 'x∅', '=== before']);
     expect(parseCase(out).clipboard).toBe('x');
+  });
+});
+
+describe('a known-failing case', () => {
+  // `1. a┃` then ⏎: the fix numbers the second list from 1, the bug carries the first list's count.
+  const ORDERED = [
+    'case: renumber',
+    'known-failing: #228',
+    'keys: ⏎',
+    '',
+    '=== before',
+    '1. a┃',
+    '1) b',
+    '=== expected ⏎',
+    '1. a',
+    '2. ┃',
+    '1) b',
+    '=== actual ⏎',
+    '1. a',
+    '2. ┃',
+    '3) b',
+    '',
+  ].join('\n');
+  const FIXED = state('1. a\n2. \n1) b\n', 8);
+  const RECORDED = state('1. a\n2. \n3) b\n', 8);
+  const OTHER = state('1. a\n2. \n2) b\n', 8);
+
+  describe('judged', () => {
+    const judge = (src: string, ...states: EditorState[]) => judgeKnownFailing(parseCase(src), states);
+
+    it('passes when every phase matches its expected column', () => {
+      expect(judge(ORDERED, FIXED)).toEqual({ verdict: 'passes' });
+    });
+
+    it('holds when the first differing phase gives the recorded actual', () => {
+      expect(judge(ORDERED, RECORDED)).toEqual({ verdict: 'holds', phase: 0, differences: ['text'] });
+    });
+
+    it('has changed when the phase gives neither', () => {
+      expect(judge(ORDERED, OTHER)).toEqual({ verdict: 'changed', phase: 0, differences: ['text'] });
+    });
+
+    it('has changed when the text is the recorded one and the drawn caret is not', () => {
+      expect(judge(ORDERED, state('1. a\n2. \n3) b\n', 5))).toMatchObject({ verdict: 'changed', differences: ['caret'] });
+    });
+
+    it('compares no caret when actual draws none', () => {
+      const noCaret = ORDERED.replace('=== actual ⏎\n1. a\n2. ┃\n3) b', '=== actual ⏎\n1. a\n2. \n3) b');
+      expect(judge(noCaret, state('1. a\n2. \n3) b\n', 1))).toMatchObject({ verdict: 'holds' });
+    });
+
+    const TWO = (actual: string) =>
+      ['known-failing: #1', 'keys: ⇥ | ⏎', '', '=== before', 'a┃', '=== after ⇥', 'b┃', '=== after ⏎', 'c┃', actual, ''].join('\n');
+
+    it('judges the second phase when the first matches', () => {
+      // The second phase differs from `expected` the way `actual` draws.
+      expect(judge(TWO('=== actual\nd┃'), state('b\n', 1), state('d\n', 1))).toEqual({
+        verdict: 'holds',
+        phase: 1,
+        differences: ['text'],
+      });
+    });
+
+    it('judges the first phase when it differs, whatever the second gives', () => {
+      // Phase one gives `actual`; phase two happens to match its `expected`. The last phase alone
+      // would read as a pass.
+      const result = judge(TWO('=== actual\nx┃'), state('x\n', 1), state('c\n', 1));
+      expect(result).toEqual({ verdict: 'holds', phase: 0, differences: ['text'] });
+    });
+
+    it('needs no state after the first differing phase', () => {
+      expect(judge(TWO('=== actual\nx┃'), state('x\n', 1))).toMatchObject({ verdict: 'holds', phase: 0 });
+    });
+
+    it('refuses a case with no actual column', () => {
+      const bare = parseCase(ORDERED.replace(/=== actual[^]*$/, ''), { record: true });
+      expect(() => judgeKnownFailing(bare, [RECORDED])).toThrow('needs its "actual" column');
+    });
+  });
+
+  describe('its messages', () => {
+    const ctx = (): CaseContext => ({ name: 'structural-operations/renumber', platform: 'desktop', parsed: parseCase(ORDERED) });
+
+    it('says a pass is stale, naming the issue', () => {
+      expect(passesMessage(ctx())).toBe(
+        [
+          'case structural-operations/renumber no longer differs (desktop): remove known-failing: #228',
+          'keys: ⏎ · outline on · tabs off',
+        ].join('\n'),
+      );
+    });
+
+    it('draws expected and actual when it still fails, under the issue', () => {
+      expect(holdsMessage(ctx(), 0, ['text'], RECORDED)).toBe(
+        [
+          'known-failing #228: case structural-operations/renumber still differs in text (desktop)',
+          'keys: ⏎ · outline on · tabs off',
+          ' before    expected ⏎    actual ⏎',
+          '┆1. a┃    ┆1. a         ┆1. a',
+          '┆1) b     ┆2.·┃         ┆2.·┃',
+          '          ┆1) b         ┆3) b',
+        ].join('\n'),
+      );
+    });
+
+    it('draws the recorded actual beside the state now when the result changed', () => {
+      expect(changedMessage(ctx(), 0, OTHER)).toBe(
+        [
+          'case structural-operations/renumber differs from its recorded actual (desktop): known-failing #228',
+          'keys: ⏎ · outline on · tabs off',
+          ' before    expected ⏎    actual (recorded) ⏎    actual (now) ⏎',
+          '┆1. a┃    ┆1. a         ┆1. a                  ┆1. a',
+          '┆1) b     ┆2.·┃         ┆2.·┃                  ┆2.·┃',
+          '          ┆1) b         ┆3) b                  ┆2) b',
+        ].join('\n'),
+      );
+    });
+  });
+
+  describe('recorded', () => {
+    it('keeps the marker and expected, and writes the state as actual', () => {
+      const parsed = parseCase(ORDERED.replace(/=== actual[^]*$/, ''), { record: true });
+      expect(recordedCase(parsed, [RECORDED])).toBe(
+        [
+          'case: renumber',
+          'known-failing: #228',
+          'keys: ⏎',
+          '',
+          '=== before',
+          '1. a┃',
+          '1) b',
+          '=== expected ⏎',
+          '1. a',
+          '2. ┃',
+          '1) b',
+          '=== actual ⏎',
+          '1. a',
+          '2. ┃',
+          '3) b',
+          '',
+        ].join('\n'),
+      );
+    });
+
+    it('draws no caret in actual where expected draws none', () => {
+      const parsed = parseCase('known-failing: #1\nkeys: ⇥\n=== before\na┃\n=== expected\nb\n', { record: true });
+      const out = recordedCase(parsed, [state('c\n', 1)]);
+      expect(out).toContain('=== actual ⇥\nc\n');
+      expect(parseCase(out).actual?.selection).toBeNull();
+    });
+
+    it('writes no actual when no phase differs', () => {
+      const parsed = parseCase(ORDERED.replace(/=== actual[^]*$/, ''), { record: true });
+      expect(recordedCase(parsed, [FIXED])).not.toContain('=== actual');
+    });
+
+    it('reads back as a case file that judges the same', () => {
+      const parsed = parseCase(ORDERED.replace(/=== actual[^]*$/, ''), { record: true });
+      const again = parseCase(recordedCase(parsed, [RECORDED]));
+      expect(judgeKnownFailing(again, [RECORDED])).toMatchObject({ verdict: 'holds' });
+    });
   });
 });

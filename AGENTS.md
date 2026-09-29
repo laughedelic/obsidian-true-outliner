@@ -122,6 +122,14 @@ capability being a directory of `openspec/specs/`, and a spec's `Covered by` lin
 way it names a spec title. Every failing e2e case also prints the editor's drawing
 (`e2e-tests/drawing.ts`), and `drawEditor()` is there for any spec that wants one.
 
+**A repro of an open bug is committed with its report.** A case file with `known-failing: #<issue>`
+and an `actual` column passes while the app still gives that result and fails once it does not
+(`.agents/skills/presenting-examples/SKILL.md`, "A case that waits on a fix"). Commit it in the PR
+that plans the fix, from its proposal on, or in a `chore` PR of its own when nobody is fixing the
+bug yet, and remove the marker in the change that fixes it: CI fails the case until that change does.
+The still-failing cases are listed in each `drawn-cases` job's step summary and under
+`knownFailing` in `.obsidian-cache/e2e-summary.json`.
+
 Every run overwrites `.obsidian-cache/e2e-summary.json` with what failed:
 
 ```bash

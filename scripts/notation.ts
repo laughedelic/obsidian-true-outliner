@@ -502,6 +502,10 @@ export interface ParsedCase {
   beforeLines: string[];
   clipboard: string | undefined;
   results: (ReadDocument & { header: string; lines: string[] })[];
+  /** The issue a `known-failing` case waits on. */
+  knownFailing: number | undefined;
+  /** The recorded result of a `known-failing` case: what the app gives while the bug stands. */
+  actual: (ReadDocument & { header: string; lines: string[] }) | undefined;
   /** Headers of the columns a run ignores. */
   references: string[];
 }
@@ -513,7 +517,7 @@ function choice<T>(value: string, options: Record<string, T>): T {
   return options[value] as T;
 }
 
-const NAMES = ['case', 'outline', 'tabs', 'platform', 'keys'];
+const NAMES = ['case', 'outline', 'tabs', 'platform', 'known-failing', 'keys'];
 
 /**
  * Parses a case file: a preamble of `name: value` lines, then `=== <header>` columns.
@@ -529,6 +533,7 @@ export function parseCase(source: string, { record = false }: { record?: boolean
   let outline = true;
   let tabs = false;
   let platform: ParsedCase['platform'];
+  let knownFailing: number | undefined;
   let phases: KeyStep[][] = [];
   let first = lines.findIndex((l) => l.startsWith('=== '));
   if (first < 0) first = lines.length;
@@ -538,7 +543,7 @@ export function parseCase(source: string, { record = false }: { record?: boolean
   const seen = new Set<string>();
   lines.slice(0, first).forEach((line, i) => {
     if (!line.trim()) return;
-    const m = /^([a-z]+): ?(.*)$/.exec(line);
+    const m = /^([a-z-]+): ?(.*)$/.exec(line);
     if (!m) return fail(i, `expected "name: value" before the first "=== " header, found ${JSON.stringify(line)}`);
     const name = m[1] ?? '';
     const value = (m[2] ?? '').trim();
@@ -550,7 +555,11 @@ export function parseCase(source: string, { record = false }: { record?: boolean
       else if (name === 'outline') outline = choice(value, { on: true, off: false });
       else if (name === 'tabs') tabs = choice(value, { on: true, off: false });
       else if (name === 'platform') platform = choice<'desktop' | 'mobile'>(value, { desktop: 'desktop', mobile: 'mobile' });
-      else phases = parseKeys(value);
+      else if (name === 'known-failing') {
+        const issue = /^#(\d+)$/.exec(value);
+        if (!issue) throw new Error(`${JSON.stringify(value)} is not # and an issue number`);
+        knownFailing = Number(issue[1]);
+      } else phases = parseKeys(value);
     } catch (e) {
       fail(i, `${name}: ${(e as Error).message}`);
     }
@@ -566,7 +575,9 @@ export function parseCase(source: string, { record = false }: { record?: boolean
   if (clipboards[1]) fail(clipboards[1].line - 1, 'a second "clipboard" column');
   const resultColumns = columns.filter((c) => /^(expected|after)(\s|$)/.test(c.header));
   const wanted = Math.max(1, phases.length);
-  if (resultColumns.length !== wanted && !(record && resultColumns.length === 0)) {
+  // Recording fills the result columns, except in a `known-failing` file, whose `expected` is the
+  // fix's and is not the app's to write.
+  if (resultColumns.length !== wanted && !(record && knownFailing === undefined && resultColumns.length === 0)) {
     throw new Error(
       `${phases.length} keys phase(s) need ${wanted} "expected" or "after" column(s), found ${resultColumns.length}`,
     );
@@ -584,6 +595,13 @@ export function parseCase(source: string, { record = false }: { record?: boolean
   };
   const clipboard = clipboards[0];
 
+  const actuals = knownFailing === undefined ? [] : columns.filter((c) => /^actual(\s|$)/.test(c.header));
+  if (actuals[1]) fail(actuals[1].line - 1, 'a second "actual" column');
+  if (knownFailing !== undefined && !actuals[0] && !record) {
+    throw new Error(`known-failing: #${knownFailing} needs an "=== actual" column, the result the app gives while the bug stands`);
+  }
+  const actual = actuals[0];
+
   return {
     title,
     outline,
@@ -593,9 +611,11 @@ export function parseCase(source: string, { record = false }: { record?: boolean
     before: read(before),
     clipboard: clipboard ? read(clipboard).text : undefined,
     results: resultColumns.map((c) => ({ header: c.header, ...read(c), lines: trimmed(c.lines) })),
+    knownFailing,
+    actual: actual ? { header: actual.header, ...read(actual), lines: trimmed(actual.lines) } : undefined,
     beforeLines: trimmed(before.lines),
     references: columns
-      .filter((c) => c !== before && !clipboards.includes(c) && !resultColumns.includes(c))
+      .filter((c) => c !== before && c !== actual && !clipboards.includes(c) && !resultColumns.includes(c))
       .map((c) => c.header),
   };
 }

@@ -7,6 +7,8 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { browser } from '@wdio/globals';
 import { TARGET_RECORD_FILE } from './target-record.mjs';
+import { collectKnownFailing, KNOWN_FAILING_RECORD_DIR } from './known-failing.js';
+import type { KnownFailingEntry } from '../scripts/known-failing.ts';
 import {
   afterCase,
   beforeCase,
@@ -200,6 +202,7 @@ export async function resetE2eReports(): Promise<void> {
   await fsp.rm(FAILURE_SUMMARY_FILE, { force: true });
   await fsp.rm(TARGET_RECORD_FILE, { force: true });
   await fsp.rm(MONITOR_RECORD_DIR, { recursive: true, force: true });
+  await fsp.rm(KNOWN_FAILING_RECORD_DIR, { recursive: true, force: true });
   await fsp.rm(MONITOR_REPORT_FILE, { force: true });
 }
 
@@ -251,6 +254,8 @@ export interface FailureSummary {
   failed: number;
   skipped: number;
   failures: FailureEntry[];
+  /** Cases that wait on an open issue and still differ as recorded. They passed, so they are not in `failures`. */
+  knownFailing: KnownFailingEntry[];
 }
 
 /**
@@ -318,6 +323,7 @@ export async function writeFailureSummary(): Promise<void> {
     failed,
     skipped,
     failures,
+    knownFailing: await collectKnownFailing(),
   };
   await fsp.mkdir(path.dirname(FAILURE_SUMMARY_FILE), { recursive: true });
   await fsp.writeFile(FAILURE_SUMMARY_FILE, JSON.stringify(summary, null, 2));
@@ -329,6 +335,15 @@ export async function writeFailureSummary(): Promise<void> {
     for (const f of failures) {
       console.log(`  FAIL ${f.spec} > ${f.suite} > ${f.test}${f.hook ? ` (${f.hook})` : ''}`);
       if (f.error) console.log(`       ${f.error.split('\n')[0]}`);
+    }
+  }
+
+  if (summary.knownFailing.length > 0) {
+    console.log(
+      `\n[e2e] ${summary.knownFailing.length} known-failing case(s) still differ — see ${path.relative(process.cwd(), FAILURE_SUMMARY_FILE)}`,
+    );
+    for (const e of summary.knownFailing) {
+      console.log(`  KNOWN #${e.issue} ${e.case} (${e.platform}): ${e.differs.join(', ')}`);
     }
   }
 }

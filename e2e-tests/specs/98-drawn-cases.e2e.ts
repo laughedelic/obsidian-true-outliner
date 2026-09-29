@@ -10,7 +10,19 @@ import { obsidianPage } from 'wdio-obsidian-service';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { parseCase, type ParsedCase } from '../../scripts/notation.ts';
-import { beforeMessage, compareState, phaseMessage, recordedCase, type CaseContext } from '../case-report.js';
+import {
+  beforeMessage,
+  changedMessage,
+  compareState,
+  firstDifferingPhase,
+  holdsMessage,
+  judgeKnownFailing,
+  passesMessage,
+  phaseMessage,
+  recordedCase,
+  type CaseContext,
+} from '../case-report.js';
+import { recordKnownFailing } from '../known-failing.js';
 import { caseFiles, CASES_DIR, pressPhase } from '../cases.js';
 import { drawEditor, readEditorState, type EditorState } from '../drawing.js';
 import * as h from '../helpers.js';
@@ -70,6 +82,24 @@ async function arrange(parsed: ParsedCase): Promise<{ held: boolean; state: Edit
   }
 }
 
+/** The verdict of a `known-failing` case: still failing as recorded passes and is reported; a pass, or
+ * a different result, fails the case. */
+async function judgeMarked(ctx: CaseContext, states: EditorState[]): Promise<void> {
+  const judged = judgeKnownFailing(ctx.parsed, states);
+  if (judged.verdict === 'passes') throw new Error(passesMessage(ctx));
+  const state = states[judged.phase]!;
+  if (judged.verdict === 'changed') throw new Error(changedMessage(ctx, judged.phase, state));
+  const message = holdsMessage(ctx, judged.phase, judged.differences, state);
+  console.log(`[case] ${message}`);
+  await recordKnownFailing({
+    case: ctx.name,
+    issue: ctx.parsed.knownFailing!,
+    platform: ctx.platform,
+    differs: judged.differences,
+    drawing: message.split('\n').slice(1).join('\n'),
+  });
+}
+
 function register(file: string): void {
   const rel = path.relative(CASES_DIR, file);
   // A file outside the repository, run by `npm run case`, is named by its own file name.
@@ -96,19 +126,30 @@ function register(file: string): void {
       const arranged = await arrange(parsed);
       if (!arranged.held) throw new Error(beforeMessage(ctx, arranged.state));
 
+      // A `known-failing` case is judged on its states once they are read, and presses no key after
+      // the first phase that differs from `expected`.
+      const marked = parsed.knownFailing !== undefined;
       const states: EditorState[] = [];
       for (const [i, phase] of parsed.phases.entries()) {
         await pressPhase(phase, parsed.clipboard);
         states.push(await readEditorState());
         const expected = parsed.results[i];
         const differences = expected ? compareState(expected, states[i]!) : [];
-        if (!RECORD && differences.length) throw new Error(phaseMessage(ctx, i, differences, states[i]!));
+        if (marked) {
+          if (differences.length) break;
+        } else if (!RECORD && differences.length) {
+          throw new Error(phaseMessage(ctx, i, differences, states[i]!));
+        }
       }
       if (!parsed.phases.length) {
         states.push(arranged.state);
         const expected = parsed.results[0];
         const differences = expected ? compareState(expected, arranged.state) : [];
-        if (!RECORD && differences.length) throw new Error(phaseMessage(ctx, 0, differences, arranged.state));
+        if (!marked && !RECORD && differences.length) throw new Error(phaseMessage(ctx, 0, differences, arranged.state));
+      }
+      if (marked && !RECORD) await judgeMarked(ctx, states);
+      if (marked && RECORD && !firstDifferingPhase(parsed.results, states)) {
+        console.log(`[case] ${name}: no phase differs from expected, so known-failing would be an unexpected pass; no actual is written`);
       }
       if (RECORD) {
         mkdirSync(RECORD_DIR, { recursive: true });
