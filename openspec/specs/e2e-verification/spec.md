@@ -5,7 +5,9 @@ Defines the automated end-to-end verification harness: a real (sandboxed) Obsidi
 instance driven against a throwaway copy of `test-vault/` to exercise behavior that only
 exists in a live app — command dispatch, keyboard grammar, on-disk byte fidelity, and
 persistence across restarts — replacing the manual dev-vault checklist it supersedes.
+
 ## Requirements
+
 ### Requirement: Sandboxed real-Obsidian harness
 
 The project SHALL provide an automated end-to-end harness that launches a
@@ -230,3 +232,258 @@ residue list.
   file that covers it, and the remaining manual items are explicitly listed
   as residue
 
+### Requirement: DevTools-protocol access from a spec
+
+The harness SHALL let a spec reach the DevTools protocol of the page its WebDriver session is
+driving, on the desktop run and on the mobile-emulation run, without installing a dependency. A
+spec SHALL be able to send a command and read its result, subscribe to an event, and release the
+connection when its case ends. The connection SHALL reach the page WebDriver is driving and no
+other, and SHALL be resolved each time it is opened, so that a reload of Obsidian never leaves a
+spec connected to an endpoint that no longer exists. A command that cannot complete SHALL fail
+with an error naming the command, and SHALL NOT wait out the case's budget. The harness's
+WebDriver commands SHALL keep working while a connection is open and after it closes.
+
+#### Scenario: An evaluation reads the page WebDriver drives
+
+- **WHEN** a spec evaluates the viewport's width and height over the protocol, and reads the same
+  two values through WebDriver
+- **THEN** the two readings are equal, on the desktop run and under mobile emulation
+
+#### Scenario: A key sent over the protocol reaches the editor
+
+- **WHEN** a note `- a` / `- b` is open with the caret at the end of the second item, and a spec
+  sends the key `x` over the protocol
+- **THEN** the buffer WebDriver reads is `- a` / `- bx`
+
+#### Scenario: A screenshot is the size of the viewport
+
+- **WHEN** a spec takes a screenshot over the protocol
+- **THEN** the image's width and height are the viewport's times its device pixel ratio, so a
+  mobile-emulation run's image is phone-sized
+
+#### Scenario: A subscribed event reaches the spec
+
+- **WHEN** a spec subscribes to console output and a script run through WebDriver logs a message
+- **THEN** the subscriber receives that message
+
+#### Scenario: A window handle with a prefix still finds the page
+
+- **WHEN** a spec opens a connection with WebDriver's window handle given a `CDwindow-` prefix
+- **THEN** the connection reaches the page, and an evaluation of the viewport equals WebDriver's
+  reading
+
+#### Scenario: A handle that matches no target fails by name
+
+- **WHEN** a spec opens a connection with a window handle that no page target carries
+- **THEN** the connection is rejected with an error that names that handle and the targets that
+  were listed
+
+#### Scenario: A new connection follows an Obsidian reload
+
+- **WHEN** Obsidian is reloaded through the harness and a spec then opens a connection and
+  evaluates the viewport
+- **THEN** the evaluation succeeds and reads the same values WebDriver reads
+
+#### Scenario: A command on a released connection fails by name
+
+- **WHEN** a spec sends a command on a connection it has already released
+- **THEN** the command is rejected with an error that names it, and the WebDriver session is
+  unaffected
+
+#### Scenario: A command that outlasts its limit fails by name
+
+- **WHEN** a spec sends a command that takes longer than the limit it gave that command, and a
+  later command is sent on the same connection
+- **THEN** the first is rejected with an error that names it, and the later command completes
+
+### Requirement: The Obsidian installer is selectable
+
+Both e2e configurations (desktop and mobile emulation) SHALL take the installer version from the
+`OBSIDIAN_INSTALLER_VERSION` environment variable, a blank value counting as unset, and SHALL
+default to the oldest installer compatible with the app under test. The variable SHALL accept
+`earliest`, `latest` or an exact version. A value that names no installer SHALL fail the run before
+any Obsidian starts, naming the value.
+
+#### Scenario: Unset or blank selects the oldest compatible installer
+
+- **WHEN** `OBSIDIAN_INSTALLER_VERSION` is unset, and separately when it is set to the empty string
+- **THEN** the run resolves the oldest installer compatible with the app under test, on desktop and
+  under mobile emulation, as it did before the variable existed
+
+#### Scenario: The newest installer is selected on both platforms
+
+- **WHEN** `OBSIDIAN_INSTALLER_VERSION=latest` is set for a desktop run and for a mobile-emulation
+  run
+- **THEN** each run launches the newest installer compatible with the app under test, and the
+  running app reports the Chrome version of that installer
+
+#### Scenario: An unknown installer fails before launch
+
+- **WHEN** `OBSIDIAN_INSTALLER_VERSION` names a version that does not exist
+- **THEN** the run stops before starting Obsidian, and the error names the value
+
+### Requirement: Every run records the build it ran on
+
+Each e2e run SHALL resolve the Obsidian target once, in the launching process, and record the app
+version, the installer version and that installer's Electron and Chrome versions, resolved rather
+than as requested, in `.obsidian-cache/e2e-target.json`. The target banner and the step-summary
+row each CI e2e job writes SHALL name the same values. A record left by an earlier run SHALL NOT
+survive into a run that fails before it writes its own.
+
+#### Scenario: The record resolves aliases
+
+- **WHEN** a run is started with `OBSIDIAN_VERSION=latest` and
+  `OBSIDIAN_INSTALLER_VERSION=latest`
+- **THEN** the record holds exact version numbers, not the words `latest`, and the banner prints
+  the same numbers
+
+#### Scenario: The step-summary row names the installer
+
+- **WHEN** a CI e2e job finishes, passing or failing
+- **THEN** its step-summary row names the app version, the installer version and the Chrome
+  version the job ran on, read from the record
+
+#### Scenario: A stale record does not outlive a failed start
+
+- **WHEN** a run fails before Obsidian starts, after an earlier run left a record
+- **THEN** no record from the earlier run remains
+
+### Requirement: A scheduled run on the newest installer
+
+CI SHALL run every spec group, on desktop and under mobile emulation, on the newest installer
+compatible with the newest public app weekly and on `workflow_dispatch`, which SHALL also accept
+an app version and an installer version. The run SHALL NOT be part of the checks a pull request
+waits on, and a pull request SHALL run on the oldest compatible installer.
+
+#### Scenario: Weekly run
+
+- **WHEN** the weekly schedule fires
+- **THEN** every group runs on both platforms with the newest compatible installer for the newest
+  public app, and each job's step-summary row names them
+
+#### Scenario: Dispatch pins the versions
+
+- **WHEN** the workflow is dispatched with an app version and an installer version
+- **THEN** the jobs run that pair, and the cache they use does not serve a build for a different
+  pair
+
+#### Scenario: Pull requests are unaffected
+
+- **WHEN** a pull request runs CI
+- **THEN** its e2e jobs run on the oldest compatible installer, and the scheduled workflow neither
+  starts nor is required
+
+### Requirement: A red scheduled run is filed in the tracker
+
+When a scheduled run on the newest installer fails, the workflow SHALL open one issue in the
+repository's tracker naming the failed jobs, the run and the versions requested, carrying a
+`kind/`, an `area/`, a priority and a `needs/` label from the declared set. While an issue from an
+earlier red run is open, a further red run SHALL comment on it and SHALL NOT open another. A green
+scheduled run SHALL comment on an open issue and SHALL NOT close it. A cancelled run, and a run
+started by `workflow_dispatch`, SHALL file nothing.
+
+#### Scenario: The first red run opens an issue
+
+- **WHEN** a scheduled run finishes with a failed job and no such issue is open
+- **THEN** one issue is opened listing the failed platform and group jobs and linking the run, with
+  the reproduction command for the newest installer
+
+#### Scenario: A repeated red run comments
+
+- **WHEN** a scheduled run fails while an issue from an earlier red run is open
+- **THEN** the run is added to that issue as a comment and no second issue exists
+
+#### Scenario: A green run leaves the issue open
+
+- **WHEN** a scheduled run passes while such an issue is open
+- **THEN** a comment says the run passed, and the issue stays open
+
+#### Scenario: Dispatched and cancelled runs file nothing
+
+- **WHEN** a run is started by `workflow_dispatch`, or a scheduled run is cancelled
+- **THEN** no issue is opened and no comment is added
+
+### Requirement: The rendered editor is read around every case, and the reading is reported
+
+The harness SHALL read the rendered editor around every e2e case, on desktop and under mobile
+emulation, without any case asking. It SHALL read:
+
+- **the painted caret**: that it agrees with the position CodeMirror reports for the selection's
+  head, lies inside the editor's scroller, and is what a hit test finds at its centre;
+- **the scroll position**, frame by frame: a position that leaves and returns within the case, and
+  a large step in one frame while the caret was in view before and after it;
+- **the grid**: that each rendered line's text begins on its depth's column plus the marker gutter
+  on every visual row, and that each mark is centred on its column within half a pixel;
+- **the height map**: that the coordinates of each rendered line resolve back to that line;
+- **layout shift** on lines of the editor that the case's edits did not touch;
+- **errors**: uncaught errors, unhandled rejections and `console.error`;
+- **notices** the case neither waited for nor read.
+
+A reading SHALL be REPORT-ONLY: it SHALL NOT fail, retry or delay a case, and a run's status SHALL
+NOT depend on it. A monitor that cannot read — no editor, no focus, a page reloaded during the
+case, no answer within its budget — SHALL say so in the report, with the reason, instead of
+reporting nothing. A case that failed or timed out SHALL NOT be read, since the editor is in
+whatever state the failure left.
+
+Each run SHALL write one report that names, for every monitor, how many cases it read and why it
+did not read the rest, and for every rule it saw broken, the number of observations and cases and
+the first examples with their spec and case. The report SHALL be printed at the end of the run and
+rendered into the CI job's step summary.
+
+A case that arranges a deliberately odd state SHALL be able to exempt itself from a monitor, and
+the exemption SHALL require a reason. The report SHALL list every exemption with its reason.
+
+#### Scenario: A caret clipped out of sight is reported
+
+- **WHEN** a case ends with the caret in a line whose box clips it, so that the element at the
+  caret's centre is not the caret's own line
+- **THEN** the report lists a caret observation for that case, and the case still passes
+
+#### Scenario: A scroll position that leaves and returns is reported
+
+- **WHEN** a case moves the scroller away from its position by more than a quarter of its height
+  and back before the case ends
+- **THEN** the report lists a scroll observation with the distance and how long it took
+
+#### Scenario: A line off the grid is reported
+
+- **WHEN** a case ends with a rendered list line whose text begins away from its column plus the
+  gutter
+- **THEN** the report lists a grid observation naming the line and the distance
+
+#### Scenario: A mark's half-pixel guide offset is not reported
+
+- **WHEN** a mark is centred on its column, the guide beside it being drawn half a pixel to its
+  right
+- **THEN** the report lists no observation for that mark
+
+#### Scenario: A line the edit did not touch moving sideways is reported
+
+- **WHEN** a case edits one line and a line elsewhere in the note moves sideways in the same
+  frame
+- **THEN** the report lists a layout-shift observation for the line that moved, and none for a
+  line below the edit that moved only down
+
+#### Scenario: An unexpected notice is reported and an awaited one is not
+
+- **WHEN** a notice appears during a case that neither waited for it nor read the notices on
+  screen, and another appears during a case that waited for it by its text
+- **THEN** the report lists the first and not the second
+
+#### Scenario: A case that did not pass is not read
+
+- **WHEN** a case fails, times out or is skipped
+- **THEN** every monitor's record for it says the case did not run to a pass, and no observation is
+  listed
+
+#### Scenario: An exemption names its reason
+
+- **WHEN** a case exempts itself from the grid monitor with a reason
+- **THEN** that case's grid monitor is not read, its other monitors are, and the report lists the
+  exemption with the reason; an exemption with a blank reason fails the case that made it
+
+#### Scenario: A monitor that cannot read says so
+
+- **WHEN** a case ends with the editor not the page's active element
+- **THEN** the caret monitor's record says the editor was not the active element, and the other monitors are
+  read as usual

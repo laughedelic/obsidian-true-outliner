@@ -23,6 +23,7 @@
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
+import { exempt } from '../monitors.js';
 
 const NOTE = 'Projects/Aurora Dashboard.md';
 const PLAIN = 'Coexistence/Undecorated.md';
@@ -54,6 +55,7 @@ function suppressed(): Promise<{ present: boolean; matches: boolean }> {
 }
 
 async function openInOutline(notePath: string): Promise<void> {
+  exempt('the case scrolls the footer into view, away from the caret', 'scroll');
   await h.openNote(notePath);
   await h.setOutlineMode(true);
   await browser.executeObsidian(() => {

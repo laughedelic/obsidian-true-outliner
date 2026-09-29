@@ -10,6 +10,7 @@
 
 import { browser } from '@wdio/globals';
 import * as h from './helpers.js';
+import { exempt } from './monitors.js';
 
 /** The active leaf's footer. Every read here is scoped to it. */
 export const FOOTER = '.workspace-leaf.mod-active .to-backlinks';
@@ -124,6 +125,7 @@ export async function openFooter(notePath: string): Promise<void> {
  * until the footer is actually in the DOM or the position stops moving.
  */
 export async function scrollToFooter(budgetMs?: number): Promise<void> {
+  exempt('the case scrolls the footer into view, away from the caret', 'scroll');
   let previous = -1;
   for (let attempt = 0; attempt < 12; attempt++) {
     const now = await browser.executeObsidian(() => {
@@ -191,6 +193,7 @@ export async function clickIn(selector: string): Promise<void> {
 
   let point = await centre();
   if (point && !point.visible) {
+    exempt('the case scrolls the footer into view, away from the caret', 'scroll');
     await browser.executeObsidian((_ctx, sel: string) => {
       document.querySelector(sel)?.scrollIntoView({ block: 'center' });
     }, selector);

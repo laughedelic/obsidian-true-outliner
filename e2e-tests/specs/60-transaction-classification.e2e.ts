@@ -14,6 +14,7 @@ import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import { Key } from 'webdriverio';
 import * as h from '../helpers.js';
+import { exempt } from '../monitors.js';
 
 const NOTE = 'Scratch/classification.md';
 const PRIMARY_MOD = process.platform === 'darwin' ? Key.Command : Key.Ctrl;
@@ -240,6 +241,7 @@ describe('transaction classification: Phase A evidence', function () {
   });
 
   it('performance: classification stays within budget on a ~2000-line stress note', async function () {
+    exempt('the case drives edits at points across a ~2000-line note, which carries the caret and the scroll the length of it', 'scroll');
     const lines: string[] = [];
     for (let i = 0; i < 400; i++) {
       lines.push(`## Section ${i}`, '', `Paragraph text for section ${i}, some words here.`, '');

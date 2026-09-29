@@ -22,6 +22,7 @@ import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import { Key } from 'webdriverio';
 import * as h from '../helpers.js';
+import { exempt } from '../monitors.js';
 
 const NOTE = 'Scratch/zoom.md';
 const SOURCE = 'Scratch/zoom-source.md';
@@ -1136,6 +1137,7 @@ describe('outline zoom', function () {
   });
 
   it('opens at the top, however far down the note the root was', async function () {
+    exempt('the case scrolls a long note away from the top on purpose, to see zoom reset it', 'scroll');
     const md = [
       '# Top',
       '',
@@ -1745,6 +1747,7 @@ describe('outline zoom: the enforced path with a zoom active', function () {
   });
 
   it('stays within the enforcement budget on a ~2000-line note', async function () {
+    exempt('the case drives edits at points across a ~2000-line note, which carries the caret and the scroll the length of it', 'scroll');
     const lines: string[] = [];
     for (let i = 0; i < 400; i++) {
       lines.push(`## Section ${i}`, '', `Paragraph text for section ${i}, some words here.`, '');

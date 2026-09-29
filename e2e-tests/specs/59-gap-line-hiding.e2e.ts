@@ -18,6 +18,7 @@
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
+import { exempt } from '../monitors.js';
 import * as f from '../folding.js';
 
 const NOTE = 'Notes/Gap line hiding.md';
@@ -100,6 +101,7 @@ async function open(text = DOC): Promise<void> {
 }
 
 describe('hiding gap lines', function () {
+  beforeEach(() => exempt('the suite switches the gap-line setting on and off between its readings, which moves the lines around each edit', 'layoutShift'));
   before(async function () {
     await obsidianPage.resetVault();
     await h.resetPluginState();

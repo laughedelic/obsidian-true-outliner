@@ -1,0 +1,43 @@
+import { browser } from '@wdio/globals';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import * as h from '../helpers.js';
+
+const OUT = path.join(os.tmpdir(), 'cdp-probe2-') + (h.IS_MOBILE_RUN ? 'mobile' : 'desktop') + '.json';
+const log: Record<string, unknown> = {};
+const save = () => fs.writeFileSync(OUT, JSON.stringify(log, null, 2));
+const addr = () => (browser.capabilities as any)['goog:chromeOptions'].debuggerAddress as string;
+
+describe('cdp probe 2', function () {
+  it('puppeteer-core through wdio', async function () {
+    await h.createNote('probe.md', '- a\n- b\n');
+    const s0 = performance.now();
+    const pptr = await browser.getPuppeteer();
+    log.getPuppeteerMs = +(performance.now() - s0).toFixed(1);
+    const pages = await pptr.pages();
+    log.pages = pages.length;
+    const page = pages[0];
+    log.pptrViewport = page.viewport();
+    log.innerAfter = await page.evaluate(() => JSON.stringify([innerWidth, innerHeight, navigator.maxTouchPoints]));
+    const s1 = performance.now();
+    const shot = await page.screenshot({ type: 'png' });
+    log.pptrShotMs = +(performance.now() - s1).toFixed(1);
+    log.pptrShot = { w: shot.readUInt32BE(16), h: shot.readUInt32BE(20) };
+    log.wdioSize = await browser.execute(() => JSON.stringify([innerWidth, innerHeight]));
+    await pptr.disconnect();
+    log.wdioAfterDisconnect = await browser.execute(() => JSON.stringify([innerWidth, innerHeight]));
+    save();
+  });
+
+  it('address across a reload', async function () {
+    log.addrBefore = addr();
+    log.handleBefore = await browser.getWindowHandle();
+    await browser.reloadObsidian();
+    log.addrAfter = addr();
+    log.handleAfter = await browser.getWindowHandle();
+    const list = (await (await fetch('http://' + addr() + '/json')).json()) as any[];
+    log.targetsAfter = list.map((x) => ({ id: x.id, type: x.type }));
+    save();
+  });
+});

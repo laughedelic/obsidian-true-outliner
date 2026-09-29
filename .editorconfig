@@ -1,0 +1,3 @@
+[*.case]
+# Trailing spaces and tabs in a case file are the document it draws.
+trim_trailing_whitespace = false

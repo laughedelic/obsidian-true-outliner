@@ -112,17 +112,43 @@ nothing to gain by skipping those steps.
 `npm run test:e2e[:mobile]` runs a whole group (`--group <name>`) or the whole suite: a final
 check before a checkpoint, not a per-edit loop.
 
+**A bug's repro is a drawn case file first.** Put the drawing in `scripts/layout.ts`'s input with a
+keys line and settings (`.agents/skills/presenting-examples/SKILL.md`, "Case files"), and run it in
+the real app, desktop and mobile emulation, with `npm run case -- <file> [--mobile] [--record]`.
+`--record` prints what the app did as the `expected` column, so a bug's first reply and a fix's
+`expected` carry carets that were measured. A failing case prints `before`, `expected` and
+`actual` as a drawing. A case that stays lives under `e2e-tests/cases/<capability>/`, the
+capability being a directory of `openspec/specs/`, and a spec's `Covered by` line may name it the
+way it names a spec title. Every failing e2e case also prints the editor's drawing
+(`e2e-tests/drawing.ts`), and `drawEditor()` is there for any spec that wants one.
+
 Every run overwrites `.obsidian-cache/e2e-summary.json` with what failed:
 
 ```bash
 jq '.failures' .obsidian-cache/e2e-summary.json
 ```
 
+**Every case is also read by the ambient monitors** (`e2e-tests/monitors.ts`): the painted caret,
+the scroll, the grid, the height map, layout shift, errors and unexpected notices, installed and
+checked from the shared wdio hooks, so no case asks for them. They are report-only. A run leaves
+`.obsidian-cache/e2e-monitors.json` beside the summary, CI renders it into each job's step summary,
+and `node scripts/e2e-monitors-summary.ts` prints it after a local run. Read what a finding names
+before reaching for an exemption: a case that sets up a deliberately odd state calls
+`exempt(reason, ...monitors)` from `e2e-tests/monitors.ts`, in its body or its `beforeEach`, and
+the reason is required and listed in the report. `E2E_MONITORS=off` skips the hooks for a run that
+times something else.
+
 Narrow mode and `run-e2e.ts` both launch the real desktop app, so an Obsidian window pops on
 macOS and Windows. `npm run test:e2e:docker [-- --group <name> | <spec> [grep]]` runs the same
 specs headlessly in a Linux container instead (`e2e-tests/docker/`), one container per invocation.
 A cloud session needs its VM provisioned before any of this runs:
 [`docs/cloud-sessions.md`](docs/cloud-sessions.md).
+
+## Looking at the running app
+
+**Load the `driving-obsidian` skill before claiming a visual, caret, focus or scroll fix, and to
+reproduce a report before fixing it.** It is for looking; the suite stays the check that a case
+keeps passing.
 
 ## Conventions
 

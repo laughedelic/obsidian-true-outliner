@@ -5,8 +5,9 @@ import {
   maxInstances,
   reporters,
   resetE2eReports,
-  screenshotOnFailure,
+  caseHooks,
   writeFailureSummary,
+  writeMonitorReport,
 } from './wdio.shared.mjs';
 
 const e2eDir = path.dirname(url.fileURLToPath(import.meta.url));
@@ -39,7 +40,7 @@ const root = path.resolve(e2eDir, '..');
 // version), and a stale summary from a previous run must not survive this
 // invocation failing before it gets anywhere near a test.
 await resetE2eReports();
-const { browserVersion, cacheDir } = await resolveObsidianTarget(root, '');
+const { browserVersion, installerVersion, cacheDir } = await resolveObsidianTarget(root, '');
 
 export const config: WebdriverIO.Config = {
   runner: 'local',
@@ -71,7 +72,7 @@ export const config: WebdriverIO.Config = {
         ],
       },
       'wdio:obsidianOptions': {
-        installerVersion: 'earliest',
+        installerVersion,
         plugins: [
           root, // manifest.json + main.js (run `npm run build` first)
           // Conflicting-plugin stub for the coexistence warning test; starts
@@ -100,8 +101,11 @@ export const config: WebdriverIO.Config = {
     await waitForMetadataCache();
   },
 
-  afterTest: screenshotOnFailure('desktop'),
-  onComplete: writeFailureSummary,
+  ...caseHooks('desktop'),
+  onComplete: async function () {
+    await writeFailureSummary();
+    await writeMonitorReport();
+  },
 
   services: ['obsidian'],
   reporters,

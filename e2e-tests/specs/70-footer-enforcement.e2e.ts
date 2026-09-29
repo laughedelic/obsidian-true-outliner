@@ -40,6 +40,7 @@ import {
   scrollToFooter,
   settle,
 } from '../footer.js';
+import { exempt } from '../monitors.js';
 
 const NOTE = 'Backlinks/Deep chain.md';
 /**
@@ -342,6 +343,7 @@ describe('spike S1: end-of-document block widget vs. the enforcement layer', fun
     await ensureOutlineMode(NOTE);
     await setFooter(true);
 
+    exempt('the case scrolls the footer into view, away from the caret', 'scroll');
     await browser.executeObsidian(() => {
       const scroller = document.querySelector('.workspace-leaf.mod-active .cm-scroller');
       if (scroller) scroller.scrollTop = scroller.scrollHeight;

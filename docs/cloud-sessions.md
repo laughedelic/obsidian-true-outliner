@@ -118,8 +118,17 @@ It polls for the X socket, exports `DISPLAY`, then hands over — which also mak
 own auto-management a no-op, since that only acts when `DISPLAY` is unset. It installs nothing,
 which is what the packages above are for.
 
+Redirect its output to a file (`> run.log 2>&1`) rather than piping it. The starter execs the
+command and leaves Xvfb running, holding the pipe, so `| tail` returns nothing until Xvfb is
+killed by hand (`docs/research/rendered-ui-observability.md`, "From inside a spec").
+
 Two limits shape what a cloud run is good for. `E2E_MAX_INSTANCES` belongs at 2 against the VM's
 4 vCPUs, and it is not only a speed knob — `waitBudget` in `e2e-tests/helpers.ts` widens the harness
 timeouts off that value. And cloud sessions top out at Node 22 where CI and the e2e container use
 26; nothing here declares a floor above 22, but the combination has not been proven. CI stays the
 source of truth for the full sweep, so what a cloud session gains is the narrow loop.
+
+The driver needs none of this wrapper. `npm run drive -- start` starts an Xvfb of its own when
+Linux has no `DISPLAY`, launches one Obsidian on a copy of `test-vault`, and `stop` removes what
+it started; the skill `.agents/skills/driving-obsidian/` says when to reach for it. It relies on
+the same packages and the same `OBSIDIAN_CACHE` as the suites.

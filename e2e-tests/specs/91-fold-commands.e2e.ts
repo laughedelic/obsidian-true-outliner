@@ -11,6 +11,7 @@
 import { browser, expect } from '@wdio/globals';
 
 import * as h from '../helpers.js';
+import { exempt } from '../monitors.js';
 import { clearFolds, foldedLineRanges, renderedLineTexts, waitForRead } from '../folding.js';
 
 const NOTE = 'Scratch/fold-commands.md';
@@ -56,6 +57,7 @@ async function freshNote(): Promise<void> {
 }
 
 describe('fold commands', () => {
+  beforeEach(() => exempt('folding hides and shows lines, which moves the lines around an edit by design', 'layoutShift'));
   beforeEach(async () => {
     await freshNote();
   });

@@ -46,6 +46,7 @@
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
+import { exempt } from '../monitors.js';
 
 /** A stylesheet's override, or its removal. */
 async function override(value: string | null): Promise<void> {
@@ -384,6 +385,7 @@ describe('the outline unit is one declaration the whole grid follows', function 
       (plugins.trueOutliner as never as { backlinks: { rebuild(): void } }).backlinks.rebuild();
     });
     await browser.pause(500);
+    exempt('the case scrolls the footer into view, away from the caret', 'scroll');
     await browser.executeObsidian(() => {
       const s = document.querySelector('.workspace-leaf.mod-active .cm-scroller');
       if (s) s.scrollTop = s.scrollHeight;
