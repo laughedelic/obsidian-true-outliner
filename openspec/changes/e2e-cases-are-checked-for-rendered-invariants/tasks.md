@@ -66,6 +66,6 @@
 - [x] 5.1 `CLAUDE.md`, "E2E testing": where the report is, how a case exempts itself, and the
       switch. `docs/research/refused-commands-in-e2e.md`: its closing thread points at the notices
       monitor. Verified by `npm run lint`.
-- [ ] 5.2 `npm test`, `npm run build`, `npm run typecheck`, `npm run typecheck:e2e`,
+- [x] 5.2 `npm test`, `npm run build`, `npm run typecheck`, `npm run typecheck:e2e`,
       `npm run typecheck:scripts` and `npm run lint` all pass.
-- [ ] 5.3 `openspec validate e2e-cases-are-checked-for-rendered-invariants --strict`
+- [x] 5.3 `openspec validate e2e-cases-are-checked-for-rendered-invariants --strict`
