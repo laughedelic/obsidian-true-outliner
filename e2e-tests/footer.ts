@@ -356,9 +356,42 @@ export interface FacetOption {
   readonly selected: boolean;
 }
 
+/**
+ * Open an axis's popover, and refuse to continue until it is open.
+ *
+ * Pressed only while it is shut, and pressed again when a press does not
+ * take: the same miss `openFilters` retries for — a repaint landing between
+ * the rect read and the press puts a rebuilt facet under the pointer, and the
+ * option a case presses next is then not there at all.
+ */
+export async function openFacet(axis: string): Promise<void> {
+  const isOpen = (): Promise<boolean> =>
+    browser.executeObsidian((_ctx, wanted: string) => {
+      const facet = document.querySelector(
+        `.workspace-leaf.mod-active .to-backlinks-facet[data-axis="${wanted}"]`,
+      );
+      return (
+        facet?.getAttribute('aria-expanded') === 'true' &&
+        facet.closest('.to-backlinks-facet-anchor')?.querySelector('.to-backlinks-facet-menu') != null
+      );
+    }, axis);
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (await isOpen()) return;
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="${axis}"]`);
+    try {
+      await browser.waitUntil(isOpen, { timeout: h.waitBudget(3000), interval: 150 });
+      return;
+    } catch {
+      await settle();
+    }
+  }
+  throw new Error(`the ${axis} facet's popover never opened`);
+}
+
 /** Open an axis's popover and read what it offers. Leaves it open. */
 export async function facetOptions(axis: string): Promise<FacetOption[]> {
-  await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="${axis}"]`);
+  await openFacet(axis);
   // Opening a facet repaints the footer, which restarts every group fill. The
   // counts are settled long before those are, but the read is of the whole
   // option list and can land mid-swap, so it waits for the fills rather than

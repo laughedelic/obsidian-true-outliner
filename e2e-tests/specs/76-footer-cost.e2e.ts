@@ -194,4 +194,99 @@ describe('spike S5: what a hub note costs', function () {
     expect(paint!.headerAt).toBeGreaterThanOrEqual(0);
     expect(paint!.rowsAt).toBeGreaterThanOrEqual(paint!.headerAt);
   });
+
+  /**
+   * `zoom-scoped-backlinks` design, Risks: typing inside a heading in a zoomed
+   * view changes what the footer answers for on every keystroke, so each one
+   * repaints it. A character typed onto `## Current sprint` stops every
+   * `#Current sprint` link from landing, and deleting it brings them back, so
+   * the pair repaints once to the empty answer and once to the full one.
+   *
+   * `sync` is the keystroke's own transaction, the footer's repaint included —
+   * the part the reader's typing waits for. `settled` runs on until every
+   * group has filled.
+   */
+  // Two caps, each with its pairs of keystrokes and the fills after them:
+  // longer than a case's default budget on a CI runner.
+  it('measures a keystroke repaint inside a zoomed heading', async function () {
+    await h.openNote(HUB);
+    await h.setOutlineMode(true);
+    await waitForBacklinkIndexReady(HUB);
+    for (const cap of ['50', 'none'] as const) {
+      await browser.executeObsidian(async ({ plugins }, next: string) => {
+        await (plugins.trueOutliner as any).setBacklinksOverallCap(next);
+      }, cap);
+      const line = await browser.executeObsidian(({ app, obsidian }) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+        return view?.editor.getValue().split('\n').indexOf('## Current sprint') ?? -1;
+      });
+      await h.runCommand('zoom-clear');
+      await h.setCursorSettled(line, '## Current sprint'.length);
+      await h.runCommand('zoom-in');
+      await browser.pause(1500);
+
+      const samples = await browser.executeObsidian(async ({ app, obsidian }, at: number) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+        const leaf = document.querySelector('.workspace-leaf.mod-active');
+        const settled = (t0: number): Promise<number> =>
+          new Promise((resolve) => {
+            const deadline = performance.now() + 10000;
+            const tick = (): void => {
+              const resolving = leaf?.querySelectorAll('.to-backlinks-resolving').length ?? 0;
+              if (resolving === 0) resolve(performance.now() - t0);
+              else if (performance.now() > deadline) resolve(-1);
+              else requestAnimationFrame(tick);
+            };
+            requestAnimationFrame(tick);
+          });
+        const out: { typed: [number, number]; deleted: [number, number] }[] = [];
+        for (let i = 0; i < 5; i++) {
+          const end = view.editor.getLine(at).length;
+          let t0 = performance.now();
+          view.editor.replaceRange('x', { line: at, ch: end });
+          const typedSync = performance.now() - t0;
+          const typedSettled = await settled(t0);
+          t0 = performance.now();
+          view.editor.replaceRange('', { line: at, ch: end }, { line: at, ch: end + 1 });
+          const deletedSync = performance.now() - t0;
+          const deletedSettled = await settled(t0);
+          out.push({ typed: [typedSync, typedSettled], deleted: [deletedSync, deletedSettled] });
+        }
+        // The same pair on a line whose edit changes no anchor: the zoom's key
+        // holds, the footer is not repainted, and what is left is the
+        // keystroke's own cost.
+        const plain = view.editor.getValue().split('\n').findIndex((t) => t.startsWith('The severity-first'));
+        const baseline: number[] = [];
+        for (let i = 0; i < 5; i++) {
+          const end = view.editor.getLine(plain).length;
+          let t0 = performance.now();
+          view.editor.replaceRange('x', { line: plain, ch: end });
+          baseline.push(performance.now() - t0);
+          await settled(performance.now());
+          t0 = performance.now();
+          view.editor.replaceRange('', { line: plain, ch: end }, { line: plain, ch: end + 1 });
+          baseline.push(performance.now() - t0);
+          await settled(performance.now());
+        }
+        const groups = leaf?.querySelectorAll('.to-backlinks-group').length ?? 0;
+        return { out, groups, baseline };
+      }, line);
+
+      const median = (xs: number[]): number => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]!;
+      const col = (pick: (s: { typed: [number, number]; deleted: [number, number] }) => number) =>
+        median(samples.out.map(pick)).toFixed(1);
+      console.log(
+        [
+          '',
+          `[zoom] a keystroke inside a zoomed heading, hub note, overall cap ${cap}, ${samples.groups} groups`,
+          `  typed (to the empty answer)  sync ${col((s) => s.typed[0])}ms  settled ${col((s) => s.typed[1])}ms`,
+          `  deleted (to the full answer) sync ${col((s) => s.deleted[0])}ms  settled ${col((s) => s.deleted[1])}ms`,
+          `  a line whose edit changes no anchor, no repaint: sync ${median(samples.baseline).toFixed(1)}ms`,
+        ].join('\n'),
+      );
+      expect(samples.groups).toBeGreaterThan(0);
+      await h.runCommand('zoom-clear');
+    }
+    await pinBacklinksCapOff();
+  }).timeout(h.waitBudget(240_000));
 });

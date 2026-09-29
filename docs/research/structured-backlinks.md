@@ -340,7 +340,9 @@ Deferred, but recorded so it is not re-derived:
   it scoped to that node. No new surface, no new interaction. It belongs to neither change on
   its own: it needs `outline-zoom` to have a zoomed node at all, and it needs this footer's
   controls model, which decides which groups exist from the summary layer and would gain a
-  scope alongside the three axes. Nothing in either change forecloses it.
+  scope alongside the three axes. Nothing in either change forecloses it. Built by
+  `zoom-scoped-backlinks`: the footer answers for the zoomed node, its branch or the whole note,
+  and `docs/research/zoom-scoped-backlinks` holds what that rests on.
 - **A count decoration on the anchor.** A heading is addressable as `[[Note#Heading]]` with
   **no block id and no file pollution** — node-level backlinks come free for every heading in
   the vault, and for any block once it carries a `^id`. The count for both is already in

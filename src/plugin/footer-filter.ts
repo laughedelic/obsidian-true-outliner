@@ -64,6 +64,14 @@ export interface ControlsState {
   readonly sort: SortOrder;
   /** Overall reference cap. `Infinity` for no limit. */
   readonly cap: number;
+  /**
+   * The subpaths the zoom answer in force admits, spelled as the index reports
+   * them, or `null` for Whole note and for no zoom. Not a filter: it decides
+   * which references the footer answers for before any axis, term, sort or cap
+   * is applied, so everything below describes the scoped set
+   * (`zoom-scoped-backlinks` design D1).
+   */
+  readonly scope: ReadonlySet<string> | null;
 }
 
 export const NO_FILTER: ControlsState = {
@@ -73,7 +81,58 @@ export const NO_FILTER: ControlsState = {
   search: '',
   sort: 'recent',
   cap: Number.POSITIVE_INFINITY,
+  scope: null,
 };
+
+/** Whether the answer in force admits a reference: every reference with no
+ * answer, and otherwise one whose subpath the answer holds — so a link to the
+ * note as a whole is admitted by Whole note only. */
+export function inScope(ref: BacklinkReference, scope: ReadonlySet<string> | null): boolean {
+  return scope === null || (ref.subpath !== undefined && scope.has(ref.subpath));
+}
+
+/** The sources narrowed to the references the answer admits, a source left
+ * with none dropped. */
+function scopedSources(
+  sources: readonly SourceRefs[],
+  scope: ReadonlySet<string> | null,
+): readonly SourceRefs[] {
+  if (scope === null) return sources;
+  const out: SourceRefs[] = [];
+  for (const source of sources) {
+    const refs = source.refs.filter((ref) => inScope(ref, scope));
+    if (refs.length > 0) out.push({ ...source, refs });
+  }
+  return out;
+}
+
+/** The reader's selections on the three axes, as the footer keeps them. */
+export interface AxisSelections {
+  readonly folders: Set<string>;
+  readonly kinds: Set<ReferenceKind>;
+  readonly tags: Set<string>;
+}
+
+/**
+ * Drops each selected value no reference to the note carries any more.
+ *
+ * Against the note's WHOLE reference set, never the answer's: a folder only
+ * whole-note references come from is absent from a zoomed answer, and zooming
+ * in must not delete the reader's choice of it (design D8).
+ */
+export function pruneDeadSelections(
+  selections: AxisSelections,
+  sources: readonly SourceRefs[],
+): void {
+  const present = presentValues(sources, null);
+  const prune = <T>(selected: Set<T>, live: readonly T[]): void => {
+    const keep = new Set(live);
+    for (const value of selected) if (!keep.has(value)) selected.delete(value);
+  };
+  prune(selections.folders, present.folders);
+  prune(selections.kinds, present.kinds);
+  prune(selections.tags, present.tags);
+}
 
 /** One offerable filter value and how many notes contribute to it. */
 export interface AxisValue<T> {
@@ -136,14 +195,21 @@ export function axesOf(
   controls: ControlsState = NO_FILTER,
 ): FilterAxes {
   // One walk for every axis's value set, shared with the filter — two copies of
-  // "what values exist" is how an axis quietly stops offering one.
-  const present = presentValues(sources);
-  const presentKinds = new Set(present.kinds);
+  // "what values exist" is how an axis quietly stops offering one. A value the
+  // answer's references do not carry stays listed while it is selected and the
+  // note still has it, at a count of zero (design D8).
+  const whole = presentValues(sources, null);
+  const scoped = presentValues(sources, controls.scope);
+  const listed = <T>(present: readonly T[], all: readonly T[], selected: ReadonlySet<T>): Set<T> =>
+    new Set([...present, ...all.filter((v) => selected.has(v))]);
+  const presentKinds = listed(scoped.kinds, whole.kinds, controls.kinds);
+  const presentFolders = listed(scoped.folders, whole.folders, controls.folders);
+  const presentTags = listed(scoped.tags, whole.tags, controls.tags);
 
   // Each axis counted against everything EXCEPT itself. The tag axis needs no
   // special case here: its count is the notes carrying it that the others
   // admit, exactly as a folder's is.
-  const byPath = new Map(sources.map((s) => [s.path, s]));
+  const byPath = new Map(scopedSources(sources, controls.scope).map((s) => [s.path, s]));
   const forFolders = filterSources(sources, controls, { folders: false });
   const forKinds = filterSources(sources, controls, { kinds: false });
   const forTags = filterSources(sources, controls, { tags: false });
@@ -173,10 +239,10 @@ export function axesOf(
       value,
       notes: kindNotes.get(value) ?? 0,
     })),
-    folders: [...present.folders]
+    folders: [...presentFolders]
       .sort((a, b) => a.localeCompare(b))
       .map((value) => ({ value, notes: folderNotes.get(value) ?? 0 })),
-    tags: [...present.tags]
+    tags: [...presentTags]
       .sort((a, b) => a.localeCompare(b))
       .map((value) => ({ value, notes: tagNotes.get(value) ?? 0 })),
   };
@@ -260,7 +326,9 @@ function filterSources(
   controls: ControlsState,
   { folders: useFolders = true, kinds: useKinds = true, tags: useTags = true }: AxisSwitches,
 ): AdmittedGroup[] {
-  const present = presentValues(sources);
+  // The answer first: every axis, the term and the cap work on what it admits.
+  sources = scopedSources(sources, controls.scope);
+  const present = presentValues(sources, null);
   const folders = useFolders ? live(controls.folders, present.folders) : new Set<string>();
   const kinds = useKinds ? live(controls.kinds, present.kinds) : new Set<ReferenceKind>();
   const tags = useTags ? live(controls.tags, present.tags) : new Set<string>();
@@ -293,8 +361,11 @@ interface AxisSwitches {
   readonly tags?: boolean;
 }
 
-/** Every value each axis holds across the unfiltered set. */
-function presentValues(sources: readonly SourceRefs[]): {
+/** Every value each axis holds across the unfiltered set the answer admits. */
+function presentValues(
+  sources: readonly SourceRefs[],
+  scope: ReadonlySet<string> | null,
+): {
   folders: string[];
   kinds: ReferenceKind[];
   tags: string[];
@@ -302,7 +373,7 @@ function presentValues(sources: readonly SourceRefs[]): {
   const folders = new Set<string>();
   const kinds = new Set<ReferenceKind>();
   const tags = new Set<string>();
-  for (const source of sources) {
+  for (const source of scopedSources(sources, scope)) {
     folders.add(splitPath(source.path).folder);
     for (const ref of source.refs) kinds.add(ref.kind);
     for (const tag of source.tags) tags.add(tag);
@@ -403,6 +474,7 @@ export function admitReferences(
   const properties: BacklinkReference[] = [];
   let count = 0;
   for (const { ref, nodeId } of placed.references) {
+    if (!inScope(ref, controls.scope)) continue;
     if (kinds.size > 0 && !kinds.has(ref.kind)) continue;
     // A property lives in frontmatter, outside the block tree, so it answers
     // the term on its own text — which is exactly what its row renders.

@@ -1354,6 +1354,161 @@
   .to-backlinks-totals-compact {
     display: inline;
   }
+
+  /* Zoomed, the chip and its menu give way to the segments, and the compact
+   * totals go: the chosen segment already carries the answer's count, and the
+   * note count left on its own reads as a stray number. */
+  .to-backlinks-scope-anchor {
+    display: none;
+  }
+
+  .to-backlinks .to-backlinks-scope-segments {
+    display: inline-flex;
+  }
+
+  .to-backlinks-head.is-zoomed .to-backlinks-totals-compact {
+    display: none;
+  }
+}
+
+/* ---- What a zoomed footer answers for ------------------------------------ */
+
+/* The title no longer takes the row: the chip follows it, and the totals keep
+ * their place at the far end. */
+.to-backlinks-head.is-zoomed > .to-backlinks-head-title {
+  flex: 0 0 auto;
+}
+
+/* One size for every answer's mark, in the chip, the menu and the segments —
+ * the segments' own, 1.1 of the small UI font. A facet's mark is 0.85em of a
+ * smaller font, where the node answer's ring and centre ran together. */
+.to-backlinks-scope-mark {
+  display: inline-flex;
+  flex: none;
+  width: calc(var(--font-ui-smaller) * 1.1);
+  height: calc(var(--font-ui-smaller) * 1.1);
+}
+
+.to-backlinks-scope-mark > svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* The chip gives way before the title does: its label is cut, not the word
+ * "Backlinks". */
+.to-backlinks-scope-anchor {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.to-backlinks .to-backlinks-scope-chip {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: inherit;
+}
+
+.to-backlinks-scope-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-normal);
+  font-weight: var(--font-normal, 400);
+}
+
+.to-backlinks-scope-caret {
+  width: 0.7em;
+  height: 0.7em;
+}
+
+.to-backlinks-scope-menu {
+  inset-inline-end: auto;
+  inset-inline-start: 0;
+}
+
+.to-backlinks-scope-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.to-backlinks-scope-reason {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  font-weight: var(--font-normal, 400);
+}
+
+.to-backlinks-scope-menu .to-backlinks-scope-count {
+  margin-inline-start: auto;
+  color: var(--text-faint);
+}
+
+.to-backlinks .to-backlinks-scope-option:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* The narrow form, shown by the container query above. */
+.to-backlinks-scope-segments {
+  display: none;
+  flex: none;
+  align-items: center;
+  gap: 1px;
+  padding: 1px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+}
+
+.to-backlinks .to-backlinks-scope-segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  height: 1.6em;
+  padding: 0.2em 0.35em;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.to-backlinks .to-backlinks-scope-segment:hover:not(:disabled) {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.to-backlinks .to-backlinks-scope-segment.is-chosen {
+  color: var(--to-decor-accent, var(--text-accent));
+  background: var(--background-modifier-hover);
+}
+
+.to-backlinks .to-backlinks-scope-segment:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+/* An answer with nothing in it: one quiet line, and the way to the note. */
+.to-backlinks-empty-answer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding-left: var(--to-marker-gutter);
+  font-size: var(--font-ui-small);
+  color: var(--text-faint);
+}
+
+.to-backlinks .to-backlinks-empty-widen {
+  height: auto;
+  padding: 0.1em 0.45em;
+  font-size: var(--font-ui-smaller);
+  color: var(--to-decor-accent, var(--text-accent));
+  background: transparent;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  box-shadow: none;
+  cursor: pointer;
 }
 
 /* ---- A facet's values ---------------------------------------------------- */
