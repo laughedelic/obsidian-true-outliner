@@ -93,7 +93,8 @@ What the mobile cases showed, none of it a cause:
 Desktop on Chrome 150 was clean apart from the one case, so the newest installer was not what the
 mobile cases showed: emulation on it was. The default went back to the oldest installer, on both
 platforms, and the newest installer is the weekly run's. Its first scheduled result is expected to
-carry the mobile cases, and the issue it files is where they are investigated.
+carry the mobile cases; they are tracked in
+[#304](https://github.com/laughedelic/obsidian-true-outliner/issues/304).
 
 With the final code, the `selection`, `position-indicators` and `shell` groups pass on the oldest
 installer locally at four instances, and the stamp spec passes on both installers on both
