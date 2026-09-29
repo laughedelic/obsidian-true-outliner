@@ -36,7 +36,10 @@
       `recordedCase` (D3). Verify with `tests/case-report.test.ts`: a fold that opened, a zoom that
       moved, and a result without a mark after a fold each report their difference and draw; a
       result with no mark passes on a state with none; negative control: skipping the compare when
-      the column has no mark fails the third.
+      the column has no mark fails the third. `compareState` is the one comparison a known-failing
+      case's `actual` and the unit check of a marker that waits on nothing also use, so
+      `tests/case-files.test.ts` gains a known-failing file whose `actual` differs from its
+      `expected` only by a fold and is accepted; negative control: comparing text alone refuses it.
 
 ## 3. Arranging the state
 

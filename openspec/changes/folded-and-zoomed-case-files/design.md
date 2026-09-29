@@ -113,6 +113,10 @@ The cost is that a result column that forgets a mark fails, which the report dra
 case files are unaffected: none of them leaves a fold or a zoom after any phase (note, item 6).
 The asymmetry with the caret is deliberate and goes into the skill.
 
+`compareState` is the comparison a known-failing case's `actual` is judged by and the one the unit
+suite uses to refuse a marker that waits on nothing, so the marks reach both without a change of
+their own; a recorded `actual` draws every mark the app held, since its absence would state none.
+
 ### D4. The mark sits on the node's first line, and the read maps a fold to its node
 
 A fold's recorded range starts at the node's last own line, so a paragraph of two source lines is

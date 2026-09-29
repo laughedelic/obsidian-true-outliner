@@ -19,6 +19,11 @@ beside the text and the selection, and drawing a state SHALL draw them, so readi
 returns them. The side-by-side form SHALL draw them after the edge glyph, and reading a drawn block
 in either form SHALL return them.
 
+Wherever this capability compares a state with a drawn column — a case's phases, the `actual`
+column of a `known-failing` case, and the unit check that refuses a marker waiting on nothing — the
+folded nodes and the zoom root are compared with the text, none where the column marks none; a
+recorded `actual` draws every mark the app held.
+
 #### Scenario: A drawn state reads back as itself
 
 - **WHEN** a text with two folded nodes, one of them nested in the other, a zoom root and a caret
@@ -47,17 +52,21 @@ One spec SHALL register a case per file under `e2e-tests/cases/`, or per path in
 `TO_CASE_FILES` environment variable when it is set, and run it in the real app under the desktop
 configuration and under mobile emulation, skipping a case whose `platform` is the other one. A
 case SHALL run in a note of its own with the case's two settings applied and restored afterwards.
-It SHALL clear the folds and the zoom of that note, zoom to the node the `before` column marks
-`●`, fold the nodes it marks `►` from the last line to the first, set the caret, selection or block
+It SHALL clear the folds and the zoom of that note, zoom to the node the `before` column marks `●`,
+fold the nodes it marks `►` from the last line to the first, set the caret, selection or block
 selection the column draws in one step, and read back the editor's state; when that state is not
 the drawn `before`, text, selection, block-selected lines, folded nodes and zoom root included, the
-case fails there. Each phase SHALL press its keys, with ⌘V writing the `clipboard` column to the
-clipboard and pasting, and read the state. A phase passes when the text equals the `expected`
-column's, when the folded nodes and the zoom root equal the ones it marks, none where it marks
-none, and, when the column draws a caret or selection, the main range equals it, and, when it draws
-`▒`, the block-selected lines equal it. Running a file with `--record` SHALL never fail on a
-difference and SHALL write the case file with its result columns filled from the app, marks
-included.
+case fails there. Each
+phase SHALL press its keys, with ⌘V writing the `clipboard` column to the clipboard and pasting,
+and read the state. A phase passes when the text equals the `expected` column's, when the folded nodes
+and the zoom root equal the ones it marks, none where it marks none, and, when the column draws a
+caret or selection, the main range equals it, and, when it draws `▒`, the block-selected lines equal
+it. Running a file with `--record` SHALL never fail on a difference and
+SHALL write the case file with its result columns filled from the app, marks included; for a file with
+`known-failing` it SHALL keep the marker and the `expected` columns and write the state the app
+gave at the first phase that differs from them as the `actual` column, drawing a caret, selection
+or `▒` only where that phase's `expected` draws one and every fold and zoom mark the app held, and
+it SHALL say when no phase differs.
 
 #### Scenario: A drawn case runs unchanged
 
@@ -82,6 +91,18 @@ included.
 - **WHEN** a case file with a `before` column and keys but no result column runs with `--record`
 - **THEN** the case does not fail, and a case file with the result column as the app read it is
   written under `.obsidian-cache/cases/` and printed
+
+#### Scenario: Recording a known-failing case fills its actual
+
+- **WHEN** a case file with `known-failing`, an `expected` column and no `actual` column runs with
+  `--record`
+- **THEN** the case does not fail, and the file written under `.obsidian-cache/cases/` keeps the
+  marker and the `expected` column and has the state the app gave as its `actual` column
+
+#### Scenario: A recorded actual draws only what expected draws
+
+- **WHEN** a case file with `known-failing` whose `expected` draws no caret runs with `--record`
+- **THEN** the `actual` column written draws no caret
 
 #### Scenario: A phase that presses ⌘V pastes
 
@@ -117,7 +138,7 @@ included.
 - **WHEN** a refused edit leaves the zoom in place and the `expected` column marks the root `●`
 - **THEN** the case passes, and it fails on `zoom` if the edit cleared the zoom
 
-**Covered by**: `e2e-tests/specs/98-drawn-cases.e2e.ts` (the shipped case files under `e2e-tests/cases/`)
+**Covered by**: `e2e-tests/specs/98-drawn-cases.e2e.ts` (the shipped case files under `e2e-tests/cases/`), `tests/case-report.test.ts`
 
 ### Requirement: A failing case prints a drawing
 
