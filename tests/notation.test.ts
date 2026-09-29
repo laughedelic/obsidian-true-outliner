@@ -396,6 +396,7 @@ describe('case files', () => {
       ['a number with no #', 'known-failing: 228', 'line 2: known-failing: "228" is not # and an issue number'],
       ['a platform after the number', 'known-failing: #228 desktop', 'line 2: known-failing: "#228 desktop"'],
       ['no number', 'known-failing: #', 'line 2: known-failing: "#"'],
+      ['issue zero', 'known-failing: #0', 'line 2: known-failing: "#0"'],
     ])('refuses %s, naming its line', (_name, line, message) => {
       expect(() => parseCase(`keys: ⏎\n${line}\n=== before\na┃\n=== expected\nb┃\n=== actual\nc┃\n`)).toThrow(message);
     });

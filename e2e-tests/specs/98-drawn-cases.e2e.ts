@@ -13,16 +13,17 @@ import { parseCase, type ParsedCase } from '../../scripts/notation.ts';
 import {
   beforeMessage,
   changedMessage,
-  compareState,
   firstDifferingPhase,
   holdsMessage,
   judgeKnownFailing,
   passesMessage,
   phaseMessage,
   recordedCase,
+  runPhases,
   type CaseContext,
 } from '../case-report.js';
 import { recordKnownFailing } from '../known-failing.js';
+import type { KnownFailingEntry } from '../../scripts/known-failing.ts';
 import { caseFiles, CASES_DIR, pressPhase } from '../cases.js';
 import { drawEditor, readEditorState, type EditorState } from '../drawing.js';
 import * as h from '../helpers.js';
@@ -82,22 +83,62 @@ async function arrange(parsed: ParsedCase): Promise<{ held: boolean; state: Edit
   }
 }
 
+/** Where a still-failing case leaves its record; a test passes its own to keep the run's summary clean. */
+type Report = (entry: KnownFailingEntry) => Promise<void>;
+
 /** The verdict of a `known-failing` case: still failing as recorded passes and is reported; a pass, or
  * a different result, fails the case. */
-async function judgeMarked(ctx: CaseContext, states: EditorState[]): Promise<void> {
+async function judgeMarked(ctx: CaseContext, states: EditorState[], report: Report): Promise<void> {
   const judged = judgeKnownFailing(ctx.parsed, states);
   if (judged.verdict === 'passes') throw new Error(passesMessage(ctx));
   const state = states[judged.phase]!;
   if (judged.verdict === 'changed') throw new Error(changedMessage(ctx, judged.phase, state));
   const message = holdsMessage(ctx, judged.phase, judged.differences, state);
   console.log(`[case] ${message}`);
-  await recordKnownFailing({
+  await report({
     case: ctx.name,
     issue: ctx.parsed.knownFailing!,
     platform: ctx.platform,
     differs: judged.differences,
     drawing: message.split('\n').slice(1).join('\n'),
   });
+}
+
+/** Runs one parsed case in the app: arranges its note, presses its phases and judges the states. */
+async function runCase(ctx: CaseContext, report: Report = recordKnownFailing): Promise<void> {
+  const { name, parsed } = ctx;
+  await h.setIndentUsingTabs(parsed.tabs);
+  try {
+    await h.createNote(`Scratch/cases/${name.replace(/[^\w-]+/g, '-')}.md`, parsed.before.text);
+    await h.setOutlineMode(parsed.outline);
+    const arranged = await arrange(parsed);
+    if (!arranged.held) throw new Error(beforeMessage(ctx, arranged.state));
+
+    // A `known-failing` case is judged on its states once they are read.
+    const marked = parsed.knownFailing !== undefined;
+    const { states, failure } = await runPhases(
+      parsed,
+      arranged.state,
+      { press: (phase) => pressPhase(phase, parsed.clipboard), read: readEditorState },
+      { record: RECORD },
+    );
+    if (failure) throw new Error(phaseMessage(ctx, failure.phase, failure.differences, states[failure.phase]!));
+    if (marked && !RECORD) await judgeMarked(ctx, states, report);
+    if (marked && RECORD && !firstDifferingPhase(parsed.results, states)) {
+      console.log(`[case] ${name}: no phase differs from expected, so known-failing would be an unexpected pass; no actual is written`);
+    }
+    if (RECORD) {
+      mkdirSync(RECORD_DIR, { recursive: true });
+      const out = path.join(RECORD_DIR, `${name.replace(/[^\w-]+/g, '-')}.${PLATFORM}.case`);
+      const recorded = recordedCase(parsed, states);
+      writeFileSync(out, recorded);
+      console.log(`[case] recorded ${path.relative(process.cwd(), out)}:\n${recorded}`);
+    }
+  } finally {
+    // Both settings go back to their defaults, whatever ended the case.
+    await h.setIndentUsingTabs(false);
+    if (!parsed.outline) await h.setOutlineMode(true).catch(() => undefined);
+  }
 }
 
 function register(file: string): void {
@@ -119,50 +160,7 @@ function register(file: string): void {
       console.log(`[case] ${name} skipped: it runs on ${parsed.platform} only`);
       this.skip();
     }
-    await h.setIndentUsingTabs(parsed.tabs);
-    try {
-      await h.createNote(`Scratch/cases/${name.replace(/[^\w-]+/g, '-')}.md`, parsed.before.text);
-      await h.setOutlineMode(parsed.outline);
-      const arranged = await arrange(parsed);
-      if (!arranged.held) throw new Error(beforeMessage(ctx, arranged.state));
-
-      // A `known-failing` case is judged on its states once they are read, and presses no key after
-      // the first phase that differs from `expected`.
-      const marked = parsed.knownFailing !== undefined;
-      const states: EditorState[] = [];
-      for (const [i, phase] of parsed.phases.entries()) {
-        await pressPhase(phase, parsed.clipboard);
-        states.push(await readEditorState());
-        const expected = parsed.results[i];
-        const differences = expected ? compareState(expected, states[i]!) : [];
-        if (marked) {
-          if (differences.length) break;
-        } else if (!RECORD && differences.length) {
-          throw new Error(phaseMessage(ctx, i, differences, states[i]!));
-        }
-      }
-      if (!parsed.phases.length) {
-        states.push(arranged.state);
-        const expected = parsed.results[0];
-        const differences = expected ? compareState(expected, arranged.state) : [];
-        if (!marked && !RECORD && differences.length) throw new Error(phaseMessage(ctx, 0, differences, arranged.state));
-      }
-      if (marked && !RECORD) await judgeMarked(ctx, states);
-      if (marked && RECORD && !firstDifferingPhase(parsed.results, states)) {
-        console.log(`[case] ${name}: no phase differs from expected, so known-failing would be an unexpected pass; no actual is written`);
-      }
-      if (RECORD) {
-        mkdirSync(RECORD_DIR, { recursive: true });
-        const out = path.join(RECORD_DIR, `${name.replace(/[^\w-]+/g, '-')}.${PLATFORM}.case`);
-        const recorded = recordedCase(parsed, states);
-        writeFileSync(out, recorded);
-        console.log(`[case] recorded ${path.relative(process.cwd(), out)}:\n${recorded}`);
-      }
-    } finally {
-      // Both settings go back to their defaults, whatever ended the case.
-      await h.setIndentUsingTabs(false);
-      if (!parsed.outline) await h.setOutlineMode(true).catch(() => undefined);
-    }
+    await runCase(ctx);
   });
 }
 
@@ -236,5 +234,66 @@ describe('drawn cases', function () {
     ]);
     const drawn = await drawEditor('two');
     expect(drawn).toContain('(two: 2 ranges; the main one is drawn)');
+  });
+});
+
+// A known-failing case run in the app, from sources given here, so the runner's own paths are
+// covered beside the shipped case files. Skipped when `TO_CASE_FILES` narrows the run.
+(process.env.TO_CASE_FILES ? describe.skip : describe)('a known-failing case, run', function () {
+  before(async function () {
+    await obsidianPage.resetVault();
+    await h.resetPluginState();
+  });
+
+  after(async function () {
+    await obsidianPage.resetVault();
+    await h.setIndentUsingTabs(false);
+  });
+
+  afterEach(async function () {
+    await h.dismissNotices();
+  });
+
+  const ctxOf = (source: string): CaseContext => ({ name: 'inline/marked', platform: PLATFORM, parsed: parseCase(source) });
+  const run = async (source: string): Promise<{ error: Error | undefined; reported: KnownFailingEntry[] }> => {
+    const reported: KnownFailingEntry[] = [];
+    try {
+      await runCase(ctxOf(source), async (entry) => void reported.push(entry));
+      return { error: undefined, reported };
+    } catch (e) {
+      return { error: e as Error, reported };
+    }
+  };
+
+  // The first phase types x, the second would type y; `actual` is what the first phase gives.
+  const TWO_PHASES = (first: string, actual: string) =>
+    ['known-failing: #7', 'keys: "x" | "y"', '', '=== before', 'a┃', '=== after "x"', first, '=== after "y"', 'q', '=== actual', actual, ''].join('\n');
+
+  it('passes and reports itself while the first differing phase gives its recorded result, pressing no key after it', async function () {
+    const { error, reported } = await run(TWO_PHASES('zz┃', 'ax┃'));
+    expect(error).toBeUndefined();
+    expect(reported).toMatchObject([{ case: 'inline/marked', issue: 7, platform: PLATFORM, differs: ['text'] }]);
+    expect((await readEditorState()).text).toBe('ax\n');
+  });
+
+  it('fails when every phase matches its expected column, telling us to remove the marker', async function () {
+    const { error, reported } = await run(
+      ['known-failing: #7', 'keys: "x"', '', '=== before', 'a┃', '=== expected', 'ax┃', '=== actual', 'zz┃', ''].join('\n'),
+    );
+    expect(error?.message.split('\n')[0]).toBe(`case inline/marked no longer differs (${PLATFORM}): remove known-failing: #7`);
+    expect(reported).toEqual([]);
+  });
+
+  it('fails when the phase gives neither expected nor its recorded result', async function () {
+    const { error, reported } = await run(TWO_PHASES('zz┃', 'yy┃'));
+    expect(error?.message.split('\n')[0]).toBe(`case inline/marked differs from its recorded actual (${PLATFORM}): known-failing #7`);
+    expect(reported).toEqual([]);
+  });
+
+  it('does not hide a before the editor cannot hold', async function () {
+    const source = ['known-failing: #7', 'keys: ⇥', '', '=== before', '-┃ a', '=== expected', '- a', '=== actual', '- b', ''].join('\n');
+    const { error, reported } = await run(source);
+    expect(error?.message.split('\n')[0]).toBe(`case inline/marked differs in before (${PLATFORM})`);
+    expect(reported).toEqual([]);
   });
 });

@@ -556,7 +556,7 @@ export function parseCase(source: string, { record = false }: { record?: boolean
       else if (name === 'tabs') tabs = choice(value, { on: true, off: false });
       else if (name === 'platform') platform = choice<'desktop' | 'mobile'>(value, { desktop: 'desktop', mobile: 'mobile' });
       else if (name === 'known-failing') {
-        const issue = /^#(\d+)$/.exec(value);
+        const issue = /^#([1-9]\d*)$/.exec(value);
         if (!issue) throw new Error(`${JSON.stringify(value)} is not # and an issue number`);
         knownFailing = Number(issue[1]);
       } else phases = parseKeys(value);

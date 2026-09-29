@@ -12,15 +12,15 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import * as path from 'node:path';
-import { renderStepSummary, type KnownFailingEntry } from './known-failing.ts';
+import { isEntry, renderStepSummary, type KnownFailingEntry } from './known-failing.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-/** The `knownFailing` list of a summary file's text; empty when the file holds none or is not JSON. */
+/** The `knownFailing` list of a summary file's text; empty when the file holds none or is not JSON, and entries of another shape are left out. */
 export function entriesOf(summaryText: string): KnownFailingEntry[] {
   try {
     const summary = JSON.parse(summaryText) as { knownFailing?: KnownFailingEntry[] };
-    return Array.isArray(summary.knownFailing) ? summary.knownFailing : [];
+    return Array.isArray(summary.knownFailing) ? summary.knownFailing.filter(isEntry) : [];
   } catch {
     return [];
   }

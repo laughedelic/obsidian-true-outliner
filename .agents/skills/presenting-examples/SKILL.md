@@ -132,52 +132,7 @@ Paste its output as it is: each block is already fenced.
 The script reads the other way too. A drawn block from an issue or a PR, in either form, on stdin
 with `--read`, prints the columns that draw it, which is the input a case file takes (see below);
 `·` reads as a space. `--case` draws a case file's columns under its keys and setup, for a PR's
-manual-test section.
-
-### A case that waits on a fix
-
-A case for an open bug fails until the fix lands. `known-failing: #<issue>` says it waits on that
-issue, and an `actual` column holds what the app gives while the bug stands:
-
-```
-case: an edit in one ordered list does not renumber the list after it (#228)
-known-failing: #228
-keys: ⏎
-
-=== before
-1. a┃
-1) b
-2) c
-=== expected
-1. a
-2. ┃
-1) b
-2) c
-=== actual ⏎
-1. a
-2. ┃
-3) b
-4) c
-```
-
-- **While the bug stands** the case passes, if the app gives `actual` at the first phase that
-  differs from `expected` (the text, and the caret only where `expected` draws one). The run
-  reports it in its output, in `knownFailing` of `.obsidian-cache/e2e-summary.json`, and in the CI
-  job's step summary, and presses no key after that phase.
-- **Once every phase matches `expected`** it fails, saying `remove known-failing: #<issue>`. The
-  change that fixes the bug removes the marker, and the case guards the fix from then on.
-- **When the app gives a third result** it fails, drawing `actual (recorded)` beside `actual (now)`:
-  the bug changed, or the drawing was never what the app does (a key that means something else on
-  the platform, an operation the app's own gesture does not reach).
-- **To write one**, draft `before`, the keys and the `expected` the fix should give, run it with
-  `--record` on each platform, and copy what it wrote as `actual`. On a file with the marker,
-  `--record` keeps the marker and `expected` and writes the state at the first differing phase as
-  `actual`, with a caret only where `expected` draws one. The tracker's `after <keys>` header names
-  what happened; in a case file that column is `actual`.
-- **Limits.** The marker holds on every platform the case runs on, so a bug seen on one platform
-  takes `platform:`. A result that is not a document, such as a refusal message or a drop's landing
-  place, cannot be compared, and its drawing stays in the issue. A case with two candidate results
-  is committed when one is chosen. Both take `--columns` for the side-by-side form where it is the one wanted.
+manual-test section. Both take `--columns` for the side-by-side form where it is the one wanted.
 
 ````bash
 node scripts/layout.ts --read <<'EOF'
@@ -255,3 +210,51 @@ carets in it are measured, not predicted. A case that stays goes under
 `e2e-tests/cases/<capability>/`, where `<capability>` is a directory of `openspec/specs/`, and
 runs with the rest. `node scripts/layout.ts --case < x.case` draws it under its keys and settings for a PR's
 manual-test section.
+
+
+### A case that waits on a fix
+
+A case for an open bug fails until the fix lands. `known-failing: #<issue>` says it waits on that
+issue, and an `actual` column holds what the app gives while the bug stands:
+
+```
+case: an edit in one ordered list does not renumber the list after it (#228)
+known-failing: #228
+keys: ⏎
+
+=== before
+1. a┃
+1) b
+2) c
+=== expected
+1. a
+2. ┃
+1) b
+2) c
+=== actual ⏎
+1. a
+2. ┃
+3) b
+4) c
+```
+
+- **While the bug stands** the case passes, if the app gives `actual` at the first phase that
+  differs from `expected` (the text, and the caret only where `expected` draws one). The run
+  reports it in its output, in `knownFailing` of `.obsidian-cache/e2e-summary.json`, and in the CI
+  job's step summary, and presses no key after that phase.
+- **Once every phase matches `expected`** it fails, saying `remove known-failing: #<issue>`. The
+  change that fixes the bug removes the marker, and the case guards the fix from then on.
+- **When the app gives a third result** it fails, drawing `actual (recorded)` beside `actual (now)`:
+  the bug changed, or the drawing was never what the app does (a key that means something else on
+  the platform, an operation the app's own gesture does not reach).
+- **To write one**, draft `before`, the keys, the marker and the `expected` the fix should give,
+  with no `actual`, and run it with `--record` on each platform. `--record` keeps the marker and
+  `expected` and writes the state at the first differing phase as `actual`, with a caret only where
+  `expected` draws one; the file it writes under `.obsidian-cache/cases/` is the case to commit,
+  once the two platforms agree. The tracker's `after <keys>` header names what happened; in a case
+  file that column is `actual`.
+- **Limits.** The marker holds on every platform the case runs on, so a bug seen on one platform
+  takes `platform:`. A result that is not a document, such as a refusal message or a drop's landing
+  place, cannot be compared, and its drawing stays in the issue. A case with two candidate results
+  is committed when one is chosen. `layout.ts --case` draws a marked file with its `actual`, and a
+  marked draft with no result column is refused there as it is by a run.

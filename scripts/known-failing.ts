@@ -16,7 +16,7 @@ export interface KnownFailingEntry {
   drawing: string;
 }
 
-const isEntry = (value: unknown): value is KnownFailingEntry => {
+export const isEntry = (value: unknown): value is KnownFailingEntry => {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Record<string, unknown>;
   return (
@@ -47,6 +47,9 @@ export function collapseRecords(text: string): KnownFailingEntry[] {
   return entries;
 }
 
+/** Text inside an HTML element: the characters HTML would read as markup, escaped. */
+const html = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
 /** A table cell: no pipes and no line breaks. */
 const cell = (text: string): string => text.replace(/\s+/g, ' ').replace(/\|/g, '\\|');
 
@@ -74,7 +77,7 @@ export function renderStepSummary(entries: readonly KnownFailingEntry[], reposit
   }
   out.push('');
   for (const e of sorted) {
-    out.push(`<details><summary>${cell(e.case)} (#${e.issue}, ${e.platform})</summary>`, '', fenced(e.drawing), '', '</details>', '');
+    out.push(`<details><summary>${html(e.case)} (#${e.issue}, ${e.platform})</summary>`, '', fenced(e.drawing), '', '</details>', '');
   }
   return out.join('\n');
 }

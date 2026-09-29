@@ -126,7 +126,8 @@ way it names a spec title. Every failing e2e case also prints the editor's drawi
 and an `actual` column passes while the app still gives that result and fails once it does not
 (`.agents/skills/presenting-examples/SKILL.md`, "A case that waits on a fix"). Commit it in the PR
 that plans the fix, from its proposal on, or in a `chore` PR of its own when nobody is fixing the
-bug yet, and remove the marker in the change that fixes it: CI fails the case until that change does.
+bug yet, and remove the marker in the change that fixes it: once the bug is fixed and the marker is still
+there, CI fails the case.
 The still-failing cases are listed in each `drawn-cases` job's step summary and under
 `knownFailing` in `.obsidian-cache/e2e-summary.json`.
 

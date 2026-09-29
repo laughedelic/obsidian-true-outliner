@@ -9,6 +9,7 @@ import {
   passesMessage,
   phaseMessage,
   recordedCase,
+  runPhases,
   type CaseContext,
 } from '../e2e-tests/case-report';
 import type { EditorState } from '../e2e-tests/state-drawing';
@@ -319,5 +320,105 @@ describe('a known-failing case', () => {
       const again = parseCase(recordedCase(parsed, [RECORDED]));
       expect(judgeKnownFailing(again, [RECORDED])).toMatchObject({ verdict: 'holds' });
     });
+  });
+});
+
+describe('a known-failing case with several phases', () => {
+  // Two phases, and `actual` given by the caller. Both `expected` columns draw a caret unless noted.
+  const TWO = (actual: string, second = 'c┃') =>
+    ['known-failing: #1', 'keys: ⇥ | ⏎', '', '=== before', 'a┃', '=== after ⇥', 'b┃', '=== after ⏎', second, actual, ''].join('\n');
+
+  it('judges the first phase when both differ, and actual is the first one', () => {
+    const parsed = parseCase(TWO('=== actual\nx┃'));
+    expect(judgeKnownFailing(parsed, [state('x\n', 1), state('y\n', 1)])).toEqual({ verdict: 'holds', phase: 0, differences: ['text'] });
+  });
+
+  it('has changed at the first phase when actual matches only the second', () => {
+    const parsed = parseCase(TWO('=== actual\ny┃'));
+    expect(judgeKnownFailing(parsed, [state('x\n', 1), state('y\n', 1)])).toEqual({ verdict: 'changed', phase: 0, differences: ['text'] });
+  });
+
+  describe('recorded', () => {
+    const bare = (second: string) => parseCase(TWO('', second).replace(/\n\n$/, '\n'), { record: true });
+
+    it('takes the state, the caret policy and the keys of the first phase that differs', () => {
+      // Phase one matches. Phase two differs, and its `expected` draws no caret.
+      const out = recordedCase(bare('c'), [state('b\n', 1), state('z\n', 1)]);
+      expect(out).toContain('=== actual ⏎\nz\n');
+      expect(out).not.toContain('=== actual ⇥');
+      // Phase one differs and draws a caret: the caret is drawn, and phase two is not read.
+      const first = recordedCase(bare('c┃'), [state('y\n', 1)]);
+      expect(first).toContain('=== actual ⇥\ny┃\n');
+    });
+
+    it('draws ▒ where the first differing phase expects it', () => {
+      const parsed = parseCase('known-failing: #1\nkeys: ⌘A\n=== before\n- a┃\n- b\n=== expected\n▒- a\n- b\n', { record: true });
+      const out = recordedCase(parsed, [state('- a\n- b\n', 3, 3, { blockLines: [1], focused: false })]);
+      expect(out).toContain('=== actual ⌘A\n- a\n▒- b\n');
+    });
+  });
+});
+
+describe('a known-failing case that does not draw a caret in expected', () => {
+  it('says so when it has changed, as an ordinary failure does', () => {
+    const src = 'known-failing: #3\nkeys: ⇥\n=== before\na┃\n=== expected\nb\n=== actual\nc\n';
+    const parsed = parseCase(src);
+    const ctx: CaseContext = { name: 'x', platform: 'desktop', parsed };
+    expect(changedMessage(ctx, 0, state('d\n', 1))).toContain('(expected draws no caret or selection: none was compared)');
+  });
+});
+
+describe('pressing the phases', () => {
+  const parse = (src: string, record = false) => parseCase(src, { record });
+  const run = async (src: string, states: string[], record = false) => {
+    const pressed: string[] = [];
+    let read = 0;
+    const result = await runPhases(
+      parse(src, record),
+      state('a\n', 1),
+      {
+        press: async (phase) => void pressed.push(phase.map((s) => s.source).join(' ')),
+        read: async () => state(states[read++] ?? 'unread\n', 1),
+      },
+      { record },
+    );
+    return { pressed, ...result };
+  };
+  const THREE = (marker: string) =>
+    [marker, 'keys: ⇥ | ⏎ | ⇧⇥', '', '=== before', 'a┃', '=== after ⇥', 'b┃', '=== after ⏎', 'c┃', '=== after ⇧⇥', 'd┃', marker ? '=== actual\nx┃' : '', ''].join('\n');
+
+  it('presses no key after the first differing phase of a known-failing case', async () => {
+    const { pressed, states, failure } = await run(THREE('known-failing: #1'), ['b\n', 'x\n', 'd\n']);
+    expect(pressed).toEqual(['⇥', '⏎']);
+    expect(states.map((s) => s.text)).toEqual(['b\n', 'x\n']);
+    expect(failure).toBeUndefined();
+  });
+
+  it('presses every phase of a known-failing case that matches throughout', async () => {
+    const { pressed, states } = await run(THREE('known-failing: #1'), ['b\n', 'c\n', 'd\n']);
+    expect(pressed).toEqual(['⇥', '⏎', '⇧⇥']);
+    expect(states).toHaveLength(3);
+  });
+
+  it('stops an ordinary case at the first differing phase and reports it', async () => {
+    const { pressed, failure } = await run(THREE(''), ['b\n', 'x\n', 'd\n']);
+    expect(pressed).toEqual(['⇥', '⏎']);
+    expect(failure).toEqual({ phase: 1, differences: ['text'] });
+  });
+
+  it('reads every phase of a recording, whatever differs', async () => {
+    const { pressed, failure } = await run(THREE(''), ['x\n', 'y\n', 'z\n'], true);
+    expect(pressed).toEqual(['⇥', '⏎', '⇧⇥']);
+    expect(failure).toBeUndefined();
+  });
+
+  it('judges the state after before when a case has no keys', async () => {
+    const marked = 'known-failing: #1\n=== before\na┃\n=== expected\nb┃\n=== actual\nc┃\n';
+    const { pressed, states, failure } = await run(marked, []);
+    expect(pressed).toEqual([]);
+    expect(states.map((s) => s.text)).toEqual(['a\n']);
+    expect(failure).toBeUndefined();
+    const ordinary = await run('=== before\na┃\n=== expected\nb┃\n', []);
+    expect(ordinary.failure).toEqual({ phase: 0, differences: ['text'] });
   });
 });

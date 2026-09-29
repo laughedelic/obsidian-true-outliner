@@ -97,6 +97,10 @@ describe('the step summary', () => {
     expect(out).toContain('````\na ``` b\n````');
   });
 
+  it('escapes markup in a case name where it sits in HTML', () => {
+    expect(renderStepSummary([entry({ case: 'a<b>&c' })])).toContain('<summary>a&lt;b&gt;&amp;c (#228, desktop)</summary>');
+  });
+
   it('keeps a pipe in a case name inside its cell', () => {
     expect(renderStepSummary([entry({ case: 'a|b' })])).toContain('| `a\\|b` |');
   });
@@ -107,6 +111,8 @@ describe('reading a summary file', () => {
     expect(entriesOf(JSON.stringify({ failures: [], knownFailing: [entry()] }))).toEqual([entry()]);
     expect(entriesOf(JSON.stringify({ failures: [] }))).toEqual([]);
     expect(entriesOf('not json')).toEqual([]);
+    // An entry of another shape is left out, so a summary from another version renders what it can.
+    expect(entriesOf(JSON.stringify({ knownFailing: [entry(), { case: 'x' }, null, 3] }))).toEqual([entry()]);
   });
 
   it('prints the summary of a file, and nothing for a run with none or a file that is not there', () => {

@@ -50,8 +50,11 @@
 ## 3. The runner
 
 - [x] 3.1 In `e2e-tests/specs/98-drawn-cases.e2e.ts`, judge a marked case with `judgeKnownFailing` in
-      place of the per-phase throw, pressing no key after the first differing phase: `passes` and
-      `changed` throw their messages, `holds` logs the drawing and writes the record of 4.2. `before`,
+      place of the per-phase throw: the loop is `runPhases` in `case-report.ts`, which presses no key
+      after the first differing phase of a marked case and is tested with fake key and read
+      functions, and the body of a case is `runCase`, which the spec's own in-app tests call with
+      sources given inline. `passes` and `changed` throw their messages, `holds` logs the drawing and
+      writes the record of 4.2. `before`,
       key errors and parse errors stay as they are, and `--record` on a marked file uses 2.3. Verify
       with `npm run test:e2e:narrow -- drawn-cases` and `--mobile` against scratch files under
       `TO_CASE_FILES`, one per outcome (the prototypes' `228-1.case` and `255-1.case` marked with
