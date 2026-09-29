@@ -107,10 +107,14 @@ on the base; that side records why and the other side runs (spec, "Each case run
 ### D4. Evidence is a mode of the case spec
 
 `TO_CASE_EVIDENCE=<dir>` and `TO_EVIDENCE_SIDE=<side>` make `98-drawn-cases.e2e.ts` register, for
-each case file, a case that arranges, presses and reads through the same functions and hands each
-state to the recorder, in place of the case that compares. The spec passes its own `arrange`
-to the recorder's loop, so the recorder holds no arranging of its own and #311's arranging of
-folds and zoom, which edits that function, reaches it.
+each case file, a case that arranges through the spec's own `arrange` and runs the phases through
+`runPhases` in `e2e-tests/case-report.ts`, in place of the case that judges. `runPhases` takes the
+key press and the state read as functions and, with `record` set, does not stop at a difference;
+evidence passes it a press and a read that also take the frame. It is given the parsed case with
+its `known-failing` marker taken off, since a marked case stops at its first difference (the
+phases after it start from a state the case knows is wrong), and evidence wants the keys after
+one. The recorder holds no arranging and no phase loop of its own, and #311's arranging of folds
+and zoom, which edits `arrange`, reaches it.
 
 Alternatives:
 
@@ -195,25 +199,29 @@ for each side. Where the base differs and the PR matches, the case tells the two
 match each other, the case does not discriminate, and the reading-view frames of #270's case 4 were
 that (`docs/research/case-evidence`).
 
-### D9. No stack on #310 or #311
+### D9. Not stacked on #311, and #310 in place
 
-`git diff --name-only main...<branch>` for #310 and #311 lists documents, OpenSpec artifacts and a
-research note; neither has code yet, and the file they share with this change is
-`docs/research/index.md`, which merges by union. Their proposals say they will edit
-`98-drawn-cases.e2e.ts`, `cases.ts`, `case-report.ts` and `wdio.shared.mts`; this change adds a
-branch to the first and touches none of the others. Reading what each adds:
+**#310 has merged.** Its `runPhases` is what D4 calls, and its marker changes nothing about a
+verdict here: a marked case's sides are recorded, not judged. A fix PR that removes a marker
+changes its case file, so it carries the file and gets evidence: the file without the marker runs
+on the base, which still has the bug, and on the PR. The record of a marked case names its issue,
+and says of each side whether its first differing phase gives the `actual` the file records
+(`judgeKnownFailing`), so the comment can say "still failing as recorded (#N)" for a side.
 
-- **#307 known-failing cases.** A marked case whose `expected` is unmet is what the evidence
-  shows: its sides are recorded, not judged, so the marker does not change a verdict here. The
-  file counts as a case file like any other.
-- **#308 folded and zoomed outlines.** The recorder reads through `readEditorState` and
-  `drawState` and arranges through the spec's `arrange`, so the marks and the arranging arrive
-  with #311 without work here, and a frame shows a fold or a zoom whether or not the notation can
-  draw it.
+**#311 is a proposal.** `git diff --name-only main...origin/chore/folded-and-zoomed-case-files`
+lists documents and OpenSpec artifacts, and the file it shares with this change is
+`docs/research/index.md`, which merges by union. Its planned code edits (`98-drawn-cases.e2e.ts`,
+`cases.ts`, `case-report.ts`, `drawing.ts`, `state-drawing.ts`, `src/plugin/main.ts`) overlap this
+change in the spec's `arrange` and its calls. The recorder reads through `readEditorState` and
+`drawState` and arranges through the spec's `arrange`, so the marks and the arranging arrive with
+#311 without work here, and a frame shows a fold or a zoom whether or not the notation can draw
+it.
 
-The mechanical test in CLAUDE.md, overlapping files, lists the 98 spec once #311 or #310 has code.
-It settles nothing today. The maintainers can stack this change on either; the reading above is
-that neither is needed.
+The mechanical test in CLAUDE.md, overlapping files, lists the 98 spec once #311 has code, and
+settles nothing today. Neither order is blocked. #311 first gives evidence for cases that start
+from a fold or a zoom on the day this lands, and those are the cases where a frame shows most
+(the fold and zoom appearance is what the drawn state cannot say); this change first leaves #311
+a three-line branch in the spec to keep.
 
 ### D10. The jobs
 
@@ -265,9 +273,10 @@ A session runs `run` and `render` locally and reads the comment before it exists
 - **BRAT might list or fetch the extra assets** → D7's one install.
 - **The evidence runs on installer 1.5.8's Chrome 120**, the suite's default. It is what the
   suite tests, and the comment names the versions.
-- **The caret's column disagrees with a drawing, and the comment says so on a PR whose fix is
-  right** (#274's three) → the verdict names the part and the phase and draws both carets, and the
-  decision is the reader's. It is the finding the evidence is for.
+- **A caret after ↑ or ↓ is a pixel column, so a drawing that states one differs by font, theme
+  and platform** (#274's three drawn carets, `docs/research/case-evidence`) → the verdict names the
+  part and the phase and draws both carets, and says on which platform it was read; a case that
+  needs a defined column reads it after `Home`, as #274's branch now does.
 - **⌘ is Ctrl on Linux** and a drawing made on macOS can differ by key (#115 in
   `docs/research/drawn-case-files`) → the verdict says `differs`, the drawn columns show how, and
   the run's platform is in the comment.

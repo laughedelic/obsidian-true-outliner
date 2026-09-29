@@ -13,7 +13,10 @@ What `docs/research/case-evidence.md` measured, and how to run it again.
 - `analyze.mjs`: reads the recorded case files of a head and of `main` and compares each with the
   drawing: text, and the caret where the drawing draws one.
 - `frame-stats.mjs`: cost, caret source and stability of the frames the probe wrote.
-- `frames/`: eight of the 336 frames, the ones the note links.
+- `caret-probe.js`: the caret's x and the x of the first columns of its line, read with
+  `npm run drive -- eval -`; what showed the arrow keys' pixel column.
+- `frames/`: eight of the 336 frames and three driver screenshots of the caret, the ones the note
+  links.
 
 The layout `analyze.mjs` and `frame-stats.mjs` read from a root directory:
 

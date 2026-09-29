@@ -14,9 +14,9 @@ what the evidence for a PR would show, so this comes first.
 manual pass (#264, #270, #274) through the case runner, on `main` and on each PR. Eleven of their
 15 drawings run as case files. Of the 11 manual steps, 8 run against a drawing and show their
 result in a painted frame on both platforms and in both themes, 1 runs without a drawing to check
-it against, and 2 are drags. The run also found that three of the eight carets #274 draws are not
-where the app puts them, a difference the PR's own case does not read. A frame costs about 70 ms
-and 16 kB.
+it against, and 2 are drags. Three of the eight carets #274 draws differ from the run's; each
+follows ↑ or ↓, which keep a pixel column, so a drawing cannot state it, and the PR's branch has
+since moved its case to read the caret after `Home`. A frame costs about 70 ms and 16 kB.
 
 ## What Changes
 
@@ -52,9 +52,10 @@ and 16 kB.
 
 ### Modified Capabilities
 
-None. Both open changes to `drawn-case-files` (#307, draft #310; #308, draft #311) edit the case-file
-format, and this change reads case files through the notation and the state helper as they stand,
-so whatever those add is drawn and framed without work here.
+None. #310 (known-failing cases) has merged and #311 (folded and zoomed outlines) is still a
+proposal; both edit the case-file format, and this change reads case files through the notation,
+the state helper and the phase runner as they stand, so whatever they add is drawn and framed
+without work here.
 
 ## Non-goals
 
@@ -90,9 +91,8 @@ so whatever those add is drawn and framed without work here.
 - `CLAUDE.md` ("E2E testing"), `DEVELOPMENT.md`, and the `presenting-examples` skill (a PR's
   manual-test section and where the evidence appears).
 - `docs/research/case-evidence.md` and its index row hold the measurements.
-- Overlap with open pull requests: [#310](https://github.com/laughedelic/obsidian-true-outliner/pull/310)
-  and [#311](https://github.com/laughedelic/obsidian-true-outliner/pull/311) both edit
-  `98-drawn-cases.e2e.ts`, `cases.ts` and `case-report.ts`. This change adds a branch to the spec
-  and leaves the other two files alone; whichever lands second resolves a few adjacent lines. Neither
-  is a dependency (`design.md`, D9).
+- Overlap with an open pull request: [#311](https://github.com/laughedelic/obsidian-true-outliner/pull/311)
+  edits `98-drawn-cases.e2e.ts`, `cases.ts` and `case-report.ts`. This change adds a branch to the
+  spec, calls `runPhases` from `case-report.ts` and leaves `cases.ts` alone; whichever lands second
+  resolves a few adjacent lines. It is not a dependency (`design.md`, D9).
 - No `src/` or `styles/` change and no plugin behaviour change.

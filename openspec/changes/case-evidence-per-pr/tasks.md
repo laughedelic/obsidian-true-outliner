@@ -4,7 +4,8 @@
       PR's merge with `main` and on `main`, on both platforms, with `npm run case` (check and
       `--record`), and compare each recorded result with its drawing. Verified by
       `node docs/research/prototypes/case-evidence/analyze.mjs <root>`: 11 of 15 drawings run,
-      the text matches on the PR for all 11, and 3 of 8 drawn carets differ.
+      the text matches on the PR for all 11, and 3 of 8 drawn carets differ, each after ↑ or ↓;
+      the driver's readings of the caret's x show the pixel column.
 - [x] 1.2 Take a frame per key in both themes for the same cases on both sides, and measure its
       cost, the caret's source and its stability. Verified by
       `node docs/research/prototypes/case-evidence/frame-stats.mjs <root>` over
@@ -24,9 +25,12 @@
       caret is drawn where the text ends, the badge names the side and the keys, and dark differs
       from light.
 - [ ] 2.2 `e2e-tests/specs/98-drawn-cases.e2e.ts`: the branch into evidence mode under
-      `TO_CASE_EVIDENCE` and `TO_EVIDENCE_SIDE`. A difference is recorded and never thrown, every
-      phase after it is pressed, an unheld `before` and an error while arranging are recorded, and
-      the records name the differing parts. Verified by the narrow run over the prototype cases on
+      `TO_CASE_EVIDENCE` and `TO_EVIDENCE_SIDE`, calling `runPhases` with the case's
+      `known-failing` marker taken off and `record` set, and a press and a read that take the
+      frame. A difference is recorded and never thrown, every phase after it is pressed, an
+      unheld `before` and an error while arranging are recorded, the records name the differing
+      parts, and a marked case's record names its issue and whether each side still fails as
+      recorded. Verified by the narrow run over the prototype cases on
       both platforms, whose records give the counts of task 1.1 (`main` differs in text on 11 of
       11, the PR in caret on 3 of 8 drawn carets). Negative control: making the loop throw on a
       difference must stop #274's first case after its first phase and leave no record of the second.
@@ -90,10 +94,10 @@
 
 ## 5. Close
 
-- [ ] 5.1 Take stock of what the change found and left. The caret's column after ↑ and ↓ in
-      #274's three drawings is filed as an issue with the maintainer's go-ahead, linked from
-      `docs/research/case-evidence.md`; the two drag steps stay in the note. Each claim is
-      re-measured against `main` first.
+- [ ] 5.1 Take stock of what the change found and left. The caret after ↑ or ↓ needs no issue:
+      it is a pixel column, and #274's branch reads it after `Home`. The two drag steps stay in the
+      note, and any motion candidate the maintainers choose for a later capture (#330, #148) is
+      an issue or a change of its own. Each claim is re-measured against `main` first.
 - [ ] 5.2 `npm test`, `npm run build`, `npm run typecheck`, `npm run typecheck:e2e`,
       `npm run typecheck:scripts` and `npm run lint` all pass, and the pushed checkpoint's matrix
       is green.

@@ -79,6 +79,13 @@ The verdict of a side SHALL be read from the recorded state and never from a fra
 - **WHEN** the first phase's state differs from its drawn result
 - **THEN** the second phase's keys are still pressed and its state and frames are recorded
 
+#### Scenario: A case that waits on an issue
+
+- **WHEN** a case file marked `known-failing` is run and the base's first differing phase gives the
+  `actual` the file records
+- **THEN** the record names the issue and says the base still fails as recorded, and the keys after
+  that phase are still pressed
+
 #### Scenario: A drawn caret that the app does not match
 
 - **WHEN** the pull request's text matches a phase's drawn result and its caret does not

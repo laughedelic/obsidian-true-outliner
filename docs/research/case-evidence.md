@@ -12,8 +12,8 @@ config and mobile emulation. The environment is the one `rendered-ui-observabili
 The short answer is that 9 of the 11 manual steps the three PRs hand a tester run as case files
 and show their result in a painted frame, on both platforms and in both themes, without an
 install; 8 of the 9 run against a drawing, and the ninth is a control with none. The other two are
-drags. The run also found something no manual step asks a tester to look for: three of the carets
-#274 draws are not where the app puts them.
+drags. Three of the eight carets #274 draws differ from the run's, all after ↑ or ↓; they follow
+the caret's pixel column, which a drawing cannot state ("On the PR's head").
 
 ## The heads carry no runner
 
@@ -69,7 +69,9 @@ measured"), so none of their 7 cases compared a caret. #274 draws 8.
 
 The three that differ are the caret after an arrow key, and they are the same on both platforms:
 after ↑ in the reproduction and in case 1, and after ↓ in case 2. In each the app puts the caret
-at the start of the line where the PR draws its end.
+at the start of the line where the PR draws its end. #274's branch has been force-pushed since
+this measurement (`37c0032` to `cb5837a`, a rebase onto `main` with a case file of its own); the
+figures are for `37c0032`.
 
 before
 ```
@@ -97,9 +99,28 @@ text
 
 The PR's own e2e case asserts the line after the arrow and not the column, so nothing before this
 run compared the two. The driver (`npm run drive`, which sends keys through `Input.dispatchKeyEvent`
-where the runner uses WebDriver) read the same `┃body` on the merged head. The text is right and
-the caret is not what is drawn; whether the drawing or the caret is the wrong one is for the
-maintainers, and we did not diagnose it.
+where the runner uses WebDriver) read the same `┃body` on the merged head.
+
+**The cause is the pixel column, and the drawing is what is wrong.** ↑ and ↓ keep the x position
+the caret had and land on the nearest character of the next line. Measured with the driver on the
+merged head of `cb5837a`, the x of the caret before the key and the x of the columns of the line
+it lands on:
+
+| Case | Caret before | Columns of the target line | Lands at |
+| --- | --- | --- | --- |
+| #274 case 1, ↑ from `# ┃` | 419.9 | `body`: col 0 at 422.0, col 1 at 432.2 | col 0, 2.1 px left of `b` |
+| #274 case 2, ↓ from `# ┃` | 419.9 | `## Bar`: col 0 at 422.0, col 1 at 441.3 | col 0 |
+| A fresh `  ` line under `- kid`, ↑ (not in the PR) | 402.2 | `- foo`: col 3 at 395.6, col 4 at 405.4 | col 4, in `- fo┃o` |
+| The case 1 note with outline mode off, ↑ from `# ┃` | 405.9 | `body`: col 2 at 395.9, col 3 at 406.1 | col 3, in `bod┃y` |
+
+The heading's `#` is drawn wide and the caret after `# ` sits 2 px left of where `body` starts, so
+column 0 is the nearest. With outline mode off the same keys land in the middle of the word, and
+a list item's fresh line lands in the middle of `foo`. Nothing in `openspec/specs/` states a column
+for a caret left by an arrow key, and the existing abandon cases (`30-keyboard-grammar`, "walking
+away gives back the document") assert the document only. A drawn caret after ↑ or ↓ is therefore a
+prediction of glyph widths, and differs with the font, the theme and the platform. #274's branch
+reads the caret after `Home` for that reason (`cb5837a`, "since ↓ keeps a pixel column"), which
+leaves the column defined. The case 1 caret before and after ↑, and the stock control, are `prototypes/case-evidence/frames/pr274-arrow-caret-*.png`; the reading is `caret-probe.js`, run with `npm run drive -- eval -`.
 
 ### On `main`
 
@@ -188,8 +209,8 @@ caret; "frame" is the painted frame above.
 | #270 step 2, drag `- p` below `- c` | no: a drag | no | the drag |
 | #270 step 3, a quote in reading view | yes | reading view: one quote | |
 | #270 step 4, the control paste | recorded, not checked: no drawing | | |
-| #274 case 1, ⇧⏎ ⇧⇥ ↑ | text yes; caret differs | no tag list | the caret's column |
-| #274 case 2, an empty heading, ⇧⇥ ↓ | text yes; caret differs | | the caret's column |
+| #274 case 1, ⇧⏎ ⇧⇥ ↑ | text yes; the drawn caret after ↑ is a pixel-column prediction | no tag list | |
+| #274 case 2, an empty heading, ⇧⇥ ↓ | text yes; the same | | |
 | #274 case 3, a title's spacing | yes | | |
 
 Eight steps are covered by the drawn state and a frame on both platforms and in both themes. The
@@ -215,8 +236,10 @@ would add the two drags and the phone's clipboard, and the frames answer the res
 - **The PR side is a merge.** A head lacks the runner, and a merge ref is only fresh at the event.
 - **The two sides share one harness.** The cases, the recorder and the notation are the merge's;
   only the product (`src/`, `styles/`) differs between `main` and the PR.
-- **A run never fails a case.** `main` differs from the drawn result by design, and the caret
-  differs on the PR; the run continues through every key after a difference and records it.
+- **A run never fails a case.** `main` differs from the drawn result by design; the run continues
+  through every key after a difference and records it.
+- **A caret after ↑ or ↓ is a pixel column,** so a drawing that states one differs by font and
+  platform, and the comment's wording for a caret difference says where it was read.
 - **The drawn state decides, the frame shows.** Frames are not compared.
 - **No clip.** The cases are one to three keys, and the frames tell the same story a clip would.
   What moves (a flicker, a scroll) is read by the monitors and the screencast, not by a clip.
