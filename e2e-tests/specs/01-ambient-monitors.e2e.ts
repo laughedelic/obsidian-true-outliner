@@ -461,6 +461,7 @@ describe('ambient monitors', function () {
       await browser.pause(200);
       const found = (await read())?.errors.observations ?? [];
       expect(found.map((o) => o.rule)).toContain('console-error');
+      expect(found.map((o) => o.rule)).toContain('uncaught-error');
       const details = found.map((o) => o.detail).join('\n');
       expect(details).toContain('ambient-boom');
       expect(details).toContain('ambient-rejected');

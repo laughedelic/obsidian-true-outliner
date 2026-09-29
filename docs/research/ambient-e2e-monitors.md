@@ -231,10 +231,20 @@ touching line 6. `outlineNote` creates the note, turns the mode on and calls `se
 the note already holds; the `editor-change` that produces has an identical document, which the diff
 read as an edit of the last line, and the shifts followed it by 2.4 ms in a debug dump. Not counting a
 change to identical text as an edit left none, in 46 cases. Judging each shift only against the edits
-made before its frame was tried as well: alone it left 9 observations in 9 cases, and together with
-the first correction it changed nothing, so it was dropped. The rest of the twelve desktop and
-fifteen mobile cases the CI sweeps counted are in other specs, which the sweep after this
-correction accounts for.
+made before its frame was tried as well: alone it left 9 observations in 9 cases (other cases than
+the 10 in 7, since the split changes which shifts count), and with the first correction it changed
+nothing on `67`, so it was dropped. It would also reach the residual in `68`; see "After #315". The
+rest of the twelve desktop and fifteen mobile cases the CI sweeps counted are in other specs, which
+the sweep after this correction accounts for.
+
+**Controls.** Each correction taken out in turn, with `01-ambient-monitors` run: without the quote
+branch the wrapped-quote row reports `grid-off-column` and `grid-wrap-hang` for each of its two
+quotes and the half-pixel step reports `grid-off-column`; without the empty-line skip the table row
+reports `heightmap-no-position`; without the second side the folded-item row reports
+`caret-off-coords`; without the identical-text rule the row reads the case instead of finding it
+unedited. In `62`, changing the message text for one run makes the vetoed-edit case fail on
+`notice containing "These blocks can't be joined into one." did not appear`. The eleven cases that
+reported `heightmap-no-position` from a table opening the note are gone from the sweep.
 
 **Not corrected.** The readings the issue lists as reported and not reproduced are left in the
 report: `caret-off-coords` in `77` and `caret-covered` in `75` on mobile, `heightmap-wrong-line` in
@@ -244,42 +254,55 @@ report: `caret-off-coords` in `77` and `caret-covered` in `75` on mobile, `heigh
 
 The corrections of the section above, run by CI on the pushed checkpoint (run 36525721730 at
 `1decce4`, all 30 desktop and mobile e2e jobs green, monitors report-only). Each figure is the sum of
-the `[e2e] monitors:` reports printed in the jobs' logs, as observations in cases. The runs
-counted 1,037 desktop cases and 993 mobile ones.
+the `[e2e] monitors:` reports printed in the jobs' logs, as observations and cases. The runs counted
+1,037 desktop cases and 993 mobile ones, and 48 and 33 observations. A log prints one example per
+rule per job, so a rule reported in several cases of one job names only the first.
 
-| Rule | Before (desktop, mobile cases) | After (desktop, mobile) |
+| Rule | Before (desktop, mobile cases) | After (desktop, mobile cases) |
 | --- | --- | --- |
 | `shift-above-edit` | 12, 15 | 1, 2 |
 | `heightmap-no-position` | 11, 11 | 1, 1 |
 | `grid-off-column`, `grid-wrap-hang` | 0, 2 | 0, 0 |
 | `caret-off-coords` | 1, 2 | 0, 0 |
-| `unexpected-notice` | 2, 2 | 2, 2, different ones |
+| `unexpected-notice` | 2, 2 | 2, 2 |
+
+The last row counts different cases: `62`'s is fixed, `60`'s is still there, and `98`'s drawn case is
+new to it, since the drawn cases landed after the earlier sweep's base (`685d3f8`).
 
 **Rules that read clean over the whole suite, on both platforms** (six of the sixteen):
 `caret-off-coords`, `scroll-step-with-caret-in-view`, `grid-off-column`, `grid-wrap-hang`,
-`grid-marker-off-column` and `uncaught-error`. These are candidates to fail a case (#316). Three of
-them were corrected here (`caret-off-coords`, `grid-off-column`, `grid-wrap-hang`), so what they
-cover is narrower than their names: a quote in a list item is not judged by the grid for column or
-hang, and a caret at a soft wrap is accepted on either row.
+`grid-marker-off-column` and `uncaught-error`. These are the candidates to fail a case (#316), with
+these qualifications:
 
-**Rules that still report, and why:**
+- A zero says the suite holds no such shape among the cases read. The caret was read in 771 of
+  1,016 desktop cases and 513 of 972 mobile ones in the earlier sweep, the grid in 907 and 821; this
+  sweep's read counts are in the jobs' step summaries and are not summed here.
+- Three of them were narrowed here, and each now accepts something the old rule reported:
+  `caret-off-coords` accepts a caret painted on either side of its head, so at a soft wrap either row
+  passes, which no measurement here covers; `grid-off-column` and `grid-wrap-hang` judge a quote's
+  marker for its column and its text only against itself, so text at a consistent wrong distance from
+  its marker passes.
+- A quote in a list item was never judged for column or hang, before or after: its source begins with
+  the item's indent, which the grid reading treats as standing whitespace.
+- `uncaught-error` is asserted in the self-test by the message it reports, and by rule name since
+  #315.
+
+**Rules that still report:**
 
 | Rule | Desktop, mobile | What it is |
 | --- | --- | --- |
-| `heightmap-wrong-line` | 29 in 12 cases, 16 in 8 | In `80` (a zoom on a list item): a plugin defect, [#313](https://github.com/laughedelic/obsidian-true-outliner/issues/313). In `59`, `81`, `10` and `90`: not reproduced in a steady state earlier. `90` now is, see below |
-| `heightmap-no-position` | 1, 1 | `90`, line 21. Re-measured with the note the case opens, outline mode on: after the raw HTML block, each line's coordinates resolve to the line after it (17 to 18, 18 to 19, 19 to 20, 20 to 21, and 21 to none). With outline mode off every line resolves to itself, and a horizontal rule alone, a table and a properties block do not do it. A defect in the height map beside a block widget: [#321](https://github.com/laughedelic/obsidian-true-outliner/issues/321) |
-| `caret-covered` | 5, 5 | `80` R6 (⌦ on the cover's trailing gap line), a plugin defect: [#312](https://github.com/laughedelic/obsidian-true-outliner/issues/312). Elsewhere the case put something over the caret: the correction menu in `57` (a menu, `div.menu-scroll` on desktop and `div.suggestion-bg` on mobile), the status bar in `55` (desktop), the header's buttons in `75` (mobile), and one case in `66` (desktop). The menu and status bar are the case's own set-up |
-| `grid-left-of-column` | 6, 4 | `57`'s lone block id under an item, as stock draws it: [#314](https://github.com/laughedelic/obsidian-true-outliner/issues/314); a task line in `65` and `81` whose text starts 3.14 px left while the caret or a drag is on it |
-| `shift-above-edit` | 1, 2 | `68` on desktop, `80` (X2) and `30` on mobile: a line above an edit moves. Not measured in the app |
-| `shift-sideways` | 1, 0 | `57`, a block id dropped under the item above: the line moves 32 px right, which the drop may do. Not reproduced |
-| `caret-outside-scroller` | 1, 1 | `93`: the case leaves the caret out of view. Not reproduced |
-| `scroll-excursion` | 2 in 1 case, 0 | `77`, the footer's narrow width case. Not reproduced |
-| `unexpected-notice` | 2, 2 | `98`'s drawn case `backspace-on-an-emptied-first-item` raises "Nothing here to join with." and the case-file runner has no way to wait for it, the same shape `62`'s had: [#322](https://github.com/laughedelic/obsidian-true-outliner/issues/322). `60` raises Obsidian's own "modified externally" notice |
+| `heightmap-wrong-line` | 29 obs in 12 cases, 16 in 8 | `80` and `81` (four cases each on desktop, two on mobile): a zoom on a list item, [#313](https://github.com/laughedelic/obsidian-true-outliner/issues/313), which counts the same cases. `90`: the lines after a raw HTML block, [#321](https://github.com/laughedelic/obsidian-true-outliner/issues/321). `59` (two cases) and `10` (one): not reproduced in a steady state |
+| `heightmap-no-position` | 1, 1 | `90`, line 21. Measured with the note the case opens, outline mode on: after the raw HTML block, each line's coordinates resolve to the line after it (17 to 18, 18 to 19, 19 to 20, 20 to 21, and 21 to none). With outline mode off every line resolves to itself, and a horizontal rule alone, a table and a properties block do not do it. A defect in the height map beside a block widget: #321 |
+| `caret-covered` | 5, 5 (before 5, 3) | `80` R6 (⌦ on the cover's trailing gap line), a plugin defect: [#312](https://github.com/laughedelic/obsidian-true-outliner/issues/312). `57` opens the correction menu on purpose (`div.menu-scroll` on desktop, `div.suggestion-bg` on mobile). Not diagnosed: `55` (the status bar, on desktop, in a case that embeds a note above the list), `66` D8 (`div.cm-scroller` at the caret, the signature of #312's R6, in a case that ends with the caret in a table row), and `75` on mobile (the header's buttons; not reproduced earlier). The desktop logs name four of the five, the mobile logs three |
+| `grid-left-of-column` | 6, 4 | `57`'s lone block id under an item, as stock draws it: [#314](https://github.com/laughedelic/obsidian-true-outliner/issues/314). A task line in `65` and in `81` whose text starts 3.14 px left while the caret or a drag is on it, first recorded in the earlier sweep and not diagnosed. The selection job holds three of these on each platform and its log names one |
+| `shift-above-edit` | 1, 2 (3 obs on mobile) | `68` on desktop, `80` (X2) and `30` on mobile. Not reproduced in a single-case run of any of the three. `68` run as a whole file gave none once and, on the run after, two observations in another case (`one undo reverts the whole group`: line 1 moved −106 px with the edit touching lines 2 to 4, and line 5 moved 32 px right). Its `outlineNote` is the set-up of `67`, followed by a real edit, so a shift the set-up causes after `setValue` is judged against that edit: the residual the design named. `30`'s shift is a `cm-indent` moving −25 px, not diagnosed |
+| `shift-sideways` | 1, 0 | `57`, a block id dropped under the item above: the line moves 32 px right, which the drop may do. Not reproduced. Listed as not reproduced in #315 |
+| `caret-outside-scroller` | 1, 1 | `93`: the case leaves the caret out of view. Listed as not reproduced in #315 |
+| `scroll-excursion` | 2 in 2 cases, 0 | Desktop only; the log names `77`, the footer's narrow-width case. Listed as not reproduced in #315 |
+| `unexpected-notice` | 2, 2 | `98`'s drawn case `backspace-on-an-emptied-first-item` raises "Nothing here to join with." and the case-file runner has no way to wait for it, the same shape `62`'s had: [#322](https://github.com/laughedelic/obsidian-true-outliner/issues/322). `60` raises Obsidian's own "modified externally" notice, in a case that changes the file from outside on purpose; no issue is filed for it |
 | `console-error` | 0, 1 | `62`'s 2,000-line stress case on mobile: an `ENOENT` from Obsidian writing a note the vault reset removed |
 
-What no correction here touches: the mobile readings were not re-measured in the app, and a rule
-that reads zero over a suite says the suite holds no such shape, which the two tables above
-qualify.
+The mobile readings were not re-measured in the app: the driver runs the desktop app.
 
 ## What the monitors do not read
 

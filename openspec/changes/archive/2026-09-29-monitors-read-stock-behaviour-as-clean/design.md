@@ -66,9 +66,10 @@ buffer), and the correction alone clears `67` (the note has the run). Alternativ
   content, so a `beforeEach` can hold the note and the mode but not the buffer, whose re-render
   is the shift.
 - *Judge a shift only against the edits made before it.* It was tried alongside, and clears nothing
-  the correction above does not. It also hangs on comparing a shift's frame time with the time of
-  the edit that caused it, and a frame's timestamp can precede an input handler that runs in the
-  same frame, so a real shift would read as coming first.
+  the correction above does not. It also rests on comparing a shift's frame time with the time of
+  the edit that caused it. A frame's timestamp is taken when the frame begins, which can precede an
+  input handler running in the same frame, so a real shift could read as coming first. That follows
+  from how the Layout Instability API stamps a shift and was not measured here.
 - *Read only shifts after the case's first key,* the issue's fallback. A case driven by commands or
   by `dispatch` presses no key and would lose the reading altogether.
 
