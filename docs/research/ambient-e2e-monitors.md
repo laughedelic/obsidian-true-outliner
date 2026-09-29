@@ -267,14 +267,14 @@ hang, and a caret at a soft wrap is accepted on either row.
 | Rule | Desktop, mobile | What it is |
 | --- | --- | --- |
 | `heightmap-wrong-line` | 29 in 12 cases, 16 in 8 | In `80` (a zoom on a list item): a plugin defect, [#313](https://github.com/laughedelic/obsidian-true-outliner/issues/313). In `59`, `81`, `10` and `90`: not reproduced in a steady state earlier. `90` now is, see below |
-| `heightmap-no-position` | 1, 1 | `90`, line 21. Re-measured with the note the case opens, outline mode on: after the raw HTML block and the horizontal rule that follows it, each line's coordinates resolve to the line after it (17 to 18, 18 to 19, 19 to 20, 20 to 21, and 21 to none). With outline mode off every line resolves to itself. A candidate defect in the height map beside a block widget, not yet filed |
+| `heightmap-no-position` | 1, 1 | `90`, line 21. Re-measured with the note the case opens, outline mode on: after the raw HTML block, each line's coordinates resolve to the line after it (17 to 18, 18 to 19, 19 to 20, 20 to 21, and 21 to none). With outline mode off every line resolves to itself, and a horizontal rule alone, a table and a properties block do not do it. A defect in the height map beside a block widget: [#321](https://github.com/laughedelic/obsidian-true-outliner/issues/321) |
 | `caret-covered` | 5, 5 | `80` R6 (⌦ on the cover's trailing gap line), a plugin defect: [#312](https://github.com/laughedelic/obsidian-true-outliner/issues/312). Elsewhere the case put something over the caret: the correction menu in `57` (a menu, `div.menu-scroll` on desktop and `div.suggestion-bg` on mobile), the status bar in `55` (desktop), the header's buttons in `75` (mobile), and one case in `66` (desktop). The menu and status bar are the case's own set-up |
 | `grid-left-of-column` | 6, 4 | `57`'s lone block id under an item, as stock draws it: [#314](https://github.com/laughedelic/obsidian-true-outliner/issues/314); a task line in `65` and `81` whose text starts 3.14 px left while the caret or a drag is on it |
 | `shift-above-edit` | 1, 2 | `68` on desktop, `80` (X2) and `30` on mobile: a line above an edit moves. Not measured in the app |
 | `shift-sideways` | 1, 0 | `57`, a block id dropped under the item above: the line moves 32 px right, which the drop may do. Not reproduced |
 | `caret-outside-scroller` | 1, 1 | `93`: the case leaves the caret out of view. Not reproduced |
 | `scroll-excursion` | 2 in 1 case, 0 | `77`, the footer's narrow width case. Not reproduced |
-| `unexpected-notice` | 2, 2 | `98`'s drawn case `backspace-on-an-emptied-first-item` raises "Nothing here to join with." and the case-file runner has no way to wait for it, the same shape `62`'s had. `60` raises Obsidian's own "modified externally" notice |
+| `unexpected-notice` | 2, 2 | `98`'s drawn case `backspace-on-an-emptied-first-item` raises "Nothing here to join with." and the case-file runner has no way to wait for it, the same shape `62`'s had: [#322](https://github.com/laughedelic/obsidian-true-outliner/issues/322). `60` raises Obsidian's own "modified externally" notice |
 | `console-error` | 0, 1 | `62`'s 2,000-line stress case on mobile: an `ENOENT` from Obsidian writing a note the vault reset removed |
 
 What no correction here touches: the mobile readings were not re-measured in the app, and a rule
