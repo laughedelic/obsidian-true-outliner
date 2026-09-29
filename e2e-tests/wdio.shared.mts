@@ -7,6 +7,13 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { browser } from '@wdio/globals';
 import { TARGET_RECORD_FILE } from './target-record.mjs';
+import {
+  afterCase,
+  beforeCase,
+  MONITOR_RECORD_DIR,
+  MONITOR_REPORT_FILE,
+  type CaseRecord,
+} from './monitors.js';
 
 /**
  * How many Obsidian instances run at once; 1 unless E2E_MAX_INSTANCES says
@@ -97,6 +104,30 @@ export function onTestFailure(label: string) {
   };
 }
 
+/**
+ * The per-case hooks both configs share: the ambient monitors around each body (see
+ * `./monitors.ts`), and the failure screenshot and drawing after it.
+ *
+ * `beforeTest` runs after the spec's own `beforeEach`, so what a case arranges there is not read
+ * as something the monitors saw; `afterTest` runs before its `afterEach`.
+ */
+export function caseHooks(label: string) {
+  const onFailure = onTestFailure(label);
+  return {
+    beforeTest: async function (test: { title: string; parent?: string; file?: string }): Promise<void> {
+      await beforeCase(test);
+    },
+    afterTest: async function (
+      test: { title: string; parent: string; file?: string },
+      context: unknown,
+      result: { passed: boolean },
+    ): Promise<void> {
+      await onFailure(test, context, result);
+      await afterCase(test, result.passed);
+    },
+  };
+}
+
 // ---- Structured failure reporting --------------------------------------
 //
 // `reporters: ['obsidian']` prints to stdout only: after a full-group run
@@ -147,8 +178,8 @@ export const reporters: NonNullable<WebdriverIO.Config['reporters']> = [
 ];
 
 /**
- * Clears `JSON_REPORT_DIR`, `JUNIT_REPORT_DIR` and any leftover `FAILURE_SUMMARY_FILE` and
- * `TARGET_RECORD_FILE` before a new invocation writes into them.
+ * Clears `JSON_REPORT_DIR`, `JUNIT_REPORT_DIR`, the monitors' records and report, and any leftover
+ * `FAILURE_SUMMARY_FILE` and `TARGET_RECORD_FILE` before a new invocation writes into them.
  *
  * The summary is removed here, not just the report dir: `writeFailureSummary`
  * only runs from `onComplete`, so if this invocation's wdio config or service
@@ -168,6 +199,8 @@ export async function resetE2eReports(): Promise<void> {
   await fsp.rm(JUNIT_REPORT_DIR, { recursive: true, force: true });
   await fsp.rm(FAILURE_SUMMARY_FILE, { force: true });
   await fsp.rm(TARGET_RECORD_FILE, { force: true });
+  await fsp.rm(MONITOR_RECORD_DIR, { recursive: true, force: true });
+  await fsp.rm(MONITOR_REPORT_FILE, { force: true });
 }
 
 interface RawTest {
@@ -297,5 +330,101 @@ export async function writeFailureSummary(): Promise<void> {
       console.log(`  FAIL ${f.spec} > ${f.suite} > ${f.test}${f.hook ? ` (${f.hook})` : ''}`);
       if (f.error) console.log(`       ${f.error.split('\n')[0]}`);
     }
+  }
+}
+
+// ---- Ambient monitor report --------------------------------------------
+//
+// Each worker appends one `CaseRecord` per case to its own file (`./monitors.ts`). The launcher's
+// `onComplete` collapses them into `MONITOR_REPORT_FILE`, beside `e2e-summary.json`, and CI's
+// step summary renders that file (`scripts/e2e-monitors-summary.ts`). Nothing here fails a run.
+
+export interface MonitorFinding {
+  monitor: string;
+  rule: string;
+  /** Cases that produced it, and how many observations in all. */
+  cases: number;
+  observations: number;
+  examples: { spec: string; test: string; detail: string }[];
+}
+
+export interface MonitorReport {
+  ranAt: string;
+  cases: number;
+  /** Per monitor: cases it read, and why it did not read the rest, by reason. */
+  coverage: Record<string, { checked: number; skipped: Record<string, number> }>;
+  findings: MonitorFinding[];
+  /** What installing and reading cost, summed over the cases, in ms. */
+  overheadMs: number;
+  /** Every exemption a case took, with its reason. */
+  exemptions: { spec: string; test: string; monitor: string; reason: string }[];
+}
+
+/** Reasons that carry a per-case detail are grouped under their prefix. */
+function skipGroup(reason: string): string {
+  return reason.startsWith('exempt: ') ? 'exempt' : reason.replace(/^unreadable: .*/, 'unreadable');
+}
+
+export async function writeMonitorReport(): Promise<void> {
+  if (!existsSync(MONITOR_RECORD_DIR)) return;
+  const records: CaseRecord[] = [];
+  for (const file of (await fsp.readdir(MONITOR_RECORD_DIR)).filter((f) => f.endsWith('.jsonl'))) {
+    const text = await fsp.readFile(path.join(MONITOR_RECORD_DIR, file), 'utf-8');
+    for (const line of text.split('\n')) {
+      if (!line.trim()) continue;
+      try {
+        records.push(JSON.parse(line) as CaseRecord);
+      } catch {
+        // A worker killed mid-write leaves half a line; the report is worth more than that case.
+      }
+    }
+  }
+
+  const coverage: MonitorReport['coverage'] = {};
+  const grouped = new Map<string, MonitorFinding>();
+  const exemptions: MonitorReport['exemptions'] = [];
+  for (const rec of records) {
+    for (const monitor of rec.checked) {
+      (coverage[monitor] ??= { checked: 0, skipped: {} }).checked++;
+    }
+    for (const [monitor, why] of Object.entries(rec.skipped as Record<string, string>)) {
+      const c = (coverage[monitor] ??= { checked: 0, skipped: {} });
+      const group = skipGroup(why);
+      c.skipped[group] = (c.skipped[group] ?? 0) + 1;
+      if (why.startsWith('exempt: ')) {
+        exemptions.push({ spec: rec.spec, test: rec.test, monitor, reason: why.slice('exempt: '.length) });
+      }
+    }
+    const seenHere = new Set<string>();
+    for (const o of rec.observations) {
+      const key = `${o.monitor}/${o.rule}`;
+      let f = grouped.get(key);
+      if (!f) grouped.set(key, (f = { monitor: o.monitor, rule: o.rule, cases: 0, observations: 0, examples: [] }));
+      f.observations++;
+      if (!seenHere.has(key)) {
+        seenHere.add(key);
+        f.cases++;
+      }
+      if (f.examples.length < 5) f.examples.push({ spec: rec.spec, test: rec.test, detail: o.detail });
+    }
+  }
+
+  const report: MonitorReport = {
+    ranAt: new Date().toISOString(),
+    cases: records.length,
+    coverage,
+    findings: [...grouped.values()].sort((a, b) => b.cases - a.cases),
+    overheadMs: records.reduce((n, r) => n + r.overheadMs, 0),
+    exemptions,
+  };
+  await fsp.mkdir(path.dirname(MONITOR_REPORT_FILE), { recursive: true });
+  await fsp.writeFile(MONITOR_REPORT_FILE, JSON.stringify(report, null, 2));
+
+  const total = report.findings.reduce((n, f) => n + f.observations, 0);
+  console.log(
+    `\n[e2e] monitors: ${total} observation(s) in ${report.findings.length} rule(s) across ${records.length} case(s) — see ${path.relative(process.cwd(), MONITOR_REPORT_FILE)}`,
+  );
+  for (const f of report.findings) {
+    console.log(`  ${f.monitor}/${f.rule}: ${f.observations} in ${f.cases} case(s), e.g. ${f.examples[0]?.spec} > ${f.examples[0]?.test}: ${f.examples[0]?.detail}`);
   }
 }

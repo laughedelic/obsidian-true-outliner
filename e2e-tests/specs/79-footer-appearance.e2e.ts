@@ -11,6 +11,7 @@ import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
 import { openFooter, pinBacklinksCapOff, readStable } from '../footer.js';
+import { exempt } from '../monitors.js';
 
 /**
  * The hub target's footer, on screen.
@@ -23,6 +24,7 @@ import { openFooter, pinBacklinksCapOff, readStable } from '../footer.js';
  * small target.
  */
 async function showHubFooter(): Promise<void> {
+  exempt('the case scrolls the footer into view, away from the caret', 'scroll');
   await h.openNote(TARGET);
   await h.setOutlineMode(true);
   await browser.executeObsidian(() => {
@@ -73,6 +75,7 @@ interface Shape {
  * resolving rows exhaust.
  */
 async function hubShape(): Promise<Shape> {
+  exempt('the case scrolls the footer into view, away from the caret', 'scroll');
   for (let attempt = 0; attempt < 4; attempt++) {
     const now = await shape();
     if (now) return now;
