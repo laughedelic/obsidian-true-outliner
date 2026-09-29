@@ -1,0 +1,96 @@
+name: Oldest installer
+
+# Pull requests run the suite on the newest installer, which is what a fresh
+# install has. Obsidian's auto-update replaces the app and leaves the installer
+# alone, so a long-time user runs the newest app on the installer they first
+# installed. This runs every group on the oldest one compatible with the newest
+# public app (docs/research/e2e-runtime-versions), weekly and on demand.
+#
+# It is not a check a pull request waits on. A red scheduled run is filed in the
+# tracker by the last job.
+
+on:
+  schedule:
+    - cron: "47 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      obsidian-version:
+        description: "Obsidian app version (e.g. 1.12.7). Blank = latest public."
+        required: false
+        default: ""
+      installer-version:
+        description: "Obsidian installer: earliest, latest or an exact version. Blank = earliest."
+        required: false
+        default: ""
+
+# A run in progress finishes: one weekly run is a record, and a manual one is
+# somebody's question.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+# The node version and the instance count are also in ci.yml; keep them in step.
+env:
+  node-version: "26"
+  max-instances: "4"
+
+jobs:
+  # The group list comes from the specs that exist, as in ci.yml.
+  e2e-groups:
+    runs-on: ubuntu-slim
+    outputs:
+      groups: ${{ steps.list.outputs.groups }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: list
+        run: echo "groups=$(node scripts/run-e2e.ts --list-groups)" >> "$GITHUB_OUTPUT"
+
+  # One job per platform and group. ci.yml keeps the platforms in separate job
+  # trees so mobile can have a softer gate; nothing here is gated. The job name
+  # is what scripts/report-scheduled-run.ts reads a reproduction command from.
+  e2e:
+    needs: e2e-groups
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [desktop, mobile]
+        group: ${{ fromJSON(needs.e2e-groups.outputs.groups) }}
+    name: ${{ matrix.platform }} (${{ matrix.group }})
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/e2e
+        with:
+          node-version: ${{ env.node-version }}
+          obsidian-version: ${{ inputs.obsidian-version || 'latest' }}
+          installer-version: ${{ inputs.installer-version || 'earliest' }}
+          group: ${{ matrix.group }}
+          platform: ${{ matrix.platform }}
+          max-instances: ${{ env.max-instances }}
+
+  # Only the schedule files anything: a manual run is watched by whoever started
+  # it. `always()` so a red matrix reaches it; the script acts on `failure` alone.
+  report:
+    if: always() && github.event_name == 'schedule'
+    needs: e2e
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.node-version }}
+      - run: >-
+          node scripts/report-scheduled-run.ts
+          --result "${{ needs.e2e.result }}"
+          --run-id "${{ github.run_id }}"
+          --app latest
+          --installer earliest
+        env:
+          GH_TOKEN: ${{ github.token }}

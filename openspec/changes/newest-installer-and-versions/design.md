@@ -104,7 +104,8 @@ source the directory scan reads); a version table in the plugin (goes stale with
 `report` job that `needs` the matrix and runs `if: always() && github.event_name == 'schedule'`,
 so a dispatch, watched by whoever started it, files nothing. It has `issues: write` and
 `actions: read`, and calls `scripts/report-scheduled-run.ts` with the matrix result and the run id;
-the script is TypeScript under `scripts/` like the other tooling. It reads the failed jobs from
+the script is TypeScript under `scripts/` like the other tooling, with the decision and the issue text in
+`scripts/scheduled-run-issue.ts` so a unit test can import them without the API calls. It reads the failed jobs from
 `GET /repos/{repo}/actions/runs/{run_id}/jobs`, and finds an earlier issue by a fixed title among the
 open issues labelled `area/ci`. Three outcomes follow from `(result, open issue?)`: `failure` with no
 issue opens one; `failure` with one comments; `success` with one comments and leaves it open;
