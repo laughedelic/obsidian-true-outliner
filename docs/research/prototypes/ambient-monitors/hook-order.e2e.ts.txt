@@ -1,0 +1,38 @@
+// Copy to e2e-tests/specs/99-zz-hook-order.e2e.ts, add `e2e-tests/probe-state.ts`
+// (`export const state = { marker: 'unset' };`), and give wdio.conf.mts a `beforeTest` and an
+// `afterTest` that print `[order] config …` and the value of `state.marker`.
+// Run: npm run test:e2e:narrow -- 99-zz-hook-order
+
+import { browser, expect } from '@wdio/globals';
+import { state } from '../probe-state.js';
+
+const log = (s: string) => console.log(`[order] ${s}`);
+
+describe('hook order', function () {
+  before(() => log('spec before'));
+  beforeEach(function () {
+    log(`spec beforeEach (${this.currentTest?.title})`);
+    state.marker = 'set-by-spec';
+  });
+  afterEach(function () {
+    log(`spec afterEach (${this.currentTest?.title})`);
+  });
+  after(() => log('spec after'));
+
+  it('passes', async function () {
+    log('body passes');
+    await browser.pause(50);
+  });
+  it('fails', async function () {
+    log('body fails');
+    expect(1).toBe(2);
+  });
+  it('times out', async function () {
+    log('body times out');
+    await browser.pause(3000);
+  }).timeout(1000);
+  it('skips via this.skip()', async function () {
+    log('body skip');
+    this.skip();
+  });
+});

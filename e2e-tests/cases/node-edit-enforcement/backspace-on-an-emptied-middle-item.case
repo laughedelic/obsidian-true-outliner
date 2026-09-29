@@ -1,0 +1,10 @@
+case: Backspace twice on an emptied middle item joins it into the item above (#269)
+keys: ⌫ ⌫
+
+=== before
+1. p
+2. a┃
+3. q
+=== expected
+1. p┃
+2. q

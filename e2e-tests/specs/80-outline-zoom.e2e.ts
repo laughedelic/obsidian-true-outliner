@@ -20,7 +20,9 @@
 
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
+import { Key } from 'webdriverio';
 import * as h from '../helpers.js';
+import { exempt } from '../monitors.js';
 
 const NOTE = 'Scratch/zoom.md';
 const SOURCE = 'Scratch/zoom-source.md';
@@ -367,6 +369,18 @@ describe('outline zoom', function () {
     await h.setCursorSettled(2, 7);
     await h.keys.moveNodeDown();
     expect(await h.getBuffer()).toBe('1. o\n2. p\n   1. b\n   2. a\n      1. x\n3. q\n');
+    expect(await h.noticeTexts()).toEqual([]);
+  });
+
+  it('a deletion inside the zoom is not refused over a renumbering Obsidian appends', async function () {
+    // #260: Obsidian renumbers the hidden `2. q` on top of the deletion. It is
+    // set aside, and the zoom check judges the deletion alone.
+    const md = '1. p\n   1. a\n   2. b\n   3. c\n2. q\n';
+    await openZoomable(md);
+    await zoomAt(md, '1. p');
+    await h.setSelection({ line: 2, ch: 0 }, { line: 2, ch: '   2. b'.length });
+    await browser.keys(Key.Backspace);
+    expect(await h.getBuffer()).toBe('1. p\n   1. a\n   2. c\n2. q\n');
     expect(await h.noticeTexts()).toEqual([]);
   });
 
@@ -1123,6 +1137,7 @@ describe('outline zoom', function () {
   });
 
   it('opens at the top, however far down the note the root was', async function () {
+    exempt('the case scrolls a long note away from the top on purpose, to see zoom reset it', 'scroll');
     const md = [
       '# Top',
       '',
@@ -1732,6 +1747,7 @@ describe('outline zoom: the enforced path with a zoom active', function () {
   });
 
   it('stays within the enforcement budget on a ~2000-line note', async function () {
+    exempt('the case drives edits at points across a ~2000-line note, which carries the caret and the scroll the length of it', 'scroll');
     const lines: string[] = [];
     for (let i = 0; i < 400; i++) {
       lines.push(`## Section ${i}`, '', `Paragraph text for section ${i}, some words here.`, '');

@@ -37,15 +37,22 @@ const LABELS: Record<string, string> = {
   // move — `guideColumnPoint`/`clickAtPoint` drive an actual OS-level cursor,
   // not a synthesised event. Under `max-instances` > 1, several Obsidian
   // windows share one Xvfb display and one OS cursor, and another worker's own
-  // move can land on/near the same coordinates and steal it mid-test — nothing
-  // else in the suite depends on the cursor having STAYED somewhere, so
-  // nothing else is exposed the same way. Reproduced only on CI (twice,
+  // move can land on/near the same coordinates and steal it mid-test — few
+  // specs depend on the cursor having STAYED somewhere (93 and 81 are the
+  // others, each in a group of its own), so little else is exposed the same
+  // way. Reproduced only on CI (twice,
   // identically): locally `E2E_MAX_INSTANCES` is unset, so there is only ever
   // one worker and nothing to contend with. Its own job removes the other
   // workers it could collide with, which — unlike `EXCLUSIVE_GROUPS` — also
   // costs nothing: the group holds one spec, so there is no sibling to
   // serialise against within it either.
   94: 'guide-pointer',
+  // Its own group, for 94's reason: the hover cases hold a real OS cursor over
+  // a mark and read the colour it takes, and a sibling worker's Obsidian window
+  // opening on the shared Xvfb display (no window manager) maps on top and
+  // takes the pointer from under the marked element. The other folding specs
+  // drive no pointer, so they stay in `folding`.
+  93: 'fold-chrome',
   // Lifted out of `selection` and run one-at-a-time: see EXCLUSIVE_GROUPS.
   61: 'clipboard',
   62: 'clipboard',
@@ -60,13 +67,18 @@ const LABELS: Record<string, string> = {
   // splice lands inside it. Both need a REAL paste, which is the one thing the
   // synthesised alternative below cannot be.
   80: 'clipboard',
+  // Its own group: a drawn case pastes through the machine's clipboard (see EXCLUSIVE_GROUPS),
+  // and the spec is small enough that a job of its own costs a launch.
+  98: 'drawn-cases',
 };
 
 /**
  * Groups whose specs contend for a resource the MACHINE owns, and so cannot run
  * beside each other however many instances the runner is given.
  *
- * `clipboard` is the only one. `pasteText` writes the system clipboard and then
+ * `clipboard` is the first, and `drawn-cases` the second: its cases press ⌘V with a clipboard
+ * column through the same `pasteText`. The group holds one spec, so listing it costs nothing
+ * today and keeps a second spec added to it from racing the first. `pasteText` writes the system clipboard and then
  * presses Mod+V, and 61 and 67 press Mod+C into that same system clipboard —
  * one clipboard per machine, four specs, and workers interleaving freely.
  * Observed twice on CI, in both directions: a paste receiving another spec's
@@ -84,7 +96,7 @@ const LABELS: Record<string, string> = {
  * pastes; splitting them into a spec of their own would buy the slot back at
  * the cost of a catalogue that no longer reads as one.
  */
-export const EXCLUSIVE_GROUPS = new Set(['clipboard']);
+export const EXCLUSIVE_GROUPS = new Set(['clipboard', 'drawn-cases']);
 
 /**
  * Every spec as `{ [groupName]: absolutePath[] }`, ordered by prefix. A spec

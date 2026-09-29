@@ -1,0 +1,11 @@
+case: Backspace right after Shift+Enter abandons the drafted place (#153)
+keys: ⇧⏎ ⌫
+
+=== before
+- one
+  - kid
+- foo┃
+=== expected
+- one
+  - kid
+- foo┃

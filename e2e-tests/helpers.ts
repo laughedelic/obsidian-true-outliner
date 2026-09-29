@@ -9,6 +9,7 @@ import { obsidianPage } from 'wdio-obsidian-service';
 import { Key } from 'webdriverio';
 import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
+import { exempt, expectNotices } from './monitors.js';
 
 export const PLUGIN_ID = 'true-outliner';
 
@@ -554,9 +555,13 @@ export async function clickClear(selector: string): Promise<void> {
       // this suite's Chromium, reports the element already painted with zero
       // delta on the first check and returns without scrolling — silently, with
       // no warning and no JS fallback.
-      await browser.executeObsidian((_ctx, sel: string) => {
+      const scrolled = await browser.executeObsidian((_ctx, sel: string) => {
+        const scroller = document.querySelector('.workspace-leaf.mod-active .cm-scroller');
+        const before = scroller?.scrollTop ?? 0;
         document.querySelector<HTMLElement>(sel)?.scrollIntoView({ block: 'center' });
+        return (scroller?.scrollTop ?? 0) !== before;
       }, selector);
+      if (scrolled) exempt('the case scrolls the target into view before clicking it', 'scroll');
       await browser.pause(150);
       await (await browser.$(selector)).click();
       return;
@@ -1875,7 +1880,10 @@ const OBSIDIAN_OWN_NOTICES = [/^Indexing vault/i];
 export async function noticeTexts(): Promise<string[]> {
   const notices = browser.$$('.notice');
   const texts = await notices.map((n) => n.getText());
-  return texts.filter((t) => !OBSIDIAN_OWN_NOTICES.some((re) => re.test(t.trim())));
+  const own = texts.filter((t) => !OBSIDIAN_OWN_NOTICES.some((re) => re.test(t.trim())));
+  // A case that reads the notices on screen is not surprised by them.
+  expectNotices(...own);
+  return own;
 }
 
 /**
@@ -1925,12 +1933,15 @@ export async function armNoticeRecorder(): Promise<void> {
 
 /** Notices recorded since arming, whether or not they are still on screen. */
 export async function recordedNoticeTexts(): Promise<string[]> {
-  return browser.execute(
+  const texts = await browser.execute(
     () => (window as unknown as { __toNoticeLog?: string[] }).__toNoticeLog ?? [],
   );
+  expectNotices(...texts);
+  return texts;
 }
 
 export async function waitForNotice(text: string): Promise<void> {
+  expectNotices(text);
   await armNoticeRecorder();
   await browser.waitUntil(
     async () => {

@@ -9,6 +9,7 @@
  */
 
 import { browser, expect } from '@wdio/globals';
+import { Key } from 'webdriverio';
 import * as h from '../helpers.js';
 import { clearFolds, foldedLineRanges, renderedLineTexts } from '../folding.js';
 
@@ -202,5 +203,22 @@ describe('folds through edits', () => {
     await h.keys.enter();
     expect(await h.getBuffer()).toBe('1. p\n   1. a\n   2. \n   3. b\n2. q\n   1. c\n   2. d\n');
     expect(await foldedLineRanges()).toEqual([{ from: 4, to: 6 }]);
+  });
+
+  it('a deletion leaves a fold closed when Obsidian renumbers the lines it hides', async () => {
+    // #260: Obsidian's renumbering is appended to the user's deletion. It is set
+    // aside, the deletion is rewritten, and the rewrite carries none of it.
+    await h.createNote(NOTE, '1. p\n   1. a\n   2. b\n   3. c\n2. q\n   1. x\n   2. y\n');
+    await h.openNote(NOTE);
+    await h.setOutlineMode(true);
+    await clearFolds();
+    await h.setCursorSettled(4, 4);
+    await h.runCommand('fold-node');
+    expect(await foldedLineRanges()).toEqual([{ from: 4, to: 6 }]);
+
+    await h.setSelection({ line: 2, ch: 0 }, { line: 2, ch: '   2. b'.length });
+    await browser.keys(Key.Backspace);
+    expect(await h.getBuffer()).toBe('1. p\n   1. a\n   2. c\n2. q\n   1. x\n   2. y\n');
+    expect(await foldedLineRanges()).toEqual([{ from: 3, to: 5 }]);
   });
 });

@@ -1,0 +1,16 @@
+case: a tab list pasted into a two-space note lands in two spaces (#216)
+keys: ⌘V
+
+=== clipboard
+- a
+	- b
+		- c
+=== before
+- top
+  - sib┃
+=== expected
+- top
+  - sib
+  - a
+    - b
+      - c

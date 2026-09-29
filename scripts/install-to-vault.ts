@@ -186,7 +186,7 @@ export function installToVault({
  * installed is worse than none, so an unreadable bundle reports "unknown"
  * instead of inventing a value.
  */
-function stampFromBundle(): BuildStamp | undefined {
+export function stampFromBundle(): BuildStamp | undefined {
   try {
     const bundle = readFileSync(path.join(root, 'main.js'), 'utf-8');
     const match = /BUILD_STAMP = (\{[\s\S]*?\});/.exec(bundle);
