@@ -64,6 +64,15 @@ describe('node-selection-enforcement: Phase B', function () {
     const md = 'First paragraph.\n\nSecond paragraph.\n';
     await outlineNote(md);
     await h.doubleClickAt(0, 2);
+    // The word selection follows the first press's caret and can land after doubleClickAt returns
+    // (docs/research/gap-click-timing).
+    await browser.waitUntil(
+      async () => {
+        const { anchor, head } = await h.getSelection();
+        return anchor.ch !== head.ch;
+      },
+      { timeout: h.waitBudget(3000), interval: 20, timeoutMsg: 'the double click never selected a word' },
+    );
     const sel = await h.getSelection();
     expect(sel.anchor.line).toBe(0);
     expect(sel.head.line).toBe(0);
