@@ -214,7 +214,8 @@ them.
 
 ## What the notation cannot say yet
 
-- Several ranges, focus, folds, zoom, scroll, a rendered screen.
+- Several ranges, focus, scroll, a rendered screen.
+- Folds and zoom, as a start or a result: `folded-and-zoomed-case-files.md`.
 - Pointer gestures (10 tracker cases drag) and commands run by name or against a clock ("within
   500 ms").
 - Per-step columns with the keys in the header, which 69 tracker blocks use. Whether such a
