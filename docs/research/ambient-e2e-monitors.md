@@ -278,8 +278,7 @@ these qualifications:
   (`e2e-monitors.json`), this sweep read the caret in 782 of 1,037 desktop cases and 521 of 993
   mobile ones (the editor was not the active element in 158 and 336, and 49 mobile cases failed or
   skipped), the grid in 916 and 830, the height map in 903 and 813, the scroll in 877 and 789, and
-  layout shift in 352 and 340. Cases exempt from a monitor are not read by it: 39 of each
-  platform's from the caret.
+  layout shift in 352 and 340. On each platform 39 cases are exempt from the caret monitor.
 - Three of them were narrowed here, and each now accepts something the old rule reported:
   `caret-off-coords` accepts a caret painted on either side of its head, so at a soft wrap either row
   passes, which no measurement here covers; `grid-off-column` and `grid-wrap-hang` judge a quote's
