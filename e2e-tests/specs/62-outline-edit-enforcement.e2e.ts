@@ -663,6 +663,7 @@ describe('node-edit-enforcement: Phase C evidence', function () {
 
     await h.setCursor(1, 0); // start of "## Section"
     await browser.keys(Key.Backspace); // vetoed — no history entry
+    await h.waitForNotice("These blocks can't be joined into one.");
     expect(await h.getBuffer()).toBe(afterType);
 
     await h.keys.undo();
