@@ -65,8 +65,9 @@ outline (`prototypes/ambient-monitors/monitor-probe.e2e.ts.txt`):
 - **Shift+Tab on one line moved the first `.cm-indent` of five grandchild lines elsewhere in the note
   one unit (32 px) right in a single frame**, though the edit touched only its own line. The final
   layout is stable; the entry says a frame between showed something else. This is what the monitor
-  exists to find, and what #148's residual flicker may be. It is a candidate for its own issue once a
-  later report shows it is not an artefact of this probe.
+  exists to find. It reproduced in the running app and is filed as
+  [#330](https://github.com/laughedelic/obsidian-true-outliner/issues/330); it is not #148, which
+  concerns block selection.
 - Ctrl+End scrolled to 1050 px and Ctrl+Home then returned to 87 px rather than 0.
 
 ## The grid
@@ -330,10 +331,13 @@ accepts the same two-scope cover…`, came out identical in both sweeps (line 1 
 touching lines 3 to 4). A rule that reports the same cases in two sweeps is a finding to attribute;
 one that moves is not yet a finding about a case.
 
-`30`'s shift is a `cm-indent` moving one indent unit in an outdent: −25 px on mobile in the first
-sweep and −32 px on desktop in the second, with the edit touching lines 4 and 5. It matches the
-Shift+Tab reading recorded under "Scroll and layout shift" above, which that section holds back until
-a later report shows it is not an artefact of the probe. Two sweeps on two platforms now do.
+`30`'s shift is a `cm-indent` moving one indent unit on the line above an edit: −25 px on mobile in
+the first sweep and −32 px on desktop in the second, with the edit touching lines 4 and 5. It is not
+the Shift+Tab reading recorded under "Scroll and layout shift" above. That one was reproduced in the
+app: Shift+Tab on a new item moves the `.cm-indent` of five grandchild lines elsewhere in the note
++32 px in one frame (+36 px with outline mode off), filed as
+[#330](https://github.com/laughedelic/obsidian-true-outliner/issues/330). `30`'s five Enters gave no
+horizontal shift in six replays in the app, so it remains a reading from the CI reports only.
 
 The mobile readings were not re-measured in the app: the driver runs the desktop app.
 
