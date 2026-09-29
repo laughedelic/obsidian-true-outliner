@@ -2,17 +2,17 @@
 
 ## 1. The installer override and the run record
 
-- [ ] 1.1 Add `obsidian-launcher` to `devDependencies` at the version `wdio-obsidian-service`
+- [x] 1.1 Add `obsidian-launcher` to `devDependencies` at the version `wdio-obsidian-service`
       already resolves (`npm install --save-dev obsidian-launcher@3.2.1`). Verify `npm ls
       obsidian-launcher` shows one deduped copy and `npm run typecheck:e2e` passes.
-- [ ] 1.2 In `e2e-tests/obsidian-target.mts`, add `pinnedInstallerVersion()` (blank is unset), resolve
+- [x] 1.2 In `e2e-tests/obsidian-target.mts`, add `pinnedInstallerVersion()` (blank is unset), resolve
       the app/installer pair and the installer's Electron and Chrome with the launcher (D1), return
       the installer, and write `e2e-target.json` and the banner from one object (D2). An unknown value
       throws an error naming `OBSIDIAN_INSTALLER_VERSION` and the value. Verify with a vitest file
       over the pure parts (`pinnedInstallerVersion` blank/unset/set, the record's shape) and with
       `OBSIDIAN_INSTALLER_VERSION=nope npm run test:e2e:narrow -- 00-smoke` failing before any window
       opens; negative control: reading the variable without `.trim()` fails the whitespace case.
-- [ ] 1.3 Use the returned installer in `wdio.conf.mts` and `wdio.mobile-emulation.conf.mts`, add the
+- [x] 1.3 Use the returned installer in `wdio.conf.mts` and `wdio.mobile-emulation.conf.mts`, add the
       record's path to `resetE2eReports` in `wdio.shared.mts`, and pass `OBSIDIAN_INSTALLER_VERSION`
       through `e2e-tests/docker/docker-compose.yml`. Verify: an unset run's banner and
       `.obsidian-cache/e2e-target.json` name 1.13.7/Chrome 150 and the smoke spec passes on desktop and
