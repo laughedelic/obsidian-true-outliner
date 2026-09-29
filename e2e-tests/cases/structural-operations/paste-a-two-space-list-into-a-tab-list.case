@@ -1,0 +1,17 @@
+case: a two-space list pasted into a tab-indented note lands in tabs (#216)
+tabs: on
+keys: ⌘V
+
+=== clipboard
+- a
+  - b
+    - c
+=== before
+- top
+	- sib┃
+=== expected
+- top
+	- sib
+	- a
+		- b
+			- c
