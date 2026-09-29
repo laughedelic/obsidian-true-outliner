@@ -61,6 +61,7 @@ import {
   normalizeMarkerRun,
   reencodeForDestination,
   reprefixAtomLines,
+  reprefixLine,
   rewriteOwnLine,
   shiftBelowMarker,
   shiftSubtree,
@@ -2380,9 +2381,8 @@ export function reindentSubtreeInUnit(
 
 /**
  * How a line that does not open with its own node's indentation moves: with
- * the block, by the swap of the block root's own prefix for its new one that
- * `reindentSubtreeVerbatim` makes, and as it was where it does not open with
- * that either. Keeping such a line where it stood while the block moved right
+ * the block, by the swap of the block root's own prefix for its new one, and as
+ * it was where it does not open with that either. Keeping such a line where it stood while the block moved right
  * left a lazy `> q` one column into its item instead of eight, where it opens a
  * quote.
  */
@@ -2500,8 +2500,8 @@ function convertInUnit(
 
 /**
  * `reindentSubtreeInUnit`, unless the lines it writes would parse as a
- * different tree from the one they were written as; then the block's own
- * characters past its root's prefix, as `reindentSubtreeVerbatim` carries them.
+ * different tree from the one they were written as; then the block moved
+ * whole by its root's width, as `reindentSubtreeVerbatim` moves it.
  *
  * Laying nested items out afresh moves them relative to lines that kept their
  * offset — a continuation, a lazy line — and a line that was text only because
@@ -2533,11 +2533,11 @@ function readsAsWritten(node: OutlineNode): boolean {
 }
 
 /**
- * The block's own characters past its root's prefix, re-rooted at
- * `indentText`: the re-indent a paste made before the document's unit was
- * written, kept for the block whose converged lines would read differently.
- * The root's marker run is normalized, and its lines and children move by the
- * change, before the prefix swap.
+ * The block moved whole to `indentText`, every line by the width its root
+ * moved: the re-indent a paste made before the document's unit was written,
+ * kept for the block whose converged lines would read differently. The root's
+ * marker run is normalized, and its lines and children move by the change,
+ * before the move.
  */
 function reindentSubtreeVerbatim(node: OutlineNode, indentText: string): OutlineNode {
   const first = node.lines[0] ?? '';
@@ -2549,21 +2549,39 @@ function reindentSubtreeVerbatim(node: OutlineNode, indentText: string): Outline
     columnDelta,
   );
   const topWs = leadingWhitespace(root.lines[0] ?? '');
-  const swapLine = (line: string, atom: boolean): string => {
-    if (line.trim() === '') return line;
-    const ws = leadingWhitespace(line);
-    if (!ws.startsWith(topWs)) return line;
-    const swapped = indentText + line.slice(topWs.length);
-    return atom ? swapped : carryContentColumn(line, swapped);
+  const delta = indentWidth(indentText) - indentWidth(topWs);
+  // Every line moves by the width the root moved. The prefix swap says it in
+  // the destination's characters where it lands there: past the prefix a tab
+  // re-expands from wherever the new prefix ends, and a space written in front
+  // of it vanishes into its stop.
+  const moveLine = (line: string): string =>
+    line.trim() === '' ? line : reprefixLine(line, topWs, indentText, delta, 0, false);
+  // A fence's or an HTML block's lines are content: its first line lands as
+  // any line does, and the others take the same change of prefix with every
+  // character past it. A quote's, a callout's or a table's leading whitespace
+  // is structure, and each of its lines lands as any line does.
+  const moveAtom = (n: OutlineNode): string[] => {
+    const lands = (line: string): string =>
+      line.trim() === '' ? line : reprefixLine(line, topWs, indentText, delta, 0, true);
+    if (n.kind !== 'code' && n.kind !== 'html') return n.lines.map(lands);
+    const first = n.lines[0] ?? '';
+    const moved = lands(first);
+    const from = leadingWhitespace(first);
+    const to = leadingWhitespace(moved);
+    return n.lines.map((line, i) => {
+      if (i === 0) return moved;
+      if (line.trim() === '' || !line.startsWith(from)) return lands(line);
+      return to + line.slice(from.length);
+    });
   };
   const recur = (n: OutlineNode): OutlineNode =>
     withIdLine(
       {
         ...n,
-        lines: n.lines.map((line) => swapLine(line, isAtom(n))),
+        lines: isAtom(n) ? moveAtom(n) : n.lines.map(moveLine),
         children: n.children.map(recur),
       },
-      (line) => swapLine(line, false),
+      moveLine,
     );
   return recur(root);
 }

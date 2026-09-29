@@ -1736,3 +1736,84 @@ describe('a subtree written elsewhere keeps a tab-marked item’s content column
     expect(text).toBe(expected);
   });
 });
+
+describe('a verbatim re-indent keeps a tab-indented descendant’s column (#244)', () => {
+  // The paragraph after a blank line under `- p` sends the block to the
+  // verbatim re-indent. `\t1. m` sits at `- n`'s content column, 4; the block
+  // moves two columns right, and two spaces in front of the tab would vanish
+  // into its stop and leave `m` at 4, short of `- n`'s new content column.
+  const doc = '- a\n  1. b\n';
+  const payload = '- p\n\n  para\n\n  - n\n\t1. m\n';
+  const expected = '- a\n  1. b\n  - p\n\n    para\n\n    - n\n\t  1. m\n';
+
+  it('a paste', () => {
+    const target = parse(doc);
+    const result = insertSubtrees(target, byLine(target, '  1. b').id, parse(payload).children, 'after');
+    if (!result.ok) throw new Error(result.rejection.reason);
+    expect(encode(result.value.doc)).toBe(expected);
+  });
+
+  it('a drop', () => {
+    const md = `${doc}${payload}`;
+    const source = parse(md);
+    const result = moveSubtreesTo(source, [[byLine(source, '- p').id]], {
+      parentId: byLine(source, '- a').id,
+      index: 1,
+    });
+    if (!result.ok) throw new Error(result.rejection.reason);
+    const text = encode(result.value.doc);
+    expect(applyEdits(md.split('\n'), result.value.edits).join('\n')).toBe(text);
+    expect(text).toBe(expected);
+  });
+
+  it('the control: at the root nothing is written in front of the tab', () => {
+    const target = parse('- a\n');
+    const result = insertSubtrees(target, byLine(target, '- a').id, parse(payload).children, 'after');
+    if (!result.ok) throw new Error(result.rejection.reason);
+    expect(encode(result.value.doc)).toBe(`- a\n${payload}`);
+  });
+
+  it('a line that does not open with the root’s prefix moves by the same width', () => {
+    // The root moves two columns left. `- n` does not open with its `\t`; left
+    // where it was, it would move `m`, which does, off its content column.
+    const target = parse(doc);
+    const clip = '\t- p\n\n\t  para\n\n \t  - n\n\t  \t1. m\n';
+    const result = insertSubtrees(target, byLine(target, '  1. b').id, parse(clip).children, 'after');
+    if (!result.ok) throw new Error(result.rejection.reason);
+    expect(encode(result.value.doc)).toBe(
+      '- a\n  1. b\n  - p\n\n    para\n\n \t- n\n\t  1. m\n',
+    );
+  });
+
+  it('a code block keeps every character past its fence’s prefix', () => {
+    const target = parse(doc);
+    const clip = '- p\n\n  para\n\n  ```make\n  all:\n  \techo\n  ```\n';
+    const result = insertSubtrees(target, byLine(target, '  1. b').id, parse(clip).children, 'after');
+    if (!result.ok) throw new Error(result.rejection.reason);
+    expect(encode(result.value.doc)).toBe(
+      '- a\n  1. b\n  - p\n\n    para\n\n    ```make\n    all:\n    \techo\n    ```\n',
+    );
+  });
+
+  it('a quote’s lines are structure, and each lands on the column the block moved it to', () => {
+    // Kept byte for byte past `  `, `\t> b` would put its `>` four columns
+    // past the content column, and the quote would end at `> a`.
+    const target = parse(doc);
+    const clip = '- p\n\n  para\n\n  > a\n  \t> b\n';
+    const result = insertSubtrees(target, byLine(target, '  1. b').id, parse(clip).children, 'after');
+    if (!result.ok) throw new Error(result.rejection.reason);
+    expect(encode(result.value.doc)).toBe(
+      '- a\n  1. b\n  - p\n\n    para\n\n    > a\n  \t  > b\n',
+    );
+  });
+
+  it('a code block under the tab-indented item lands with it', () => {
+    const target = parse(doc);
+    const clip = `${payload}\t   \`\`\`\n\t   \tcode\n\t   \`\`\`\n`;
+    const result = insertSubtrees(target, byLine(target, '  1. b').id, parse(clip).children, 'after');
+    if (!result.ok) throw new Error(result.rejection.reason);
+    expect(encode(result.value.doc)).toBe(
+      `${expected}\t     \`\`\`\n\t     \tcode\n\t     \`\`\`\n`,
+    );
+  });
+});

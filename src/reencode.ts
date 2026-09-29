@@ -201,7 +201,7 @@ export function withIdLine(node: OutlineNode, rewrite: (line: string) => string)
  * exists to avoid. There, and on a line that does not open with
  * the prefix at all, `shiftLine` answers as it always has.
  */
-function reprefixLine(
+export function reprefixLine(
   line: string,
   from: string,
   to: string,
