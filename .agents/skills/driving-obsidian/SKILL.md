@@ -60,8 +60,13 @@ the OS appearance.
 
 ## Handing over
 
-Load `presenting-examples`. `state --raw` prints the document as its `scripts/layout.ts` reads it: put
-`=== before` above one and `=== after` above another, pipe both in, and they draw side by side.
+Load `presenting-examples`. `state --raw` prints the document as its `scripts/layout.ts` reads it
+(`readDocument` in `scripts/notation.ts` takes the output back as it is): put `=== before` above
+one and `=== after` above another, pipe both in, and they draw side by side, or paste the column
+into a case file. A selection across lines is one `«` and one `»`, and `∅` is left off when the
+text ends in a single newline, as the notation supplies it. The notation states one selection, so
+a state with several ranges draws the main one, and says how many there were: on stderr under
+`--raw`, so the column stays clean, and under the drawing otherwise.
 
 ## Ending
 

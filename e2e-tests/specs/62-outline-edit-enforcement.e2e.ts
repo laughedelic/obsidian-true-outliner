@@ -12,6 +12,7 @@ import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import { Key } from 'webdriverio';
 import * as h from '../helpers.js';
+import { exempt } from '../monitors.js';
 import { REJECTION_MESSAGES } from '../../src/plugin/messages';
 
 const NOTE = 'Scratch/enforcement.md';
@@ -706,6 +707,7 @@ describe('node-edit-enforcement: Phase C evidence', function () {
   // Declared on the case, never set from inside it: wdio's wrapper reads the
   // budget once, before the body runs (docs/research/e2e-ci-budgets).
   it('performance: verdict computation stays within budget on a ~2000-line stress note', async function () {
+    exempt('the case drives edits at points across a ~2000-line note, which carries the caret and the scroll the length of it', 'scroll');
     const lines: string[] = [];
     for (let i = 0; i < 400; i++) {
       lines.push(`## Section ${i}`, '', `Paragraph text for section ${i}, some words here.`, '');

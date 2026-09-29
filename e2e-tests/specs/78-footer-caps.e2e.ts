@@ -31,6 +31,7 @@ import {
   settle,
   waitForBacklinkIndexReady,
 } from '../footer.js';
+import { exempt } from '../monitors.js';
 
 /** The generated hub: far more sources than any cap on offer. */
 const HUB = 'Projects/Aurora Dashboard.md';
@@ -426,6 +427,7 @@ describe('the overall cap and the per-note bound', function () {
     //
     // Brought on screen first: the geometry above is viewport-independent, but
     // a pointer cannot be moved to a point outside the window.
+    exempt('the case scrolls the footer into view, away from the caret', 'scroll');
     await browser.executeObsidian(() => {
       document
         .querySelector('.workspace-leaf.mod-active .to-backlinks-group')

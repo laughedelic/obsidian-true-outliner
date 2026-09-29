@@ -180,3 +180,9 @@ Two smaller threads, recorded so they are not rediscovered:
 Follow-ups deferred rather than taken: the remaining `setCursor` calls in `measure()` that precede
 a gesture have the same precondition hazard as the one fixed here, and the harness could report a
 refused structural command directly instead of leaving specs to infer it from the buffer.
+
+The second of those is now half taken. A refusal raises a notice, and the ambient monitors report
+every notice a case neither waited for nor read ([ambient-e2e-monitors.md](ambient-e2e-monitors.md)),
+so a refused operation in a case that does not expect one shows in the run's report. A case that
+waits for the refusal, as `20-structural-commands` does, is not reported, and a refusal that raises
+no notice is still inferred from the buffer.

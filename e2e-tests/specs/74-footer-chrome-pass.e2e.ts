@@ -18,6 +18,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as h from '../helpers.js';
 import { pinBacklinksCapOff } from '../footer.js';
+import { exempt } from '../monitors.js';
 
 const OUT = path.join(process.cwd(), '.obsidian-cache', 'footer-chrome');
 /** Committed, and diffed on every run — see the baseline test at the bottom. */
@@ -40,6 +41,7 @@ const DORMANT = 'Notes/Sourdough Log.md';
  * `cm-gap` and the widget's DOM does not exist until the reader scrolls there.
  */
 async function scrollToEnd(): Promise<void> {
+  exempt('the case scrolls the footer into view, away from the caret', 'scroll');
   await browser.executeObsidian(() => {
     const scroller = document.querySelector('.workspace-leaf.mod-active .cm-scroller');
     if (scroller) scroller.scrollTop = scroller.scrollHeight;

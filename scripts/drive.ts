@@ -31,7 +31,7 @@ import { parseArgs } from 'node:util';
 import { binPath } from './bin-path.ts';
 import { expandKeys, keyEvents, parseChord } from './drive-keys.ts';
 import { isLauncherProfile } from './drive-profile.ts';
-import { drawColumns, stateMarkup } from './drive-state.ts';
+import { drawColumns, stateMarkup, stateNotes } from './drive-state.ts';
 import { stampFromBundle } from './install-to-vault.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -588,6 +588,7 @@ async function state(args: string[]): Promise<void> {
           anchor: number;
           head: number;
         }[],
+        main: cm.state.selection.mainIndex as number,
         blockLines: [...cm.contentDOM.querySelectorAll('.to-decor-node-selected')].map(
           (el) => cm.state.doc.lineAt(cm.posAtDOM(el)).number - 1,
         ) as number[],
@@ -598,15 +599,19 @@ async function state(args: string[]): Promise<void> {
     null,
   );
   cdp.close();
-  const markup = stateMarkup(s.doc, s.ranges, new Set(s.blockLines));
+  const markup = stateMarkup(s.doc, s.ranges, s.main, s.blockLines);
+  const notes = stateNotes(s.ranges);
   if (values.raw) {
+    // stdout is the column alone, so it pastes into a case file as it is.
     log(markup);
+    for (const note of notes) console.error(`(${note})`);
     return;
   }
   log(drawColumns([{ header: values.header ?? s.path ?? 'state', text: markup }]));
   const mode = s.outline === null ? '' : `outline mode ${s.outline ? 'on' : 'off'}, `;
   const selection = s.blockLines.length ? 'block selection' : s.focused ? 'editor focused' : 'editor not focused';
-  log(`(${mode}${selection}, ${s.ranges.length} range${s.ranges.length === 1 ? '' : 's'})`);
+  log(`(${mode}${selection})`);
+  for (const note of notes) log(`(${note})`);
 }
 
 interface Clip {

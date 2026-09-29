@@ -17,6 +17,7 @@
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
+import { exempt } from '../monitors.js';
 import { foldedNodeLines } from '../folding.js';
 import { openFooter } from '../footer.js';
 import {
@@ -119,6 +120,7 @@ async function openDraggable(): Promise<void> {
 }
 
 describe('node dragging: the press and the drag it can become', function () {
+  beforeEach(() => exempt('a drag lifts a node out, draws its ghost and drop indicator and lands it elsewhere, which moves the lines around the edit', 'layoutShift'));
   before(async function () {
     await obsidianPage.resetVault();
     await h.resetPluginState();
@@ -498,6 +500,7 @@ describe('node dragging: the press and the drag it can become', function () {
   });
 
   it('autoscrolls while the pointer holds at the scroller\u2019s edge, faster the further past it', async function () {
+    exempt('the drag autoscrolls the editor, which is the behaviour under test', 'scroll');
     // A note taller than the view. The pointer picks up the first item and
     // rests in the band inside the scroller's bottom edge, twice: barely
     // inside it, then nearly on the edge. The scroller moves both times, more

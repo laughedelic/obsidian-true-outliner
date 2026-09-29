@@ -27,6 +27,7 @@ import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
 import { pinBacklinksCapOff, waitForBacklinkIndexReady } from '../footer.js';
+import { exempt } from '../monitors.js';
 
 const HUB = 'Projects/Aurora Dashboard.md';
 
@@ -138,6 +139,7 @@ describe('spike S5: what a hub note costs', function () {
 
     // Away from the end, so the widget is genuinely unmounted: CodeMirror
     // virtualises, and a footer already in the DOM would measure nothing.
+    exempt('the case scrolls the note away from the footer and back to time the footer’s first paint', 'scroll');
     await browser.executeObsidian(() => {
       const scroller = document.querySelector('.workspace-leaf.mod-active .cm-scroller');
       if (scroller) scroller.scrollTop = 0;
