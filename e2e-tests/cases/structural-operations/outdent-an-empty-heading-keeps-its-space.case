@@ -1,5 +1,5 @@
 case: Shift+Tab on an empty heading keeps the space after its marker, so the arrows still move (#257)
-keys: ⇧⇥ | ↓
+keys: ⇧⇥ | ↓ Home
 
 === before
 ## Foo
@@ -9,7 +9,7 @@ keys: ⇧⇥ | ↓
 ## Foo
 # ┃
 ## Bar
-=== after ↓
+=== after ↓ Home
 ## Foo
 # 
 ┃## Bar
