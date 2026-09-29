@@ -369,6 +369,67 @@ describe('case files', () => {
     expect(out).toBe(['a === b', 'keys: ⇥ · outline on · tabs off · desktop and mobile', 'before', '```', '- a┃', '```', ''].join('\n'));
   });
 
+  describe('known-failing', () => {
+    const MARKED = 'case: waits\nknown-failing: #228\nkeys: ⏎\n\n=== before\n1. a┃\n=== expected ⏎\n1. a\n2. ┃\n=== actual ⏎\n1. a┃\n';
+
+    it('parses the issue and reads actual as a drawn state, not a reference', () => {
+      const c = parseCase(MARKED);
+      expect(c.knownFailing).toBe(228);
+      expect(c.actual).toMatchObject({ header: 'actual ⏎', text: '1. a\n', selection: { anchor: 4, head: 4 } });
+      expect(c.references).toEqual([]);
+      expect(c.results.map((r) => r.header)).toEqual(['expected ⏎']);
+    });
+
+    it('takes an actual whose header names keys, as a recording does', () => {
+      const c = parseCase('known-failing: #7\nkeys: ⇥ | ⌘Z\n=== before\na┃\n=== after ⇥\nb┃\n=== after ⌘Z\nc┃\n=== actual ⌘Z\nd┃\n');
+      expect(c.actual?.header).toBe('actual ⌘Z');
+    });
+
+    it('leaves an unmarked file with no issue and its actual among the references', () => {
+      const c = parseCase('=== before\na┃\n=== expected\nb┃\n=== actual\nc┃\n');
+      expect(c.knownFailing).toBeUndefined();
+      expect(c.actual).toBeUndefined();
+      expect(c.references).toEqual(['actual']);
+    });
+
+    it.each([
+      ['a number with no #', 'known-failing: 228', 'line 2: known-failing: "228" is not # and an issue number'],
+      ['a platform after the number', 'known-failing: #228 desktop', 'line 2: known-failing: "#228 desktop"'],
+      ['no number', 'known-failing: #', 'line 2: known-failing: "#"'],
+      ['issue zero', 'known-failing: #0', 'line 2: known-failing: "#0"'],
+    ])('refuses %s, naming its line', (_name, line, message) => {
+      expect(() => parseCase(`keys: ⏎\n${line}\n=== before\na┃\n=== expected\nb┃\n=== actual\nc┃\n`)).toThrow(message);
+    });
+
+    it('refuses the name given twice', () => {
+      expect(() => parseCase('known-failing: #1\nknown-failing: #2\n=== before\na┃\n=== expected\nb\n=== actual\nc\n')).toThrow(
+        'line 2: known-failing is given twice',
+      );
+    });
+
+    it('refuses a marked file with no actual column, or two', () => {
+      const body = '=== before\na┃\n=== expected\nb┃\n';
+      expect(() => parseCase(`known-failing: #1\n${body}`)).toThrow('known-failing: #1 needs an "=== actual" column');
+      expect(() => parseCase(`known-failing: #1\n${body}=== actual\nc\n=== actual ⏎\nd\n`)).toThrow('a second "actual" column');
+    });
+
+    it('accepts a marked file with no actual when recording, and still wants its result columns', () => {
+      const c = parseCase('known-failing: #1\n=== before\na┃\n=== expected\nb┃\n', { record: true });
+      expect(c.knownFailing).toBe(1);
+      expect(c.actual).toBeUndefined();
+      expect(() => parseCase('known-failing: #1\nkeys: ⇥\n=== before\na┃\n', { record: true })).toThrow('need 1 "expected" or "after" column');
+      // An unmarked recording still takes none.
+      expect(parseCase('keys: ⇥\n=== before\na┃\n', { record: true }).results).toEqual([]);
+    });
+
+    it('draws the marker on the setup line of a case drawn for a manual test', () => {
+      const script = path.join(__dirname, '..', 'scripts', 'layout.ts');
+      const out = execFileSync('node', [script, '--case'], { input: MARKED, encoding: 'utf8' });
+      expect(out.split('\n').slice(0, 2)).toEqual(['waits', 'keys: ⏎ · outline on · tabs off · desktop and mobile · known-failing #228']);
+      expect(out).toContain('actual ⏎');
+    });
+  });
+
   it('names the file line of a malformed column', () => {
     expect(() => parseCase('keys: ⇥\n\n=== before\na┃\nb┃\n=== expected\na\n')).toThrow('line 5: a second caret');
   });

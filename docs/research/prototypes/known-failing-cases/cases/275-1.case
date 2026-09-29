@@ -1,0 +1,18 @@
+case: a Backspace merge right after typing is its own undo step (#275)
+keys: ⌫ ⌫ | ⌘Z
+
+=== before
+- p
+- a┃
+- q
+=== after ⌫ ⌫
+- p┃
+- q
+=== actual ⌘Z
+- p
+- a┃
+- q
+=== after ⌘Z
+- p
+- ┃
+- q

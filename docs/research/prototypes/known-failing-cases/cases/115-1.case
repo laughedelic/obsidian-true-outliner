@@ -1,0 +1,17 @@
+case: delete to line start at the end of a childless paragraph empties the line (#115)
+keys: ⌘⌫
+
+=== before
+# Title
+
+Some text.┃
+# Next
+=== actual
+# Title┃
+
+# Next
+=== expected
+# Title
+
+┃
+# Next

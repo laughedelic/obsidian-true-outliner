@@ -1,0 +1,15 @@
+case: Tab on a paragraph after a list item's paragraph is refused (#278)
+keys: ⇥
+
+=== before
+- x
+
+  P
+
+  Q┃
+=== expected
+- x
+
+  P
+
+  Q

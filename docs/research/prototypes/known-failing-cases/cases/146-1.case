@@ -1,0 +1,30 @@
+case: leaving a table upward lands on the line above in one press (#146)
+keys: ↑
+
+=== before
+Before the table.
+
+| ┃a | b |
+| - | - |
+| 1 | 2 |
+| 3 | 4 |
+
+After the table.
+=== actual
+Before the table.
+┃
+| a | b |
+| - | - |
+| 1 | 2 |
+| 3 | 4 |
+
+After the table.
+=== expected
+┃Before the table.
+
+| a | b |
+| - | - |
+| 1 | 2 |
+| 3 | 4 |
+
+After the table.

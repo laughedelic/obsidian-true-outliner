@@ -1,0 +1,23 @@
+case: a paragraph pasted from column 4 to the margin stays a paragraph (#198)
+keys: ⌘V
+
+=== clipboard
+    first
+
+    <!-- c -->
+=== before
+## H┃
+> real quote
+=== actual
+## H
+first
+
+<!-- c -->
+> real quote┃
+=== expected
+## H
+first
+
+<!-- c -->┃
+
+> real quote

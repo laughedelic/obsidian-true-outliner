@@ -1,0 +1,24 @@
+case: a pasted ordered item beside a run written with the other delimiter (#228)
+keys: ⌘V
+
+=== clipboard
+1) a
+   - x
+=== before
+1. one
+2. two┃
+=== actual
+1. one
+2. two
+3) a
+   - x┃
+=== expected: reading 1
+1. one
+2. two
+3. a
+   - x┃
+=== reading 2
+1. one
+2. two
+1) a
+   - x┃
