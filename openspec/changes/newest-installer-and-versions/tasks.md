@@ -62,7 +62,7 @@
       dispatch `oldest-installer.yml` from the branch (or, if a workflow cannot run before it is on
       the default branch, run `OBSIDIAN_INSTALLER_VERSION=earliest` over the eight-spec sweep from
       `docs/research/e2e-runtime-versions`). Fix each regression the newest Chrome shows in this change,
-      and note in the research note which of the 55 specs each installer ran. File any failure that is
+      and note in the research note which of the 56 specs each installer ran. File any failure that is
       not this change's to fix as an issue with the user's go-ahead (AGENTS.md, "A follow-up is an
       issue").
 - [ ] 4.2 Validate, sync and archive the change, and bump the patch version with `npm version patch`.

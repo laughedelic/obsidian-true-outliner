@@ -142,7 +142,7 @@ the value is the running runtime.
 - **The report job runs with a write token on a schedule.** It is limited to `issues: write` and
   `actions: read`, runs no code from a pull request, and reads only job names and results.
 
-- **Pull requests now gate on the newest installer, and 47 of 55 spec files have not run on it.**
+- **Pull requests now gate on the newest installer, and 48 of 56 spec files have not run on it (the new DevTools-protocol spec, #299, is one of them: its design names Chrome 150 as the risk).**
   Eight passed under both installers, none failed. This pull request's own CI is the first full
   run on Chrome 150, so a red group shows here before the default reaches any other pull request.
   A failure that is a real regression on the newer Chrome is fixed in this change, since it would
