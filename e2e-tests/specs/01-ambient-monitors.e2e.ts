@@ -337,7 +337,8 @@ describe('ambient monitors', function () {
       await open(SHORT);
       await h.setCursorSettled(0, 1);
       await install();
-      await browser.keys(['x']);
+      // Dispatched rather than typed: a keystroke needs the window to have focus.
+      await inPage(`cm.dispatch({ changes: { from: cm.state.doc.line(1).to, insert: 'x' } });`);
       await inPage(`${LINE} nudge(5, 11);`);
       await reported('layoutShift', 'shift-sideways');
     });
@@ -355,7 +356,7 @@ describe('ambient monitors', function () {
       await open(SHORT);
       await h.setCursorSettled(3, 3);
       await install();
-      await browser.keys(['x']);
+      await inPage(`cm.dispatch({ changes: { from: cm.state.doc.line(4).to, insert: 'x' } });`);
       await inPage(`${LINE} nudge(3, 11);`);
       expect(await rules('layoutShift')).toEqual([]);
     });
@@ -364,7 +365,7 @@ describe('ambient monitors', function () {
       await open(SHORT);
       await h.setCursorSettled(4, 3);
       await install();
-      await browser.keys(['x']);
+      await inPage(`cm.dispatch({ changes: { from: cm.state.doc.line(5).to, insert: 'x' } });`);
       await inPage(`${LINE} const e = lineEl(5); e.style.position = 'relative'; e.style.top = '30px';`);
       // The entry for the move is recorded when the browser next renders, so a read straight
       // after would pass with or without the rule; the wait is what gives the control its edge.
