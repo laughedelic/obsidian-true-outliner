@@ -1,0 +1,13 @@
+case: probe: #270 case 4, then reading view
+keys: ⌘V | ⌘E
+
+=== clipboard
+- p
+
+  para
+
+  > a
+  	> b
+=== before
+- a
+  1. b┃

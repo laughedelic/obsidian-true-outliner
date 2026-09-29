@@ -1,0 +1,16 @@
+case: case 1: the issue's gesture (#274)
+keys: ⇧⏎ ⇧⇥ | ↑
+
+=== before
+## Foo┃
+body
+## Bar
+=== after ⇧⏎ ⇧⇥
+## Foo
+body
+# ┃
+## Bar
+=== after ↑
+## Foo
+body┃
+## Bar

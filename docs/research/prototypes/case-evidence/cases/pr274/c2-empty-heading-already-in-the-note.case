@@ -1,0 +1,15 @@
+case: case 2: an empty heading already in the note (#274)
+keys: ⇧⇥ | ↓
+
+=== before
+## Foo
+## ┃
+## Bar
+=== after ⇧⇥
+## Foo
+# ┃
+## Bar
+=== after ↓
+## Foo
+# 
+## Bar┃

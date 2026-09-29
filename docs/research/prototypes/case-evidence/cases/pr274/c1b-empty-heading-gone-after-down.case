@@ -1,0 +1,16 @@
+case: case 1, with ↓ (from the prose) (#274)
+keys: ⇧⏎ ⇧⇥ | ↓
+
+=== before
+## Foo┃
+body
+## Bar
+=== after ⇧⏎ ⇧⇥
+## Foo
+body
+# ┃
+## Bar
+=== after ↓
+## Foo
+body
+## Bar┃

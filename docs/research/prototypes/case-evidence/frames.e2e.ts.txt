@@ -1,0 +1,274 @@
+/**
+ * Probe: a painted frame after each key of a drawn case, with the native caret hidden and one
+ * drawn from the DOM selection's rect. Not committed as a spec; `docs/research/case-evidence.md`
+ * holds what it measured. Run by copying it to `e2e-tests/specs/99-zz-case-evidence-probe.e2e.ts`:
+ *
+ *   TO_FRAMES_DIR=/tmp/frames TO_FRAMES_SIDE=head TO_CASE_FILES=a.case:b.case \
+ *     npm run test:e2e:narrow -- 99-zz-case-evidence-probe [--mobile]
+ *
+ * It asserts nothing about a case: it arranges the `before`, presses each phase, reads the state
+ * and takes a frame in light and in dark after each. The last `it` measures the frame's
+ * stability against the native caret's.
+ */
+
+import { browser, expect } from '@wdio/globals';
+import { obsidianPage } from 'wdio-obsidian-service';
+import { createHash } from 'node:crypto';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import * as path from 'node:path';
+import { parseCase, type ParsedCase } from '../../scripts/notation.ts';
+import { caseFiles, pressPhase } from '../cases.js';
+import { connectCdp, type Cdp } from '../cdp.js';
+import { drawState, readEditorState, type EditorState } from '../drawing.js';
+import * as h from '../helpers.js';
+
+const PLATFORM = h.IS_MOBILE_RUN ? 'mobile' : 'desktop';
+const SIDE = process.env.TO_FRAMES_SIDE ?? 'head';
+const OUT = process.env.TO_FRAMES_DIR ?? path.join(process.cwd(), '.obsidian-cache', 'frames');
+
+/** Runs in the page. Installs the overlay elements once, positions the drawn caret and the
+ * caption, waits two animation frames and returns the region to capture. */
+const PREPARE = `(caption, native) => {
+  const doc = document;
+  if (native) {
+    for (const id of ['to-evidence-style', 'to-evidence-caret', 'to-evidence-caption']) {
+      const el = doc.getElementById(id);
+      if (el) el.remove();
+    }
+  }
+  if (!native && !doc.getElementById('to-evidence-style')) {
+    const style = doc.createElement('style');
+    style.id = 'to-evidence-style';
+    style.textContent = [
+      '.cm-content, .cm-content * { caret-color: transparent !important; }',
+      '#to-evidence-caret { position: fixed; z-index: 2147483000; width: 2px; pointer-events: none;',
+      '  background: var(--caret-color, var(--text-normal, #000)); display: none; }',
+      '#to-evidence-caption { position: fixed; z-index: 2147483000; pointer-events: none; display: none;',
+      '  font: 600 12px/18px var(--font-monospace, monospace); padding: 0 8px; border-radius: 4px;',
+      '  background: var(--background-secondary, #eee); color: var(--text-normal, #000);',
+      '  border: 1px solid var(--background-modifier-border, #999); }',
+    ].join('\\n');
+    doc.head.appendChild(style);
+    for (const id of ['to-evidence-caret', 'to-evidence-caption']) {
+      const d = doc.createElement('div');
+      d.id = id;
+      doc.body.appendChild(d);
+    }
+  }
+  const leaf = app.workspace.getMostRecentLeaf?.() ?? app.workspace.activeLeaf;
+  const view = leaf.view;
+  const mode = view.getMode ? view.getMode() : 'source';
+  const cm = mode === 'source' ? view.editor && view.editor.cm : null;
+  const root = view.containerEl.querySelector('.view-content') || view.containerEl;
+  const rb = root.getBoundingClientRect();
+  const caretEl = doc.getElementById('to-evidence-caret');
+  const capEl = doc.getElementById('to-evidence-caption');
+  let caret = null;
+  if (caretEl) caretEl.style.display = 'none';
+  if (cm && cm.hasFocus && cm.state.selection.main.empty) {
+    const head = cm.state.selection.main.head;
+    const sel = doc.getSelection();
+    let dom = null;
+    if (sel && sel.rangeCount) {
+      const rs = sel.getRangeAt(0).getClientRects();
+      if (rs.length) dom = { left: rs[0].left, top: rs[0].top, bottom: rs[0].bottom };
+    }
+    const c = cm.coordsAtPos(head);
+    const coords = c ? { left: c.left, top: c.top, bottom: c.bottom } : null;
+    const use = dom || coords;
+    caret = { source: dom ? 'dom' : coords ? 'coords' : 'none', dom, coords };
+    if (use && caretEl && !native) {
+      caretEl.style.left = (use.left - 1) + 'px';
+      caretEl.style.top = use.top + 'px';
+      caretEl.style.height = (use.bottom - use.top) + 'px';
+      caretEl.style.display = 'block';
+    }
+  }
+  let contentBottom = rb.bottom;
+  if (cm) {
+    const lines = [...cm.contentDOM.querySelectorAll('.cm-line')].filter((l) => l.getBoundingClientRect().height > 0);
+    if (lines.length) contentBottom = lines[lines.length - 1].getBoundingClientRect().bottom;
+  } else {
+    const sizer = view.containerEl.querySelector('.markdown-preview-sizer');
+    const last = sizer && sizer.lastElementChild;
+    if (last) contentBottom = last.getBoundingClientRect().bottom;
+  }
+  const strip = 26;
+  const x = Math.max(rb.left, 0);
+  const y = Math.max(rb.top, 0);
+  const bottomMax = Math.min(rb.bottom, window.innerHeight);
+  const bottom = Math.min(contentBottom + 20 + strip, bottomMax);
+  const clip = { x, y, width: Math.min(rb.width, window.innerWidth - x), height: bottom - y };
+  if (capEl && !native) {
+    capEl.textContent = caption;
+    capEl.style.left = (clip.x + 8) + 'px';
+    capEl.style.top = (clip.y + clip.height - 22) + 'px';
+    capEl.style.display = 'block';
+  }
+  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve({ clip, caret, mode }))));
+}`;
+
+interface Frame {
+  case: string;
+  side: string;
+  platform: string;
+  step: number;
+  caption: string;
+  theme: 'light' | 'dark';
+  file: string;
+  prepareMs: number;
+  captureMs: number;
+  bytes: number;
+  sha: string;
+  clip: { x: number; y: number; width: number; height: number };
+  caret: { source: string; dom: unknown; coords: unknown } | null;
+  mode: string;
+  drawing?: string[];
+}
+
+async function takeFrame(
+  cdp: Cdp,
+  dir: string,
+  meta: Pick<Frame, 'case' | 'step' | 'caption' | 'theme'> & { drawing?: string[] },
+  native = false,
+): Promise<Frame> {
+  const t0 = performance.now();
+  const prepared = await cdp.send<{ result: { value: { clip: Frame['clip']; caret: Frame['caret']; mode: string } } }>(
+    'Runtime.evaluate',
+    { expression: `(${PREPARE})(${JSON.stringify(meta.caption)}, ${native})`, awaitPromise: true, returnByValue: true },
+  );
+  const t1 = performance.now();
+  const value = prepared.result.value;
+  const shot = await cdp.send<{ data: string }>('Page.captureScreenshot', {
+    format: 'png',
+    clip: { ...value.clip, scale: 1 },
+  });
+  const t2 = performance.now();
+  const bytes = Buffer.from(shot.data, 'base64');
+  const file = `step-${meta.step}.${meta.theme}.png`;
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path.join(dir, file), bytes);
+  return {
+    ...meta,
+    side: SIDE,
+    platform: PLATFORM,
+    file,
+    prepareMs: Math.round(t1 - t0),
+    captureMs: Math.round(t2 - t1),
+    bytes: bytes.length,
+    sha: createHash('sha256').update(bytes).digest('hex').slice(0, 12),
+    clip: value.clip,
+    caret: value.caret,
+    mode: value.mode,
+  };
+}
+
+function beforeRange(parsed: ParsedCase): { anchor: number; head: number } {
+  if (parsed.before.selection) return parsed.before.selection;
+  const lines = parsed.before.text.split('\n');
+  const first = parsed.before.blockLines[0];
+  const last = parsed.before.blockLines.at(-1);
+  if (first === undefined || last === undefined) return { anchor: 0, head: 0 };
+  const offset = (line: number) => lines.slice(0, line).reduce((n, l) => n + l.length + 1, 0);
+  return { anchor: offset(first), head: offset(last) + (lines[last]?.length ?? 0) };
+}
+
+async function arrange(parsed: ParsedCase): Promise<void> {
+  const range = beforeRange(parsed);
+  await browser.executeObsidian(
+    ({ app, obsidian }, anchor, head) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      view.editor.focus();
+      (view.editor as any).cm.dispatch({ selection: { anchor, head }, userEvent: 'select' });
+    },
+    range.anchor,
+    range.head,
+  );
+  await browser.pause(150);
+}
+
+const frames: Frame[] = [];
+
+function register(file: string): void {
+  const name = path.basename(file).replace(/\.case$/, '');
+  const parsed = parseCase(readFileSync(file, 'utf8'), { record: true });
+  it(`${name}`, async function () {
+    await h.setIndentUsingTabs(parsed.tabs);
+    const cdp = await connectCdp();
+    try {
+      await h.createNote(`Scratch/frames/${name}.md`, parsed.before.text);
+      await h.setOutlineMode(parsed.outline);
+      await arrange(parsed);
+      const dir = path.join(OUT, SIDE, PLATFORM, name);
+      const both = async (step: number, caption: string, state: EditorState | undefined) => {
+        for (const theme of ['light', 'dark'] as const) {
+          await h.setTheme(theme === 'dark');
+          frames.push(await takeFrame(cdp, dir, { case: name, step, caption, theme, drawing: state ? drawState(state) : undefined }));
+        }
+        await h.setTheme(false);
+      };
+      await both(0, 'before', await readEditorState().catch(() => undefined));
+      for (const [i, phase] of parsed.phases.entries()) {
+        await pressPhase(phase, parsed.clipboard);
+        await browser.pause(60);
+        const state = await readEditorState().catch(() => undefined);
+        await both(i + 1, phase.map((s) => s.source).join(' '), state);
+      }
+    } finally {
+      await cdp.close();
+      await h.setIndentUsingTabs(false);
+    }
+  });
+}
+
+describe('case evidence probe', function () {
+  before(async function () {
+    await obsidianPage.resetVault();
+    await h.resetPluginState();
+  });
+  after(async function () {
+    mkdirSync(OUT, { recursive: true });
+    writeFileSync(path.join(OUT, `frames.${SIDE}.${PLATFORM}.json`), JSON.stringify(frames, null, 2));
+    await obsidianPage.resetVault();
+  });
+  afterEach(async function () {
+    await h.dismissNotices();
+  });
+
+  for (const file of caseFiles()) register(file);
+
+  it('a static screen: eight frames with the caret drawn against eight with the native caret', async function () {
+    await h.createNote('Scratch/frames/static.md', '- alpha\n- beta\n- gamma\n');
+    await h.setOutlineMode(true);
+    await h.setCursorSettled(1, 3);
+    const cdp = await connectCdp();
+    const dir = path.join(OUT, SIDE, PLATFORM, 'static');
+    try {
+      const distinct = async (native: boolean): Promise<{ shas: string[]; ms: number[] }> => {
+        const shas: string[] = [];
+        const ms: number[] = [];
+        for (let i = 0; i < 8; i++) {
+          const f = await takeFrame(cdp, dir, { case: native ? 'static-native' : 'static-drawn', step: i, caption: 'static', theme: 'light' }, native);
+          shas.push(f.sha);
+          ms.push(f.prepareMs + f.captureMs);
+          await browser.pause(150);
+        }
+        return { shas, ms };
+      };
+      // The native run first: the overlay's style, once installed, stays in the page.
+      const native = await distinct(true);
+      const drawn = await distinct(false);
+      const report = {
+        native: { distinct: new Set(native.shas).size, shas: native.shas, ms: native.ms },
+        drawn: { distinct: new Set(drawn.shas).size, shas: drawn.shas, ms: drawn.ms },
+      };
+      mkdirSync(OUT, { recursive: true });
+      writeFileSync(path.join(OUT, `static.${SIDE}.${PLATFORM}.json`), JSON.stringify(report, null, 2));
+      console.log(`[probe] static ${PLATFORM}: native ${report.native.distinct} distinct of 8, drawn ${report.drawn.distinct} distinct of 8`);
+      expect(report.drawn.distinct).toBeGreaterThan(0);
+    } finally {
+      await cdp.close();
+    }
+  });
+});

@@ -1,0 +1,17 @@
+case: reproduction: an HTML comment above a quote (#264)
+keys: ⌘V
+
+=== clipboard
+    first
+
+    <!-- c -->
+=== before
+## H┃
+> real quote
+=== after ⌘V
+## H
+first
+
+<!-- c -->
+
+> real quote

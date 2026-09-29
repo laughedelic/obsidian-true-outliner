@@ -1,0 +1,16 @@
+case: case 4: a pasted quote above a paragraph is written flush (#264)
+keys: ⌘V
+
+=== clipboard
+    first
+
+    > quoted
+=== before
+## H┃
+below
+=== after ⌘V
+## H
+first
+
+> quoted
+below

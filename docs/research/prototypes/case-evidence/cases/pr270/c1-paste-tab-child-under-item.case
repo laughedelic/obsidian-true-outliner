@@ -1,0 +1,22 @@
+case: case 1: the issue's paste (#270)
+keys: ⌘V
+
+=== clipboard
+- p
+
+  para
+
+  - n
+	1. m
+=== before
+- a
+  1. b┃
+=== after ⌘V
+- a
+  1. b
+  - p
+
+    para
+
+    - n
+	  1. m

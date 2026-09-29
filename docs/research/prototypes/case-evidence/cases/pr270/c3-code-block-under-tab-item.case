@@ -1,0 +1,28 @@
+case: case 3: a code block under the tab-indented item (#270)
+keys: ⌘V
+
+=== clipboard
+- p
+
+  para
+
+  - n
+	1. m
+	   ```
+	   	code
+	   ```
+=== before
+- a
+  1. b┃
+=== after ⌘V
+- a
+  1. b
+  - p
+
+    para
+
+    - n
+	  1. m
+	     ```
+	     	code
+	     ```

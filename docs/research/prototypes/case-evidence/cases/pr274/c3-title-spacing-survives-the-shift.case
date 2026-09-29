@@ -1,0 +1,12 @@
+case: case 3: a title's spacing survives the shift (#274)
+keys: ⇧⇥ | ⇥
+
+=== before
+## Foo
+##	Bar┃
+=== after ⇧⇥
+## Foo
+#	Bar┃
+=== after ⇥
+## Foo
+##	Bar
