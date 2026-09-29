@@ -234,8 +234,8 @@ export function getCursor(): Promise<{ line: number; ch: number }> {
  * Waits for the caret to be at `line`:`ch`, and rejects naming both that position and the last one
  * read when it never is.
  *
- * For a caret placed by a real click under mobile emulation, whose selection update lands as late
- * as the WebDriver call that sent the click returns (`docs/research/gap-click-timing`).
+ * For a caret placed by a real click under mobile emulation, whose selection update lands about
+ * as late as the WebDriver call that sent the click returns (`docs/research/gap-click-timing`).
  */
 export async function waitForCursor(
   line: number,
@@ -243,19 +243,18 @@ export async function waitForCursor(
   timeoutMs: number = waitBudget(3000),
 ): Promise<void> {
   let last: { line: number; ch: number } | undefined;
-  try {
-    await browser.waitUntil(
-      async () => {
-        last = await getCursor();
-        return last.line === line && last.ch === ch;
-      },
-      { timeout: timeoutMs, interval: 20 },
-    );
-  } catch (e) {
-    throw new Error(
-      `the caret never reached ${line}:${ch}; last read ${last ? `${last.line}:${last.ch}` : 'nothing'} (${String(e)})`,
-    );
-  }
+  await browser.waitUntil(
+    async () => {
+      last = await getCursor();
+      return last.line === line && last.ch === ch;
+    },
+    {
+      timeout: timeoutMs,
+      interval: 20,
+      timeoutMsg: () =>
+        `the caret never reached ${line}:${ch}; last read ${last ? `${last.line}:${last.ch}` : 'nothing'}`,
+    },
+  );
 }
 
 export function getSelection(): Promise<{

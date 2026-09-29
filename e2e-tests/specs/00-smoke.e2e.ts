@@ -46,7 +46,7 @@ describe('smoke', function () {
       error = e as Error;
     }
     expect(error?.message).toContain(`never reached ${at.line}:${at.ch + 1};`);
-    expect(error?.message).toContain(`last read ${at.line}:${at.ch} `);
+    expect(error?.message).toContain(`last read ${at.line}:${at.ch}`);
     await waitForCursor(at.line, at.ch, 300);
   });
 
