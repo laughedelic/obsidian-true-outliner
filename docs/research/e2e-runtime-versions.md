@@ -47,6 +47,34 @@ test time), but each pair ran earliest first on one VM, so the order is not cont
 figure is not a claim about Chrome. Eight of 55 spec files is not the suite: whether the whole suite is
 green on Chrome 150 is unknown until it runs.
 
+## The first full runs on Chrome 150
+
+The change made the newest installer the default, so CI's matrix (56 spec files, desktop and mobile
+emulation, four instances per job) was the first run of the whole suite on Chrome 150. Two commits
+of the pull request gave two runs:
+
+| Run | Result |
+| --- | --- |
+| `b67d393` | 4 jobs red: the `position-indicators` and `selection` groups, on both platforms |
+| `9f678cb` | all 38 checks green, with the position-indicator fix below |
+
+- **`position-indicators`, 11 cases, both platforms.** `55-position-indicators.e2e.ts` counted a
+  line's guide colours by matching `rgb(…)` and `rgba(…)` in the computed `background-image`. Chrome
+  150 writes the translucent grey stop as `color(srgb 0.670588 0.670588 0.670588 / 0.35)`, so the
+  count came back one short. The plugin's drawing is unchanged; the spec now reads both spellings.
+  Reproduced locally (11 failing on Chrome 150, 33 passing on Chrome 120), and 33 pass on both after
+  the change.
+- **`selection`, one or two cases per job, different cases on each platform.** Desktop failed a
+  table-row Home/End parity case in `66-content-space-caret-manual-pass`. Mobile failed a code-fence
+  vertical-motion case in the same spec and a gap-click case in another. It did not reproduce: the
+  group passed twice locally at four instances on Chrome 150, and again in the second CI run. We do
+  not know why it failed once. If it fails again on either installer it is a defect to diagnose, not
+  a flake to re-run.
+
+With the final code, the `selection`, `position-indicators` and `shell` groups also pass on the
+oldest installer, locally at four instances. The workflow that runs every group on it cannot be
+dispatched before it is on the default branch.
+
 ## What a running app says about itself
 
 A probe spec read the renderer through `browser.executeObsidian` and `browser.executeAsync`:
