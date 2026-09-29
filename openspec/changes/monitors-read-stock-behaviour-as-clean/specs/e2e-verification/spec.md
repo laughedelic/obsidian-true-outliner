@@ -6,17 +6,18 @@ The harness SHALL read the rendered editor around every e2e case, on desktop and
 emulation, without any case asking. It SHALL read:
 
 - **the painted caret**: that it agrees with the position CodeMirror reports for the selection's
-  head, taken on either side of the head where a widget stands beside it, lies inside the editor's
-  scroller, and is what a hit test finds at its centre;
+  head, on either side of the head, lies inside the editor's scroller, and is what a hit test
+  finds at its centre;
 - **the scroll position**, frame by frame: a position that leaves and returns within the case, and
   a large step in one frame while the caret was in view before and after it;
-- **the grid**: that each rendered line's text begins on its depth's column plus the marker gutter
-  on every visual row, that a quote's marker begins there and its text hangs at one column on every
-  row after the marker, and that each mark is centred on its column within half a pixel;
-- **the height map**: that the coordinates of each rendered line that draws text resolve back to
-  that line;
-- **layout shift** on lines of the editor that the case's edits, made before the shift, did not
-  touch;
+- **the grid**: that each rendered line other than a quote has its text begin on its depth's
+  column plus the marker gutter on every visual row, that a quote's marker begins there and its
+  text hangs at one column on every row after the marker, and that each mark is centred on its
+  column within half a pixel;
+- **the height map**: that the coordinates of each rendered line resolve back to that line, other
+  than an empty line that stands before a widget;
+- **layout shift** on lines of the editor that the case's edits did not touch, an edit being a
+  change to the text;
 - **errors**: uncaught errors, unhandled rejections and `console.error`;
 - **notices** the case neither waited for nor read.
 
@@ -44,8 +45,12 @@ the exemption SHALL require a reason. The report SHALL list every exemption with
 
 - **WHEN** a case ends with the caret at the end of a folded item, where `coordsAtPos` at the head
   measures the fold widget's edge and the caret is painted on the text before it
-- **THEN** the report lists no caret observation, and a caret that neither side of its head
-  accounts for is still listed
+- **THEN** the report lists no caret observation
+
+#### Scenario: A caret that neither side accounts for is reported
+
+- **WHEN** a case ends with the caret painted away from both sides of its head
+- **THEN** the report lists a caret observation
 
 #### Scenario: A scroll position that leaves and returns is reported
 
@@ -71,9 +76,9 @@ the exemption SHALL require a reason. The report SHALL list every exemption with
   right
 - **THEN** the report lists no observation for that mark
 
-#### Scenario: A line the widget replaces is not round-tripped
+#### Scenario: An empty line ahead of a widget is not round-tripped
 
-- **WHEN** a case ends with a note that opens with a table, whose first source line stays under
+- **WHEN** a case ends with a note that opens with a table, whose first source line stays ahead of
   the table's widget with no text
 - **THEN** the report lists no height-map observation for that line
 
@@ -84,16 +89,10 @@ the exemption SHALL require a reason. The report SHALL list every exemption with
 - **THEN** the report lists a layout-shift observation for the line that moved, and none for a
   line below the edit that moved only down
 
-#### Scenario: A shift before the first edit is not the edit's
-
-- **WHEN** a line above the place a case later edits moves before the case's first edit, as it
-  does when the case turns outline mode on first
-- **THEN** the report lists no layout-shift observation for it, and a line above the edit that
-  moves after the edit is listed
-
 #### Scenario: A change that leaves the text as it was is not an edit
 
-- **WHEN** a case replaces the buffer with the text it already holds and a line moves afterwards
+- **WHEN** a case replaces the buffer with the text it already holds, edits nothing else, and a
+  line moves afterwards
 - **THEN** the layout-shift monitor says the case edited no document
 
 #### Scenario: An unexpected notice is reported and an awaited one is not

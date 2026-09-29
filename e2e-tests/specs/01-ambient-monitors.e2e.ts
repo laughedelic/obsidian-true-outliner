@@ -441,21 +441,6 @@ describe('ambient monitors', function () {
       await browser.pause(600);
       expect((await read())?.layoutShift.skipped).toBe('the case edited no document');
     });
-
-    it('does not judge a shift that came before the first edit', async function () {
-      await open(SHORT);
-      await h.setCursorSettled(4, 3);
-      await install();
-      // The whole content moves, which the edit's own redraw does not undo.
-      await inPage(`cm.contentDOM.style.paddingLeft = '12px';`);
-      // Long enough for the browser to render the shift, so it is recorded before the edit.
-      await browser.pause(600);
-      await inPage(`cm.dispatch({ changes: { from: cm.state.doc.line(5).to, insert: 'x' } });`);
-      await browser.pause(300);
-      expect(await rules('layoutShift')).toEqual([]);
-      await inPage(`${LINE} const e = lineEl(3); e.style.position = 'relative'; e.style.top = '30px';`);
-      await reported('layoutShift', 'shift-above-edit');
-    });
   });
 
   describe('errors', function () {

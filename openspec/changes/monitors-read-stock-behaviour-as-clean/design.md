@@ -36,40 +36,39 @@ by, with outline mode off as well. Alternatives:
   `> ` is not a whole pixel.
 - *Exempt quotes from the grid.* Quotes are the shape a note holds most of after lists.
 
-**A line that draws nothing is not round-tripped.** The line a table's widget replaces keeps a
-`.cm-line` with no text; the document line has text. Nothing in the page names the widget that
-covers it (the decoration sets are CodeMirror's), so the rule keys on the element: no text where the
-document has some. A line hidden by a fold has no element and is not visited. Alternatives: keying on
-`HyperMD-table-row`, which is Obsidian's class for one widget, where the properties block and an
-embed may leave the same element.
+**A line that draws nothing ahead of a widget is not round-tripped.** The line a table's widget
+replaces keeps a `.cm-line` with no text, immediately before the widget's element, while the
+document line has text. A properties block and an inline embed leave no such line (the note has
+their round trips). Nothing in the page names the replaced range (the decoration sets are
+CodeMirror's), so the rule keys on the element: no text, and a widget as the next sibling. A line
+hidden by a fold has no element and is not visited. Alternatives: keying on `HyperMD-table-row`, which
+is Obsidian's class for one widget; skipping every empty element, which would silence a line the
+plugin blanks.
 
 **The caret is read against both sides of its head.** `coordsAtPos(head)` defaults to the side after
 the head; beside a widget that is the widget's edge (in `92`). The painted caret stands on the
-text, where `coordsAtPos(head, -1)` returns it. The rule computes
-the other side only when the default disagrees, and reports only when neither side accounts for the
-caret. Alternatives:
+text, where `coordsAtPos(head, -1)` returns it. The rule computes the other side only when the
+default disagrees, and reports only when neither side accounts for the caret, on its top and height
+as well as its column. Alternatives:
 
 - *Skip a position that touches a replaced range, as the issue words it.* Deciding that needs the
   replaced ranges, which the page cannot read, and it would drop the comparison at every line's
   start, where the fold toggle widget stands. Reading both sides keeps the check where the caret is
   next to a widget and costs one call when they disagree.
 
-**A shift is judged against the edits before its frame, and a change to nothing is not an edit.**
-The touched span was one span for the whole case, so anything that happened before a late edit was
-judged against it. Each edit now carries its time, each shift carries the frame's `startTime`
-(the observer is told later), and a shift is judged against the union of the edits at or before it;
-a shift before every edit is not judged. Separately, `editor.setValue` with the text the note
-already holds fires `editor-change` with a document identical to the last, which the diff read as an
-edit of the last line, and the re-render it causes moves the lines above. That is
-what `67`'s `outlineNote` does, so a change that leaves the text as it was is not an edit. Neither
-correction alone clears `67`: the time split leaves the shifts that follow the set-up's own
-`setValue`, and the no-op rule leaves any case that sets up and then edits for real.
-Alternatives:
+**A change that leaves the text as it was is not an edit.** `editor.setValue` with the text the
+note already holds fires `editor-change` with a document identical to the last, which the diff read
+as an edit of the last line; the shifts that follow it, from the re-render, were then judged against
+that line. That is what `67`'s `outlineNote` does (create the note, turn the mode on, set the
+buffer), and the correction alone clears `67` (the note has the run). Alternatives:
 
 - *Move `67`'s set-up into `beforeEach`, as the issue prefers.* Each of its cases sets different
   content, so a `beforeEach` can hold the note and the mode but not the buffer, whose re-render
-  is the shift. The rule now reads any spec that has this shape, which the sweeps over real notes
-  (#294) will also have.
+  is the shift.
+- *Judge a shift only against the edits made before it.* It was tried alongside, and clears nothing
+  the correction above does not. It also hangs on comparing a shift's frame time with the time of
+  the edit that caused it, and a frame's timestamp can precede an input handler that runs in the
+  same frame, so a real shift would read as coming first.
 - *Read only shifts after the case's first key,* the issue's fallback. A case driven by commands or
   by `dispatch` presses no key and would lose the reading altogether.
 
@@ -79,8 +78,12 @@ also makes the case fail if the veto stops raising it, which the case did not ch
 ## Risks / Trade-offs
 
 - The corrections can hide a defect the old rule reported by accident: a quote whose text hangs at
-  the wrong column but consistently, a caret painted at a widget's near edge, a shift that lands in
-  the frame of the case's first edit. The rows keep the controls on the defect side of each
-  threshold. The sweep is read for a rule that goes to zero without a stated reason.
+  the wrong column but consistently; a caret painted at a widget's near edge, and, at a soft wrap,
+  the end of the row above (CodeMirror places a position at a wrap on either row, and either is
+  accepted); a line the plugin blanks beside a widget. The rows keep the controls on the defect
+  side of each threshold for the quote and the caret. The sweep is read for a rule that goes to zero
+  without a stated reason.
+- Set-up in the body followed by a real edit is still judged as one span, so a shift the set-up
+  causes after that edit is read as the case's own. The sweep decides whether any case does this.
 - The mobile-emulation readings are not re-measured: the driver runs the desktop app. The sweep in
   CI is what measures them, and the note records the result.

@@ -2,9 +2,10 @@
 
 - [x] 1.1 Re-measure each item in the running app with `npm run drive`: a wrapped quote (top level,
       nested, in an item; outline mode on and off), a table at the top of a note and after a
-      paragraph, and the caret at the end of a folded item against both sides of `coordsAtPos`; and
-      `67` with the real hooks. Recorded in `docs/research/ambient-e2e-monitors.md`, "Precision
-      corrections (#315)". Verified by `npm run lint`, whose research-index check passes.
+      paragraph, a properties block and an inline embed, and the caret at the end of a folded item
+      against both sides of `coordsAtPos`; and `67` with the real hooks. Recorded in
+      `docs/research/ambient-e2e-monitors.md`, "Precision corrections (#315)": its quote table, the
+      table, properties and embed paragraph, the caret paragraph and the set-up paragraph.
 
 ## 2. Correct the readings
 
@@ -13,20 +14,17 @@
       off its column is reported by its marker. Negative control: the quote branch disabled makes
       the first row report `grid-off-column` and `grid-wrap-hang`. Verified by
       `npm run test:e2e:narrow -- 01-ambient`.
-- [x] 2.2 `e2e-tests/monitors.ts`, height map: a line that draws no text is skipped. Row: a note
-      that opens with a table reads clean. Negative control: the skip removed makes the row report
-      `heightmap-no-position`. Verified likewise.
+- [x] 2.2 `e2e-tests/monitors.ts`, height map: an empty line whose next sibling is a widget is
+      skipped. Row: a note that opens with a table reads clean. Negative control: the skip removed
+      makes the row report `heightmap-no-position`. Verified likewise.
 - [x] 2.3 `e2e-tests/monitors.ts`, caret: read against both sides of the head. Rows: the end of a
       folded item reads clean; a caret that neither side accounts for is reported. Negative
       control: the second side removed makes the first row report `caret-off-coords`. Verified
       likewise.
-- [x] 2.4 `e2e-tests/monitors.ts`, layout shift: edits carry their time, shifts carry their frame's
-      time, and a change to identical text is not an edit. Rows: a shift before the first edit is
-      not judged and one after it is; a replacement with the same text leaves the case unread.
-      Negative controls: judging against every edit makes the first row report `shift-above-edit`;
-      counting the identical replacement makes the second row read the case instead of skipping it. Verified likewise, and by
-      `67-node-selection-extension`, whose real report was 10 observations in 7 cases before and is 0
-      after.
+- [x] 2.4 `e2e-tests/monitors.ts`, layout shift: a change to identical text is not an edit. Row: a
+      replacement with the same text leaves the case unread. Negative control: counting the
+      identical replacement makes the row read the case instead of skipping it. Verified likewise,
+      and by `67-node-selection-extension`, whose report is in the note, before and after.
 - [x] 2.5 `e2e-tests/specs/62-outline-edit-enforcement.e2e.ts`: the vetoed-edit case waits for
       "These blocks can't be joined into one." Negative control: the message text changed in
       `src/plugin/messages.ts` for one run makes the case time out on the wait; reverted. Verified by
@@ -34,13 +32,16 @@
 
 ## 3. Sweep
 
-- [ ] 3.1 Push the checkpoint. Verified by the CI matrix, desktop and mobile: every job's report is
-      read from its log, and `docs/research/ambient-e2e-monitors.md` states which rules read clean
-      over the whole suite, which still report and why, for #316 and #294.
+- [ ] 3.1 Push the checkpoint. Verified by the CI matrix, desktop and mobile: each job's
+      `[e2e] monitors:` report is read from its log (the step summary carries the same file), and
+      `docs/research/ambient-e2e-monitors.md` states which rules read clean over the whole suite,
+      which still report and why, for #316 and #294. The rows of its "What is left" table that read
+      "A rule to correct: #315" are rewritten to the sweep's result.
 - [ ] 3.2 Each rule the sweep still reports has an issue or a line in the note saying it is
       reference. Verified by reading the note against the issues the sweep cites.
 
 ## 4. Close
 
-- [ ] 4.1 `openspec validate monitors-read-stock-behaviour-as-clean --strict`, sync the delta into
-      `openspec/specs/e2e-verification/spec.md`, and archive. Verified by the `Landed` check.
+- [ ] 4.1 Sync the delta into `openspec/specs/e2e-verification/spec.md`. Verified by the `Landed`
+      check, which also holds the archive.
+- [ ] 4.2 `openspec validate monitors-read-stock-behaviour-as-clean --strict`.

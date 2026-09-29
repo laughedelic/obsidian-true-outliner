@@ -248,8 +248,8 @@ function installInPage(): void {
     shifts: [] as any[],
     errors: [] as string[],
     notices: [] as string[],
-    // Each edit: the editor, when it happened and the lines it touched, as a span.
-    edits: [] as { cm: any; t: number; min: number; max: number }[],
+    // Per editor: the lines its edits touched, as a span. An editor with no entry was not edited.
+    touched: new Map<any, { min: number; max: number }>(),
     stop: () => stops.forEach((s) => s()),
   };
   // Published before anything is registered, so a failure part-way still leaves a handle that
@@ -357,8 +357,7 @@ function installInPage(): void {
           if (line === null) continue;
           M.shifts.push({
             cm,
-            // When the frame was rendered, not when the observer was told.
-            t: +(e.startTime - t0).toFixed(1),
+            t: now(),
             line,
             dx: +(s.currentRect.x - s.previousRect.x).toFixed(2),
             dy: +(s.currentRect.y - s.previousRect.y).toFixed(2),
@@ -404,7 +403,8 @@ function installInPage(): void {
       }
       span = { min: doc.lineAt(a).number - 1, max: doc.lineAt(next.length - b).number - 1 };
     }
-    M.edits.push({ cm, t: now(), ...span });
+    const seen = M.touched.get(cm);
+    M.touched.set(cm, seen ? { min: Math.min(seen.min, span.min), max: Math.max(seen.max, span.max) } : span);
   });
   stops.push(() => ref && w.app.workspace.offref(ref));
 
@@ -758,8 +758,8 @@ function readInPage(expected: string[], final: boolean): PageReading | null {
       }
       const line = cm.state.doc.lineAt(pos);
       if (line.text.trim() === '' || child.getBoundingClientRect().height === 0) continue;
-      // A table's source line stays in the document under its widget, and draws nothing.
-      if (child.textContent === '') continue;
+      // A table's source line stays in the document ahead of its widget, and draws nothing.
+      if (child.textContent === '' && child.nextElementSibling?.classList.contains('cm-embed-block')) continue;
       const coords = cm.coordsAtPos(line.from);
       if (!coords || coords.top < sr.top || coords.bottom > sr.bottom) continue;
       checked++;
@@ -779,21 +779,11 @@ function readInPage(expected: string[], final: boolean): PageReading | null {
   // ---- layout shift ----------------------------------------------------
   out.layoutShift = guard((): PageResult => {
     if (M.shiftsUnsupported) return { skipped: 'no Layout Instability API', observations: [] };
-    if (M.edits.length === 0) return { skipped: 'the case edited no document', observations: [] };
+    if (M.touched.size === 0) return { skipped: 'the case edited no document', observations: [] };
     const obs: PageResult['observations'] = [];
     const seen = new Set<string>();
-    // The lines the editor's edits had touched by the time of a shift. A shift before the first
-    // edit belongs to whatever preceded it, such as turning outline mode on.
-    const touchedAt = (cm: any, t: number): null | { min: number; max: number } => {
-      let span: null | { min: number; max: number } = null;
-      for (const e of M.edits as { cm: any; t: number; min: number; max: number }[]) {
-        if (e.cm !== cm || e.t > t) continue;
-        span = span ? { min: Math.min(span.min, e.min), max: Math.max(span.max, e.max) } : { min: e.min, max: e.max };
-      }
-      return span;
-    };
     for (const s of M.shifts) {
-      const touched = touchedAt(s.cm, s.t);
+      const touched = M.touched.get(s.cm) as undefined | { min: number; max: number };
       if (!touched) continue;
       if (s.line >= touched.min && s.line <= touched.max) continue;
       const above = s.line < touched.min;

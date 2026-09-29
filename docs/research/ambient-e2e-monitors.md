@@ -214,7 +214,9 @@ pixel of tolerance for the first row.
 (`HyperMD-table-2 HyperMD-table-row`) with no text ahead of the widget; `posAtCoords` at its
 coordinates is null with outline mode on and off. A table after a heading or a paragraph leaves no
 such line among `contentDOM`'s children, and a table in a list item is three ordinary 25 px lines with
-no widget.
+no widget. The empty line's next sibling is the table's `.cm-embed-block`. A properties block at the
+top of a note leaves no line among the children (a widget, then the first line after it), and an
+inline `![[embed]]` line is a widget with the lines around it round-tripping to themselves.
 
 **The caret beside a widget.** After typing `!` at the end of `- one`, folded, the painted caret is
 at x 426.19, top 157.23, 19.00 high, `coordsAtPos(head)` gives 430.94, 156.23, 21.89, and
@@ -227,9 +229,12 @@ left, off the line's end, the two sides agree. `domAtPos` for the head at the li
 correction: 10 `shift-above-edit` observations in 7 cases, e.g. line 2 moved −101 px with the edit
 touching line 6. `outlineNote` creates the note, turns the mode on and calls `setBuffer` with the text
 the note already holds; the `editor-change` that produces has an identical document, which the diff
-read as an edit of the last line, and the shifts followed it by 2.4 ms in a debug dump. Judging a
-shift against the edits before it left 9 observations in 9 cases; not counting a change to identical
-text as well left none, in 46 cases.
+read as an edit of the last line, and the shifts followed it by 2.4 ms in a debug dump. Not counting a
+change to identical text as an edit left none, in 46 cases. Judging each shift only against the edits
+made before its frame was tried as well: alone it left 9 observations in 9 cases, and together with
+the first correction it changed nothing, so it was dropped. The rest of the twelve desktop and
+fifteen mobile cases the CI sweeps counted are in other specs, which the sweep after this
+correction accounts for.
 
 **Not corrected.** The readings the issue lists as reported and not reproduced are left in the
 report: `caret-off-coords` in `77` and `caret-covered` in `75` on mobile, `heightmap-wrong-line` in
