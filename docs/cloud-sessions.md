@@ -127,3 +127,8 @@ Two limits shape what a cloud run is good for. `E2E_MAX_INSTANCES` belongs at 2 
 timeouts off that value. And cloud sessions top out at Node 22 where CI and the e2e container use
 26; nothing here declares a floor above 22, but the combination has not been proven. CI stays the
 source of truth for the full sweep, so what a cloud session gains is the narrow loop.
+
+The driver needs none of this wrapper. `npm run drive -- start` starts an Xvfb of its own when
+Linux has no `DISPLAY`, launches one Obsidian on a copy of `test-vault`, and `stop` removes what
+it started; the skill `.agents/skills/driving-obsidian/` says when to reach for it. It relies on
+the same packages and the same `OBSIDIAN_CACHE` as the suites.

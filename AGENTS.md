@@ -124,6 +124,12 @@ specs headlessly in a Linux container instead (`e2e-tests/docker/`), one contain
 A cloud session needs its VM provisioned before any of this runs:
 [`docs/cloud-sessions.md`](docs/cloud-sessions.md).
 
+## Looking at the running app
+
+**Load the `driving-obsidian` skill before claiming a visual, caret, focus or scroll fix, and to
+reproduce a report before fixing it.** It is for looking; the suite stays the check that a case
+keeps passing.
+
 ## Conventions
 
 - **Committed prose is team voice** — "we" and "our", never "you", and never session-log phrasing
