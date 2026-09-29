@@ -111,6 +111,20 @@ runs:
         OBSIDIAN_INSTALLER_VERSION: ${{ inputs.installer-version }}
         E2E_MAX_INSTANCES: ${{ inputs.max-instances }}
 
+    # The ambient monitors are report-only, so their findings would never show up as a red
+    # check: they are rendered here, and the report is kept for reading after the job.
+    - if: ${{ !cancelled() }}
+      run: node scripts/e2e-monitors-summary.ts >> "$GITHUB_STEP_SUMMARY"
+      shell: bash
+
+    - if: ${{ !cancelled() }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: e2e-monitors-${{ inputs.platform }}-${{ inputs.group || 'all' }}
+        path: .obsidian-cache/e2e-monitors.json
+        if-no-files-found: ignore
+        retention-days: 14
+
     # Test Analytics: one upload per job, flagged by platform so the same
     # test's desktop and mobile histories stay apart. A caller that passes no
     # token (the scheduled run on the newest installer) uploads nothing, so its

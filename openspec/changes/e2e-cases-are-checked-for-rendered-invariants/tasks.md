@@ -11,29 +11,29 @@
       layout shift, scroll and rendered text columns across keystroke scenarios and a mixed-kind
       document. Verified by `npm run test:e2e:narrow -- 99-zz-monitor-probe` from
       `docs/research/prototypes/ambient-monitors/monitor-probe.e2e.ts.txt`.
-- [ ] 1.3 Run the prototype monitors over the whole desktop suite and record the findings, the
+- [x] 1.3 Run the prototype monitors over the whole desktop suite and record the findings, the
       coverage and the cost. Verified by `npm run test:e2e` and `.obsidian-cache/e2e-monitors.json`.
-- [ ] 1.4 Write the measurements up in `docs/research/ambient-e2e-monitors.md`, with its row in
+- [x] 1.4 Write the measurements up in `docs/research/ambient-e2e-monitors.md`, with its row in
       `docs/research/index.md`. Verified by `npm run lint`, whose research-index check passes.
 
 ## 2. The monitors
 
-- [ ] 2.1 `e2e-tests/monitors.ts`: the page-side install and read, the worker-side hooks, `exempt`,
+- [x] 2.1 `e2e-tests/monitors.ts`: the page-side install and read, the worker-side hooks, `exempt`,
       `expectNotices`, and the per-case record. Verified by `npm run typecheck:e2e` and a narrow run
       of `56-list-grid`, whose report lists all seven monitors read.
-- [ ] 2.2 `e2e-tests/wdio.shared.mts`: `caseHooks`, the report writer, and the reset of the records
+- [x] 2.2 `e2e-tests/wdio.shared.mts`: `caseHooks`, the report writer, and the reset of the records
       and the report; both configs spread `caseHooks` and write the report from `onComplete`. Verified
       by narrow runs on desktop and with `--mobile`, each printing the `[e2e] monitors:` line and
       leaving `.obsidian-cache/e2e-monitors.json`.
-- [ ] 2.3 `e2e-tests/helpers.ts`: `waitForNotice`, `noticeTexts` and `recordedNoticeTexts` report
+- [x] 2.3 `e2e-tests/helpers.ts`: `waitForNotice`, `noticeTexts` and `recordedNoticeTexts` report
       what a case expected. Verified by the notices row of 3.1, and by `20-structural-commands`, whose
       cases that wait for a refusal report no unexpected notice.
-- [ ] 2.4 `E2E_MONITORS=off` skips both hooks. Verified by a narrow run with it set, which writes no
+- [x] 2.4 `E2E_MONITORS=off` skips both hooks. Verified by a narrow run with it set, which writes no
       record and no report.
 
 ## 3. Check the monitors themselves
 
-- [ ] 3.1 `e2e-tests/specs/01-ambient-monitors.e2e.ts`, exempt from every monitor in each case
+- [x] 3.1 `e2e-tests/specs/01-ambient-monitors.e2e.ts`, exempt from every monitor in each case
       because each drives the install and read itself: one case per rule, each first reading a clean
       state, then breaking the thing on purpose and reading again. Rows: a caret clipped by
       `overflow: hidden` on its line; a caret whose line is covered; a scroll that leaves and returns;
@@ -43,7 +43,7 @@
       and a case with no focus. Negative controls, one per row: weakening the rule (dropping the hit
       test; the excursion's return check; the grid's tolerance; the layout-shift span; the awaited
       text match) must fail its row.
-- [ ] 3.2 A case that fails or times out is not read, and an exemption without a reason fails the case
+- [x] 3.2 A case that fails or times out is not read, and an exemption without a reason fails the case
       that made it. Verified by 3.1's rows for the exemption and the unread failure, with a spec-level
       control that passes an empty reason.
 
