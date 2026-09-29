@@ -72,9 +72,10 @@ Some text┃
 ```
 
 Recording is how the column is written, so the caret in it is measured (`--record`, D5). `actual`
-states what `expected` states: text always, and the caret, selection or block selection when it
-draws one, so a file whose `expected` draws no caret pins text only, as the measured files from
-issues that did not measure their carets do.
+states what `expected` states: text always, and the caret, selection or block selection only where
+the `expected` of the phase it stands for draws one. A file whose `expected` draws no caret pins text
+only, as the measured files from issues that did not measure their carets do, and its recorded
+`actual` draws none, so a caret the app places differently later does not fail the case.
 
 Alternatives: **the bare marker of #307**, rejected above. **`actual` optional, pinned when
 present**: rejected, since a marker without one is the bare marker and the four cases would be
@@ -85,10 +86,16 @@ since the drawing is what a reader of the file and of the report reads.
 
 Per platform, on the states the phases read:
 
-1. every phase matches `expected` → **fail**: `case … passes: remove known-failing: #228`;
-2. the first phase that differs from `expected` matches `actual` → **pass**, reported (D4);
-3. it matches neither → **fail**, drawing `before`, `expected`, the recorded `actual` and the state
-   now.
+1. every phase matches `expected` → **fail**, first line
+   `case 228-1 no longer differs (desktop): remove known-failing: #228`;
+2. the first phase that differs from `expected` matches `actual` → **pass**, reported (D4) under
+   `known-failing #228: case 228-1 still differs in text (desktop)`;
+3. it matches neither → **fail**, first line
+   `case 228-1 differs from its recorded actual (desktop): known-failing #228`, drawing `before`,
+   that phase's `expected`, `actual (recorded)` and `actual (now)`.
+
+The failures of 1 and 3 carry their own first line; the rule of "A failing case prints a drawing"
+that a first line names what differs applies to every other failure, and the delta says so.
 
 A pass fails the case, and so the `drawn-cases` job, and does not only report. A report-only pass
 leaves the marker where the fix's change need not touch it, and the case then guards nothing: the
@@ -97,11 +104,18 @@ the other reason: #278's second case draws `refused` and passes today, and a rep
 let it sit as a known bug the case cannot see, where a failing pass says so at its first run
 (`docs/research/drawn-case-files`, "Waiting on a fix").
 
-The phase judged is the first that differs, so `actual` is one column whatever the phase count:
-#275 has two phases, and only the second (⌘Z) differs. A `before` that is not held, an error while
-pressing keys, and a file that does not parse fail as they do without the marker, since the marker
-is about a result. The whole verdict is a pure function of the parsed case and the states, beside
+The phase judged is the first that differs, so `actual` is one column whatever the phase count, and
+its header carries no meaning (`actual ⌘Z` is as good as `actual`). A marked case stops pressing
+keys at that phase: the phases after it start from a state the case already knows is wrong, and
+the failure drawings already stop there. A `before` that is not held, an error while pressing keys,
+and a file that does not parse fail as they do without the marker, since the marker is about a
+result. The whole verdict is a pure function of the parsed case and the states, beside
 `compareState`, so the unit suite covers each outcome without Obsidian.
+
+The unit check of a marked file uses the same comparison. It refuses a file whose `actual`, compared
+with `compareState` against each `expected`, matches every one: the run could never see a
+difference, so the file would fail as a pass at its first run. A caret in `actual` that no
+`expected` draws is not a difference to that comparison, and is refused with the rest.
 
 Alternative: **a pass only reports, and a lint rule fails a marker whose issue is closed**.
 Rejected: it depends on the tracker, which a unit test cannot read, and a bug closed without a
@@ -147,7 +161,8 @@ is (the entries are a few lines and belong with the failures they are read besid
 
 `npm run case -- x.case --record` on a marked file keeps the marker, the keys and the `expected`
 columns and writes the state at the first phase that differs from them as `actual`, under
-`.obsidian-cache/cases/` as today. When no phase differs it says so and writes no `actual`, since
+`.obsidian-cache/cases/` as today. It draws a caret, selection or `▒` in `actual` only where that
+phase's `expected` draws one. When no phase differs it says so and writes no `actual`, since
 the marker would be an unexpected pass. A marked file is drafted with `before`, keys and the
 `expected` the fix would give, run with `--record` on each platform to see that the results
 agree, and the recorded `actual` is copied in. That is the workflow #307 asks for, and the drawing
@@ -160,13 +175,15 @@ gives the columns as drawn, and renaming a header is by hand
 
 ### D6. What ships
 
-Three case files, each on an open issue that no open pull request closes (#270 closes #244, #264
+Two case files, each on an open issue that no open pull request closes (#270 closes #244, #264
 closes #198, #273 closes #250, so those are left): #228's first case under `structural-operations`,
-#275 under `structural-history-integration`, and #215 under `structural-operations`. They cover
-carets drawn on both sides, two phases and a timing bound, and a setting (`tabs: on`) with a result
-that draws no caret. Each is recorded on both platforms, and each fix's pull request removes its
-marker. They are also what makes the report visible: the first CI run of this change's branch lists
-them in both `drawn-cases` step summaries.
+which draws carets on both sides, and #255's first case under `structural-operations`, which draws
+none in its result. Each is recorded on both platforms, and each fix's pull request removes its
+marker. #275 is left out because its bug needs two key presses within 500 ms of each other, and a
+slow CI run would give the fixed result and turn the job red on a bug that still stands; #215 is
+left out because its issue calls its `expected` a candidate, and the grandchild rule it depends on
+is still open. They are also what makes the report visible: the first CI run of this change's
+branch lists them in both `drawn-cases` step summaries.
 
 ## Risks / Trade-offs
 
@@ -175,7 +192,14 @@ them in both `drawn-cases` step summaries.
   shape, which someone should see. A file with an `expected` that draws no caret pins text only.
 - **A timing bound could make a case flaky, and an unexpected pass then fails a job** → the two
   timing-sensitive cases (#275, #146) were repeated on each platform and gave one drawing each,
-  every time (same note). A case whose result varies is not committed as known-failing until it is stable.
+  every time (same note), on one machine. A slower runner is a different measurement, so a case whose
+  bug depends on a time bound is not committed as known-failing until it has run repeatedly in CI.
+- **CI runs the latest Obsidian, and the scheduled workflows run other builds, so a recorded caret or
+  text can differ there** → the case then fails as `differs from its recorded actual`, drawing the
+  four columns, which is what a change of Obsidian's behaviour under a bug should do; the scheduled
+  runs report their failures already.
+- **A stale `e2e-summary.json` restored with `.obsidian-cache` would list cases a job that died
+  early never ran** → the action removes the summary before the run.
 - **A marker outlives its issue, closed without a fix** → the report lists it in every run, with
   its issue linked; nothing fails, and nothing in the repository knows the issue's state.
 - **The recorded `actual` is the app's answer on the machine that recorded it** → the two platforms

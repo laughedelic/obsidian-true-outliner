@@ -62,10 +62,11 @@ count of phases (one when there is no `keys` line) — is refused with its line 
 
 Every file under `e2e-tests/cases/` SHALL be parsed by the unit suite, which refuses one that does
 not parse, whose directory is not the name of a capability under `openspec/specs/`, whose keys the
-runner would not press, or whose `before`, `expected` or `actual` column does not read back as
-itself after being drawn. It SHALL also refuse a file with `known-failing` whose `actual` column
-draws the same text and the same caret, selection and block selection as every one of its
-`expected` columns, since the marker would wait on a difference that is not there.
+runner would not press, or whose `before` or `expected` column, or `actual` column in a file with
+`known-failing`, does not read back as itself after being drawn. It SHALL also refuse a file with
+`known-failing` whose `actual` column matches every one of its `expected` columns by the comparison
+a case uses (the text, and the caret, selection or block selection only where that `expected` draws
+one), since the marker would wait on a difference that is not there.
 
 #### Scenario: A case file under an unknown capability is refused
 
@@ -74,8 +75,15 @@ draws the same text and the same caret, selection and block selection as every o
 
 #### Scenario: A marker that waits on nothing is refused
 
-- **WHEN** a case file with `known-failing` holds an `actual` column identical to its `expected`
+- **WHEN** a case file with `known-failing` holds an `actual` column identical to its `expected`, or
+  differing from it only by a caret its `expected` does not draw
 - **THEN** the unit suite fails and names the file
+
+#### Scenario: An actual that stands for one phase is accepted
+
+- **WHEN** a two-phase file with `known-failing` holds an `actual` that matches the first phase's
+  `expected` and differs from the second's
+- **THEN** the unit suite accepts it
 
 **Covered by**: `tests/case-files.test.ts`
 
@@ -93,8 +101,8 @@ column draws a caret or selection, the main range equals it, and, when it draws 
 block-selected lines equal it. Running a file with `--record` SHALL never fail on a difference and
 SHALL write the case file with its result columns filled from the app; for a file with
 `known-failing` it SHALL keep the marker and the `expected` columns and write the state the app
-gave at the first phase that differs from them as the `actual` column, and it SHALL say when no
-phase differs.
+gave at the first phase that differs from them as the `actual` column, drawing a caret, selection
+or `▒` only where that phase's `expected` draws one, and it SHALL say when no phase differs.
 
 #### Scenario: A drawn case runs unchanged
 
@@ -127,6 +135,11 @@ phase differs.
 - **THEN** the case does not fail, and the file written under `.obsidian-cache/cases/` keeps the
   marker and the `expected` column and has the state the app gave as its `actual` column
 
+#### Scenario: A recorded actual draws only what expected draws
+
+- **WHEN** a case file with `known-failing` whose `expected` draws no caret runs with `--record`
+- **THEN** the `actual` column written draws no caret
+
 #### Scenario: A phase that presses ⌘V pastes
 
 - **WHEN** a case has a `clipboard` column and a ⌘V step
@@ -139,16 +152,20 @@ phase differs.
 ### Requirement: A known-failing case passes while the app gives its recorded result
 
 A case with `known-failing` SHALL run as any case does, on every platform it runs on, and be
-judged on the states its phases read. When every phase's state matches its `expected` column, by
-the comparison a case uses, the case SHALL fail, and its first line SHALL say that it passes and
-that the marker is to be removed. Otherwise the first phase whose state differs from its `expected`
-is the one judged: when its state matches the `actual` column by the same comparison — the text,
-and the caret or selection when `actual` draws one, and the block-selected lines when it draws `▒`
-— the case SHALL pass; when it does not, the case SHALL fail, its first line naming the issue and
-saying that the case differs from its recorded result, and its drawing showing `before`, that
-phase's `expected`, the recorded `actual` and the state the app gave now. A `before` the editor
-does not hold, an error while pressing keys, and a file that does not parse SHALL fail as they do
-for any case. A marker SHALL apply on every platform the case runs on.
+judged on the states its phases read, pressing no key after the first phase whose state differs
+from its `expected` column. When every phase's state matches its `expected` column, by the
+comparison a case uses, the case SHALL fail, its first line being
+`case <name> no longer differs (<platform>): remove known-failing: #<issue>`. Otherwise the first
+phase whose state differs from its `expected` is the one judged: when its state matches the `actual`
+column by the same comparison — the text, and the caret or selection when `actual` draws one, and
+the block-selected lines when it draws `▒` — the case SHALL pass; when it does not, the case SHALL
+fail, its first line being
+`case <name> differs from its recorded actual (<platform>): known-failing #<issue>`, and its drawing
+showing `before`, that phase's `expected`, `actual (recorded)` and `actual (now)`. These two first
+lines replace the rule of "A failing case prints a drawing" that a first line names what differs; its
+other rules, and every other failure, are unchanged. A `before` the editor does not hold, an error
+while pressing keys, and a file that does not parse SHALL fail as they do for any case. A marker
+SHALL apply on every platform the case runs on.
 
 #### Scenario: A case that still fails as recorded passes
 
@@ -174,6 +191,12 @@ for any case. A marker SHALL apply on every platform the case runs on.
   the way `actual` draws
 - **THEN** `actual` is compared with the second phase's state and the case passes
 
+#### Scenario: Later phases are not pressed
+
+- **WHEN** a case has two phases and the first differs from its `expected` the way `actual` draws
+- **THEN** the case passes without the second phase's keys pressed, and the drawing of a failure of
+  its kind would show no second phase
+
 #### Scenario: A marker does not hide a failure before the result
 
 - **WHEN** a case with `known-failing` has a `before` the editor cannot hold
@@ -184,8 +207,8 @@ for any case. A marker SHALL apply on every platform the case runs on.
 ### Requirement: A known-failing case that still fails is reported
 
 A case that passes because it still differs SHALL report itself three ways, none of which fails the
-run. It SHALL print, in the run's output, a first line naming the issue, the case, what differs and
-the platform, then the case's keys and setup and the drawing of `before`, `expected` and `actual`.
+run. It SHALL print, in the run's output, the first line
+`known-failing #<issue>: case <name> still differs in <what differs> (<platform>)`, then the case's keys and setup and the drawing of `before`, `expected` and `actual`.
 It SHALL be recorded, and the launcher SHALL list every recorded case, with its issue, platform and
 what differs, as `knownFailing` in the run's failure summary and print one line per entry after the
 failures, the list being empty and nothing printed when there is none. And the step summary of a CI

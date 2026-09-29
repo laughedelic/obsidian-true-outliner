@@ -29,20 +29,21 @@ for the bug would hold for the first kind with no bug behind it, and could never
     run reports it as still failing;
   - it differs from both: the case **fails**, drawing `expected`, the recorded `actual` and what
     the app gave now, since the bug changed or was never the one drawn.
-  A `before` the editor does not hold, an error while pressing keys and a file that does not parse
-  fail as before; the marker waits on a difference in a result and nothing else.
+  A marked case presses no key after the first phase that differs. A `before` the editor does not
+  hold, an error while pressing keys and a file that does not parse fail as before; the marker waits
+  on a difference in a result and nothing else.
 - Where the report goes: the drawing is printed in the run's output; each still-failing case is
   written to a record that the launcher collects into a `knownFailing` list in
   `.obsidian-cache/e2e-summary.json` and prints beside the failures; and the CI job's step summary
   renders that list, so a run shows which known-failing cases still fail without failing.
   `scripts/known-failing-summary.ts` renders it.
 - `--record` on a marked file keeps its marker and `expected` columns and writes the state the app
-  gave as `actual`.
+  gave as `actual`, with a caret only where `expected` draws one.
 - The unit suite refuses a marked file whose `actual` is missing, does not read back as itself,
-  or draws the same as every `expected` (a marker waiting on nothing).
-- Three real case files ship, each waiting on an open issue no pull request is fixing: #228's first
-  case (carets drawn on both sides), #275 (two phases, undo inside 500 ms) and #215 (tab
-  indentation, no caret in the result), recorded on both platforms.
+  or matches every `expected` (a marker waiting on nothing).
+- Two real case files ship, each waiting on an open issue no pull request is fixing: #228's first
+  case (carets drawn on both sides) and #255's first case (no caret in the result), recorded on both
+  platforms.
 - The `presenting-examples` skill documents the marker and the `actual` column, and `AGENTS.md`
   says where a bug's case file is committed and removed.
 
@@ -82,14 +83,14 @@ None.
 ## Impact
 
 - `scripts/`: `notation.ts` (`known-failing`, `actual` in `ParsedCase`), `known-failing.ts` and
-  `known-failing-summary.ts` (added, pure and a command line), `run-case.ts` (no change beyond
-  its usage line, `--record` is the runner's).
+  `known-failing-summary.ts` (added, pure and a command line).
 - `e2e-tests/`: `case-report.ts` (the verdict, the messages, recording), `specs/98-drawn-cases.e2e.ts`
   (applies the verdict, writes the record), `wdio.shared.mts` (the record directory, its reset,
   the `knownFailing` list of the summary), `cases/` (three files).
 - `tests/`: `notation.test.ts`, `case-report.test.ts`, `case-files.test.ts`, and a new
   `known-failing.test.ts`.
-- `.github/actions/e2e/action.yml`: one step that appends the list to the job's step summary.
+- `.github/actions/e2e/action.yml`: the stale summary removed before the run, and one step that
+  appends the list to the job's step summary.
 - `.agents/skills/presenting-examples/SKILL.md` (the symlinked copies follow), `AGENTS.md`,
   `docs/research/drawn-case-files.md` and `docs/research/prototypes/known-failing-cases/`, which
   hold the measurements this change rests on.
@@ -97,5 +98,11 @@ None.
   per-worker record, a launcher-side collection and a step-summary script for the ambient monitors,
   in the same files (`wdio.shared.mts`, `action.yml`). The known-failing report reuses that
   pattern and stays in `e2e-summary.json`.
+- Overlap with an open pull request: [#311](https://github.com/laughedelic/obsidian-true-outliner/pull/311)
+  (folded and zoomed outlines in a case file) is a proposal that also modifies "The runner executes
+  case files…" in `drawn-case-files`, and its tasks touch `recordedCase` and the spec in
+  `case-report.ts` and `98-drawn-cases.e2e.ts`, and `docs/research/drawn-case-files.md`. Neither
+  depends on the other. Whichever archives second rebuilds its MODIFIED text from the synced main
+  spec, so nothing of the first is dropped; stacking is a maintainer's decision.
 - CI: no new group. The cases run in the existing `drawn-cases` job on both platforms, whose
   step summary gains the list.
