@@ -1,11 +1,10 @@
 ## Context
 
-Under mobile emulation a real pointer action reaches the page as a tap, and for a tap on a gap line
-or on plain text the selection update lands about as late as WebDriver's `perform()` returns. A
-case that reads the caret once, straight after `clickAt`, races the update: on Chrome 120 the
-update lands first, on Chrome 150 it lands just after. The timings, the plugin's own record of the
-click and what was ruled out are in
-[`docs/research/gap-click-timing.md`](../../../docs/research/gap-click-timing.md).
+Under mobile emulation a real click's selection update can land after the WebDriver call that sent
+the click returns, so a case that reads the caret once, straight after `clickAt`, can read the old
+position. The timings, the plugin's own record of the click and what was ruled out are in
+[`docs/research/gap-click-timing.md`](../../../docs/research/gap-click-timing.md); the note also
+lists what it leaves unexplained.
 
 ## Decisions
 
@@ -18,13 +17,13 @@ read.
 
 **The message is `timeoutMsg` as a function.** `browser.waitUntil` evaluates a function `timeoutMsg`
 after the timeout, so the message can name the last position read; a string would be built before
-any read. A condition that throws on every poll surfaces as WebdriverIO's own "condition failed"
-error, which is the honest report for that failure.
+any read. A condition that throws on its last poll surfaces as WebdriverIO's own "condition failed"
+error instead, which is the honest report for that failure.
 
 **Not in `clickAt`.** `clickAt` returns nothing about the click's outcome, and a click that leaves
 the caret where it was is a legitimate outcome, so the helper cannot wait for a change. A fixed
-pause after `perform()` would cover the gap the note measures and cost that time on every click in
-every spec on every run, and it would still be a guess about a delay the note has not explained.
+pause after `perform()` would cost its time on every click in every spec on every run, and it would
+still be a guess about a delay the note has not explained.
 
 **A helper, not `browser.waitUntil` inline.** The two cases would each carry the same lines and a
 timeout message; `waitForCursor` sits beside `getCursor` and `waitForOutlineMode`.
@@ -37,18 +36,24 @@ weekly run reports one if it is real, and the requirement names the two cases, n
 already right and the wait returns on it, so scoping would add a branch to the spec for no
 difference in what it checks.
 
+**The smoke case moves the caret itself.** A wait that read once would pass a case that only checks
+a caret already there or one that never arrives, so the case also moves the caret from the page
+150 ms after the wait begins.
+
 **No case file.** The defect is in how a spec reads the caret after a click, not in what the editor
 does with keys, which is what `e2e-tests/cases/` files draw.
 
 ## Risks
 
-- A case that waits passes when the caret arrives late for a reason other than this race: a
-  handler that moved the caret 300 ms after every gap click would be masked. The note's record
-  shows one `select` transaction, and the cases' following assertions read the settled caret.
+- A case that waits passes when the caret arrives late for a reason other than the click's own
+  delay: a handler that moved the caret a moment after every gap click would be masked, because the
+  wait resolves on the first read that matches and neither case reads again. Nothing in the two
+  cases guards this; the note's record of the click shows one selection change and no later move.
 - `waitBudget(3000)` widens with `E2E_MAX_INSTANCES`; a loaded machine waits longer before it
   gives up.
 
 ## Open Questions
 
-None for this change. What the delay is made of, and why `perform()` returns sooner on the newer
-chromedriver, are in the note's "Not settled".
+None for this change. What the delay is made of, why `perform()` returns sooner on the newer
+chromedriver, and why the group runs failed on the oldest installer, are in the note's "Not
+settled".

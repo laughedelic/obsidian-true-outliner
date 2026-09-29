@@ -8,13 +8,17 @@ that failed intermittently on the newest installer in
 
 ## What fails
 
-`65-content-space-caret` D1 and `66-content-space-caret-manual-pass` D8 click an empty gap line and
-read the caret straight afterwards, expecting the end of the node above. Under mobile emulation on
-Chrome 150 the read sometimes returns the caret's old position.
+`65-content-space-caret` D1 and the code-fence D8 of `66-content-space-caret-manual-pass` ("a gap
+click before it lands on the previous node") click an empty gap line and read the caret straight
+afterwards, expecting the end of the node above. Under mobile emulation on Chrome 150 the read
+sometimes returns the caret's old position.
 
-A real pointer action under emulation reaches the page as a tap. For a tap on a gap line or on plain
-text, the selection update lands about 360 ms after the action begins, and WebDriver's `perform()`
-returns within a few milliseconds of it. The spec's next command is a race against the update.
+The issue records a real pointer action under emulation reaching the page as touch pointer events,
+then mouse events and a click. For a click on a gap line or on plain text, the selection change is
+recorded about 360 ms after `clickAt` begins (the position lookup included), and WebDriver's
+`perform()` returns within a few milliseconds of it, so a single read straight after `perform()`
+can precede the change. The runs below are consistent with that and a wait cures it; the timings
+alone do not predict the failure rate (see "The timeline").
 
 ## Rates
 
@@ -29,7 +33,8 @@ Each figure counts runs of a spec file, each run a fresh app.
 
 Every failure in these runs was D1 or D8. Load raises the rate on Chrome 150. Chrome 120 showed none
 in these 20 runs of spec 65, against about one run in seven and one in eight in the group runs the
-issue and `e2e-runtime-versions.md` record for it, which these runs do not reproduce.
+issue and `e2e-runtime-versions.md` record for it, which these runs do not reproduce (see "Not
+settled").
 
 ## The plugin recorded the click
 
@@ -41,17 +46,21 @@ with user event `select` 352 to 365 ms after the case began the click, then two 
 `getCursor()` in the same `afterEach` read `0:10`, the expected position, where the assertion had
 read `0:0` about half a second earlier.
 
-`selection-only` is the class of a transaction that changes the selection and nothing else, so it is
-the one that placed the caret; the two after it carry no user event. The record shows the click
-reaching the editor and the caret arriving, not a filter reverting it. The user event is `select`,
-not CodeMirror's `select.pointer`; this note does not settle which handler dispatches it.
+`selection-only` is the class of a transaction that carries a user event and changes no text. The
+record keeps no selection, so it does not show which transaction placed the caret: the two
+`programmatic` ones after it could have, since the plugin resolves the caret of transactions that
+carry no user event. What shows the caret at `0:10` is the `afterEach` read, and what shows the
+click reaching the editor is the `select` transaction; no filter reverting a move is visible in
+either. The user event is `select`, not CodeMirror's `select.pointer`, and this note does not
+settle which handler dispatches it.
 
 ## The timeline
 
 A copy of D1 with `Date.now()` stamps around the same commands as `clickAt` (position lookup,
-pointer action, first read) and no others, loaded, in ms from the start of `clickAt`:
+pointer action, first read) and no others, loaded, in ms from the start of `clickAt`, which includes
+the position lookup:
 
-| | `perform()` returned | `select` recorded | `select` minus return | first read right |
+| | `perform()` returned | `select` recorded | `select` relative to the return | first read right |
 | --- | --- | --- | --- | --- |
 | Chrome 150, 8 runs | 353 to 363 | 358 to 369 | 0 to 8 ms after | 5 of 8 |
 | Chrome 120, 4 runs | 392 to 423 | 349 to 378 | 43 to 45 ms before | 4 of 4 |
@@ -83,9 +92,9 @@ rounds, in ms from the start of the click:
 
 With `browser.waitUntil` polling `getCursor()` for the expected position in place of the one read,
 loaded, Chrome 150: spec 65 passed 10 of 10 (7 of 10 failed without) and spec 66 passed 8 of 8 (3
-of 6 failed without). The same figures from the helper as committed (`waitForCursor`, every run
-one build): spec 65 10 of 10 and spec 66 8 of 8 again, and each spec passes once per platform on
-both installers.
+of 6 failed without). The helper as committed (`waitForCursor`) gave spec 65 10 of 10 and spec 66
+8 of 8 in its first form, and 5 of 5 and 4 of 4 in its final form, with every run one build; each
+spec also passes once per platform on both installers.
 
 ## What was ruled out
 
@@ -95,19 +104,27 @@ both installers.
   every `pointerdown`, and a gap line in a note of paragraphs and a fence is neither a mark nor a
   guide column (`handleGuide` reads the line's guide class and geometry), so none of them takes the
   press.
-- **A delay before the click.** The lag is after it, which is why waiting 150 ms or two frames
-  before clicking changed nothing in the issue's measurements.
-- **Hooks that made the failure stop.** Not tested here. A looped copy of D1, unloaded, that paused
-  400 ms before reading landed 75 of 75, which the race accounts for without any hook.
+- **A delay before the click.** The selection change is recorded after the click, which is why
+  waiting 150 ms or two frames before clicking changed nothing in the issue's measurements.
 
 ## Not settled
 
 - What the roughly 360 ms is made of. It is the same on both installers; the emulated tap's
   confirmation delay is the candidate, and no trace here shows it.
 - Why `perform()` returns sooner on the newer chromedriver.
+- Why group runs failed on Chrome 120. The selection lands 17 to 45 ms before `perform()` returns
+  there, so this race does not account for them, and the 0 of 20 above says nothing about the
+  wait's effect on that installer.
+- The issue's two other observations: that the rate rose with the number of tests already run in
+  the session, and that event hooks in the page stopped the failure (40 of 40 clicks landing). Load
+  is the one variable this note shows to move the rate. A looped copy of D1, unloaded, that paused
+  400 ms before reading landed 75 of 75, which the wait explains and which says nothing about
+  hooks.
 - Whether the other thirteen `clickAt` call sites (specs 30, 59, 62, 65 D2, 66 lines 125 and 127,
-  and 80) and the `clickAtPoint` and `doubleClickAt` ones share the race. None is observed
-  failing, and none was timed for this note; D2 is a marker click, which took another path above.
+  and 80) and the `clickAtPoint` and `doubleClickAt` ones share the effect. None is observed
+  failing, and none was timed for this note; D2 is a marker click, which took another path above,
+  and 66's two are gap clicks in a case that skips itself under mobile emulation. The gap is not
+  yet tracked as an issue.
 - Whether the fix holds in CI on the newest installer: the run dispatched on the change's branch is
   the first check, and the weekly run's results are the standing one.
 

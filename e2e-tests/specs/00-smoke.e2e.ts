@@ -33,21 +33,30 @@ describe('smoke', function () {
     expect(buffer).toBe(disk);
   });
 
-  it('waitForCursor rejects naming the position it waited for and the caret it last read', async function () {
+  it('waitForCursor waits for a caret that arrives late, and rejects naming where it was when it never does', async function () {
     await openNote('Notes/Sourdough Log.md');
     await setCursor(0, 0);
-    // What the editor settles the request to is its own business (a list line pulls the caret to
-    // its content start), so the case reads where the caret is and waits for the next column.
+    // What the editor settles a request to is its own business (a list line pulls the caret to its
+    // content start), so the case reads where the caret is and waits for the next column.
     const at = await getCursor();
+    const target = at.ch + 1;
+
+    // A caret that arrives after the wait has begun: a wait that read once would reject.
+    await browser.executeObsidian(({ app, obsidian }, line, ch) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      window.setTimeout(() => view?.editor.setCursor({ line, ch }), 150);
+    }, at.line, target);
+    await waitForCursor(at.line, target);
+
     let error: Error | undefined;
     try {
-      await waitForCursor(at.line, at.ch + 1, 300);
+      await waitForCursor(at.line, target + 1, 300);
     } catch (e) {
       error = e as Error;
     }
-    expect(error?.message).toContain(`never reached ${at.line}:${at.ch + 1};`);
-    expect(error?.message).toContain(`last read ${at.line}:${at.ch}`);
-    await waitForCursor(at.line, at.ch, 300);
+    expect(error?.message).toContain(`never reached ${at.line}:${target + 1};`);
+    expect(error?.message).toContain(`last read ${at.line}:${target}`);
+    await waitForCursor(at.line, target, 300);
   });
 
   it('reports the platform mode this config requested', async function () {
