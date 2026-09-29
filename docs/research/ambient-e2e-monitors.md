@@ -171,20 +171,21 @@ around an edit, the gap-line suite toggles its setting between reads, and one ca
 after an ATX marker. They are 24 places in the specs and, in a desktop report, 122 cases exempt
 from `scroll` and 100 from `layoutShift`, of which 30 are the self-test's own.
 
-**What is left.** Nine rules, in cases the note has not explained. None was diagnosed here, and none
-is filed: each needs a re-measurement against the code before it is a claim.
+**What is left.** Nine rules in cases the CI sweeps did not explain by themselves. Each was
+re-measured in the running app with `npm run drive` before it was filed, and most turned out not to
+be the plugin's:
 
-| Rule | Cases (desktop, mobile) | Where |
+| Rule | Cases (desktop, mobile) | What it was |
 | --- | --- | --- |
-| `shift-above-edit` | 12, 15 | `67-node-selection-extension`: a line above the edited one moves 48 to 80 px up while a selection extends |
-| `heightmap-wrong-line` | 12, 8 | `80-outline-zoom`: in a zoomed note, a line's coordinates resolve to the line above it |
-| `heightmap-no-position` | 11, 11 | notes holding a table (`20`, `30`, `52`, `57`, `62`, `67`, `90`): a line has no position at its own coordinates |
-| `grid-left-of-column` | 6, 4 | `57-misplaced-block-ids`: a lone `^abc` line's text begins at its column, without the gutter |
-| `caret-covered` | 5, 3 | `80-outline-zoom`: the scroller is at the caret's point after a gap line is deleted; `75`: on mobile the header's buttons |
-| `unexpected-notice` | 2, 2 | `62`: a vetoed edit raises a refusal the case never waits for |
-| `grid-off-column`, `grid-wrap-hang` | 0, 2 | `93-fold-chrome` on mobile: the second row of a wrapped quote begins 18 px in |
-| `caret-off-coords` | 1, 2 | `92` on a folded line, 4.75 px; `77` with a popover open, 176 px |
-| `scroll-excursion`, `caret-outside-scroller`, `shift-sideways` | 2, 0; 1, 1; 1, 0 | one case each in `77`, `93` and `57` |
+| `heightmap-wrong-line` | 8 of its 12 desktop cases | In a zoom on a list item, each line after the first resolves to the line above it; unzoomed and with a heading root, every line resolves to itself. A defect: [#313](https://github.com/laughedelic/obsidian-true-outliner/issues/313) |
+| `caret-covered` | 5, 3 | `80-outline-zoom`'s R6: ⌦ on the cover's trailing gap line leaves the caret on the first hidden line, which `outline-zoom` forbids. A defect: [#312](https://github.com/laughedelic/obsidian-true-outliner/issues/312). On mobile, the header's buttons over the caret was not reproduced |
+| `grid-left-of-column` | 6, 4 | A lone block id under an item starts at the marker column, as stock draws it. A question: [#314](https://github.com/laughedelic/obsidian-true-outliner/issues/314) |
+| `shift-above-edit` | 12, 15 | `67-node-selection-extension` turns outline mode on and sets the buffer inside the body, and the rule reads that as the case's own shift. A rule to correct: [#315](https://github.com/laughedelic/obsidian-true-outliner/issues/315) |
+| `heightmap-no-position` | 11, 11 | A table's hidden source line has no position with outline mode on and off. A rule to correct: #315 |
+| `grid-off-column`, `grid-wrap-hang` | 0, 2 | A quote's `>` is its first row's first ink, with outline mode on and off. A rule to correct: #315 |
+| `caret-off-coords` | 1, 2 | `92`: the caret at the end of a folded line is at its text's end, and `coordsAtPos` measures the fold widget's edge, 4.75 px on. A rule to correct: #315. `77` on mobile with a popover open was not reproduced |
+| `unexpected-notice` | 2, 2 | `62`'s vetoed-edit case raises a refusal it never waits for. A case to fix: #315 |
+| `scroll-excursion`, `caret-outside-scroller`, `shift-sideways` | 2, 0; 1, 1; 1, 0 | One case each in `77`, `93` and `57`, not reproduced; listed in #315 |
 
 ## What the monitors do not read
 
