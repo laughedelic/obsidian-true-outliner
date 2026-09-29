@@ -5,7 +5,7 @@ Two real-click cases fail intermittently under mobile emulation on the newest in
 the case reads the caret before it has. The plugin's own record of the failing runs shows the
 click's selection change arriving about 360 ms after the click began, and separately stamped runs
 put that at the moment the WebDriver call that sent the click returns
-([`docs/research/gap-click-timing.md`](../../../docs/research/gap-click-timing.md)). The
+([`docs/research/gap-click-timing.md`](../../../../docs/research/gap-click-timing.md)). The
 weekly run on the newest installer is where this shows, and a red weekly run files its own issue.
 
 ## What Changes

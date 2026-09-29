@@ -3,7 +3,7 @@
 Under mobile emulation a real click's selection update can land after the WebDriver call that sent
 the click returns, so a case that reads the caret once, straight after `clickAt`, can read the old
 position. The timings, the plugin's own record of the click and what was ruled out are in
-[`docs/research/gap-click-timing.md`](../../../docs/research/gap-click-timing.md); the note also
+[`docs/research/gap-click-timing.md`](../../../../docs/research/gap-click-timing.md); the note also
 lists what it leaves unexplained.
 
 ## Decisions
