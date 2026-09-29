@@ -79,7 +79,7 @@ stays empty. The first example in a conversation gets a one-line legend of the g
 
 ## Drawing the block
 
-Generate the block with [`layout.mjs`](layout.mjs) rather than aligning it by hand: combining
+Generate the block with `scripts/layout.ts` rather than aligning it by hand: combining
 underlines, tab glyphs and column padding all have to add up. It reads columns on stdin, each
 starting with an `=== <header>` line, so a Markdown heading stays content. Each column is
 written as the document itself: real tabs and spaces, including lines of only spaces, `▒`
@@ -89,7 +89,7 @@ go. With `┃` touching one end, the selection's head is that end: `«big»┃` 
 backward.
 
 ```bash
-node .agents/skills/presenting-examples/layout.mjs <<'EOF'
+node scripts/layout.ts <<'EOF'
 === before
 - a
 ▒- b
@@ -109,7 +109,7 @@ space. `--case` draws a case file's columns under its keys and setup, for a PR's
 section.
 
 ```bash
-node .agents/skills/presenting-examples/layout.mjs --read <<'EOF'
+node scripts/layout.ts --read <<'EOF'
  before    after
 ┆- a      ┆- a┃
 ▒- b      ┆∅
@@ -129,7 +129,7 @@ section of the message, under its own heading.
 
 ## Case files: a drawing that runs
 
-A case drawn for an issue or a PR runs as written. The file is the `layout.mjs` input with a
+A case drawn for an issue or a PR runs as written. The file is the `scripts/layout.ts` input with a
 preamble and a keys line, saved as `<name>.case`:
 
 ```
@@ -158,11 +158,14 @@ keys: ⇥ | ⇧⇥
   `expected` or `after …` (the state after each phase, one per phase). Any other header, `actual` included, is a reference the run
   ignores, so a failure report runs again as it was printed. A result column with no caret,
   selection or `▒` does not compare one.
+- **Limits.** A case file cannot hold a note that contains `┃ « » ‸ ∅ ▒`. A selection that begins
+  at the end of a line, or ends at the start of one, draws as the shorter selection its underline
+  shows, since a line break has no underline; `--read` returns the shorter one.
 - **`before` is the start.** A drawing of the state after the first key belongs in a result
   column. A `before` the editor cannot hold (a caret inside a marker, say) fails before any key
   is pressed, and the failure draws what the editor holds.
 
-Turn an issue's block into a case file with `layout.mjs --read`, add the keys line and settings,
+Turn an issue's block into a case file with `layout.ts --read`, add the keys line and settings,
 and run it in the real app, desktop and mobile emulation:
 
 ```bash
@@ -175,5 +178,5 @@ npm run case -- path/to/x.case --record   # never fails; writes the file with it
 `--record` on a file with a `before` and keys and no result column is a bug's first reply: the
 carets in it are measured, not predicted. A case that stays goes under
 `e2e-tests/cases/<capability>/`, where `<capability>` is a directory of `openspec/specs/`, and
-runs with the rest. `layout.mjs --case < x.case` draws it under its keys and settings for a PR's
+runs with the rest. `node scripts/layout.ts --case < x.case` draws it under its keys and settings for a PR's
 manual-test section.

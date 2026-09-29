@@ -1,6 +1,6 @@
 /**
  * Drawn case files, run in the real app: every `*.case` under e2e-tests/cases/, or the files
- * `TO_CASE_FILES` names. The format is `.agents/skills/presenting-examples/notation.mjs`'s
+ * `TO_CASE_FILES` names. The format is `scripts/notation.ts`'s
  * `parseCase`; what a failure prints is `../case-report.ts`. The same spec covers the state
  * helper, since both read the editor the same way.
  */
@@ -9,7 +9,7 @@ import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
-import { parseCase, type ParsedCase } from '../../.agents/skills/presenting-examples/notation.mjs';
+import { parseCase, type ParsedCase } from '../../scripts/notation.ts';
 import { beforeMessage, compareState, phaseMessage, recordedCase, type CaseContext } from '../case-report.js';
 import { caseFiles, CASES_DIR, pressPhase } from '../cases.js';
 import { drawEditor, readEditorState, type EditorState } from '../drawing.js';
@@ -41,6 +41,8 @@ async function arrange(parsed: ParsedCase): Promise<{ held: boolean; state: Edit
     if (parsed.before.blockLines.length) {
       return s.blockLines.join() === parsed.before.blockLines.join();
     }
+    // A `before` that draws no caret states no selection, so only its text is held to.
+    if (!parsed.before.selection) return true;
     const main = s.ranges[s.main];
     return s.ranges.length === 1 && main?.anchor === range.anchor && main.head === range.head;
   };
@@ -84,6 +86,7 @@ function register(file: string): void {
   const ctx: CaseContext = { name, platform: PLATFORM, parsed };
   it(`${name}${parsed.title ? `: ${parsed.title}` : ''}`, async function () {
     if (parsed.platform && parsed.platform !== PLATFORM) {
+      console.log(`[case] ${name} skipped: it runs on ${parsed.platform} only`);
       this.skip();
     }
     await h.setIndentUsingTabs(parsed.tabs);
@@ -115,7 +118,9 @@ function register(file: string): void {
         console.log(`[case] recorded ${path.relative(process.cwd(), out)}:\n${recorded}`);
       }
     } finally {
+      // Both settings go back to their defaults, whatever ended the case.
       await h.setIndentUsingTabs(false);
+      if (!parsed.outline) await h.setOutlineMode(true).catch(() => undefined);
     }
   });
 }

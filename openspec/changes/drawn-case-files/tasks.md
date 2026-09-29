@@ -2,29 +2,29 @@
 
 ## 1. The notation module
 
-- [x] 1.1 Move the reading of columns, the drawing of a line and the layout out of
-      `.agents/skills/presenting-examples/layout.mjs` into `notation.mjs`, add `notation.d.mts`, and
-      leave `layout.mjs` as the command line over it (D1). Verify with `tests/notation.test.ts`: the
-      skill's own example, and the five tracker blocks of 1.3, laid out from their column input, equal
-      the blocks `layout.mjs` printed at `main`, stored in the test as strings; negative control:
-      changing the column gap in the module fails it.
+- [x] 1.1 Move the reading of columns, the drawing of a line and the layout out of the skill's
+      `layout.mjs` into `scripts/notation.ts`, with `scripts/layout.ts` as the command line over it
+      (D1). Verify with `tests/notation.test.ts`: the skill's own example, and the five tracker
+      blocks of 1.3, laid out from their column input, equal the blocks `layout.mjs` printed at
+      `main`, stored in the test as strings; negative control: changing the column gap in the
+      module fails it.
 - [x] 1.2 Add `readDocument` and `drawDocument` with D2's rules, including a selection across lines
       and the `∅` cases, and the underline that continues across lines in the layout. Verify with a
       fast-check property in `tests/notation.test.ts` — drawing a random text with a random range
       and reading it back returns both — and with the spec's scenarios spelled out; negative
       control: dropping the rule that a touching `┃` names the head fails the backward-selection
       case.
-- [x] 1.3 Add `undraw` and `layout.mjs --read` (D1). Verify with five drawn blocks copied verbatim
+- [x] 1.3 Add `undraw` and `layout.ts --read` (D1). Verify with five drawn blocks copied verbatim
       from the tracker (one with a tab, one with `▒`, one with `∅`, one with a `clipboard` column,
       one hand-aligned) that read into columns and lay out again to the same rows; negative
       control: reading `⏵` and its padding as one space fails the tab block.
 - [x] 1.4 Extend `SKILL.md`: the multi-line selection in the glyph table, `--read`, and a pointer to
-      case files (section 5 fills it in). Verify by running the SKILL.md `layout.mjs` example and
+      case files (section 5 fills it in). Verify by running the SKILL.md `layout.ts` example and
       comparing its output with the block printed beside it.
 
 ## 2. The case file
 
-- [x] 2.1 Add `parseCase` and `parseKeys` to `notation.mjs` with the grammar of D3 and every refusal
+- [x] 2.1 Add `parseCase` and `parseKeys` to `notation.ts` with the grammar of D3 and every refusal
       in the spec. Verify with `tests/notation.test.ts` cases for each refusal (`tabs: yes`, a step
       `⇥⇥⇥`, `⌘V` without a clipboard column, a wrong count of result columns, a stray line in the
       preamble) asserting the line number in the message; negative control: accepting an unknown
@@ -44,8 +44,8 @@
 - [x] 3.1 Add `e2e-tests/drawing.ts`: `readEditorState` as one self-contained function of
       `{ app, obsidian }` (D7), `drawStates` and `drawEditor`, with the multi-range and unfocused
       notes. Verify in `98-drawn-cases.e2e.ts` (a `describe` of its own): a caret reads as `┃`, ⌘A
-      pressed twice in a nested item reads as `▒` with no caret, a stock backward selection across
-      lines reads as one range, three ranges draw the main one and say three; negative control:
+      pressed twice on an item reads as `▒` with no caret, a stock backward selection across
+      lines reads as one range, two ranges draw the main one and say two; negative control:
       reading `blockLines` as empty fails the ⌘A case.
 - [x] 3.2 Add `drawOnFailure` to `wdio.shared.mts` and chain it after `screenshotOnFailure` in
       `wdio.conf.mts` and `wdio.mobile-emulation.conf.mts`. Verify by a narrow run of a spec with a
@@ -82,7 +82,7 @@
 - [x] 5.2 Extend `SKILL.md` with the case-file format, `npm run case`, `--record`, and the rule that
       `before` is the start and not the state after the first key; add to `AGENTS.md`'s e2e section
       that a bug's repro is a case file first and how to run one. Verify: an issue's drawn block from
-      the tracker, put through `layout.mjs --read`, given a `keys` line, runs with `npm run case`.
+      the tracker, put through `layout.ts --read`, given a `keys` line, runs with `npm run case`.
 - [x] 5.3 Add `Covered by` lines to the change's delta spec naming `tests/notation.test.ts`,
       `tests/case-files.test.ts`, `tests/case-report.test.ts` and
       `e2e-tests/specs/98-drawn-cases.e2e.ts`. Verify: every named file exists (`ls`) and

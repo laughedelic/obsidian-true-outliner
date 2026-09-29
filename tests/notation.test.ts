@@ -1,4 +1,6 @@
 import fc from 'fast-check';
+import { execFileSync } from 'node:child_process';
+import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   drawDocument,
@@ -8,7 +10,7 @@ import {
   readColumns,
   readDocument,
   undraw,
-} from '../.agents/skills/presenting-examples/notation.mjs';
+} from '../scripts/notation.ts';
 import { DRAWN, GOLD } from './notation-fixtures';
 
 const draw = (text: string, anchor: number, head = anchor) =>
@@ -149,6 +151,24 @@ describe('reading what was drawn', () => {
     );
   });
 
+  it('returns the text and the selection after being laid out and read as a drawn block', () => {
+    // A line break has no underline of its own, so a selection that starts at the end of a line or
+    // ends at the start of one draws the same as a shorter one and cannot be read back.
+    const visible = ({ text, anchor, head }: { text: string; anchor: number; head: number }) => {
+      const [from, to] = [Math.min(anchor, head), Math.max(anchor, head)];
+      return from === to || (text[from] !== '\n' && text[to - 1] !== '\n');
+    };
+    fc.assert(
+      fc.property(state.filter(visible), ({ text, anchor, head }) => {
+        const [column] = undraw(layout([{ header: 'x', lines: draw(text, anchor, head) }]));
+        const back = readDocument(column?.lines ?? []);
+        expect(back.text).toBe(text);
+        expect(back.selection).toEqual({ anchor, head });
+      }),
+      { numRuns: 500 },
+    );
+  });
+
   it('returns the text and the block lines for a block selection', () => {
     fc.assert(
       fc.property(state, ({ text }) => {
@@ -182,6 +202,24 @@ describe('reading a drawn block', () => {
     expect(undraw(block)).toEqual([{ header: 'x', lines: ['\t  - «ab»┃ c  '] }]);
   });
 
+  it('reads a selection across lines back as one selection, empty lines inside it included', () => {
+    for (const lines of [
+      ['- «foo', '  bar', '- baz»┃', '- qux'],
+      ['«a', '', 'b»┃'],
+      ['┃«a', '\t- b»'],
+    ]) {
+      const [column] = undraw(layout([{ header: 'x', lines }]));
+      expect(column?.lines).toEqual(lines);
+      expect(readDocument(column?.lines ?? []).selection).not.toBeNull();
+    }
+  });
+
+  it('reads a tab that is underlined, that ends a line, or that follows a space', () => {
+    for (const lines of ['\t«1»', '«\t1»', '1«\t»', '1\t', ' «\t»┃'].map((l) => [l])) {
+      expect(undraw(layout([{ header: 'x', lines }]))[0]?.lines).toEqual(lines);
+    }
+  });
+
   it('reads a block-selected line with its ▒', () => {
     const [before] = undraw(layout([{ header: 'before', lines: ['- a', '▒- b'] }]));
     expect(before?.lines).toEqual(['- a', '▒- b']);
@@ -210,8 +248,17 @@ describe('keys', () => {
     expect(parseKeys('')).toEqual([]);
   });
 
-  it.each(['⇥⇥⇥', 'blah', 'mod-blah', '⇥ | ', '⇥×'])('refuses %j', (value) => {
-    expect(() => parseKeys(value)).toThrow();
+  it.each(['⇥⇥⇥', 'blah', 'mod-blah', '⇥ | ', '| ⇥', '⇥ | | ⇥', '⇥×', '⇥×0', '⌘', '⇧⌘', '⌘⌘', '⇧', '|'])(
+    'refuses %j',
+    (value) => {
+      expect(() => parseKeys(value)).toThrow();
+    },
+  );
+
+  it('keeps a quoted text whole, a bar inside it included', () => {
+    const phases = parseKeys('"a | b" | ⇥');
+    expect(phases).toHaveLength(2);
+    expect(phases[0]?.[0]).toMatchObject({ kind: 'text', text: 'a | b' });
   });
 });
 
@@ -254,6 +301,24 @@ describe('case files', () => {
     ['no before', 'keys: ⇥\n=== expected\na\n', 'needs a "=== before" column'],
   ])('refuses %s', (_name, source, message) => {
     expect(() => parseCase(source)).toThrow(message);
+  });
+
+  it('refuses a name given twice and a keys value with an empty phase, as parseCase reads them', () => {
+    expect(() => parseCase('keys: ⇥\nkeys: ⇧⇥\n=== before\na\n=== expected\na\n')).toThrow('line 2: keys is given twice');
+    expect(() => parseCase('keys: ⇥ |\n=== before\na\n=== after\na\n=== after 2\na\n')).toThrow('line 1: keys:');
+  });
+
+  it('reads a header with trailing spaces as its name', () => {
+    expect(parseCase('=== before  \na┃\n=== expected \na\n').results).toHaveLength(1);
+  });
+
+  it('draws a case file for the manual-test section, even a title holding "=== " and no result column', () => {
+    const script = path.join(__dirname, '..', 'scripts', 'layout.ts');
+    const out = execFileSync('node', [script, '--case'], {
+      input: 'case: a === b\nkeys: ⇥\n\n=== before\n- a┃\n',
+      encoding: 'utf8',
+    });
+    expect(out).toBe(['a === b', 'keys: ⇥ · outline on · tabs off · desktop and mobile', ' before', '┆- a┃', ''].join('\n'));
   });
 
   it('names the file line of a malformed column', () => {

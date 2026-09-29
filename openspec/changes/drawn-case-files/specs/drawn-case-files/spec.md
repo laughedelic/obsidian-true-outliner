@@ -49,6 +49,18 @@ the last line — is refused with the line it is on.
 - **THEN** the columns it prints, laid out again, give the block back, apart from the padding a
   hand alignment chose
 
+#### Scenario: A selection and a tab survive being drawn and read
+
+- **WHEN** a column holding a selection across lines, or a tab inside a selection or at the end of
+  a line, is laid out and read back with `--read`
+- **THEN** the column comes back as written; a selection that begins at the end of a line or ends at
+  the start of one comes back as the shorter selection the underline shows
+
+#### Scenario: A case file is drawn under its keys
+
+- **WHEN** the layout script is given a case file with `--case`
+- **THEN** it prints the title, the keys and settings, and the file's columns as a drawing
+
 **Covered by**: `tests/notation.test.ts`
 
 ### Requirement: A case file states its setup, keys and columns

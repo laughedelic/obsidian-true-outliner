@@ -20,11 +20,12 @@ shows the state after the first key, so the drawing is right about the state and
 
 ## What Changes
 
-- The notation moves out of `layout.mjs` into a module beside it that the layout script, the runner
-  and the helper all import: a column of the literal document reads to text and selection, a state
-  draws to a column, and a drawn block reads back into columns. `layout.mjs` keeps its command line
-  and gains `--read`, which turns a block from an issue into column input, and `--case`, which
-  draws a case file under its keys and settings.
+- The notation becomes `scripts/notation.ts`, which the layout script (`scripts/layout.ts`, replacing
+  the skill's `layout.mjs`), the runner and the helper all import: a column of the literal document
+  reads to text and selection, a state draws to a column, and a drawn block reads back into
+  columns. The layout script keeps its command line and gains `--read`, which turns a block from an
+  issue into column input, and `--case`, which draws a case file under its keys and settings.
+  `scripts/drive-state.ts`, which copied the layout code until this change, imports it.
 - The notation gains a selection across lines: `«` on one line closes with `»` on a later line, and
   the underline continues between them. The tracker's #203 already draws one that way, and a
   stock-mode Shift+Arrow produces one.
@@ -78,12 +79,13 @@ it, specified as its own capability rather than as more requirements there.
 
 ## Impact
 
-- `.agents/skills/presenting-examples/`: `notation.mjs` and its declarations added, `layout.mjs`
-  reduced to the command line, `SKILL.md` extended. The two symlinked copies follow.
+- `scripts/`: `notation.ts` added, `layout.ts` replacing the skill's `layout.mjs`, `drive-state.ts`
+  importing the layout instead of copying it. `.agents/skills/presenting-examples/SKILL.md`
+  extended, the two symlinked copies following.
 - `e2e-tests/`: `state-drawing.ts` and `case-report.ts` (pure, unit-tested), `drawing.ts` (the
   page-side read), `cases.ts` (finding files, pressing keys), `specs/98-drawn-cases.e2e.ts`,
   `cases/`; both wdio configs chain the drawing into `afterTest`.
-- `scripts/`: `run-case.ts`; `spec-groups.ts` gains the group, marked exclusive because ⌘V writes
+- `scripts/`: also `run-case.ts`; `spec-groups.ts` gains the group, marked exclusive because ⌘V writes
   the machine's clipboard.
 - `tests/`: `notation.test.ts`, `case-report.test.ts`, `case-files.test.ts`; `.editorconfig`
   keeps trailing spaces in `*.case`.

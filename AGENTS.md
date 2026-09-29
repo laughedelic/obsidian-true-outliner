@@ -112,7 +112,7 @@ nothing to gain by skipping those steps.
 `npm run test:e2e[:mobile]` runs a whole group (`--group <name>`) or the whole suite: a final
 check before a checkpoint, not a per-edit loop.
 
-**A bug's repro is a drawn case file first.** Put the drawing in `layout.mjs`'s input with a
+**A bug's repro is a drawn case file first.** Put the drawing in `scripts/layout.ts`'s input with a
 keys line and settings (`.agents/skills/presenting-examples/SKILL.md`, "Case files"), and run it in
 the real app, desktop and mobile emulation, with `npm run case -- <file> [--mobile] [--record]`.
 `--record` prints what the app did as the `expected` column, so a bug's first reply and a fix's

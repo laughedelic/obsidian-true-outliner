@@ -51,7 +51,7 @@ describe('stateMarkup', () => {
 });
 
 describe('drawColumns', () => {
-  const layout = '.agents/skills/presenting-examples/layout.mjs';
+  const layout = 'scripts/layout.ts';
   const cases: Record<string, { header: string; text: string }[]> = {
     'one column': [{ header: 'state', text: '- a┃\n\t- b \n∅' }],
     'before and after': [
@@ -65,7 +65,7 @@ describe('drawColumns', () => {
     ],
   };
 
-  it.each(Object.entries(cases))('matches layout.mjs: %s', (_name, columns) => {
+  it.each(Object.entries(cases))('matches layout.ts: %s', (_name, columns) => {
     const stdin = columns.map((c) => `=== ${c.header}\n${c.text}\n`).join('\n');
     const expected = execFileSync(process.execPath, [layout], { input: stdin, encoding: 'utf8' }).replace(/\n$/, '');
     expect(drawColumns(columns)).toBe(expected);

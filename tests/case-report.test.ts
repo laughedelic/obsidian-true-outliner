@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseCase } from '../.agents/skills/presenting-examples/notation.mjs';
+import { parseCase } from '../scripts/notation.ts';
 import {
   beforeMessage,
   compareState,
@@ -51,6 +51,15 @@ describe('comparing a state with an expected column', () => {
     expect(compareState(e, state('- a\n- b\n', 4, 7, { blockLines: [1] }))).toEqual([]);
     expect(compareState(e, state('- a\n- b\n', 4, 7, { blockLines: [0, 1] }))).toEqual(['block selection']);
     expect(compareState(e, state('- a\n- b\n', 7))).toEqual(['block selection']);
+  });
+
+  it('compares the main range, wherever it sits among several', () => {
+    const many = state('- a\n', 0, 0, {
+      ranges: [{ anchor: 0, head: 0 }, { anchor: 3, head: 3 }],
+      main: 1,
+    });
+    expect(compareState(expected('- a┃'), many)).toEqual([]);
+    expect(compareState(expected('┃- a'), many)).toEqual(['caret']);
   });
 
   it('compares nothing about the caret when the column draws none', () => {
@@ -125,6 +134,17 @@ describe('recording', () => {
     );
     const again = parseCase(out);
     expect(again.results.map((r) => r.text)).toEqual(['- a\n\t- b\n', '- a\n- b\n']);
+  });
+
+  it('keeps a clipboard that ends in a blank line', () => {
+    const parsed = parseCase('keys: ⌘V\n\n=== clipboard\nx\n\n∅\n=== before\na┃\n=== expected\nb\n');
+    expect(parsed.clipboard).toBe('x\n\n');
+    expect(parseCase(recordedCase(parsed, [state('ax\n\n\n', 2)])).clipboard).toBe('x\n\n');
+  });
+
+  it('refuses to record a document that holds the notation’s own glyphs', () => {
+    const parsed = parseCase('keys: ⇥\n=== before\na┃\n', { record: true });
+    expect(() => recordedCase(parsed, [state('« a »\n', 0)])).toThrow('cannot be recorded');
   });
 
   it('keeps the settings, the title and a clipboard that has no final newline', () => {

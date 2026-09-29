@@ -3,7 +3,7 @@
  * suite covers it and the page-side read in `./drawing.ts` stays the only part that needs one.
  */
 
-import { drawDocument, layout } from '../.agents/skills/presenting-examples/notation.mjs';
+import { drawDocument, layout } from '../scripts/notation.ts';
 
 /** What `readEditorState` returns: plain data, one editor's text, selection and block chrome. */
 export interface EditorState {

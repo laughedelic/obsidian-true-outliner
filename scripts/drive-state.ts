@@ -1,16 +1,17 @@
 /**
  * The editor's state as a drawn column, for `scripts/drive.ts state`.
  *
- * `stateMarkup` writes a document in the form `.agents/skills/presenting-examples/layout.mjs`
- * reads: `┃` at each range's head, `«…»` around the part of each line a range covers, `∅` at the
- * end of the document, and `▒` opening a block-selected line. A block selection has no caret (the
+ * `stateMarkup` writes a document in the form `scripts/layout.ts` reads: `┃` at each range's head,
+ * `«…»` around the part of each line a range covers, `∅` at the end of the document, and `▒`
+ * opening a block-selected line. A block selection has no caret (the
  * editor gives up focus while one holds), so while any line is block-selected no line carries `«»`
  * or `┃`.
  *
- * `drawColumns` is a copy of `layout.mjs`'s layout. That file is a script that reads stdin and
- * cannot be imported, so the logic is duplicated here until the case-file work (#289) gives it
- * one home; `tests/drive-state.test.ts` runs both on the same input and requires equal output.
+ * `drawColumns` lays the columns out with `scripts/notation.ts`, which `scripts/layout.ts` and the
+ * drawn-case runner use too.
  */
+
+import { layout } from './notation.ts';
 
 export interface StateRange {
   anchor: number;
@@ -61,53 +62,13 @@ export function stateMarkup(doc: string, ranges: readonly StateRange[], blockLin
   return out.join('\n');
 }
 
-const UNDERLINE = '̲';
-const EDGE = '┆';
-const BLOCK = '▒';
-const TAB = '⏵   ';
-const GAP = 3;
-
-const width = (s: string): number => [...s].filter((c) => c !== UNDERLINE).length;
-const pad = (s: string, n: number): string => s + ' '.repeat(Math.max(0, n - width(s)));
-
-function draw(raw: string): string {
-  let edge = EDGE;
-  let s = raw;
-  if (s.startsWith(BLOCK)) {
-    edge = BLOCK;
-    s = s.slice(BLOCK.length);
-  }
-  const dots = (m: string): string => '·'.repeat(m.length);
-  s = s
-    .replace(/ +(?=[┃‸∅]*$)/, dots)
-    .replace(/ +(?=\t)|(?<=\t) +/g, dots)
-    .replace(/\t/g, TAB)
-    .replace(/«(.*?)»/g, (_, t: string) => [...t].map((c) => c + UNDERLINE).join(''));
-  return edge + s;
-}
-
 export interface Column {
   header: string;
-  /** The column in `layout.mjs`'s input form, lines joined by `\n`. */
+  /** The column in `scripts/layout.ts`'s input form, lines joined by `\n`. */
   text: string;
 }
 
-/** Columns side by side, as `layout.mjs` prints them. */
+/** Columns side by side, as `scripts/layout.ts` prints them. */
 export function drawColumns(columns: readonly Column[]): string {
-  const cols = columns.map((c) => {
-    const lines = c.text.split('\n');
-    while (lines.at(-1) === '') lines.pop();
-    const drawn = lines.map(draw);
-    return {
-      header: c.header,
-      lines: drawn,
-      width: Math.max(width(c.header) + 1, ...drawn.map(width)) + GAP,
-    };
-  });
-  const rows = Math.max(...cols.map((c) => c.lines.length));
-  const out = [cols.map((c) => pad(' ' + c.header, c.width)).join('').trimEnd()];
-  for (let r = 0; r < rows; r++) {
-    out.push(cols.map((c) => pad(c.lines[r] ?? '', c.width)).join('').trimEnd());
-  }
-  return out.join('\n');
+  return layout(columns.map((c) => ({ header: c.header, lines: c.text.split('\n') })));
 }

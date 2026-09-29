@@ -67,8 +67,8 @@ const LABELS: Record<string, string> = {
   // splice lands inside it. Both need a REAL paste, which is the one thing the
   // synthesised alternative below cannot be.
   80: 'clipboard',
-  // Its own group and an exclusive one: a drawn case pastes through the machine's clipboard
-  // (see EXCLUSIVE_GROUPS), and the spec is small enough that a job of its own costs a launch.
+  // Its own group: a drawn case pastes through the machine's clipboard (see EXCLUSIVE_GROUPS),
+  // and the spec is small enough that a job of its own costs a launch.
   98: 'drawn-cases',
 };
 
@@ -77,7 +77,8 @@ const LABELS: Record<string, string> = {
  * beside each other however many instances the runner is given.
  *
  * `clipboard` is the first, and `drawn-cases` the second: its cases press ⌘V with a clipboard
- * column through the same `pasteText`. `pasteText` writes the system clipboard and then
+ * column through the same `pasteText`. The group holds one spec, so listing it costs nothing
+ * today and keeps a second spec added to it from racing the first. `pasteText` writes the system clipboard and then
  * presses Mod+V, and 61 and 67 press Mod+C into that same system clipboard —
  * one clipboard per machine, four specs, and workers interleaving freely.
  * Observed twice on CI, in both directions: a paste receiving another spec's

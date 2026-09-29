@@ -2,7 +2,7 @@
 
 ## Context
 
-The notation lives in a skill script that only draws: `layout.mjs` reads columns and prints a
+The notation lives in a skill script that only draws: `layout.mjs` read columns and printed a
 block. The e2e harness reads the buffer and the caret through separate helpers and asserts on
 values. `docs/research/drawn-case-files` measures what closes the gap: every drawing in the
 tracker reads back (208 of 208 blocks), the editor's state is one page-side read, and a case is
@@ -26,17 +26,20 @@ prints only its first line in the summary on stdout.
 
 ## Decisions
 
-### D1. The notation is a module beside `layout.mjs`, with declarations
+### D1. The notation is `scripts/notation.ts`, and the layout script is `scripts/layout.ts`
 
-`notation.mjs` exports what the three consumers share: reading a column (`readDocument`), drawing
-a state (`drawDocument`), laying columns out (`layout`), reading a drawn block (`undraw`), and
-parsing a case file and its keys line. `layout.mjs` becomes its command line. The skill directory
-stays runnable on its own, which it would not if the notation lived under `e2e-tests/`, and
-`notation.d.mts` gives the TypeScript consumers types without turning on `allowJs`.
+`notation.ts` exports what the consumers share: reading a column (`readDocument`), drawing a state
+(`drawDocument`), laying columns out (`layout`), reading a drawn block (`undraw`), and parsing a
+case file and its keys line. `layout.ts` is its command line. Both are TypeScript run by Node's own
+type stripping and checked by `npm run typecheck:scripts`, as the repository's other tooling
+scripts are, and the driver of #298 already sits there. The e2e harness, the unit suite and
+`scripts/drive-state.ts` import the module with its types, so `drive-state.ts` no longer keeps a
+copy of the layout. The skill directory keeps `SKILL.md`, which tells an agent to run
+`node scripts/layout.ts`.
 
-Alternative: write the notation in TypeScript under `scripts/` and have `layout.mjs` import it
-through Node's type stripping. Rejected: the skill is copied into other agents' views by symlink,
-and its script is the one file an agent runs without the repository's toolchain.
+Alternative: keep the module as `.mjs` in the skill directory, with a `.d.mts` for the TypeScript
+consumers. Rejected: it is the one script of ours outside `scripts/` and outside the type check, and
+it left `drive-state.ts` unable to import it.
 
 ### D2. A column reads to text and a selection by fixed rules
 
@@ -55,8 +58,9 @@ and its script is the one file an agent runs without the repository's toolchain.
   line of its own is a final newline and an empty last line, and no `∅` is a final newline, which is
   how every note in the vault ends. Drawing follows the same rules, and leaves `∅` off exactly when
   it would be read back as the default, so reading what was drawn returns the state.
-- A column states no selection when it has none of the glyphs above; the runner then does not
-  compare the caret and says so.
+- A column states no selection when it has none of the glyphs above. As `before`, the runner then
+  holds the editor to its text only; as a result, it does not compare the caret and says so in a
+  failure's drawing.
 
 Alternative for the drawn end of the text: always draw `∅`. Rejected: the skill asks for it only
 when the end is the point, and the measurement found it in 10 of 208 blocks.
@@ -104,7 +108,7 @@ Alternative for several steps: a keys line in each column's header, as 69 tracke
 Rejected: those headers are labels first, and none of the blocks says whether a header lists the
 keys since the previous column or since the start.
 
-Alternative for the preamble: YAML front matter. Rejected: `layout.mjs` already refuses text before
+Alternative for the preamble: YAML front matter. Rejected: the layout script already refuses text before
 the first header, and five names and a keys line do not need a parser.
 
 ### D4. Case files live under `e2e-tests/cases/<capability>/`
@@ -140,15 +144,17 @@ A caret that a task-item widget moves after mount (`docs/research/open-questions
 re-arranged by polling the read-back for up to the harness budget before it counts as not held.
 Each phase then presses its keys and reads. The settings are restored after the case.
 
-`platform` skips a case on the other config through mocha's `this.skip()`, and says why.
+`platform` skips a case on the other config through mocha's `this.skip()`, and logs why.
+`--record` never fails on a difference; a `before` the editor does not hold still fails, since
+there is no start to record from.
 
 ### D6. The failure is a verdict and a drawing
 
 The first line names the case, what differs (`text`, `caret`, `selection`, `block selection`) and the platform,
 because `writeFailureSummary` prints only that line on stdout. Under it the keys line and setup,
 then one drawing: `before`, and for the first phase that differs, `expected` and `actual`. Later
-phases are not drawn, since they depend on it. A phase whose `expected` draws no caret prints
-`caret not asserted` and its `actual` column carries the caret anyway. `--record` prints, and
+phases are not drawn, since they depend on it. A phase whose `expected` draws no caret or selection prints
+that none was compared, and its `actual` column carries the caret anyway. `--record` prints, and
 writes to `.obsidian-cache/cases/<slug>.<platform>.case`, the case file with its result columns
 filled from the app, which is a bug's first reply and a fix's `expected`.
 
@@ -177,9 +183,14 @@ measurement in `docs/research/rendered-ui-observability` is about what is painte
 
 - **`·` in a drawing is a space** → `--read` says so and a note containing a middle dot cannot be
   read back through a drawing; a case file holds the literal text, which has no such loss.
-- **A case file's trailing spaces are content** → an editor that trims them changes the case. The
-  unit suite refuses a file whose `before` and `expected` disagree with their own drawing round
-  trip, `.editorconfig` turns trimming off for `*.case`, and the skill says so.
+- **A case file's trailing spaces are content** → an editor that trims them changes the case.
+  `.editorconfig` turns trimming off for `*.case` and the skill says so; nothing checks it.
+- **A line break has no underline** → a selection that begins at the end of a line or ends at the
+  start of one draws the same as a shorter one, and reading a drawn block returns the shorter. The
+  state helper draws such a selection with `«` and `»` where they are, and a case file states it
+  the same way; only `--read` of a drawing loses it.
+- **A note holding `┃ « » ‸ ∅ ▒`** cannot be drawn reversibly, so `--record` refuses it and the
+  skill says a case file cannot hold them.
 - **A drawing that is right about the state and wrong about when** (three in the tracker) → the
   runner fails at `before` with what it holds; the skill tells a drawing's author to draw `before`
   as the start.
@@ -188,7 +199,7 @@ measurement in `docs/research/rendered-ui-observability` is about what is painte
 - **Exclusive group** → the cases run alone in their job; at about 80 ms each that is a launch and
   a few seconds.
 - **The reference columns are ignored** → an author who means one as a result gets no assertion.
-  The runner names the columns it used and the ones it ignored in its first output line.
+  A failure's first line names the columns it ignored.
 
 ## Open Questions
 

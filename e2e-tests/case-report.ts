@@ -3,7 +3,7 @@
  * a failure carries, and the case file a recording writes. Pure, so the unit suite covers it.
  */
 
-import { layout, type ParsedCase } from '../.agents/skills/presenting-examples/notation.mjs';
+import { drawDocument, keysLine, layout, type ParsedCase } from '../scripts/notation.ts';
 import { drawState, stateNotes, type EditorState } from './state-drawing.js';
 
 export type Difference = 'text' | 'caret' | 'selection' | 'block selection';
@@ -39,8 +39,7 @@ export interface CaseContext {
 
 /** `keys: ⇥ | ⇧⇥ · outline on · tabs off`, the line under the verdict. */
 export function setupLine(parsed: ParsedCase): string {
-  const keys = parsed.phases.map((p) => p.map((s) => s.source).join(' ')).join(' | ') || '(none)';
-  return `keys: ${keys} · outline ${parsed.outline ? 'on' : 'off'} · tabs ${parsed.tabs ? 'on' : 'off'}`;
+  return `keys: ${keysLine(parsed.phases) || '(none)'} · outline ${parsed.outline ? 'on' : 'off'} · tabs ${parsed.tabs ? 'on' : 'off'}`;
 }
 
 function verdict(ctx: CaseContext, what: string): string {
@@ -92,21 +91,23 @@ export function phaseMessage(
   ].join('\n');
 }
 
+// The notation's own glyphs in a note's text would read back as glyphs, so a case file cannot
+// hold them.
+const GLYPHS = /[┃«»‸∅▒]/;
+
 /** The case file with its result columns filled from the states the app produced. */
 export function recordedCase(parsed: ParsedCase, states: readonly EditorState[]): string {
+  const glyph = states.find((s) => GLYPHS.test(s.text));
+  if (glyph) throw new Error('the document holds a character the notation draws with (┃ « » ‸ ∅ ▒); it cannot be recorded');
   const head: string[] = [];
   if (parsed.title) head.push(`case: ${parsed.title}`);
   if (!parsed.outline) head.push('outline: off');
   if (parsed.tabs) head.push('tabs: on');
   if (parsed.platform) head.push(`platform: ${parsed.platform}`);
-  if (parsed.phases.length) head.push(`keys: ${parsed.phases.map((p) => p.map((s) => s.source).join(' ')).join(' | ')}`);
+  if (parsed.phases.length) head.push(`keys: ${keysLine(parsed.phases)}`);
   const column = (header: string, lines: readonly string[]) => [`=== ${header}`, ...lines];
   const out = [...head, ''];
-  if (parsed.clipboard !== undefined) {
-    const ends = parsed.clipboard.endsWith('\n');
-    const lines = (ends ? parsed.clipboard.slice(0, -1) : parsed.clipboard).split('\n');
-    out.push(...column('clipboard', ends ? lines : [...lines.slice(0, -1), `${lines.at(-1)}∅`]));
-  }
+  if (parsed.clipboard !== undefined) out.push(...column('clipboard', drawDocument({ text: parsed.clipboard })));
   out.push(...column('before', parsed.beforeLines));
   states.forEach((state, i) => {
     const keys = parsed.phases[i]?.map((s) => s.source).join(' ');

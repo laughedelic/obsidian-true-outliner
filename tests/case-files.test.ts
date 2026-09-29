@@ -1,12 +1,13 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { drawDocument, parseCase, readDocument } from '../.agents/skills/presenting-examples/notation.mjs';
+import { drawDocument, parseCase, readDocument } from '../scripts/notation.ts';
 
 /**
- * Every drawn case file under e2e-tests/cases/ is checked here, without Obsidian: it parses, it
- * sits under a capability of openspec/specs/, and each drawn column reads back as itself, so a
- * file that an editor mangled (trimmed spaces, a lost tab) fails before a run is spent on it.
+ * Every drawn case file under e2e-tests/cases/ is checked here, without Obsidian: it parses (its
+ * keys are ones the runner presses), it sits under a capability of openspec/specs/, and each
+ * drawn column reads back as itself, which a glyph in the text that the notation draws with would
+ * break.
  */
 
 const ROOT = path.join(__dirname, '..');

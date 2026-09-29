@@ -769,7 +769,7 @@ const USAGE = `Usage: npm run drive -- <command>
   type <text|->            insert text, as a paste would
   eval <js|->              evaluate in the page (\`app\` is Obsidian's); prints the value
   state [--raw] [--header h]
-                           the document as a drawn column; --raw prints layout.mjs input
+                           the document as a drawn column; --raw prints layout.ts input
   shot [--out f] [--clip x,y,w,h | --selector css | --caret [--pad px]] [--scale n]
                            a PNG of the window, a clip, an element, or around the caret
                            (--caret retakes the shot until the blinking caret shows; 3x by default)

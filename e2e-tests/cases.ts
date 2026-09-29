@@ -9,7 +9,7 @@ import { Key } from 'webdriverio';
 import { readdirSync, statSync } from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { KeyStep } from '../.agents/skills/presenting-examples/notation.mjs';
+import type { KeyStep } from '../scripts/notation.ts';
 import { PRIMARY_MOD, pasteText } from './helpers.js';
 
 export const CASES_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'cases');
