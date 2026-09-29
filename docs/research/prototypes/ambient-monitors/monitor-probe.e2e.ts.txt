@@ -1,0 +1,244 @@
+import { browser } from '@wdio/globals';
+import { obsidianPage } from 'wdio-obsidian-service';
+import * as fsp from 'node:fs/promises';
+import * as h from '../helpers.js';
+
+const OUT = '/tmp/claude-0/scratch/probe-out.json';
+const results: Record<string, unknown> = {};
+
+function caretReading(): Promise<unknown> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    if (!view) return { error: 'no view' };
+    const cm = (view.editor as any).cm;
+    const main = cm.state.selection.main;
+    const ds = window.getSelection()!;
+    const o: any = { head: main.head, empty: main.empty, focus: cm.hasFocus, domRanges: ds.rangeCount, domCollapsed: ds.isCollapsed };
+    const c = cm.coordsAtPos(main.head);
+    o.coords = c && { l: +c.left.toFixed(2), t: +c.top.toFixed(2), b: +c.bottom.toFixed(2) };
+    if (ds.rangeCount) {
+      const r = ds.getRangeAt(0);
+      const rs = Array.from(r.getClientRects()).map((x) => ({ l: +x.left.toFixed(2), t: +x.top.toFixed(2), w: +x.width.toFixed(2), h: +x.height.toFixed(2) }));
+      const bb = r.getBoundingClientRect();
+      o.rects = rs;
+      o.bbox = { l: +bb.left.toFixed(2), t: +bb.top.toFixed(2), w: +bb.width.toFixed(2), h: +bb.height.toFixed(2) };
+      const sc = r.startContainer;
+      o.container = sc.nodeType === 3 ? `#text(${(sc.textContent ?? '').slice(0, 12)})@${r.startOffset}` : `${(sc as Element).tagName}.${(sc as Element).className}@${r.startOffset}`;
+      const el = sc.nodeType === 3 ? sc.parentElement! : (sc as Element);
+      const line = el.closest('.cm-line');
+      const cx = (rs[0]?.l ?? bb.left), cy = (rs[0] ? rs[0].t + rs[0].h / 2 : bb.top + bb.height / 2);
+      const hit = document.elementFromPoint(cx, cy);
+      o.hit = hit && `${hit.tagName}.${hit.className}`.slice(0, 60);
+      o.hitSameLine = !!(hit && line && hit.closest('.cm-line') === line);
+      const sr = cm.scrollDOM.getBoundingClientRect();
+      o.inScroller = cx >= sr.left && cx <= sr.right && cy >= sr.top && cy <= sr.bottom;
+      if (c) o.dx = +(cx - c.left).toFixed(2), o.dTop = +((rs[0] ? rs[0].t : bb.top) - c.top).toFixed(2), o.dH = +((rs[0] ? rs[0].h : bb.height) - (c.bottom - c.top)).toFixed(2);
+    }
+    return o;
+  });
+}
+
+const DOC = ['# Head', '', '- alpha', '\t- beta bravo', '\t\t- [ ] task item', '1. one', '2. two', '', 'A paragraph', 'with a continuation', '', '> [!note] Callout', '> body', '', '```js', 'code()', '```', '', '| a | b |', '|---|---|', '| 1 | 2 |', ''].join('\n');
+
+describe('monitor probe', function () {
+  before(async function () {
+    await obsidianPage.resetVault();
+    await h.resetPluginState();
+    await h.pinPositionIndicatorsOff();
+    await h.createNote('Scratch/probe.md', DOC);
+    await h.setOutlineMode(true);
+  });
+  after(async function () { await fsp.writeFile(OUT, JSON.stringify(results, null, 1)); });
+
+  it('caret readings by shape', async function () {
+    const shapes: Record<string, [number, number]> = {
+      'heading start': [0, 0], 'heading mid': [0, 3], 'heading end': [0, 6],
+      'empty line': [1, 0], 'bullet start of text': [2, 2], 'bullet mid': [2, 4], 'bullet end': [2, 7],
+      'nested end': [3, 12], 'task text start': [4, 8], 'ordered mid': [5, 5], 'paragraph start': [8, 0],
+      'continuation mid': [9, 5], 'callout title end': [11, 17], 'callout body': [12, 4], 'fence code': [15, 3], 'table cell': [19, 2], 'last line end': [20, 0],
+    };
+    const r: Record<string, unknown> = {};
+    for (const [name, [line, ch]] of Object.entries(shapes)) {
+      try { await h.setCursorSettled(line, ch); } catch (e) { r[name] = { error: String(e).slice(0, 80) }; continue; }
+      await browser.pause(120);
+      r[name] = await caretReading();
+    }
+    // a ranged selection
+    await h.setSelection({ line: 2, ch: 2 }, { line: 3, ch: 5 });
+    await browser.pause(120);
+    r['ranged'] = await caretReading();
+    // blurred editor
+    await browser.execute(() => (document.activeElement as HTMLElement | null)?.blur());
+    await browser.pause(120);
+    r['blurred'] = await caretReading();
+    results.caret = r;
+  });
+});
+
+
+function installProbe(): Promise<void> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const w = window as any;
+    if (w.__probe) { w.__probe.stop(); }
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+    const cm = (view.editor as any).cm;
+    const P: any = { labels: [], shifts: [], scroll: [], changes: [], frames: 0 };
+    const t0 = performance.now();
+    const describeNode = (n: Node | null) => {
+      if (!n) return null;
+      const el = (n.nodeType === 3 ? n.parentElement : n) as HTMLElement | null;
+      if (!el) return null;
+      let line: number | null = null;
+      try {
+        let child: HTMLElement | null = el;
+        while (child && child.parentElement !== cm.contentDOM) child = child.parentElement;
+        if (child) line = cm.state.doc.lineAt(cm.posAtDOM(child)).number - 1;
+      } catch { /* scaffolding */ }
+      return { tag: el.tagName, cls: String(el.className).slice(0, 50), line, text: (el.textContent ?? '').slice(0, 14) };
+    };
+    const po = new PerformanceObserver((list) => {
+      for (const e of list.getEntries() as any[]) {
+        P.shifts.push({
+          t: +(e.startTime - t0).toFixed(1), value: e.value, recent: e.hadRecentInput,
+          sources: (e.sources ?? []).map((s: any) => ({ ...describeNode(s.node), dx: +(s.currentRect.x - s.previousRect.x).toFixed(2), dy: +(s.currentRect.y - s.previousRect.y).toFixed(2), dw: +(s.currentRect.width - s.previousRect.width).toFixed(2), dh: +(s.currentRect.height - s.previousRect.height).toFixed(2) })),
+        });
+      }
+    });
+    po.observe({ type: 'layout-shift', buffered: false });
+    let last = -1; let raf = 0; let running = true;
+    const tick = () => {
+      if (!running) return;
+      P.frames++;
+      const top = cm.scrollDOM.scrollTop;
+      if (top !== last) { P.scroll.push([+(performance.now() - t0).toFixed(1), top, cm.scrollDOM.scrollHeight]); last = top; }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    let prev = cm.state.doc.toString();
+    const ref = app.workspace.on('editor-change', (ed: any) => {
+      const now = (ed.cm as any).state.doc.toString();
+      let a = 0; while (a < prev.length && a < now.length && prev[a] === now[a]) a++;
+      let b = 0; while (b < prev.length - a && b < now.length - a && prev[prev.length - 1 - b] === now[now.length - 1 - b]) b++;
+      const fromLine = (ed.cm as any).state.doc.lineAt(a).number - 1;
+      const toLine = (ed.cm as any).state.doc.lineAt(now.length - b).number - 1;
+      P.changes.push({ t: +(performance.now() - t0).toFixed(1), fromLine, toLine, delta: now.length - prev.length });
+      prev = now;
+    });
+    P.label = (l: string) => P.labels.push([+(performance.now() - t0).toFixed(1), l]);
+    P.stop = () => { running = false; cancelAnimationFrame(raf); po.disconnect(); app.workspace.offref(ref); };
+    w.__probe = P;
+  });
+}
+const label = (l: string) => browser.execute((l) => (window as any).__probe.label(l), l);
+const takeProbe = () => browser.execute(() => { const P = (window as any).__probe; return { labels: P.labels, shifts: P.shifts, scroll: P.scroll, changes: P.changes, frames: P.frames }; });
+
+const LONG = ['# Long', '', ...Array.from({ length: 12 }, (_, i) => `- item ${i}\n\t- child ${i} ` + 'wrap '.repeat(i % 3 === 0 ? 30 : 2) + `\n\t\t- grand ${i}`), '', '## Second', '', 'para one', 'continuation two', '', ...Array.from({ length: 12 }, (_, i) => `1. n${i}`), ''].join('\n');
+
+describe('monitor probe: shift, scroll', function () {
+  before(async function () {
+    await obsidianPage.resetVault();
+    await h.resetPluginState();
+    await h.pinPositionIndicatorsOff();
+    await h.createNote('Scratch/probe-long.md', LONG);
+    await h.setOutlineMode(true);
+  });
+  after(async function () { await fsp.writeFile(OUT.replace('.json', '-2.json'), JSON.stringify(results, null, 1)); });
+
+  it('keystroke scenarios', async function () {
+    await h.setCursorSettled(2, 4);
+    await installProbe();
+    const scen: [string, () => Promise<unknown>][] = [
+      ['down x3', async () => { await h.keys.down(); await h.keys.down(); await h.keys.down(); }],
+      ['type abc', () => h.keys.type('abc')],
+      ['enter', () => h.keys.enter()],
+      ['tab', () => h.keys.tab()],
+      ['shift-tab', () => h.keys.shiftTab()],
+      ['type x', () => h.keys.type('x')],
+      ['move-node-down', () => h.keys.moveNodeDown()],
+      ['move-node-up', () => h.keys.moveNodeUp()],
+      ['undo', () => h.keys.undo()],
+      ['down x20', async () => { for (let i = 0; i < 20; i++) await h.keys.down(); }],
+      ['ctrl-end jump', async () => { await browser.keys([h.PRIMARY_MOD, 'End']); }],
+      ['ctrl-home jump', async () => { await browser.keys([h.PRIMARY_MOD, 'Home']); }],
+    ];
+    for (const [name, fn] of scen) { await label(name); await fn(); await browser.pause(250); }
+    results.shiftScroll = await takeProbe();
+    const viewport = await browser.execute(() => ({ w: innerWidth, h: innerHeight }));
+    results.viewport = viewport;
+  });
+});
+
+function gridCensus(): Promise<unknown> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+    const cm = (view.editor as any).cm;
+    const content: HTMLElement = cm.contentDOM;
+    const cb = content.getBoundingClientRect();
+    const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    const unitRaw = getComputedStyle(content).getPropertyValue('--to-decor-unit').trim();
+    const unit = parseFloat(unitRaw) * (unitRaw.endsWith('rem') ? remPx : 1);
+    let raw = '';
+    for (const child of Array.from(content.children) as HTMLElement[]) {
+      const v = child.style.getPropertyValue('--to-marker-gutter').trim();
+      if (v) { raw = v; break; }
+    }
+    const host = (cm.dom.parentElement ?? document.body) as HTMLElement;
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:absolute;visibility:hidden;height:0;';
+    probe.style.setProperty('--to-marker-gutter', raw);
+    probe.style.width = 'var(--to-marker-gutter)';
+    host.appendChild(probe);
+    const gutter = probe.getBoundingClientRect().width;
+    probe.remove();
+    const out: any[] = [];
+    for (const child of Array.from(content.children) as HTMLElement[]) {
+      let n = -1;
+      try { n = cm.state.doc.lineAt(cm.posAtDOM(child)).number - 1; } catch { continue; }
+      const es = getComputedStyle(child);
+      const depth = Number(es.getPropertyValue('--to-depth').trim() || 'NaN');
+      const range = document.createRange();
+      const walker = document.createTreeWalker(child, NodeFilter.SHOW_TEXT);
+      const rowLefts = new Map<number, number>();
+      let node: Node | null = walker.nextNode();
+      while (node) {
+        const chrome = node.parentElement?.closest('.cm-formatting-list, .cm-hmd-list-indent, .task-list-label');
+        if (!chrome && (node.textContent ?? '').trim() !== '') {
+          const t = node.textContent ?? '';
+          range.setStart(node, t.length - t.trimStart().length); range.setEnd(node, t.length);
+          for (const b of Array.from(range.getClientRects())) {
+            if (b.width === 0) continue;
+            const key = Math.round(b.top); const left = +(b.left - cb.left).toFixed(2);
+            if (!rowLefts.has(key) || left < rowLefts.get(key)!) rowLefts.set(key, left);
+          }
+        }
+        node = walker.nextNode();
+      }
+      const rows = Array.from(rowLefts.entries()).sort((a, b) => a[0] - b[0]).map((e) => e[1]);
+      out.push({ n, text: cm.state.doc.line(n + 1).text.slice(0, 22), cls: child.className.replace(/cm-line|cm-active/g, '').trim().replace(/\s+/g, ' '), depth, rows: rows.map((x) => +(x - depth * unit - gutter).toFixed(2)) });
+    }
+    return { unit, gutter, lines: out };
+  });
+}
+
+describe('monitor probe: grid', function () {
+  before(async function () {
+    await obsidianPage.resetVault();
+    await h.resetPluginState();
+    await h.pinPositionIndicatorsOff();
+  });
+  after(async function () { await fsp.writeFile(OUT.replace('.json', '-3.json'), JSON.stringify(results, null, 1)); });
+
+  it('census on mixed kinds and long', async function () {
+    const MIXED = ['# H1', '', '## H2', '', 'para under h2', 'continued para line', '', '- alpha', '\t- beta', '\t\tcontinuation of beta', '\t\t    surplus continuation', '\t- [ ] task', '\t- [x] done', '', '1. one', '2. two', '\t1. nested one', '10. ten', '', '> quote', '> more', '', '> [!note] Callout', '> body', '', '```js', 'code()', '```', '', '- item with fence', '\t```', '\tin fence', '\t```', '', '| a | b |', '|---|---|', '| 1 | 2 |', '', '---', '', '![[Attached]]', '', '###### H6', 'text under h6', ''].join('\n');
+    await h.createNote('Scratch/probe-grid.md', MIXED);
+    await h.setOutlineMode(true);
+    await h.setCursorSettled(0, 1);
+    await browser.pause(400);
+    results.gridMixed = await gridCensus();
+    await h.createNote('Scratch/probe-grid2.md', LONG);
+    await h.setOutlineMode(true);
+    await h.setCursorSettled(0, 1);
+    await browser.pause(400);
+    results.gridLong = await gridCensus();
+  });
+});
