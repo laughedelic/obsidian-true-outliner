@@ -3,20 +3,18 @@
 ## Why
 
 Bugs, fixes and manual passes are written as drawn cases — the document before, the keys, the
-document after, caret included (`.agents/skills/presenting-examples/SKILL.md`) — and two things
-keep that notation from doing its whole job
+document after, caret included (`.agents/skills/presenting-examples/SKILL.md`), and two things keep
+that notation from doing its whole job
 ([#289](https://github.com/laughedelic/obsidian-true-outliner/issues/289), under
 [#297](https://github.com/laughedelic/obsidian-true-outliner/issues/297)). A drawing does not run:
-every repro is turned into a spec by hand, and the carets it draws are the author's prediction.
-The harness does not draw: a case reads back `getBuffer()` and `getCursor()`, and what the real app
-did reaches the reader as an assertion message rather than as the picture the case was written in.
+every repro is turned into a spec by hand, and its carets are the author's prediction. The harness
+does not draw: a case reads back `getBuffer()` and `getCursor()`, and what the real app did reaches
+the reader as an assertion message.
 
-`docs/research/drawn-case-files` measures both directions. The tracker holds 208 drawn blocks in 70
-items, and a prototype read every one back into columns; the editor's state draws as the same
-notation from one page-side read of about 8 ms; a case arranged in one call, run and read costs
-about 80 ms. What a drawing leaves unsaid is the keys and the setup — 34% of the tracker's drawn
-cases name no key at all — and the same measurement found three drawings whose `before` column
-shows the state after the first key, so the drawing is right about the state and wrong about when.
+`docs/research/drawn-case-files` measures both directions: every drawn block in the tracker reads
+back into columns, the editor's state draws from one page-side read, and a case costs about 80 ms.
+What a drawing leaves unsaid is the keys and the setup, and three drawings show the state after the
+first key as `before`.
 
 ## What Changes
 
