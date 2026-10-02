@@ -11,7 +11,7 @@
  */
 
 import { Parser, type Node as CmNode } from 'commonmark';
-import { editSite, isPlace } from '../src/edit-site';
+import { editSite, isPlace, sameGap } from '../src/edit-site';
 import { encode } from '../src/encode';
 import { forEachNodeWithLine } from '../src/locate';
 import { walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
@@ -424,7 +424,7 @@ export function tallyOne(
       continue;
     }
     const was = old.get(seam.upper.id);
-    if (!was || was.trailingGap.join('\n') === seam.upper.trailingGap.join('\n')) continue;
+    if (!was || sameGap(was.trailingGap, seam.upper.trailingGap)) continue;
     tally.awayChanged++;
     const kind = kindAsWritten(seam.lower, 0);
     if (seam.upper.kind === 'list-item' && seam.upper.children[0] === seam.lower &&

@@ -66,6 +66,20 @@ describe('insertion, removal and moves', () => {
     expect(text(deleteSubtrees(doc, [node(doc, '---').id]))).toBe('> q\n\nafter\n');
   });
 
+  it('a removal that joins a quote and a paragraph after a checked task separates them', () => {
+    for (const box of ['[x]', '[X]']) {
+      const doc = parse(`- ${box}\n> q\nafter\n`);
+      expect(text(deleteSubtrees(doc, [node(doc, '> q').id]))).toBe(`- ${box}\n\nafter\n`);
+    }
+  });
+
+  it('a quote pasted before an empty item that holds a subtree is separated from it', () => {
+    const doc = parse('# H\n> old\n-\n  - child\n');
+    const out = text(insertSubtrees(doc, node(doc, '-').id, parse('> new\n').children, 'before'));
+    expect(out).toBe(
+      '# H\n> old\n\n> new\n\n-\n  - child\n');
+  });
+
   it('a list item inserted into a tight list keeps it tight', () => {
     expect(paste('- a\n- b\n', '- a', '- x\n')).toBe('- a\n- x\n- b\n');
   });

@@ -35,7 +35,7 @@ const NONE = 0;
 
 const LIST_MARKER_RE = /^[ \t]*(?:[-+*]|\d{1,9}[.)])(?:[ \t]+|$)/;
 const ATX_MARKER_RE = /^[ \t]*#{1,6}(?:[ \t]+|$)/;
-const EMPTY_ITEM_RE = /^[ \t]*(?:[-+*]|\d{1,9}[.)])(?:[ \t]+\[[ xX]\])?[ \t]*$/;
+const EMPTY_ITEM_RE = /^[ \t]*(?:[-+*]|\d{1,9}[.)])(?:[ \t]+\[ \])?[ \t]*$/;
 const EMPTY_HEADING_RE = /^[ \t]*#{1,6}[ \t]*$/;
 const TRAILING_ID_RE = /\s\^[A-Za-z0-9-]+[ \t]*$/;
 
@@ -64,6 +64,11 @@ export function outlineView(node: OutlineNode, margin: number): string {
   return `${kind}\n${content.join('\n')}`;
 }
 
+/** Blank-line runs compare by length as well as content: `[]` and `['']` differ. */
+export function sameGap(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((line, i) => line === b[i]);
+}
+
 /**
  * A PLACE rather than a block: an empty list item or heading a key opens, or
  * the empty line an operation leaves where it dissolved an item. The edit-site
@@ -73,7 +78,9 @@ export function isPlace(node: OutlineNode): boolean {
   if (node.blockId !== undefined) return false;
   if (node.kind === 'paragraph') return node.lines.every((line) => line.trim() === '');
   if (node.kind === 'list-item') {
-    return node.lines.length === 1 && EMPTY_ITEM_RE.test(node.lines[0]!);
+    return (
+      node.lines.length === 1 && node.children.length === 0 && EMPTY_ITEM_RE.test(node.lines[0]!)
+    );
   }
   if (node.kind === 'heading' && node.setext !== true) {
     return node.lines.length === 1 && EMPTY_HEADING_RE.test(node.lines[0]!);
@@ -238,7 +245,7 @@ export function separateEditSite(
   for (const { upper, lower, away } of judgeSeams(before, surgery)) {
     const gap = upper.node.trailingGap;
     if (away) {
-      if (restore && away.node.trailingGap.join('\n') !== gap.join('\n')) {
+      if (restore && !sameGap(away.node.trailingGap, gap)) {
         gaps.set(upper.node.id, away.node.trailingGap);
       }
       continue;
