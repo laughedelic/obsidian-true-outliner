@@ -139,7 +139,6 @@
 - [x] 5.6 Re-run the seam sweep, the insertion differential and the drag sweep
   (`docs/research/prototypes/seam-differential/`), and record the figures in the note. Verify that no row loses a
   node.
-- [ ] 5.7 Comment on #261 that the drag case is closed by this change.
 
 ## 6. Validation
 

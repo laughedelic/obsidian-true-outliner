@@ -21,6 +21,7 @@ Architecture and rationale: the `minimal-changesets-for-structural-ops` and
 `docs/research/open-questions.md` Q21 and Q29.
 
 ## Requirements
+
 ### Requirement: Structural operations dispatch minimal character-level change sets
 A structural operation's line-range edits SHALL be narrowed, before dispatch, into the
 narrowest set of character-level `EditorChange` ranges that produce the same resulting
@@ -223,7 +224,10 @@ not something recoverable by mapping the old position through the change set.
 ### Requirement: A relocation is dispatched as a relocation
 An operation that MOVES lines rather than rewriting them in place SHALL be dispatched as the
 removal of those lines from their old position and their insertion at the new one, wherever the
-narrowing can tell the rearranged blocks apart.
+narrowing can tell the rearranged blocks apart. A blank line the edit site gains
+(`structural-operations`' `A seam at an operation's edit site is separated`), and a gap line a move takes with its run, SHALL be dispatched as an insertion
+or a deletion of its own. It does not make the move a
+rewrite: the moved lines are still the lines the move removed.
 
 Two things follow, and they hold to different strengths. First, unconditionally: no dispatched
 change SHALL begin or end partway into a line the operation leaves unchanged. A change MAY span
@@ -264,7 +268,8 @@ kind at any nesting depth, rather than as a special case at any dispatch site.
 - **WHEN** a paragraph or list item shorter than the table is moved up or down past it, in a
   document where the table is rendered by the host's live table widget
 - **THEN** the dispatched change set contains one deletion of the moved node's lines and one
-  insertion of them on the other side, no change range covers or enters any of the table's
+  insertion of them on the other side, plus an insertion of its own for each blank line a seam at the
+  edit site gains, no change range covers or enters any of the table's
   lines, and the table's header, separator, and body rows remain contiguous in the resulting
   document
 
@@ -320,3 +325,8 @@ kind at any nesting depth, rather than as a special case at any dispatch site.
   are not the lines it inserts, so something was rewritten rather than moved — not even when
   the shift makes one of those lines coincide on both sides
 
+#### Scenario: A move that gains a blank line is still a move
+- **WHEN** a paragraph is moved from another section to directly above a table, so the seam between the paragraph and the table is at the edit site and gains a blank line
+- **THEN** the dispatched changes remove the paragraph's lines from their old place and insert them
+  above the table, with the blank line as an insertion of its own, and no line of the table is
+  rewritten
