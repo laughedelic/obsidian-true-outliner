@@ -711,7 +711,12 @@ export function editToChanges(lines: readonly string[], edit: Edit): EditorChang
     for (let i = run.oldStart; i < run.oldEnd; i++) removed.push(lines[i]!);
     for (let i = run.newStart; i < run.newEnd; i++) inserted.push(edit.insert[i]!);
   }
-  if (removed.length > 0 && sameLines(removed, inserted)) {
+  // Blank lines are set aside on both sides: a seam at an operation's edit
+  // site can gain one, and a move can take a gap line with its run, and
+  // neither makes the moved lines anything but the lines the move removed.
+  // Whether anything was removed still reads the lines as they are.
+  const content = (ls: readonly string[]): string[] => ls.filter((line) => line.trim() !== '');
+  if (removed.length > 0 && content(removed).length > 0 && sameLines(content(removed), content(inserted))) {
     return runs.flatMap((run) => changesForRun(lines, edit.insert, run, sides));
   }
 
@@ -753,13 +758,82 @@ export function editToChanges(lines: readonly string[], edit: Edit): EditorChang
   const pairedFor = (reading: EditSides): EditorChange[] | undefined =>
     pairedRuns && joinTouching(pairedRuns.flatMap((run) => changesForRun(lines, edit.insert, run, reading)));
   const pairedExplanation = pairedFor(asExplanation);
-  if (pairedExplanation && charsTouched(lines, pairedExplanation) < Math.min(inPlaceCost, alignedCost)) {
+  const pairedCost = pairedExplanation ? charsTouched(lines, pairedExplanation) : Infinity;
+  // An edit that only adds or removes blank lines around lines it rewrites in
+  // place — the separators of an edit site — pairs its other lines one to one.
+  // It wins a tie: it is the reading that says what the operation did.
+  const blankAside = blankAsideChanges(lines, edit, false);
+  if (blankAside && charsTouched(lines, blankAside) <= Math.min(inPlaceCost, alignedCost, pairedCost)) {
+    const chosen = blankAsideChanges(lines, edit, true);
+    if (chosen) return chosen;
+  }
+  if (pairedExplanation && pairedCost < Math.min(inPlaceCost, alignedCost)) {
     const paired = pairedFor(sides);
     if (paired) return paired;
   }
   return inPlaceCost <= alignedCost
     ? changesForRun(lines, edit.insert, wholeRun, sides)
     : runs.flatMap((run) => changesForRun(lines, edit.insert, run, sides));
+}
+
+/**
+ * The edit read as blank lines added or removed around lines rewritten in
+ * place: its non-blank lines pair one to one, in order, and each blank line
+ * that differs is an insertion or a deletion of its own. Undefined when the
+ * non-blank lines do not pair.
+ */
+function blankAsideChanges(
+  lines: readonly string[],
+  edit: Edit,
+  relocationEvidence: boolean,
+): EditorChange[] | undefined {
+  const blank = (line: string): boolean => line.trim() === '';
+  const old = lines.slice(edit.fromLine, edit.toLine);
+  const now = edit.insert;
+  const oldContent = old.filter((l) => !blank(l));
+  const newContent = now.filter((l) => !blank(l));
+  if (oldContent.length !== newContent.length) return undefined;
+  if (old.length - oldContent.length === now.length - newContent.length) return undefined;
+  // Evidence of a swap is read off the pairs that change: a line left as it
+  // was says nothing about where another line went.
+  const changed = oldContent.map((line, k) => [line, newContent[k]!] as const).filter(([a, b]) => a !== b);
+  const sides: EditSides = relocationEvidence
+    ? { before: new Set(changed.map(([a]) => a)), after: new Set(changed.map(([, b]) => b)) }
+    : { before: new Set<string>(), after: new Set<string>() };
+  const changes: EditorChange[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < old.length || j < now.length) {
+    const line = edit.fromLine + i;
+    const oldLine = old[i];
+    const newLine = now[j];
+    if (oldLine !== undefined && newLine !== undefined && blank(oldLine) === blank(newLine)) {
+      changes.push(...perLineChanges(line, [oldLine], [newLine], sides));
+      i++;
+      j++;
+    } else if (newLine !== undefined && (oldLine === undefined || !blank(oldLine))) {
+      // A blank line inserted above old line `i`, or after the last one.
+      changes.push(
+        oldLine === undefined && line >= lines.length
+          ? { from: endOf(lines, line - 1), to: endOf(lines, line - 1), text: `\n${newLine}` }
+          : { from: { line, ch: 0 }, to: { line, ch: 0 }, text: `${newLine}\n` },
+      );
+      j++;
+    } else {
+      // Old line `i`, blank, removed with the line break that ends it.
+      changes.push(
+        line + 1 < lines.length
+          ? { from: { line, ch: 0 }, to: { line: line + 1, ch: 0 }, text: '' }
+          : { from: endOf(lines, line - 1), to: endOf(lines, line), text: '' },
+      );
+      i++;
+    }
+  }
+  return joinTouching(changes);
+}
+
+function endOf(lines: readonly string[], line: number): EditorPos {
+  return { line, ch: lines[line]?.length ?? 0 };
 }
 
 export function editsToChanges(lines: readonly string[], edits: readonly Edit[]): EditorChange[] {

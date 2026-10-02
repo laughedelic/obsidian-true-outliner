@@ -26,6 +26,7 @@ import { forEachNodeWithLine, nodeAtLine, nodeStartLine } from './locate';
 import { subtreeCoverOf, type Cover } from './escalate';
 import { posBefore, type LinePos } from './line-pos';
 import { encode, encodeLines } from './encode';
+import { separateEditSite } from './edit-site';
 import {
   continuesListItem,
   parse,
@@ -122,11 +123,17 @@ export interface OpOutput {
  * latency budget this path shares with enforcement. Composing surgeries pays
  * for one `finalize` however many roots there are.
  *
- * That this is EQUIVALENT to composing whole operations is not an assumption:
- * every operation guarantees closure (encoding its result re-parses to that
- * same tree), so the re-parse a whole-operation composition would perform
- * between steps is the identity. The property suite checks it against an oracle
- * that really does re-parse between steps.
+ * That this is EQUIVALENT to composing whole operations, blank lines aside, is
+ * not an assumption: every operation guarantees closure (encoding its result
+ * re-parses to that same tree), so the re-parse a whole-operation composition
+ * would perform between steps is the identity. The property suite checks it
+ * against an oracle that really does re-parse between steps.
+ *
+ * Blank lines are where the two differ, by design: `finalize` separates the
+ * edit site of the whole gesture, judged against the note before it, so a seam
+ * between two roots that one step would part and the next rejoin stays as
+ * written (`structural-operations`, "Group forms of indent, outdent and
+ * reordering").
  */
 interface Surgery {
   readonly doc: OutlineDoc;
@@ -155,8 +162,20 @@ export function finalize(
    * Defaults to `subjectId` alone, which is what every single-node operation
    * means by it. */
   spanIds?: readonly number[],
+  /**
+   * How the seams are written (`structural-operations`, "A seam at an
+   * operation's edit site is separated"): `edit-site` separates the edit site
+   * and restores every other seam; `place` is for an operation that opens a
+   * place in a gap, whose lines stay the place's; `none` is for a removal whose
+   * join a caller will fill, a splice or the place a key opens there.
+   */
+  seams: 'edit-site' | 'place' | 'none' = 'edit-site',
 ): OpResult<OpOutput> {
-  const normalized = normalizeBoundaries(surgery);
+  // The edit site's separators first, so the parse floor sees the seams as the
+  // result will hold them.
+  const normalized = normalizeBoundaries(
+    seams === 'none' ? surgery : separateEditSite(oldDoc, surgery, seams === 'edit-site'),
+  );
   const text = encode(normalized);
   const lines = text === '' ? [] : text.split('\n');
   // A subject that is not in `normalized` is a caller bug, not a position: it
@@ -1494,7 +1513,7 @@ function insertEmptyBefore(
   } else {
     surgery = { ...doc, preamble: [...doc.preamble, positionIndent, ''] };
   }
-  const result = finalize(doc, surgery, node.id);
+  const result = finalize(doc, surgery, node.id, undefined, 'place');
   if (!result.ok) return result;
   // `finalize` anchored on the node itself, whose start line has moved down by
   // exactly the two lines inserted directly above it.
@@ -1675,24 +1694,15 @@ export function splitNode(
       if (node.children.length === 0 && node.trailingGap.length > 0) {
         lower = { ...lower, trailingGap: [...lower.trailingGap, ...node.trailingGap] };
       }
-      // A heading and a paragraph child it did not have before are separated by
-      // a blank line — required by CONVENTION, not by the parse (`# Head` then
-      // `line` re-parses correctly either way).
-      //
-      // Applied HERE, where the boundary is created, and deliberately not in
-      // `normalizeBoundaries`: that runs on every operation's result, and a
-      // heading with a gap-0 paragraph child is ordinary parsed markdown, so a
-      // global rule would rewrite heading boundaries the user wrote anywhere in
-      // the file on any unrelated edit. The list-item version of the same rule
-      // IS global and IS safe, because without the blank line its indented text
-      // is a continuation line and there is no child at all.
+      // A heading's new paragraph child is separated from it by `finalize`: the
+      // child is a written block, so the seam between them is at the edit site
+      // (`structural-operations`, "A seam at an operation's edit site is
+      // separated").
       const ownGap = node.children.length === 0 ? [] : node.trailingGap;
-      const separateFromHeading =
-        node.kind === 'heading' && childKind === 'paragraph' && ownGap.length === 0;
       const upper: OutlineNode = {
         ...node,
         lines: upperLines,
-        trailingGap: separateFromHeading ? [''] : ownGap,
+        trailingGap: ownGap,
         // The existing children hold the run's start; the new first child takes
         // it and pushes the rest down.
         children: renumberOrderedAgainst(node.children, [lower, ...node.children]),
@@ -1751,7 +1761,7 @@ export function splitNode(
         i === index ? { ...n, trailingGap: ['', positionIndent, ...n.trailingGap] } : n,
       ),
     );
-    const result = finalize(doc, surgery, nodeId);
+    const result = finalize(doc, surgery, nodeId, undefined, 'place');
     if (!result.ok) return result;
     return accept({
       ...result.value,
@@ -2089,6 +2099,9 @@ export function deleteSubtreeGroups(
   doc: OutlineDoc,
   groups: readonly (readonly number[])[],
   spliceFollows = false,
+  /** Whether the seam the removal joins is separated: not when a splice or a
+   * key's place will fill it. */
+  separateJoin = !spliceFollows,
 ): OpResult<OpOutput> {
   const removal = removeGroups(doc, groups);
   if (!removal.ok) return removal;
@@ -2130,7 +2143,7 @@ export function deleteSubtreeGroups(
 
   // `undefined` is the honest answer when nothing in scope survived: `finalize`
   // anchors at the scope's own start rather than inventing a node.
-  return finalize(doc, surgery, subject?.id);
+  return finalize(doc, surgery, subject?.id, undefined, separateJoin ? 'edit-site' : 'none');
 }
 
 /**

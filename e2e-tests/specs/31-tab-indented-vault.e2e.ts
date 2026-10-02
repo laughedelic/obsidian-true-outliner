@@ -137,8 +137,10 @@ describe('a tab-indented vault: every line a node owns takes the tab', function 
   it('a two-space list pasted after a paragraph becomes a paragraph with a tab list', async function () {
     await outlineNote('Some text.\n', 0, 10);
     await h.pasteText('- a\n  - b\n    - c\n');
-    expect(await h.getBuffer()).toBe('Some text.\n\na\n- b\n\t- c\n');
-    expect(await h.getCursor()).toEqual({ line: 4, ch: 4 });
+    // The converted `a` sits directly above its list, a seam at the paste's
+    // edit site outside the list, so it gains a blank line.
+    expect(await h.getBuffer()).toBe('Some text.\n\na\n\n- b\n\t- c\n');
+    expect(await h.getCursor()).toEqual({ line: 5, ch: 4 });
   });
 
   it('a pasted blank line of spaces lands empty', async function () {

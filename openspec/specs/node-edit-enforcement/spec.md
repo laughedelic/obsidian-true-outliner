@@ -81,13 +81,15 @@ places a merge's caret.)*
 #### Scenario: Deleting one exactly-selected node takes its gap
 - **WHEN** the user selects exactly one node's whole subtree and deletes it
 - **THEN** the node and its owned trailing gap are both removed, and no blank line
-  is left where it was
+  is left where it was beyond the one blank line the seam between its neighbours takes, where
+  that seam lies outside a list and was not already separated
 
 #### Scenario: Deleting an escalated selection
 - **WHEN** the user presses Backspace on a selection escalated to two sibling
   subtrees separated by a blank gap line
 - **THEN** both subtrees and their trailing gap lines are removed, and the remaining
-  neighbors are direct siblings with no leftover blank lines from the deleted nodes
+  neighbors are direct siblings with no leftover blank lines from the deleted nodes; where the
+  seam between them lies outside a list and holds none, it gains one, per `structural-operations`' `A seam at an operation's edit site is separated`
 
 #### Scenario: Deleting a multi-range selection of exact covers
 - **WHEN** the user deletes a selection of two ranges, each exactly covering a whole
@@ -357,15 +359,19 @@ child column the payload lands after the node, as a sibling. On the node's OWN l
 such choice to express, the column there being a position in the node's text.
 
 A pasted run SHALL keep the separation of the boundary it lands in, on both sides of itself, per
-`structural-operations`' rule for a subtree insertion. A TYPE-OVER reaches its destination through
+`structural-operations`' rule for a subtree insertion: inside a list that separation stands, and
+every other seam at the paste's edit site, those inside the payload included, is separated per
+`structural-operations`' `A seam at an operation's edit site is separated`. A TYPE-OVER reaches its destination through
 a deletion, which takes the replaced run's own gap with it, so its replacement SHALL inherit the
-separation that run had rather than whatever gap the payload's own text ended with.
+separation that run had rather than whatever gap the payload's own text ended with. A type-over's payload
+is new, so its outer seams and the seams inside it are at its edit site, as for any insertion: an
+inherited separation of none gains one blank line outside a list, and stands inside one.
 
 A gap the caret was in and that is WIDER than a single blank line SHALL collapse to one with the
 insertion. A structural Enter opens a place there and widens the gap by two — a separator on each
 side is what makes the place parse as a node rather than a continuation line — and the paste that
-fills the place consumes it. A gap of none or one SHALL be left as it is: that is the separation
-the document already had. This is chrome maintenance, not an editing semantic: the resulting tree
+fills the place consumes it. A gap of one SHALL be left as it is: that is the separation the
+document already had. A gap of none is separated only where the edit-site rule requires it. This is chrome maintenance, not an editing semantic: the resulting tree
 is the same either way.
 
 *(Amendment 2026-09-16, `paste-lands-where-it-is-pointed`: the cross-regime case was assumed by
@@ -396,13 +402,14 @@ above the pasted content.)*
 
 #### Scenario: A type-over keeps the separation of what it replaced
 - **WHEN** a structural payload replaces a selection covering every node of a scope
-- **THEN** the run is separated from what follows it exactly as the replaced run was — no blank
-  line in a tight list, the document's terminating newline where that run ended the file
+- **THEN** the run is separated from what follows it as the replaced run was, save that an empty seam
+  outside a list gains one blank line — no blank line in a tight list, the document's terminating
+  newline where that run ended the file
 
 #### Scenario: A paste onto a place leaves no widened gap behind
 - **WHEN** a structural Enter opens a place and a structural payload is pasted onto it
 - **THEN** the gap the place widened collapses to a single blank line, and the buffer holds no
-  more blank lines above the pasted content than the document had before the Enter
+  more than that one blank line above the pasted content
 
 #### Scenario: A heading section pasted into a list lands coherently
 - **WHEN** a heading with its paragraphs and nested lists is pasted inside a list scope
@@ -468,6 +475,11 @@ above the pasted content.)*
   against)
 - **THEN** the pasted subtrees are re-indented to the replaced item's own depth —
   never left at the pasted content's own original depth
+
+#### Scenario: Typing over a selected block separates it from flush neighbours
+- **WHEN** a single character is typed over a block-selected paragraph written with no blank line
+  above or below it, between two non-list blocks
+- **THEN** the typed paragraph is separated by a blank line from each of them
 
 ### Requirement: Vetoed edits leave no trace and surface a cue
 A `veto` verdict SHALL leave the document byte-identical, SHALL add no undo-history

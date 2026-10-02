@@ -51,7 +51,8 @@ describe('splitNode', () => {
 
   it('a paragraph with a child list splits its remainder into a first child list item', () => {
     const { text } = splitOk('one two\n- child\n', 'one two', { line: 0, ch: 4 });
-    expect(text).toBe('one \n- two\n- child\n');
+    // `one ` is rewritten above the list it now heads, a seam outside the list.
+    expect(text).toBe('one \n\n- two\n- child\n');
     const doc = parse(text);
     expect(doc.children[0]!.children.map((n) => n.lines[0])).toEqual(['- two', '- child']);
   });
@@ -180,9 +181,11 @@ describe('splitNode', () => {
     expect(doc.children[0]!.children.map((n) => n.lines[0])).toEqual(['ead', 'Body.']);
   });
 
-  it('splits a heading with an existing list-item child; remainder becomes a matching list item, no separator needed', () => {
+  it('splits a heading with an existing list-item child; remainder becomes a matching list item', () => {
     const { text } = splitOk('# Head\n- item\n', '# Head', { line: 0, ch: 3 });
-    expect(text).toBe('# H\n- ead\n- item\n');
+    // No separator is needed to parse; the heading is rewritten above the list
+    // it now heads, so that seam is at the edit site and separated.
+    expect(text).toBe('# H\n\n- ead\n- item\n');
     const doc = parse(text);
     expect(doc.children[0]!.children.map((n) => n.lines[0])).toEqual(['- ead', '- item']);
   });
@@ -238,7 +241,7 @@ describe('splitNode', () => {
 
   it('splits a setext heading with an existing list-item child; remainder becomes a matching list item', () => {
     const { text } = splitOk('Head\n====\n- item\n', 'Head', { line: 0, ch: 2 });
-    expect(text).toBe('He\n====\n- ad\n- item\n');
+    expect(text).toBe('He\n====\n\n- ad\n- item\n');
     const doc = parse(text);
     expect(doc.children[0]!.lines).toEqual(['He', '====']);
     expect(doc.children[0]!.children.map((n) => n.lines[0])).toEqual(['- ad', '- item']);

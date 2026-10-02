@@ -227,8 +227,10 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     await outlineNote(md);
     await h.setCursor(1, 0); // start of "- list parent1"
     await browser.keys(Key.Backspace);
+    // The merged paragraph sits directly above the list it now heads, a seam
+    // at the merge's edit site outside the list, so it gains a blank line.
     expect(await h.getBuffer()).toBe(
-      'paragraphlist parent1\n- child1\n\t- grandchild1\n- child2\n- list parent2\n',
+      'paragraphlist parent1\n\n- child1\n\t- grandchild1\n- child2\n- list parent2\n',
     );
     expect(await h.getBuffer()).not.toContain('  \t'); // no space-then-tab mixing
   });

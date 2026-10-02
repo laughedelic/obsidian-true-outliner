@@ -618,7 +618,17 @@ describe('computeVerdictForRanges: multi-range structural deletion (D2/D3)', () 
         // document has zero lines of actual content, so it's special-cased
         // here rather than in the counting convention used everywhere else.
         const actualLineCount = finalText === '' ? 0 : finalText.split('\n').length;
-        return encode(finalDoc) === finalText && actualLineCount === expectedLineCount;
+        // Each join a deletion leaves is at its edit site, and a flush one
+        // outside a list gains one blank line (`structural-operations`, "A seam
+        // at an operation's edit site is separated"): at most one per run of
+        // adjacent deleted roots.
+        const sorted = [...indices].sort((a, b) => a - b);
+        const joins = sorted.filter((i, k) => k === 0 || sorted[k - 1] !== i - 1).length;
+        return (
+          encode(finalDoc) === finalText &&
+          actualLineCount >= expectedLineCount &&
+          actualLineCount <= expectedLineCount + joins
+        );
       }),
       { numRuns: 200 },
     );
@@ -927,6 +937,11 @@ describe('computeVerdict: deletion of a mixed-depth forest cover (selection-as-s
             : kept.join('\n');
         const applied = applyVerdict(text, verdict);
         if (applied === terminate(survivors)) return true;
+        // The join the deletion leaves is at its edit site, and a flush one
+        // outside a list gains one blank line (`structural-operations`, "A seam
+        // at an operation's edit site is separated").
+        const joined = [...survivors.slice(0, lo.line), '', ...survivors.slice(lo.line)];
+        if (applied === terminate(joined)) return true;
         // One more exception: a list item's attached id right above the span.
         // Text directly under an id joins it, so the deletion keeps one blank
         // line of the span as the id's separator.
@@ -1605,6 +1620,8 @@ describe('a replacement synthesized around a caret passes', () => {
   it('the same bytes over a selection replace the whole quote — the reading the caret case fell into', () => {
     const verdict = stockEnterThroughBothGates('> alpha\n> beta\n', pos(0, 7), '\n> ', true);
     expect(verdict.kind).toBe('rewrite');
-    expect(applyVerdict('> alpha\n> beta\n', verdict)).toBe('a\n> \n');
+    // The replacement's blocks are new, so the seam between them is at the
+    // edit site and separated.
+    expect(applyVerdict('> alpha\n> beta\n', verdict)).toBe('a\n\n> \n');
   });
 });

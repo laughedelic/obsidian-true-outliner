@@ -1,0 +1,18 @@
+case: a pasted quote is separated from the paragraph below it (#264)
+keys: ⌘V
+
+=== clipboard
+    first
+
+    > quote
+=== before
+## H┃
+below
+=== expected
+## H
+
+first
+
+> quote┃
+
+below

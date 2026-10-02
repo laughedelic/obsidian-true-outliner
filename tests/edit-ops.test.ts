@@ -320,7 +320,7 @@ describe('mergeNodes', () => {
     const result = mergeNodes(doc, para.id);
     if (!result.ok) throw new Error(result.rejection.reason);
     expect(encode(result.value.doc)).toBe(
-      'paragraphlist parent1\n- child1\n\t- grandchild1\n- child2\n- list parent2\n',
+      'paragraphlist parent1\n\n- child1\n\t- grandchild1\n- child2\n- list parent2\n',
     );
     const merged = result.value.doc.children[0]!;
     expect(merged.children.map((n) => n.lines[0])).toEqual(['- child1', '- child2', '- list parent2']);
@@ -1326,7 +1326,9 @@ describe('a seam is judged on the kind the re-parse will see', () => {
       makeNode({ kind: 'list-item', lines: ['- item'], listStyle: { type: 'bullet', marker: '-' } });
     const seam = (next: OutlineNode): [string, string] => {
       const left = item();
-      const result = finalize(parse(''), { preamble: [], children: [left, next] }, left.id);
+      // The parse floor alone: every block here is new, so the edit-site pass
+      // would separate every seam and leave nothing of the floor to see.
+      const result = finalize(parse(''), { preamble: [], children: [left, next] }, left.id, undefined, 'none');
       expect(result.ok).toBe(true);
       if (!result.ok) return ['', ''];
       expect([...walkNodes(result.value.doc)].map((n) => n.lines), next.lines[0]).toEqual([
@@ -1393,26 +1395,27 @@ describe('a seam is judged on the kind the re-parse will see', () => {
     expect(shape(encode(result.value.doc))).toBe(['list-item: - item', '  hr: ---'].join('\n'));
   });
 
-  it('a line the continuation loop reads as a table header is left flush', () => {
+  it('a line the continuation loop reads as a table header keeps its node', () => {
     // `## H | x` over a delimiter row stops the loop, which reads the pair as
     // a table start; the main loop then opens the heading first. The row is
     // the heading's child, so the lookahead is in the tree the seam is judged
-    // on.
+    // on. The seam is the deletion's join, outside the list, so it holds a
+    // blank line.
     const doc = parse('- item\n- other\n\n  ## H | x\n  | - |\n');
     const result = deleteSubtrees(doc, [byLine(doc, '- other').id]);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(encode(result.value.doc)).toBe('- item\n  ## H | x\n  | - |\n');
+    expect(encode(result.value.doc)).toBe('- item\n\n  ## H | x\n  | - |\n');
     expect(shape(encode(result.value.doc))).toBe(
       ['list-item: - item', 'h2: ## H | x', '  paragraph: | - |'].join('\n'),
     );
   });
 
-  it('a seam that stays inside the margin is left flush, as it was', () => {
-    // Control: the demotion is what adds a separator, not the kind pair. The
-    // same payload into the same scope, whose children sit at column 0 — the
-    // quote stays a quote, does not claim the paragraph below it, and the
-    // encoding stays minimal.
+  it('a seam that stays inside the margin is separated only as the edit site asks', () => {
+    // Control: the demotion is what the parse needs a separator for, not the
+    // kind pair. The same payload into the same scope, whose children sit at
+    // column 0 — the quote stays a quote, and the parse needs no separator.
+    // The blank lines are the edit site's: every block of a payload is new.
     const doc = parse('## H2\npara\n');
     const result = insertSubtrees(
       doc,
@@ -1422,7 +1425,7 @@ describe('a seam is judged on the kind the re-parse will see', () => {
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(encode(result.value.doc)).toBe('## H2\n- item\n> quote\npara\n');
+    expect(encode(result.value.doc)).toBe('## H2\n\n- item\n\n> quote\n\npara\n');
     expect(shape(encode(result.value.doc))).toBe(
       ['h2: ## H2', '  list-item: - item', '  quote: > quote', '  paragraph: para'].join('\n'),
     );
@@ -1464,7 +1467,7 @@ describe('a paragraph written into the margin is judged as the block it opens th
     if (!result.ok) return;
     // Before the fix: `<!-- c -->` / `> real quote` with nothing between, one
     // HTML block holding the quote.
-    expect(encode(result.value.doc)).toBe('## H\nfirst\n\n<!-- c -->\n\n> real quote\n');
+    expect(encode(result.value.doc)).toBe('## H\n\nfirst\n\n<!-- c -->\n\n> real quote\n');
     expect(shape(encode(result.value.doc))).toBe(
       ['h2: ## H', '  paragraph: first', '  html: <!-- c -->', '  quote: > real quote'].join('\n'),
     );
@@ -1476,7 +1479,7 @@ describe('a paragraph written into the margin is judged as the block it opens th
     const result = insertSubtrees(doc, byLine(doc, '> real quote').id, payload, 'before');
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(encode(result.value.doc)).toBe('## H\nfirst\n\n> quoted\n\n> real quote\n');
+    expect(encode(result.value.doc)).toBe('## H\n\nfirst\n\n> quoted\n\n> real quote\n');
     expect(byLine(result.value.doc, '> real quote').lines).toEqual(['> real quote']);
   });
 
@@ -1487,7 +1490,7 @@ describe('a paragraph written into the margin is judged as the block it opens th
     if (!result.ok) return;
     // Before the fix: `  <div>` / `- item` / `- other` / `after` with nothing
     // between, one HTML block holding all four lines.
-    expect(encode(result.value.doc)).toBe('- kid\n\n  <div>\n\n- item\n- other\nafter\n');
+    expect(encode(result.value.doc)).toBe('- kid\n\n  <div>\n\n- item\n- other\n\nafter\n');
     expect(shape(encode(result.value.doc))).toBe(
       ['list-item: - kid', '  html: <div>', 'list-item: - item', 'list-item: - other', 'paragraph: after'].join('\n'),
     );
@@ -1502,7 +1505,7 @@ describe('a paragraph written into the margin is judged as the block it opens th
     const result = insertSubtrees(doc, byLine(doc, '> [!note] real').id, payload, 'before');
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(encode(result.value.doc)).toBe('## H\nfirst\n\ntext\n> q\n\n> [!note] real\n');
+    expect(encode(result.value.doc)).toBe('## H\n\nfirst\n\ntext\n> q\n\n> [!note] real\n');
     expect(byLine(parse(encode(result.value.doc)), '> [!note] real').kind).toBe('callout');
   });
 
@@ -1515,7 +1518,7 @@ describe('a paragraph written into the margin is judged as the block it opens th
     const result = insertSubtrees(doc, byLine(doc, 'below').id, payload, 'before');
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(encode(result.value.doc)).toBe('## H\n<!-- c -->\n\n- x\nbelow\n');
+    expect(encode(result.value.doc)).toBe('## H\n\n<!-- c -->\n\n- x\n\nbelow\n');
     expect(shape(encode(result.value.doc))).toBe(
       ['h2: ## H', '  html: <!-- c -->', '  list-item: - x', '  paragraph: below'].join('\n'),
     );
@@ -1543,20 +1546,20 @@ describe('a paragraph written into the margin is judged as the block it opens th
     const result = insertSubtrees(doc, byLine(doc, 'below').id, payload, 'before');
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(encode(result.value.doc)).toBe('## H\nfirst\n\n---\nx\n...\n\nbelow\n');
+    expect(encode(result.value.doc)).toBe('## H\n\nfirst\n\n---\nx\n...\n\nbelow\n');
     expect(byLine(parse(encode(result.value.doc)), 'below').lines).toEqual(['below']);
   });
 
-  it('a promoted quote before a paragraph is left flush, as a quote is', () => {
-    // Control: promotion removes a separator as well as adding one. A quote
-    // claims no paragraph below it, so the blank the paragraph rule wrote is
-    // not written.
+  it('a promoted quote before a paragraph is separated from it, as a pasted block is', () => {
+    // Our parse needs no separator below a promoted quote, which claims no
+    // paragraph below it. Every other reader continues `below` into it, and
+    // the seam is at the paste's edit site, so it is separated all the same.
     const doc = parse('## H\nbelow\n');
     const payload = parse('    first\n\n    > quoted\n').children;
     const result = insertSubtrees(doc, byLine(doc, 'below').id, payload, 'before');
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(encode(result.value.doc)).toBe('## H\nfirst\n\n> quoted\nbelow\n');
+    expect(encode(result.value.doc)).toBe('## H\n\nfirst\n\n> quoted\n\nbelow\n');
     expect(shape(encode(result.value.doc))).toBe(
       ['h2: ## H', '  paragraph: first', '  quote: > quoted', '  paragraph: below'].join('\n'),
     );
@@ -1775,7 +1778,7 @@ describe('a pasted subtree is written in the document’s own unit (#216)', () =
     // width in spaces, `  - b` / `\t  - c`, whatever the clipboard used.
     for (const [name, payload] of Object.entries(SPELLINGS)) {
       expect(pasteAfter('Some text.\n', 'Some text.', payload, '\t'), name).toBe(
-        'Some text.\n\na\n- b\n\t- c\n- d\n',
+        'Some text.\n\na\n\n- b\n\t- c\n- d\n',
       );
     }
   });
@@ -1802,7 +1805,7 @@ describe('a pasted subtree is written in the document’s own unit (#216)', () =
     // laid-out block reads as two nodes where it was written as one; the
     // conversion's own lines stand.
     expect(pasteAfter('Some text.\n', 'Some text.', '* t2\n  > q3\n', '\t')).toBe(
-      'Some text.\n\nt2\n> q3\n',
+      'Some text.\n\nt2\n\n> q3\n',
     );
   });
 

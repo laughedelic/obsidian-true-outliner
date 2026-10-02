@@ -170,7 +170,9 @@ describe('structural commands', function () {
     await outlineNote(original, 2, 6);
 
     await h.runCommand('outdent-node');
-    expect(await h.getBuffer()).toBe('- L0\n2. L1\n3. L2\n   - L3\n# L4\n');
+    // `# L4` gains `3. L2` as its previous sibling, so the seam below the list
+    // is at the edit site and separated.
+    expect(await h.getBuffer()).toBe('- L0\n2. L1\n3. L2\n   - L3\n\n# L4\n');
 
     await h.keys.undo();
     expect(await h.getBuffer()).toBe(original);

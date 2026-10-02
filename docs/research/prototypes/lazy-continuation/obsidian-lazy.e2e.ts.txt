@@ -1,0 +1,71 @@
+/**
+ * Which lines Obsidian's reading mode and Live Preview continue lazily into a
+ * quote, a callout or a list item written directly above them. Copy to
+ * `e2e-tests/specs/99-lazy.e2e.ts` and run it in narrow mode; each row lands in
+ * `LAZY_OUT` as one JSON line.
+ */
+import { browser } from '@wdio/globals';
+import { obsidianPage } from 'wdio-obsidian-service';
+import { appendFileSync } from 'node:fs';
+import * as h from '../helpers.js';
+
+// The marker word must not appear in the note's title, which reading mode
+// renders above the body.
+const NOTE = 'Scratch/lazy-probe.md';
+const OUT = process.env.LAZY_OUT ?? '/tmp/lazy-obsidian.jsonl';
+
+const LEAVES: Record<string, [string, string]> = {
+  quote: ['> qq', 'qq'],
+  callout: ['> [!note] cc\n> body', 'body'],
+  'bullet item': ['- item', 'item'],
+  'ordered item': ['1. item', 'item'],
+  'nested item': ['- a\n  - item', 'item'],
+};
+const NEXT: Record<string, string> = {
+  paragraph: 'qxv', 'pipe line': 'qxv | bb', '<span>': '<span>qxv</span>', '<div>': '<div>qxv</div>',
+  '<!-- comment -->': '<!-- qxv -->', '# heading': '# qxv', 'setext pair': 'qxv\n===', table: '| qxv |\n| - |',
+  '> quote': '> qxv', '---': '---\nqxv', '***': '***\nqxv', fence: '```\nqxv\n```', '- bullet': '- qxv',
+  '1. ordered': '1. qxv', '2. ordered': '2. qxv', 'para at col 2': '  qxv',
+};
+
+describe('lazy continuation in Obsidian', function () {
+  before(async function () {
+    await obsidianPage.resetVault();
+    await h.resetPluginState();
+  });
+  for (const [ln, [leaf, lw]] of Object.entries(LEAVES)) it(`after a ${ln}`, async function () {
+    this.timeout(300000);
+    for (const [nn, next] of Object.entries(NEXT)) for (const sep of ['\n', '\n\n']) {
+      await h.createNote(NOTE, `${leaf}${sep}${next}\n\ntail\n`);
+      await h.setOutlineMode(false);
+      await h.setViewMode('source', false);
+      await browser.pause(250);
+      // Live Preview: the classes of each rendered line.
+      const lp = await browser.executeObsidian(({ app, obsidian }) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+        const cm = (view.editor as any).cm;
+        return [...cm.contentDOM.querySelectorAll('.cm-line')].map(
+          (l: Element) => `${l.textContent}::${l.className.replace('cm-line', '').trim()}`,
+        );
+      });
+      // Reading mode: is the marker inside the block that holds the leaf's word?
+      await h.setViewMode('preview');
+      await browser.pause(300);
+      const rd = await browser.executeObsidian(({ app, obsidian }, lw: string) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+        const root = view.previewMode.containerEl;
+        const find = (w: string): Element | null => {
+          const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+          let n: Node | null;
+          while ((n = walker.nextNode())) if ((n.textContent ?? '').includes(w)) return n.parentElement;
+          return null;
+        };
+        const box = find(lw)?.closest('blockquote, li, .callout');
+        const ne = find('qxv');
+        return { inside: !!(box && ne && box.contains(ne)) };
+      }, lw);
+      await h.setViewMode('source', false);
+      appendFileSync(OUT, JSON.stringify({ leaf: ln, next: nn, blank: sep.length === 2, lp, rd }) + '\n');
+    }
+  });
+});

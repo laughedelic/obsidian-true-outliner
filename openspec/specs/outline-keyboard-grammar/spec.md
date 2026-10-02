@@ -247,7 +247,7 @@ every other range with no document change to undo.
 - **WHEN** Enter is pressed mid-text inside a setext heading `Hello world`
   underlined `====`, after "Hello "
 - **THEN** the heading becomes `Hello ` still underlined by `====`, with a new
-  paragraph child `world` directly below it — the underline is never treated as
+  paragraph child `world` below it, separated by a blank line — the underline is never treated as
   part of the split-off remainder
 
 #### Scenario: Enter on a setext heading's underline declines
