@@ -119,12 +119,16 @@ export const OPENING_MARGIN = 3;
  *
  * A setext heading is judged on its UNDERLINE, the line that carries its
  * `^ {0,3}`; every other kind on the line that opens it.
+ *
+ * The same holds the other way: a `paragraph` whose first line opens one of
+ * those blocks within the margin is judged as that block (`promote`).
  */
 export function kindAsWritten(
   node: Pick<OutlineNode, 'kind' | 'lines' | 'setext'>,
   margin = 0,
 ): NodeKind {
   const kind = node.kind;
+  if (kind === 'paragraph') return promote(node.lines[0] ?? '', margin);
   if (kind === 'heading' && node.setext === true) {
     return demote(node.lines[node.lines.length - 1] ?? '', kind, margin);
   }
@@ -148,35 +152,71 @@ function demote(line: string, kind: NodeKind, margin: number): NodeKind {
 }
 
 /**
+ * The block a paragraph's first line opens where it is written, in the order
+ * `segment` tries them. A paragraph past the margin can be written back into
+ * it — a payload copied from inside a list item and pasted at the root, a
+ * child carried out of its item by a move — and there `<!-- c -->` opens an
+ * HTML block that runs to the next blank line, and `> q` a quote that runs on
+ * into a quote below it. A table row, a fence and a list marker have no margin,
+ * so a paragraph never holds one as its first line.
+ *
+ * A setext underline is not looked for: judged as the paragraph above it, a
+ * setext heading takes every separator a heading would, and one more below.
+ */
+function promote(line: string, margin: number): NodeKind {
+  if (ATX_RE.test(line)) return 'heading';
+  const seen = fromMargin(line, margin);
+  if (QUOTE_RE.test(seen)) return CALLOUT_RE.test(seen) ? 'callout' : 'quote';
+  if (HR_RE.test(seen)) return 'hr';
+  if (HTML_OPEN_RE.test(line)) return 'html';
+  return 'paragraph';
+}
+
+/**
  * The block a node's LAST line belongs to where its lines now sit — what the
  * seam BELOW the node abuts, as `kindAsWritten` is what the seam above it does.
  *
- * The two differ only for a demoted node of more than one line. An `html`
- * block runs to a blank line whatever its lines hold, so past the margin its
- * later lines open whatever they open at their own column: `<div>` over a
- * table is a paragraph and then a TABLE there, and the seam below it has to be
- * the table's. The answer is read from `parse` over the node's own lines rather
- * than from the opening line, since the parse is what decides where one block
- * of them ends and the next begins. A node the margin leaves alone, and a
- * single demoted line, are their own tail. `margin` is `kindAsWritten`'s.
+ * The two differ for a demoted node of more than one line. An `html` block
+ * runs to a blank line whatever its lines hold, so past the margin its later
+ * lines open whatever they open at their own column: `<div>` over a table is a
+ * paragraph and then a TABLE there, and the seam below it has to be the
+ * table's. They differ for a paragraph of more than one line whatever its
+ * first line opens: written into the margin, `text` over `> q` is a paragraph
+ * and then a QUOTE, which runs on into a quote below it. The answer is read
+ * from `parse` over the node's own lines rather than from the opening line,
+ * since the parse is what decides where one block of them ends and the next
+ * begins. Any other node the margin leaves alone, and a single line, are their
+ * own tail. `margin` is `kindAsWritten`'s.
  */
 export function tailAsWritten(
   node: Pick<OutlineNode, 'kind' | 'lines' | 'setext'>,
   margin = 0,
 ): Pick<OutlineNode, 'kind' | 'lines' | 'setext'> {
   const kind = kindAsWritten(node, margin);
-  if (kind === node.kind) return node;
-  if (node.lines.length <= 1) return { kind, lines: node.lines };
-  let tail: OutlineNode | undefined;
-  // Read from the margin the node's kind was judged at, so the lines below the
-  // opening one are measured as the whole document would measure them.
-  const from = node.kind === 'html' || node.kind === 'heading' ? 0 : margin;
-  const own = node.lines.map((line) => fromMargin(line, from));
-  for (const block of walkNodes(parse(own.join('\n')))) tail = block;
-  if (!tail) return { kind, lines: node.lines };
-  // The tail's own lines, as the node writes them rather than as the margin
-  // sees them: a caller measures columns on them.
-  return { ...tail, lines: node.lines.slice(node.lines.length - tail.lines.length) };
+  if (node.lines.length <= 1) return kind === node.kind ? node : { kind, lines: node.lines };
+  if (kind === node.kind && kind !== 'paragraph') return node;
+  if (node.kind === 'paragraph' && kind === 'paragraph' && !node.lines.slice(1).some(mayEndParagraph)) {
+    return node;
+  }
+  // Parsed where the document parses them: under a list item whose content
+  // column is the margin, or at the root after a paragraph of its own. Each
+  // pattern then measures from the column `segment` measures it from, and the
+  // lines never open a note, where a `---` would open frontmatter.
+  const context = margin >= 2 ? `${' '.repeat(margin - 2)}- x` : 'x';
+  const blocks = [...walkNodes(parse([context, '', ...node.lines].join('\n')))];
+  // The context's own block is first; with nothing after it the lines formed
+  // no block, and are judged by the line that opens them.
+  const tail = blocks.length > 1 ? blocks[blocks.length - 1]! : undefined;
+  return tail ?? { kind, lines: node.lines };
+}
+
+/**
+ * Whether a line inside a paragraph could be where the paragraph ends: it
+ * opens with a character one of `startsNewBlock`'s patterns or a setext
+ * underline opens with, or carries a pipe, which is all a table row needs.
+ */
+function mayEndParagraph(line: string): boolean {
+  return /^[ \t]*[#`~>*_=+\-\d]/.test(line) || line.includes('|');
 }
 
 /**

@@ -1,0 +1,41 @@
+import { it } from 'vitest';
+import { writeFileSync } from 'node:fs';
+import { parse } from '../src/parse';
+import { encode } from '../src/encode';
+import { walkNodes, type OutlineNode } from '../src/model';
+import { moveSubtreesTo } from '../src/ops';
+
+// A paragraph at a list item's child column whose text opens a block at the
+// root, in four documents; every node moved to every destination.
+const OPENERS = ['<div>', '<!-- c -->', '> quoted', '> [!note] c', '***', '# looks like a heading'];
+const DOCS: string[] = [];
+for (const o of OPENERS) {
+  DOCS.push(`- item\n- other\n  - kid\n\n    ${o}\n\nafter\n`);
+  DOCS.push(`- item\n  - kid\n\n    ${o}\n- other\n> real quote\n`);
+  DOCS.push(`## H\n- a\n  - kid\n\n    ${o}\n\n| t |\n| - |\n`);
+  DOCS.push(`- a\n\t- kid\n\n\t\t${o}\n- b\n\npara\n`);
+}
+
+it('every move of every node in documents holding a promotable paragraph', () => {
+  let total = 0;
+  const rows: string[] = [];
+  for (const md of DOCS) {
+    const doc = parse(md);
+    const nodes = [...walkNodes(doc)];
+    const parents: (OutlineNode | 'root')[] = ['root', ...nodes];
+    for (const n of nodes) for (const p of parents) {
+      const kids = p === 'root' ? doc.children : p.children;
+      for (let index = 0; index <= kids.length; index++) {
+        const r = moveSubtreesTo(doc, [[n.id]], { parentId: p === 'root' ? 'root' : p.id, index });
+        if (!r.ok) continue;
+        total++;
+        const text = encode(r.value.doc);
+        if ([...walkNodes(parse(text))].length < nodes.length) {
+          const where = p === 'root' ? 'root' : JSON.stringify(p.lines[0]);
+          rows.push(`${JSON.stringify(md)} move ${JSON.stringify(n.lines[0])} -> ${where}[${index}] => ${JSON.stringify(text)}`);
+        }
+      }
+    }
+  }
+  writeFileSync(process.env.DRAG_OUT ?? '/tmp/drag.txt', `total ${total}, short ${rows.length}\n` + rows.join('\n'));
+});

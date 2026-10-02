@@ -212,6 +212,79 @@ them with the rest.
 That the property suite saw none of this — nor #158 itself — is
 [#199](https://github.com/laughedelic/obsidian-true-outliner/issues/199).
 
+## A paragraph written into the margin
+
+[#198](https://github.com/laughedelic/obsidian-true-outliner/issues/198) is the same rule running
+the other way. A paragraph at column 4 or deeper can be written back into the margin — a payload
+copied from inside a list item and pasted at the root, a child carried out of its item by a drag —
+and there its text opens whatever it spells: `<!-- c -->` an HTML block, `> q` a quote. The seam
+below it was chosen for a paragraph. Measured on `main` at `5c7c7a5`:
+
+| gesture | before | result |
+| --- | --- | --- |
+| paste `    first` / blank / `    <!-- c -->` before `> real quote` | 3 nodes | `<!-- c -->` / `> real quote` flush: one `html` block holding the quote |
+| paste `    first` / blank / `    > quoted` before `> real quote` | 3 nodes | one quote of two lines |
+| drag `  - kid` (child `    <div>`) above `- item` / `- other` / `after` | 5 nodes | `  <div>` / `- item` / `- other` / `after` flush: one `html` block |
+
+`kindAsWritten` now reads a `paragraph` as the block its first line opens where it is written —
+a heading or an HTML block from column 0, a quote, a callout or a rule from the margin, in the
+order `segment` tries them — and the seam rules do the rest unchanged. A setext underline is not
+looked for: judged as a paragraph, a setext heading takes every separator a heading would. On a
+tree `parse` produced the promotion never fires, since `segment` would already have read the line
+as that block.
+
+| probe | `main` | promoted |
+| --- | --- | --- |
+| bare-seam sweep, pairs wrong | 58 | 4 |
+| of which #198's (a promoted `<!--` or `>` paragraph) | 54 | 0 |
+| insertion differential, encodings differing | — | 0 of 924 |
+| drag sweep (`drag-sweep.test.ts.txt`), moves a node short | 18 of 933 | 0 of 933 |
+
+The 4 pairs left in the sweep are the `---` / `---` ones settled in `paste-across-encoding-regimes`.
+The 18 drag losses are all an HTML-opening child carried to a column within the margin; a
+promoted quote lost nothing in the drag documents, whose following nodes are list items and tables.
+
+Promotion removes separators as well as adding them. A promoted quote directly above a paragraph
+is written flush, as a real quote there is: our parse reads `> quoted` / `below` as two nodes, where
+CommonMark reads `below` as a lazy continuation of the quote (`block-start-margin` records the same
+divergence for quotes the parser already reads).
+
+The seam BELOW a paragraph of more than one line is read through `parse` over its own lines, as a
+demoted `html` block's is, whatever its first line opens. Written into the margin, `text` over
+`> q` is a paragraph and then a quote, and judged on its first line alone the quote ran on into a
+quote or callout below it: pasting `    text` / `    > q` before `> [!note] real` gave one quote of
+two lines, the callout's kind gone. Found by the plan review.
+
+That sub-parse reads the lines where the document reads them: after a list item whose content
+column is the margin, or after a root paragraph of its own. Taking the margin off the lines
+instead, as the demotion's first reading did, measures an ATX line and a setext underline from
+the margin where `segment` measures them from column 0, so `    text` / `    # x` under `  - kid`
+read as a paragraph and a heading, and the paragraph below merged into the text. Parsed from line
+0, a promoted `---` / `x` / `...` opened frontmatter and formed no block at all. Both found by the
+implementation review.
+
+A paragraph's first child is judged as a sibling would be. A list after a paragraph is its
+children, and a marker line ends a paragraph, so the seam between them never needed a separator.
+Promoted to an HTML block, `<!-- c -->` over `- x` ran on through the list and the node below it.
+`normalizeBoundaries` now asks `needsBlankBetween` of that seam for any parent but a list item,
+whose own rule stands. Found by the implementation review.
+
+The sub-parse is skipped for a paragraph none of whose later lines opens with a character a block
+start or a setext underline opens with, or carries a pipe. Without that check, `finalize` over a
+9 001-line note of headings, two-line paragraphs and lists took 30 ms against `main`'s 18; with it,
+19. Found by the second implementation review.
+
+Promotion also changes structure without losing a node, and none of it is a seam's to prevent:
+- a promoted quote with a continuation line (`> q` / `more`) comes back as a quote and a paragraph;
+- a promoted `# x`, or a paragraph whose second line becomes a setext underline, is a heading and
+  takes the siblings below it into its section;
+- a promoted `# x` as a list item's first child leaves the list, since `segment` closes every open
+  item at an ATX line.
+
+A paragraph `---` promoted onto line 0 of a note opens YAML frontmatter, which runs to the next
+`---` and takes every node before it into the preamble. It is not a seam, and is the same on
+`main`.
+
 ## What this does not close
 
 The KIND loss is untouched, and #158 stays open on it. A `quote`, a `callout`, an `hr` or an

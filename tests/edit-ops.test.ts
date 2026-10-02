@@ -1429,6 +1429,140 @@ describe('a seam is judged on the kind the re-parse will see', () => {
   });
 });
 
+/**
+ * #198, the same rule running the other way. A paragraph past the margin that
+ * an operation writes back into it opens the block its text spells there, and
+ * the seam below it was chosen for a paragraph.
+ */
+describe('a paragraph written into the margin is judged as the block it opens there', () => {
+  it('kindAsWritten promotes a paragraph whose first line opens a margin-anchored block', () => {
+    const at = (line: string, margin = 0): string =>
+      kindAsWritten(makeNode({ kind: 'paragraph', lines: [line, 'more'] }), margin);
+    expect(at('<!-- c -->')).toBe('html');
+    expect(at('  <div>')).toBe('html');
+    expect(at('  > q')).toBe('quote');
+    expect(at('> [!note] c')).toBe('callout');
+    expect(at('***')).toBe('hr');
+    expect(at('## H')).toBe('heading');
+    // Past the margin each stays a paragraph, as `parse` reads it.
+    expect(at('    <!-- c -->')).toBe('paragraph');
+    expect(at('    > q')).toBe('paragraph');
+    expect(at('text')).toBe('paragraph');
+    // Inside a list item a quote and a rule are measured from its content
+    // column, and an HTML block and a heading from column 0.
+    expect(at('    > q', 4)).toBe('quote');
+    expect(at('      ***', 4)).toBe('hr');
+    expect(at('    <div>', 4)).toBe('paragraph');
+    expect(at('  <div>', 4)).toBe('html');
+  });
+
+  it('#198 case 1: a pasted comment promoted to an HTML block keeps the quote below it', () => {
+    const doc = parse('## H\n> real quote\n');
+    const payload = parse('    first\n\n    <!-- c -->\n').children;
+    const result = insertSubtrees(doc, byLine(doc, '> real quote').id, payload, 'before');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Before the fix: `<!-- c -->` / `> real quote` with nothing between, one
+    // HTML block holding the quote.
+    expect(encode(result.value.doc)).toBe('## H\nfirst\n\n<!-- c -->\n\n> real quote\n');
+    expect(shape(encode(result.value.doc))).toBe(
+      ['h2: ## H', '  paragraph: first', '  html: <!-- c -->', '  quote: > real quote'].join('\n'),
+    );
+  });
+
+  it('#198 case 2: a pasted quote-looking line keeps the quote below it', () => {
+    const doc = parse('## H\n> real quote\n');
+    const payload = parse('    first\n\n    > quoted\n').children;
+    const result = insertSubtrees(doc, byLine(doc, '> real quote').id, payload, 'before');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('## H\nfirst\n\n> quoted\n\n> real quote\n');
+    expect(byLine(result.value.doc, '> real quote').lines).toEqual(['> real quote']);
+  });
+
+  it('#198 case 3: a child dragged out of its item keeps every node below it', () => {
+    const doc = parse('- item\n- other\n  - kid\n\n    <div>\n\nafter\n');
+    const result = moveSubtreesTo(doc, [[byLine(doc, '  - kid').id]], { parentId: 'root', index: 0 });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Before the fix: `  <div>` / `- item` / `- other` / `after` with nothing
+    // between, one HTML block holding all four lines.
+    expect(encode(result.value.doc)).toBe('- kid\n\n  <div>\n\n- item\n- other\nafter\n');
+    expect(shape(encode(result.value.doc))).toBe(
+      ['list-item: - kid', '  html: <div>', 'list-item: - item', 'list-item: - other', 'paragraph: after'].join('\n'),
+    );
+  });
+
+  it('a paragraph whose later line opens a quote is separated below by that quote', () => {
+    // Its first line stays a paragraph, so promotion alone leaves it judged as
+    // one; written into the margin, `> q` is a quote of its own and runs on
+    // into the callout below it, which then reads back as a quote.
+    const doc = parse('## H\n> [!note] real\n');
+    const payload = parse('    first\n\n    text\n    > q\n').children;
+    const result = insertSubtrees(doc, byLine(doc, '> [!note] real').id, payload, 'before');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('## H\nfirst\n\ntext\n> q\n\n> [!note] real\n');
+    expect(byLine(parse(encode(result.value.doc)), '> [!note] real').kind).toBe('callout');
+  });
+
+  it('a paragraph promoted to an HTML block is separated from the list it holds', () => {
+    // A list after a paragraph is its children, and a marker line ends a
+    // paragraph on its own; written into the margin as an HTML block, the
+    // paragraph runs on through the list and the node below it.
+    const doc = parse('## H\nbelow\n');
+    const payload = parse('    <!-- c -->\n    - x\n').children;
+    const result = insertSubtrees(doc, byLine(doc, 'below').id, payload, 'before');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('## H\n<!-- c -->\n\n- x\nbelow\n');
+    expect(shape(encode(result.value.doc))).toBe(
+      ['h2: ## H', '  html: <!-- c -->', '  list-item: - x', '  paragraph: below'].join('\n'),
+    );
+  });
+
+  it('a later line is read as the document reads it, from the margin it has there', () => {
+    // Inside an item a heading is still measured from column 0, so `    # x`
+    // under `  - kid` is more of the paragraph's text. Read with the margin
+    // taken off it is a heading, which claims nothing below it.
+    const bullet = { type: 'bullet', marker: '-' } as const;
+    const text = makeNode({ kind: 'paragraph', lines: ['    text', '    # x'] });
+    const plain = makeNode({ kind: 'paragraph', lines: ['    plain'] });
+    const kid = makeNode({ kind: 'list-item', lines: ['  - kid'], listStyle: bullet, children: [text, plain] });
+    const root = makeNode({ kind: 'list-item', lines: ['- a'], listStyle: bullet, children: [kid] });
+    const result = finalize(parse(''), { preamble: [], children: [root] }, root.id);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('- a\n  - kid\n\n    text\n    # x\n\n    plain');
+    expect(byLine(parse(encode(result.value.doc)), '    plain').kind).toBe('paragraph');
+  });
+
+  it('a promoted rule is not read as the frontmatter it would open a note with', () => {
+    const doc = parse('## H\nbelow\n');
+    const payload = parse('    first\n\n    ---\n    x\n    ...\n').children;
+    const result = insertSubtrees(doc, byLine(doc, 'below').id, payload, 'before');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('## H\nfirst\n\n---\nx\n...\n\nbelow\n');
+    expect(byLine(parse(encode(result.value.doc)), 'below').lines).toEqual(['below']);
+  });
+
+  it('a promoted quote before a paragraph is left flush, as a quote is', () => {
+    // Control: promotion removes a separator as well as adding one. A quote
+    // claims no paragraph below it, so the blank the paragraph rule wrote is
+    // not written.
+    const doc = parse('## H\nbelow\n');
+    const payload = parse('    first\n\n    > quoted\n').children;
+    const result = insertSubtrees(doc, byLine(doc, 'below').id, payload, 'before');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('## H\nfirst\n\n> quoted\nbelow\n');
+    expect(shape(encode(result.value.doc))).toBe(
+      ['h2: ## H', '  paragraph: first', '  quote: > quoted', '  paragraph: below'].join('\n'),
+    );
+  });
+});
+
 describe('a seam inside a list item is judged at the item’s content column', () => {
   const insertAfter = (md: string, anchorLine: string, payload: string) => {
     const doc = parse(md);

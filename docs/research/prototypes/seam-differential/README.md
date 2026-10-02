@@ -21,3 +21,11 @@ pairs that come back a node short:
 ```bash
 SWEEP_OUT=/tmp/sweep.txt npx vitest run tests/seam-sweep.test.ts
 ```
+
+`drag-sweep.test.ts.txt` is the third, for #198's drag reach: every node of four documents holding
+a paragraph at a list item's child column whose text opens a block at the root, moved to every
+destination through `moveSubtreesTo`. It writes the moves that come back a node short:
+
+```bash
+DRAG_OUT=/tmp/drag.txt npx vitest run tests/drag-sweep.test.ts
+```
