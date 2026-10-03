@@ -40,15 +40,21 @@ if ! node -e 'process.exit(process.features.typescript ? 0 : 1)' >/dev/null 2>&1
   notes+=("node $(node --version 2>/dev/null || echo missing) cannot run the TypeScript scripts; put Node 22.18+ first on PATH")
 fi
 
-if [ ! -d node_modules ]; then
+# A snapshot's node_modules can predate package-lock.json, so its presence says
+# nothing; scripts/lockfile-drift.ts compares what the two list. Any non-zero
+# exit counts, a crash included: `npm ci` is the safe direction.
+if reason=$(node scripts/lockfile-drift.ts 2>&1); then
+  :
+else
+  reason=$(printf '%s\n' "$reason" | sed -n '1,2p' | tr -s ' \n' ' ')
   if $install; then
     # `ci` rather than `install`: the container ships an older npm than the one
     # that wrote package-lock.json, and `install` rewrites the parts it does not
     # understand — a lockfile diff nobody asked for, in whatever commit comes next.
-    npm ci --no-audit --no-fund && notes+=("installed npm dependencies") ||
-      notes+=("npm dependencies missing; \`npm ci\` failed")
+    npm ci --no-audit --no-fund && notes+=("installed npm dependencies (${reason% })") ||
+      notes+=("npm dependencies out of date; \`npm ci\` failed (${reason% })")
   else
-    notes+=("npm dependencies missing; run \`npm ci\`")
+    notes+=("npm dependencies out of date (${reason% }); run \`npm ci\`")
   fi
 fi
 
