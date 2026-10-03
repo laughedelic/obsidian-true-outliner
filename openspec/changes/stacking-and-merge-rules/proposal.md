@@ -26,16 +26,21 @@ away or undone over the September sessions (#339, a sub-issue of #334):
 
 - **The stacking test** in "Branching and PR stacks": stack when the change reads code the other
   branch adds, or when `git merge-tree` against it conflicts; a shared file with disjoint hunks is not
-  a reason. The PR still states the reading.
-- **The stacked-PR sentence** in the same section, in the cloud-session paragraph: a cloud session
-  opens each layer's PR with `create_pull_request`, the upper's `base` set to the lower layer's branch,
-  and creates the stack with `POST /repos/{o}/{r}/stacks` through `gh api`; it never needs `gh stack`
-  for that. Restacking and landing wait for the primary checkout. The measurement is recorded
+  a reason. The PR still states the reading. The file list stays as the cheap first pass that picks
+  which branches to merge.
+- **The REST stacks API in place of `gh stack` for creating, extending and dissolving a stack**, in
+  "Branching and PR stacks" and `docs/pr-stacks.md`, for cloud sessions and the primary checkout alike:
+  open each layer's PR with its base on the lower layer's branch, then `POST /repos/{o}/{r}/stacks`
+  through `gh api`. `gh stack` stays for `checkout`, `rebase`, `sync` and `merge`, which work on local
+  git state, and restacking stays in the primary checkout. The measurement is recorded
   ([`cloud-session-github-access`](../../../docs/research/cloud-session-github-access.md), "A stacked
   PR from a cloud session"): the stacks API is REST, and a stack of two open PRs was created from a
   cloud session, seen in the UI and unstacked again.
 - **One line in "Change lifecycle", step 5**: agents prepare landing and never merge; the maintainer
   merges.
+- **A hook that enforces it.** `scripts/agent-conventions.ts` refuses `merge_pull_request` and
+  `enable_pr_auto_merge` from the GitHub MCP server, and in `Bash` `gh pr merge`, `gh stack merge` and
+  `gh api` to a merge or auto-merge path. The `PreToolUse` matcher already reaches all of them.
 - **The same statements wherever they repeat**: `docs/pr-stacks.md`, `docs/cloud-sessions.md`, and the
   sentence in `docs/research/cloud-session-github-access.md` that gives a cloud session "the layer's
   own work only".
@@ -48,8 +53,11 @@ away or undone over the September sessions (#339, a sub-issue of #334):
   environment sets
   ([`cloud-session-github-access`](../../../docs/research/cloud-session-github-access.md), "`gh stack`
   from the cloud").
-- **A hook that refuses an agent's merge.** The rule is wording, and the `steward` skill already
-  covers the PR-event path. A hook on `merge_pull_request` and `gh stack merge` is a separate decision.
+- **Replacing `gh stack checkout`, `rebase`, `sync` and `merge`.** They work on local git state and the
+  restack is the primary checkout's work; REST has no counterpart.
+- **A skill for the stack calls.** The recipe is four calls in `docs/pr-stacks.md`.
+- **A direct push to `main`.** That is branch protection's, not this hook's. Nor does the hook refuse
+  `update_pull_request_branch`, which updates a PR's branch and merges nothing.
 - **Re-deciding "prefer short stacks"** or who chooses to stack: the session offers its reading, the
   maintainer decides, as now.
 - **The other `AGENTS.md` edits** in #334's sub-issues (#335, #340): whichever of the three lands
@@ -68,7 +76,9 @@ declares `skip_specs: true`.
 
 ## Impact
 
-- `AGENTS.md`: the stacking test, one cloud-session sentence, one lifecycle line.
+- `AGENTS.md`: the stacking test, the stack paragraphs, one lifecycle line, and the sentence describing
+  `scripts/agent-conventions.ts`.
+- `scripts/agent-conventions.ts`: the merge rule and its header comment.
 - `docs/pr-stacks.md`, `docs/cloud-sessions.md`: the repeated statements.
 - `docs/research/cloud-session-github-access.md`: the measurement, and one reworded sentence.
 - No `src/` or `styles/` change, so no version bump.
