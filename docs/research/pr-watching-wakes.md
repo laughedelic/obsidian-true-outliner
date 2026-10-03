@@ -40,6 +40,14 @@ direction and do not reproduce its totals (76 on #205, 43 on #276).
 payload with `initiation: "own_followup"` prints nothing, which the harness reads as allow. So no
 hook sees the call yet.
 
+## The rule in a running session
+
+With the matcher and the script edited mid-session, a real `send_later` with `initiation:
+"own_followup"` and a real `ScheduleWakeup` were each refused with the rule's message, in the session
+that made the edit. A settings edit reaches a running session, so a session needs no restart to be
+held to the rule. The pass path of `send_later` was read on a piped payload only, since a real
+`human_request` call arms a routine on the account.
+
 ## `ScheduleWakeup`
 
 The tool exists for `/loop` in dynamic mode, where the user gave no interval and the session paces
@@ -55,8 +63,6 @@ is unread.
 - **The input a hook receives for `send_later`.** The script reads `tool_input` as the call's own
   arguments. Whether an omitted `initiation` arrives absent or as its default is unread; a rule that
   allows only `human_request` refuses both.
-- **Whether a settings edit applies to a running session.** Hooks may be read once at session
-  start. The change's last task checks the refusal in a session that began with the new settings.
 - **What a typed `/loop` leaves in the transcript.** The `ScheduleWakeup` rule looks for it, and a
   wrong guess refuses the maintainer's own `/loop`.
 - **Whether the platform appends its footer to a comment** as it does to a PR body written through

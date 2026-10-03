@@ -159,6 +159,12 @@ A cloud session needs its VM provisioned before any of this runs:
 reproduce a report before fixing it.** It is for looking; the suite stays the check that a case
 keeps passing.
 
+## PR events
+
+**Follow the `steward` skill when a PR event wakes a session**, and before watching a PR: what to act
+on, what to ignore, and what never to do unasked. A session arms no check-ins of its own; the
+`PreToolUse` hook refuses them (`scripts/agent-conventions.ts`).
+
 ## Conventions
 
 - **Committed prose is team voice** — "we" and "our", never "you", and never session-log phrasing
