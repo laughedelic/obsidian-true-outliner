@@ -299,8 +299,16 @@ time and tokens. Taken with the proposal round, the two settings find most of th
 each finds some the other does not; the lower cost of light is not borne out once the change has
 code to measure.
 
+## Copilot's code review and the pointer
+
+Copilot reviewed #351 at `d38e10f`, with `.github/skills/code-review/SKILL.md` in the head branch.
+Each of its 10 comments opened with a label and a rung in the skill's form ("**CONFIRMED, p2.**")
+and named where the defect lives; its comment on #246 did not. Its review has no
+claims list and no checked-and-sound list. All 10 findings held on the author's check: two broken
+links, a negative control that restored `src/` only, a return-only check whose findings had no
+record, and wording.
+
 ## Not measured
 
 - Whether a local session has a hook that reads `.claude/worktrees/` or `.scratch/`.
-- What a light round costs on code, and whether a limited round is cheaper on a larger change.
-- Whether Copilot's code review reads `.github/skills/code-review/SKILL.md`.
+- Whether a light round limited to one response's diff is cheaper on code, or on a larger change.

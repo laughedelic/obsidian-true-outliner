@@ -1,7 +1,7 @@
 ## Context
 
 See proposal.md, "Why". #337 carries the evidence from the sessions, and
-[`docs/research/independent-reviews.md`](../../../docs/research/independent-reviews.md) the survey
+[`docs/research/independent-reviews.md`](../../../../docs/research/independent-reviews.md) the survey
 of the review sections in our PRs, the workspace measurements and the comparison of the two
 settings. The skills this one sits beside set its form: `triage` is all reference,
 `driving-obsidian` is two procedures that each end on a condition a session can check,
@@ -253,8 +253,8 @@ branch includes them; that passes as branches are rebased.
 
 **Return only.** The brief has a field for where the findings go: on the PR, or returned to the
 author only. A return-only check returns its findings in full. It is a round: it counts towards
-the rounds below, and it gets its line in the PR description's "Reviews" section, with the findings
-it rejected or showed wrong, so the next brief can quote them. A ready point always posts, because
+the rounds below, and it gets its row in the PR description's "Reviews" section, holding every
+finding with its disposition, so the record keeps them and the next brief can quote them. A ready point always posts, because
 the threads are the record the maintainer reads.
 
 Alternatives considered:
@@ -283,8 +283,8 @@ claim"). Each finding then takes one disposition:
 
 The disposition is the author's reply on the finding's thread, which it then resolves. The full
 exchange stays in the threads. The PR description's "Reviews" section, rewritten with
-`update_pull_request` as rounds accumulate (a REST write appends a footer, AGENTS.md,
-"Conventions"), is a summary across all rounds: one line per round with its link, mode, SHA,
+`update_pull_request` as rounds accumulate, which stores the body as given (a REST write would
+append a footer; AGENTS.md, "Conventions"), is a summary across all rounds: one line per round with its link, mode, SHA,
 model and effort, and the counts; what the rounds changed in the design; the lessons a later
 change can use; and the threads a reader would not find on their own (a rejection, a finding shown
 wrong, one left open). Trivial findings are not repeated there.

@@ -151,7 +151,8 @@ For each finding, in rank order:
    - **wrong**, with what showed it.
 3. **Answer on the thread and resolve it**, disposition first, opening with
    `<!-- agent: author -->` and **Author** ·, no footer. Thread ids come from `pull_request_read`,
-   method `get_review_comments`; `resolve_review_thread` resolves.
+   method `get_review_comments`; `resolve_review_thread` resolves. A return-only check has no
+   threads: its findings and their dispositions go in its row of "Reviews" (step 4).
 
 The review's events are the review the author asked for, and the author's own replies come back
 as echoes, which `steward` skips. **The user is asked only** about an open question, a decision
@@ -163,14 +164,14 @@ user named.
 
 ## 4. Record
 
-The PR description's "Reviews" section is a summary across all rounds, rewritten with
-`update_pull_request` as rounds accumulate (a REST write appends a footer to the description). The
-back and forth stays in the threads.
+The PR description's "Reviews" section is a summary across all rounds, rewritten as rounds
+accumulate with `update_pull_request`, which stores the body as given (a REST write would append a
+footer). The back and forth stays in the threads.
 
 - A table, one row per round, return-only checks included: the review's link, mode, SHA, model and
   effort (where known), the count of findings and of each disposition, and why a round was skipped
-  when one was. A return-only check's row lists the findings it rejected or showed wrong, since it
-  has no threads to hold them.
+  when one was. A return-only check's row holds every finding with its disposition, folded in
+  `<details>`, since it has no threads to hold them.
 - A step-back, when one ran, and what the user chose.
 - Inside `<details>`: what the rounds changed in the design, the lessons a later change can use,
   and links to the threads a reader would not find on their own (a rejection, a finding shown

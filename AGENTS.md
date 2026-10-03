@@ -229,7 +229,8 @@ on, what to ignore, and what never to do unasked. A session arms no check-ins of
 `.agents/` itself. A skill of our own is a directory there plus a symlink in each of the other
 two. The one exception is `.github/skills/code-review/`, a file of its own: it points Copilot's
 code review at the `independent-review` checks, and under `.claude/skills/` it would take the name
-of Claude Code's built-in `code-review`. Regenerate the OpenSpec skills with `openspec update`, which rewrites its own tree and leaves
+of Claude Code's built-in `code-review`; so `independent-review` itself is linked from
+`.claude/skills/` only. Regenerate the OpenSpec skills with `openspec update`, which rewrites its own tree and leaves
 the symlinks alone, rather than editing one by hand.
 
 `scripts/agent-setup.sh` is the one list of what an agent session needs — the project's

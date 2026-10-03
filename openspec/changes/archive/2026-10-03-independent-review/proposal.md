@@ -6,7 +6,7 @@ author's diagnosis, a diff against a stale local `main`, probes left in the trac
 sweep against the wrong baseline, and reviews that reversed each other from one stage to the
 next (#337, with the evidence from about 20 sessions; the review sections of the merged PRs are
 tabulated in
-[`docs/research/independent-reviews.md`](../../../docs/research/independent-reviews.md)). The
+[`docs/research/independent-reviews.md`](../../../../docs/research/independent-reviews.md)). The
 maintainer asked for a review by hand in at least eight sessions. CLAUDE.md's lifecycle says
 "Review at each ready point" and names no procedure. #337 is a sub-issue of #334, and the Bugfix
 routine's next revision (#348) depends on it.
@@ -70,7 +70,9 @@ skill. Alternatives considered:
   same checks if it reviews again; nothing here waits on it.
 - **A brief generator script.** The brief is a short template filled from the PR; what makes it
   good is what it leaves out, which a script cannot judge.
-- **Reviews of research notes and docs-only PRs.** The modes are written for changes to the
+- **Reviews of PRs outside the change lifecycle**, such as a research note or a docs fix with no
+  OpenSpec change. AGENTS.md's step 4 asks for the skill at the ready points of a change. The
+  modes are written for changes to the
   plugin and its tooling; a docs PR may follow them but nothing requires it.
 - **Defining the fix types in a spec.** The skill states drift, gap and conflict as PRs have used
   them; moving that into `openspec/config.yaml` or a spec is a separate decision.

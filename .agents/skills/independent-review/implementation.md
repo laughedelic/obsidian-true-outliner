@@ -12,10 +12,11 @@ reviewer"). Work through all of them; each one that turns something up is a find
 3. **The tests.**
    - Run them: `npx vitest run tests/` in the head worktree, and the change's case files with
      `npm run case -- <file>`.
-   - **Revert the fix and see each new test fail**: in the head worktree,
-     `git restore --source=<merge base> --staged --worktree src/`, run the new tests, then
-     `git restore --source=<sha> --staged --worktree src/`. (`git checkout <sha> -- src/` leaves
-     a file the change added in place.) A test that still passes cannot fail.
+   - **Revert the fix and see each new test fail**: in the head worktree, restore every path the
+     change's implementation touches (`src/`, `styles/`, `scripts/`, whichever it changes; never
+     the tests) with `git restore --source=<merge base> --staged --worktree <paths>`, run the new
+     tests, then the same with `--source=<sha>`. (`git checkout <sha> -- <path>` leaves a file the
+     change added in place.) A test that still passes cannot fail.
    - **Mutate** each condition the fix adds (drop it, invert it, move its boundary) and see a test
      fail. #269 killed three mutations its tests let survive.
    - An e2e that could pass by timing alone: #273's ran the key and the command as two WebDriver
