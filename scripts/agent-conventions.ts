@@ -31,9 +31,9 @@ const TYPES = "`feat/<slug>`, `fix/<slug>` or `chore/<slug>`";
 const SEND_LATER = "mcp__claude-code-remote__send_later";
 const SCHEDULE_WAKEUP = "ScheduleWakeup";
 const MERGE_TOOLS = new Set(["mcp__github__merge_pull_request", "mcp__github__enable_pr_auto_merge"]);
-// A pull request's `merge` route, or the cloud proxy's `…/ccr/auto_merge`, as a `repos/…` path. The
-// number may be a shell variable and a query string may follow.
-const MERGE_ROUTE = /(?:^|\/)repos\/[^/]+\/[^/]+\/pulls\/[^/?]+\/(?:merge|ccr\/auto_merge)(?:\?.*)?$/;
+// A pull request's `merge` route, its `auto-merge` route, or the cloud proxy's `…/ccr/auto_merge`, as
+// a `repos/…` path. The number may be a shell variable and a query string may follow.
+const MERGE_ROUTE = /(?:^|\/)repos\/[^/]+\/[^/]+\/pulls\/[^/?]+\/(?:merge|auto-merge|ccr\/auto_merge)(?:\?.*)?$/;
 // A slash command the user typed is recorded in a `<command-name>` block of their message,
 // slash included; a skill only the model can invoke is recorded without one.
 const TYPED_LOOP = /<command-name>\/loop<\/command-name>/;

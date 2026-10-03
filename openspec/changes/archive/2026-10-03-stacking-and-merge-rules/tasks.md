@@ -32,7 +32,7 @@
       `mcp__github__enable_pr_auto_merge`, and in `Bash` the direct forms the design lists, with a
       message naming the rule and saying to prepare landing and stop; add the rule to the file's header
       comment; end a command at a newline and skip only a terminated here-document's body in the
-      shared lexer. Verified by `tests/agent-conventions.test.ts`, 104 tests sending 106 payloads, the
+      shared lexer. Verified by `tests/agent-conventions.test.ts`, 106 tests sending 108 payloads, the
       earlier rules' regressions among them, and by thirty mutated copies of the script run through
       the same file by `AGENT_CONVENTIONS_SCRIPT`, each failing the rows its condition guards and none surviving
       (the table in `docs/research/cloud-session-github-access.md`, with the shapes the hook does not
@@ -52,7 +52,7 @@
       "Worktrees hold branches hostage" section and the landing section's `gh stack merge`, and say
       that the maintainer lands. Verified by `grep -n 'gh stack\|stack-park' docs/pr-stacks.md` matching
       only the sentence that says the extension is not used, and by running the recipe as written in
-      five situations against a local bare `origin` (the table in `docs/research/restacking-with-plain-git.md`):
+      seven situations against a local bare `origin` (the table in `docs/research/restacking-with-plain-git.md`):
       every adjacent pair an ancestor, one commit per layer, and the layers pushed atomically.
 - [x] 4.2 Delete `scripts/stack-park.ts`. Verified by `npm run typecheck:scripts` exiting 0 and
       `grep -rn 'stack-park' . --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=archive`

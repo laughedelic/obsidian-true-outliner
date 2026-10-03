@@ -218,7 +218,7 @@ Three places could hold the branch convention; only one is early enough.
 | `mcp__github__merge_pull_request`, `mcp__github__enable_pr_auto_merge` | deny — a merge is the maintainer's (AGENTS.md, "Change lifecycle", step 5) |
 | `gh pr merge 12` with any flags (`--squash`, `--auto`, `--disable-auto`, `--help`), `gh -R o/r pr merge 12`, `gh pr -R o/r merge 12`, `GH_TOKEN=x gh pr merge`, `npm test && gh pr merge 12`, `gh stack merge --yes` | deny |
 | the same behind a keyword or a wrapper: `for … do`, `if … then`, `{ … }`, `!`, `time`, `env -u X`, `command`, `xargs -n 1`, `sudo -u root`, `timeout 5`, an absolute path to `gh`, an assignment whose value is `$(…)`; the rule looks for the `gh` word, not the first word | deny |
-| `gh api -X PUT …/pulls/12/merge`, `…/pulls/$PR/merge`, `…/pulls/12/merge?merge_method=squash`, `-XPUT …/ccr/auto_merge`, `…/pulls/12/merge -f merge_method=squash` (a field makes it a POST) | deny |
+| `gh api -X PUT …/pulls/12/merge`, `…/pulls/$PR/merge`, `…/pulls/12/merge?merge_method=squash`, `-X PUT …/pulls/12/auto-merge`, `-XPUT …/ccr/auto_merge`, `…/pulls/12/merge -f merge_method=squash` (a field makes it a POST) | deny |
 | `gh pr view 12`, `gh pr create`, `gh pr comment … pr merge`, `gh api …/pulls/12`, `gh api …/pulls/12/merge` (a read), `gh api -X DELETE …/ccr/auto_merge` (turns it off), a write to a path that only ends in `auto_merge` or in a merge route, `git merge main`, `git commit -m "gh pr merge"`, MCP `update_pull_request_branch`, MCP `disable_pr_auto_merge` | allow |
 | `echo hi⏎git push origin claude/x`, `gh pr \⏎merge 12` (a second command on a new line, or a line continuation) | deny — a newline was whitespace before, so the push rule did not see it |
 | `# don't wait for CI⏎gh pr merge 1`, `npm test # it's fine⏎…`, `# retry \⏎git push origin claude/x`, `echo a # <<EOF⏎…` | deny — a comment runs to the end of its line, so its apostrophe, trailing backslash or `<<` hides nothing |
@@ -235,7 +235,7 @@ by a line equal to its word, which the lexer then skips. Refused though it merge
 `gh pr merge --help`, an unquoted `echo gh pr merge`, `-X=GET` (which `gh` reads as GET), and a field
 whose value ends in a full merge-route URL.
 
-The rows are `tests/agent-conventions.test.ts`: 104 tests sending 106 `PreToolUse` payloads to the
+The rows are `tests/agent-conventions.test.ts`: 106 tests sending 108 `PreToolUse` payloads to the
 script, the earlier rules' regressions among them. Thirty copies of the script with one condition each
 changed, run through the same file by `AGENT_CONVENTIONS_SCRIPT`, each fail the rows that condition
 guards, and none survives:

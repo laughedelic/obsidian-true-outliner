@@ -79,8 +79,8 @@ joins it with no matcher change. It sees the direct forms only:
 - in `Bash`, a simple command that holds a `gh` word (by base name, any of them, so `env`, `xargs`,
   `sudo` and the like need no list of their options) and then either `pr merge` or
   `stack merge` as the first two words that are not flags, with any flags, or `api` with a word that is
-  a merge route (`repos/…/pulls/<n>/merge` or `…/ccr/auto_merge`, the number a variable or digits, a
-  query string allowed) and a write; a read, and the DELETE that turns auto-merge off, pass.
+  a merge route (`repos/…/pulls/<n>/merge`, `…/auto-merge` or `…/ccr/auto_merge`, the number a variable
+  or digits, a query string allowed) and a write; a read, and the DELETE that turns auto-merge off, pass.
 
 The rule is unconditional. The hook cannot tell a merge the maintainer asked for from one the session
 chose, as it can for `send_later` through `initiation`, and the maintainer's own line is "prepare for

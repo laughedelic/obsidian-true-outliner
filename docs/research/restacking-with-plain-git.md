@@ -34,7 +34,7 @@ above the one below (one each is a clean stack).
   `fatal: '<branch>' is already used by worktree` and `docs/pr-stacks.md` worked around with
   `scripts/stack-park.ts`. A cloud session and a fresh clone have one worktree and no such layer.
 
-## The recipe in five situations
+## The recipe in seven situations
 
 `docs/pr-stacks.md`'s recipe, run as written in scratch repositories with a bare `origin` and a second
 clone standing for another session, on stacks of three layers. Each run ends with the ancestor test
@@ -47,9 +47,11 @@ the local layers.
 | The trunk moves; a fresh clone holding only the top layer, as a cloud session has | whole; pushed; remote equals local. Without the first loop, `--update-refs` moves only the top layer and the push fails with `src refspec A does not match any` |
 | The trunk moves, and another session pushed a commit to the bottom layer; the local layer is stale | whole, with that commit kept in the remote. Without the first loop, the fetch refreshes `origin/A`, the lease passes, and the push drops the other session's commit |
 | The trunk moves, and another session pushes to the bottom layer after the fetch, before the push | `stale info`: the bottom layer is refused and `--atomic` pushes none of them; the remote is unchanged |
-| Another session amended the bottom layer and force-pushed it; the layers above sit on its old tip | whole with `--onto`; pushed. The old tip is `origin/A@{1}` for the layer above the bottom and `origin/B`, the unmoved remote ref, for the next: `origin/B@{1}` does not exist there (`log for 'origin/B' only has 1 entries`). With a restack that changed no content, the plain second line also works: git skips the commits it has applied |
+| Another session amended the bottom layer and force-pushed it; the layers above sit on its old tip | in a clone that holds the old bottom layer, the `git cherry` check stops at it (`+` for the old commit). Reset that layer by hand, as nothing of ours is on it: whole with `--onto`; pushed. The old tip is `origin/A@{1}` for the layer above the bottom and `origin/B`, the unmoved remote ref, for the next: `origin/B@{1}` does not exist there (`log for 'origin/B' only has 1 entries`) |
+| Another session restacked the bottom layer onto the moved trunk with no content change; this clone holds the old layer | `git cherry` shows `-` and the check passes; whole; pushed. The plain second line skips the commits git has applied |
+| A local layer holds a commit the remote lacks | `git cherry` shows `+` and the recipe stops with the branch and the remote unchanged. Without the check, the first loop moves the branch off that commit and it stays only in the reflog |
 
-Two things the runs changed in the recipe:
+Three things the runs changed in the recipe:
 
 - **Order.** With the trunk moved and a lower layer gaining a commit at once, `git rebase
   --update-refs origin/main` alone leaves the layer above carrying its own copy of the old lower
@@ -58,6 +60,9 @@ Two things the runs changed in the recipe:
   after `git checkout -B <layer> origin/<layer>`: `remote ref updated since checkout`. The lease alone,
   with the layers reset to the remote after the fetch, refused the late push of the fourth row, so the
   flag is left out.
+- **A check before the first loop.** The loop alone moves a layer off an unpushed commit. `git rev-list
+  --count origin/<layer>..<layer>` stops on that, and also on a layer another session only restacked;
+  `git cherry`, which compares by patch, stops on the first and passes the second.
 
 ## Pushing the moved layers from a cloud session
 

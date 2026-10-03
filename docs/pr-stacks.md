@@ -32,15 +32,21 @@ and a fresh clone have one worktree, so they qualify. Name the layers bottom fir
 
 ```bash
 git fetch origin
-git checkout -B <layer> origin/<layer>        # each layer, bottom first: no unpushed work on it, or stop and report
+git cherry origin/<layer> <layer>             # each layer that exists locally: no `+` line, or stop
+git checkout -B <layer> origin/<layer>        # each layer, bottom first
 git rebase <lower> <layer>                    # each layer above the bottom, bottom first: onto the layer below
 git rebase --update-refs origin/main          # from the top layer: onto the trunk
 ```
 
 The first loop puts every layer on its remote, which a fresh clone lacks and a stale local branch
 gets wrong: another session may have pushed to a lower layer, and a push from a stale branch would
-drop its commits. The second keeps a lower layer's new commits, and is a no-op for one that did not
-gain any. The third is a no-op when the trunk did not move.
+drop its commits. It also moves the branch off any commit the remote lacks, so the `git cherry` check
+comes before it: a `+` line is a commit whose changes the remote does not have. Either it is unpushed
+work, and the restack stops until it is pushed or reported, or it is the old version of a layer another
+session amended and force-pushed, which holds nothing of ours: reset that layer by hand and continue
+with `--onto` below. `git cherry` compares by patch, so a layer another session only restacked passes.
+The second loop keeps a lower layer's new commits, and is a no-op for one that did not gain any. The
+third is a no-op when the trunk did not move.
 
 A lower layer that was rewritten, by its own restack or by a force-push, is the one case these
 miss: the layers above still hold its old commits, and `git rebase <lower> <layer>` replays them.
