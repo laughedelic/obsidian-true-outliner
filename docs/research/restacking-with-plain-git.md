@@ -27,7 +27,8 @@ above the one below (one each is a clean stack).
 - A trunk move or a lower layer's added commit is one command from the top layer, and the result is
   checked with the ancestor test above.
 - A rewritten lower layer needs `--onto` and its old tip, recorded before the rewrite, bottom layer
-  first. `--update-refs` replays the old commit and conflicts.
+  first. `--update-refs` replays the old commit, and conflicts when the rewrite changed content; a
+  restack that changed none is skipped by patch id.
 - The restack must run in a checkout where no layer is checked out elsewhere. `--update-refs` skips
   such a layer and says nothing, which is the hazard `gh stack` reported as
   `fatal: '<branch>' is already used by worktree` and `docs/pr-stacks.md` worked around with
@@ -46,7 +47,7 @@ the local layers.
 | The trunk moves; a fresh clone holding only the top layer, as a cloud session has | whole; pushed; remote equals local. Without the first loop, `--update-refs` moves only the top layer and the push fails with `src refspec A does not match any` |
 | The trunk moves, and another session pushed a commit to the bottom layer; the local layer is stale | whole, with that commit kept in the remote. Without the first loop, the fetch refreshes `origin/A`, the lease passes, and the push drops the other session's commit |
 | The trunk moves, and another session pushes to the bottom layer after the fetch, before the push | `stale info`: the bottom layer is refused and `--atomic` pushes none of them; the remote is unchanged |
-| Another session restacked the bottom layer and force-pushed it; the layers above sit on its old tip | whole with `--onto` and the old tip from `origin/A@{1}`; pushed |
+| Another session amended the bottom layer and force-pushed it; the layers above sit on its old tip | whole with `--onto`; pushed. The old tip is `origin/A@{1}` for the layer above the bottom and `origin/B`, the unmoved remote ref, for the next: `origin/B@{1}` does not exist there (`log for 'origin/B' only has 1 entries`). With a restack that changed no content, the plain second line also works: git skips the commits it has applied |
 
 Two things the runs changed in the recipe:
 

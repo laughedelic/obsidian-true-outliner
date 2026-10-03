@@ -32,8 +32,8 @@
       `mcp__github__enable_pr_auto_merge`, and in `Bash` the merges the design lists, with a message
       naming the rule and saying to prepare landing and stop; add the rule to the file's header
       comment; end a command at a newline and skip only a terminated here-document's body in the
-      shared lexer. Verified by `tests/agent-conventions.test.ts`, 77 payloads including the earlier
-      rules' regressions, and by fifteen mutated copies of the script run through the same file by
+      shared lexer. Verified by `tests/agent-conventions.test.ts`, 77 tests sending 79 payloads,
+      the earlier rules' regressions among them, and by fifteen mutated copies of the script run through the same file by
       `AGENT_CONVENTIONS_SCRIPT`, each failing exactly the rows its condition guards (the table in
       `docs/research/cloud-session-github-access.md`). Negative control: matching `gh pr` instead of
       `gh pr merge` must fail `gh pr view`, `gh pr create` and the `gh pr comment` row.

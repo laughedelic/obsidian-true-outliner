@@ -198,8 +198,8 @@ Three places could hold the branch convention; only one is early enough.
 | `cat > f <<'EOF'⏎git push origin claude/x⏎EOF`, the same with a merge, `<<\EOF`, and a `git commit -m "$(cat <<'EOF' … EOF)"` whose body names one | allow — a here-document's body is text; the command after its delimiter line is still read |
 | `jq .n <<< "$json"⏎npm test && git push origin claude/x`, `echo $((1<<2))⏎git push origin claude/x`, `cat <<EOF⏎gh pr merge 1` (no delimiter line) | deny — a here-string, an arithmetic shift and an unterminated here-document open no body |
 
-The rows are `tests/agent-conventions.test.ts`: 77 `PreToolUse` payloads run through the script, the
-earlier rules' regressions among them. Fifteen copies of the script with one condition each changed,
+The rows are `tests/agent-conventions.test.ts`: 77 tests sending 79 `PreToolUse` payloads to the script,
+the earlier rules' regressions among them. Fifteen copies of the script with one condition each changed,
 run through the same file by `AGENT_CONVENTIONS_SCRIPT`, fail the rows that condition guards and no
 others:
 

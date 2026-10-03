@@ -43,12 +43,19 @@ drop its commits. The second keeps a lower layer's new commits, and is a no-op f
 gain any. The third is a no-op when the trunk did not move.
 
 A lower layer that was rewritten, by its own restack or by a force-push, is the one case these
-miss: the layers above still hold its old commits, and `git rebase <lower> <layer>` replays them
-and conflicts. Give `--onto` the old tip, bottom layer first, in place of the second line:
+miss: the layers above still hold its old commits, and `git rebase <lower> <layer>` replays them.
+Git skips a commit identical to one it has applied, but a rewrite that changed content conflicts. Give
+`--onto` the lower layer's old tip, bottom layer first, in place of the second line:
 
 ```bash
-git rebase --onto <lower> <the lower's old tip> <layer>   # the old tip is origin/<lower>@{1} right after the fetch that moved it
+git rebase --onto <lower> <the lower's old tip> <layer>
 ```
+
+The old tip is the commit the layer above was built on. For a layer another session rewrote and
+force-pushed, it is `origin/<lower>@{1}` right after the fetch that moved it; confirm that
+`git merge-base --is-ancestor <old tip> origin/<layer>` holds, since a second fetch moves `@{1}`. For
+the layer above that one, which the loop above has just rewritten, it is `origin/<lower>`: the remote
+ref has not moved, and has no `@{1}`.
 
 Then check that the stack is whole, and push every layer in one command:
 

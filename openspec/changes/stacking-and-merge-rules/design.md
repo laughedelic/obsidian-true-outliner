@@ -52,8 +52,8 @@ forbids plain `git rebase`. With no tracking, the restack is git
 that the first review round shaped: every layer reset to its remote after the fetch (a fresh clone has
 no lower layers, and a stale one would push over another session's commits), each layer rebased onto
 the one below, bottom first, and `git rebase --update-refs origin/main` from the top. A lower layer
-that was rewritten takes `--onto` and its old tip, from `origin/<lower>@{1}`, in place of the
-second step. The result is checked with the ancestor test, the bottom pair against `origin/main`, and
+that was rewritten takes `--onto` and its old tip in place of the second step: `origin/<lower>@{1}`
+for a layer another session rewrote, and the unmoved `origin/<lower>` for the layers above it. The result is checked with the ancestor test, the bottom pair against `origin/main`, and
 pushed with `git push --atomic --force-with-lease`: the lease refuses a layer pushed to since the fetch
 and `--atomic` then pushes none, so a stack is never left split. `--force-if-includes` is out: it
 refused the push straight after the reset. The worktree hazard that `stack-park.ts` worked around is
