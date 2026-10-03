@@ -209,13 +209,14 @@ say what the review covered (#245's implementation review is the example).
 
 ### The reviewer posts a GitHub review, unless the brief says to return only
 
-The reviewer posts its findings on the PR as one review, the way Copilot's reviews arrive: each
-finding that belongs to a line of the diff is an inline comment there, and the rest (a missing
-gesture, a spec the change does not touch, the list of what was checked and found sound) go in
-the review's body, which repeats no inline finding: it holds the findings on no line, one line
-per claim of the brief, and the checked-and-sound list folded in `<details>`. The review is
-created with `commitID` set to the SHA in the brief: without it
-GitHub attaches the review to the PR's current head, and inline lines resolve against a file the
+The reviewer posts its findings on the PR as one review, the way Copilot's reviews arrive, and
+every finding is a comment, so every finding has a thread for its disposition. One that belongs to
+a line of the diff sits on that line; one that belongs to no line (a missing gesture, a spec the
+change does not touch) is a file-level comment (`subjectType` `FILE`) on the file it concerns most.
+The body holds no finding, only one line per claim of the brief and the checked-and-sound list
+folded in `<details>`; a finding in the body had no thread to answer it in, which round 3 of #351
+showed. The review is created with `commitID` set to the SHA in the brief: without it GitHub
+attaches the review to the PR's current head, and inline lines resolve against a file the
 reviewer never read. The comments are added to the pending review and submitted together.
 
 GitHub still sends one event per inline comment; they arrive together, and one read takes them all

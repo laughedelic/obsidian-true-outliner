@@ -285,9 +285,10 @@ The cases were run through `insertSubtrees` from two worktrees, `63149bf` and it
   `- p` / `⏵- k` / `··⏵x` / `······> q` after `  1. b`, and `- p` / `⏵- n` / `····cont` /
   `⏵··> q` after `- a`. Both runs also reached surviving mutations of the new rule, and the wrong
   function named in the plan.
-- **Only the deep run.** A converted paste that regresses on one spelling, in 7 of 34 085 runs. The
-  author could not reproduce it from the finding's text, which leaves out the destination note.
-  Also a stale docstring in `src/reencode.ts`.
+- **Only the deep run.** A converted paste that regresses on one spelling, in 7 of 34 085 runs,
+  reproduced from the finding's own drawing (the clipboard's last line is ` \t  # h`; reading its
+  tab glyph as ` \t # h` gives the same output on both sides, which first read as not
+  reproducing). Also a stale docstring in `src/reencode.ts`.
 - **Only the light run.** In a tab-indented note, a line kept in columns is spelled in spaces where
   `main` wrote tabs (reproduced: `\t\t    text` against `\t\t\ttext`). Also four more surviving
   mutations, and a sentence of the delta that reads wider than the code.

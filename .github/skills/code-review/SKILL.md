@@ -21,5 +21,5 @@ directly: start no other agent, create no worktree, and post no second review.
   [`.agents/skills/independent-review/SKILL.md`](../../../.agents/skills/independent-review/SKILL.md),
   "The reviewer": the expected result and the cause before the PR's own account of them, and each
   finding labelled CONFIRMED or PLAUSIBLE, ranked in `triage`'s rungs, with its case, where it
-  lives, and how `main` behaves on the same case. Its workspace, posting and author sections are
+  lives, and how the PR's base behaves on the same case. Its workspace, posting and author sections are
   for agent sessions and do not apply here.

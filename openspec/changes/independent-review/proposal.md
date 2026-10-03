@@ -18,7 +18,7 @@ routine's next revision (#348) depends on it.
   the rounds. Two files behind pointers carry the modes, since a review runs one of them:
   - `proposal.md`: what a reviewer of a plan, a design or an OpenSpec change checks.
   - `implementation.md`: what a reviewer of a partial or complete implementation checks, with
-    the recipe for a differential sweep against `main`.
+    the recipe for a differential sweep against the base.
 
   The reviewer is a `general-purpose` subagent started with the brief, on Opus for a deep review
   or Sonnet for a light one, chosen per call.
@@ -93,6 +93,6 @@ declares `skip_specs: true`.
 - `.github/skills/code-review/SKILL.md`.
 - `.agents/skills/steward/SKILL.md`: one rule on the role markers.
 - `AGENTS.md`: step 4 of "Change lifecycle", and a sentence in "Agent files".
-- `.gitignore`, `vitest.config.ts`: one entry each.
+- `.gitignore`: two entries; `vitest.config.ts`: one.
 - `docs/research/independent-reviews.md` and its row in `docs/research/index.md`.
 - No `src/` or `styles/` change, so no version bump.

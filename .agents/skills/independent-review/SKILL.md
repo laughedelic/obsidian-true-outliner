@@ -67,7 +67,7 @@ its setting: **deep** `model: opus`, **light** `model: sonnet`. Both inherit the
 **Workspace.** Two detached worktrees:
 
 ```bash
-git fetch origin <base branch> <branch>
+git fetch origin <base branch> <branch>      # only <base branch> when the branch was never pushed
 git worktree add --detach .claude/worktrees/review-<pr>-r<round>-head <sha>
 git worktree add --detach .claude/worktrees/review-<pr>-r<round>-base <merge base>
 ```
@@ -115,11 +115,11 @@ Base: <same | better | worse> on the same case
 1. `pull_request_review_write`, method `create`, with `commitID` set to the brief's SHA. Without
    it the review attaches to the PR's current head, and line numbers resolve against a file the
    reviewer never read.
-2. `add_comment_to_pending_review` for each finding that belongs to a line of the diff (`path`,
-   `line`, `startLine` for a range, side `RIGHT`, `subjectType` `LINE`).
-3. `pull_request_review_write`, method `submit_pending`, event `COMMENT`. The body holds only what
-   no thread holds, and repeats no inline finding:
-   - the findings that belong to no line, in full;
+2. `add_comment_to_pending_review` for every finding, so each has a thread for its disposition:
+   on its line (`path`, `line`, `startLine` for a range, side `RIGHT`, `subjectType` `LINE`), or,
+   for one that belongs to no line, on the file it concerns most (`subjectType` `FILE`).
+3. `pull_request_review_write`, method `submit_pending`, event `COMMENT`. The body holds no
+   finding:
    - one line per claim of the brief: "holds", or the finding that breaks it;
    - "Checked and found sound" and anything not checked, inside `<details>`.
 
