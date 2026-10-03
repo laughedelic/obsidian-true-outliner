@@ -7,7 +7,8 @@ snapshot, so it never sees a clone and cannot live in this repository.
 
 The split follows what each side can see. The environment's **setup script** provisions the VM:
 tools and system packages, installed once per cache rebuild and carried by the snapshot
-thereafter. `scripts/agent-setup.sh`, run from the `SessionStart` hook, covers project setup and
+thereafter. `scripts/agent-setup.sh`, run from the `SessionStart` hook, covers project setup — including a
+reinstall when the snapshot's `node_modules` no longer matches `package-lock.json` — and
 fills in whatever the snapshot is missing — so the two cannot drift into a broken session, and a
 tool added to the repository script reaches the cloud without touching the dialog.
 
@@ -114,13 +115,12 @@ starter that already avoids it: plain POSIX sh, assuming nothing about a contain
 sh e2e-tests/docker/start-xvfb-and-run.sh npm run test:e2e:narrow -- <spec>
 ```
 
-It polls for the X socket, exports `DISPLAY`, then hands over — which also makes the launcher's
-own auto-management a no-op, since that only acts when `DISPLAY` is unset. It installs nothing,
-which is what the packages above are for.
-
-Redirect its output to a file (`> run.log 2>&1`) rather than piping it. The starter execs the
-command and leaves Xvfb running, holding the pipe, so `| tail` returns nothing until Xvfb is
-killed by hand (`docs/research/rendered-ui-observability.md`, "From inside a spec").
+It polls for the X socket, exports `DISPLAY`, runs the command, and stops Xvfb when the command
+ends, exiting with the command's status — which also makes the launcher's own auto-management a
+no-op, since that only acts when `DISPLAY` is unset. It installs nothing, which is what the
+packages above are for. A run can be piped (`... | tail -20`) and returns when the command does;
+Xvfb's own output goes to a temporary file that is printed only if the server does not come up
+(`docs/research/cloud-e2e-bring-up.md`).
 
 Two limits shape what a cloud run is good for. `E2E_MAX_INSTANCES` belongs at 2 against the VM's
 4 vCPUs, and it is not only a speed knob — `waitBudget` in `e2e-tests/helpers.ts` widens the harness

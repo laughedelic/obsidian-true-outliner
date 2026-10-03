@@ -62,8 +62,8 @@ Docker Desktop/OrbStack Linux VM's CPU allocation with everything else on the ho
 give.
 
 **No `xvfb-run`.** `e2e-tests/docker/start-xvfb-and-run.sh` starts `Xvfb` itself and polls for its
-socket file before exporting `DISPLAY` and `exec`ing whatever command it's given — see that
-script's header. The obvious choice, wrapping the whole invocation in `xvfb-run --auto-servernum`,
+socket file before exporting `DISPLAY` and running whatever command it's given, then stops `Xvfb`
+when the command ends — see that script's header. The obvious choice, wrapping the whole invocation in `xvfb-run --auto-servernum`,
 hung indefinitely in this container: `Xvfb` came up but the wrapped `node` process never started,
 because the `wait`/`SIGUSR1` handshake `xvfb-run`'s own shell script uses for readiness never
 completed.
