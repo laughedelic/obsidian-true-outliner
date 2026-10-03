@@ -14,16 +14,16 @@
 
 ## 2. The three edits
 
-- [ ] 2.1 In `AGENTS.md`, "Branching and PR stacks": replace the file-overlap test with the two
+- [x] 2.1 In `AGENTS.md`, "Branching and PR stacks": replace the file-overlap test with the two
       conditions, keep "state the reading", and replace the `git diff --name-only` block with the
       `git diff` first pass and the `git merge-tree --write-tree` check, run before the PR opens and
       before the version bump. Verified by reading the section through the `CLAUDE.md` symlink.
-- [ ] 2.2 In the same section, replace "adopting a stack, opening and updating its PRs with
+- [x] 2.2 In the same section, replace "adopting a stack, opening and updating its PRs with
       `gh stack submit`" and the "no `gh stack` at all" paragraph with the REST recipe for creating,
       extending and dissolving a stack and the two git restack recipes, and point to
       `docs/pr-stacks.md`. Verified by a diff showing no sentence that says a cloud session cannot open
       a stacked PR, and `grep -n 'gh stack' AGENTS.md` printing nothing.
-- [ ] 2.3 In "Change lifecycle", step 5: the maintainer squash-merges; agents prepare landing and
+- [x] 2.3 In "Change lifecycle", step 5: the maintainer squash-merges; agents prepare landing and
       never merge. Verified by `grep -n 'never merge' AGENTS.md`.
 
 ## 3. The merge hook
