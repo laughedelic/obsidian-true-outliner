@@ -75,10 +75,10 @@
 
 ## 5. Integration
 
-- [ ] 5.1 This branch is stacked on #351 (stack 356, #351's head `898cd4d`) at the maintainer's request,
+- [ ] 5.1 This branch is stacked on #351 (stack 356, #351's head `55b52ef`) at the maintainer's request,
       though the stacking test would not stack it: `git merge-tree` of the two exits 0 and nothing
       here reads code #351 adds. When #351 lands its commits are squashed into `main`, so restack with
-      `git rebase --onto origin/main 898cd4d chore/stacking-and-merge-rules` (not `--update-refs`),
+      `git rebase --onto origin/main 55b52ef chore/stacking-and-merge-rules` (not `--update-refs`),
       push with `--force-with-lease`, and set the PR's base to `main`; if #351 moves first, the same
       command from its previous tip. Verified by `git merge-tree --write-tree HEAD origin/main`
       exiting 0 on the result and the PR's file list holding only this change's files.
