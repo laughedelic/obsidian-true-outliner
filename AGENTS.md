@@ -202,7 +202,7 @@ on, what to ignore, and what never to do unasked. A session arms no check-ins of
 - **A research note is named for its subject, with no numeric prefix**, and opens with YAML front
   matter in the Open Knowledge Format's shape: `type: research` and a `description` saying what the
   note holds, which stands where the index row did. The file is the whole of adding a note, and
-  `npm run lint` checks that every Markdown file in `docs/research/` has a block with both. Cite a note by its
+  `npm run lint` checks that every Markdown file directly in `docs/research/` has a block with both. Cite a note by its
   path (`docs/research/open-questions` Q26), never by a number.
 - **A setting is one declaration in its feature's slice** under `src/plugin/settings/` — key,
   default, options with their labels, the tab's row — plus the getter/setter pair on the plugin

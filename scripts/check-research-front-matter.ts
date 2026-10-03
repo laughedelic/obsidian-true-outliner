@@ -1,11 +1,12 @@
 /**
- * Checks that every Markdown file under `docs/research/` opens with a YAML front-matter block
+ * Checks that every Markdown file directly in `docs/research/` opens with a YAML front-matter block
  * carrying a non-empty `type`, the one key the Open Knowledge Format requires of a document, and a
  * non-empty `description`, which we require on top of it because it replaces the summary the index
  * gave each note.
  *
- * A note is a file with that block and nothing else: there is no index to keep in step, so adding
- * a note touches only the note itself.
+ * Subdirectories, which hold probe code and its READMEs, are not read. A note is a file with that
+ * block and nothing else: there is no index to keep in step, so adding a note touches only the
+ * note itself.
  */
 
 import { readdirSync, readFileSync } from 'node:fs';
