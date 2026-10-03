@@ -4,6 +4,11 @@
 /.claude/commands/
 /.github/prompts/
 
+# Worktrees of this repository, among them a reviewer's (the independent-review
+# skill), and the probes written inside one. Neither is ever committed.
+/.claude/worktrees/
+/.scratch/
+
 node_modules/
 dist/
 /main.js
