@@ -27,8 +27,10 @@ summary; in `ci.yml`'s jobs it also publishes it as a check run, `digest: <platf
 
 - **The log tail** needs no permission, so it is what a session reads on a Dependabot or fork PR,
   whose token is read-only. A check run's id is its job's id, so `get_job_logs` with that id and a
-  `tail_lines` reads it in one call; the post-job lines after the last step were 39 in the job the
-  reviewer measured.
+  `tail_lines` reads it in one call; about 35 post-job lines follow the last step. The log copy
+  prints the failure blocks first and ends with the table, the identifying facts and a line giving
+  how many lines of blocks precede them, so a small tail always holds the table and a larger one
+  reads upward through the blocks. `ci-triage` names the first tail to ask for.
 - **The check run** is what #341 names as the target. `get_check_run` returns only `output`, and
   of an Actions job's own check run that is empty, so the text has to be in a check run made
   through the Checks API (the note, "What `get_check_run` returns"). It returns the digest without
@@ -37,7 +39,7 @@ summary; in `ci.yml`'s jobs it also publishes it as a check run, `digest: <platf
   check-run half of tasks 4 and 5 drops and the rest stands.
 - **The job's own check run, patched** (`output` set by a step through `job.check_run_id`) would
   need no extra row. Whether the runner overwrites it when the job completes, and whether the
-  `job` context reaches a composite action, are unmeasured. Task 1.1 measures both on a scratch
+  `job` context reaches a composite action, are unmeasured. Task 1.1 measures both, with the limits and the token's right, on a scratch
   branch before any other code; if it holds, the separate check run is replaced by it, through
   `openspec-update-change`, before tasks 4 and 5.
 
@@ -97,20 +99,40 @@ normalises both through `specDisplayPath` and keys on spec, `test.parent` (the r
 matches nothing would pass a fixture-only test, so task 2.2 runs `writeFailureSummary` over a real
 failing run and reads `failures[].drawing` back.
 
-A drawn case already shows its columns in `error`, so its recorded drawing is dropped when the
-first line of `error` is a drawn-case verdict (`verdict()` in `e2e-tests/case-report.ts`); a test
-builds the message with `phaseMessage` so a change to the verdict's shape fails it.
+A drawn case already shows its columns in `error`, so the recorded drawing is dropped when `error`
+holds a `before` column, the header row that `layout` writes (`before`, then `expected` or `held`).
+Of the messages the drawn-case spec throws, `beforeMessage`, `phaseMessage` and `changedMessage`
+hold one; `passesMessage` draws nothing, and a parse error or a missing markdown view carries no
+drawing, so those keep the recorded one. Tests build each message with `case-report.ts` and state
+dropped or kept.
 
-### 6. Size, in bytes
+Only a failure in a test body takes a recorded drawing. `afterTest` runs after a body, so a
+`before` or `beforeEach` failure has no record, and an `afterEach` failure after a failed test
+would take that test's drawing a second time: the join skips entries with a `hook`, and the digest
+says no drawing was recorded for them.
 
-`summary` holds the identifying facts and a table of at most 10 rows under 4,000 bytes; `text` holds
-each failure's error message and drawing, the first failure first, under 60,000 bytes. The drawing
-glyphs (`┆ ┃ ▒ « »`) are three bytes in UTF-8, `get_check_run` reads `text` in windows of at most
-8,192 bytes, and the checks API's limit may count characters or bytes, so every cap is in bytes and
-a single failure's error is capped at 2,000 bytes, which keeps the first window on the first
-failure's drawing. A row's first error line is the message's first line; when that line is a
-matcher's signature (`expect(received)…`), the row adds the `Expected:` and `Received:` lines. The
-spike measures the real limit; the caps move to it if it is lower than 65,535.
+### 6. Size, in bytes, from whole blocks
+
+One rule: the digest is made of whole blocks, each with its own byte cap, cut only at line
+boundaries (a single line longer than its cap is cut at a character boundary, never inside a
+glyph), and every cut says what it left out.
+
+- **`summary`**: the facts, then a table of at most 10 rows with each cell capped at 160 bytes,
+  the whole under 4,000 bytes; the byte cap wins over the row cap, and a line counts the rows
+  left out. A row's first error line is the message's first line; when that is a matcher's
+  signature (`expect(received)…`) the row adds the `Expected:` and `Received:` lines, each capped
+  as a cell.
+- **`text`**: one block per failure in order (heading, error, recorded drawing), under 60,000
+  bytes in all; a block that does not fit is cut and the failures after it are listed by title.
+  A failure's heading is at most 500 bytes, its error at most 4,000 and its drawing at most 3,000,
+  which sum to less than the 8,192-byte window `get_check_run` reads, so the first failure's block
+  always lies in the first window. A drawn case's rows share the error cap: the cases written so
+  far are 8 rows or fewer, about 1,000 bytes.
+- **The Checks API's limit** may count characters or bytes, and the glyphs `┆ ┃ ▒ « »` are three
+  bytes in UTF-8; the spike measures it, and the caps move if it is lower than 65,535.
+
+The sums are the invariants: a generated test (task 3.3) builds failure sets of random sizes and
+glyph mixes and asserts each cap, the sum, the block order and that no block is cut mid-line.
 
 The digest, as a session reads `text` (a drawn case in which `⇥` did nothing):
 

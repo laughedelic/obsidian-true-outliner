@@ -23,7 +23,7 @@ annotations, so a digest has to be a check run of its own to be read that way.
   carry it for every case and not only the drawn ones.
 - **A spike first**: whether the job's own check run can carry the digest, which would need no
   extra row, and what the Checks API limits are. Its result is recorded in the research note and
-  can change tasks 3 and 4.
+  can change tasks 4 and 5.
 - **A `ci-triage` skill** under `.agents/skills/`, linked from `.claude/skills/` and
   `.github/skills/`: the head SHA first, then the digest, then the base branch and sibling PRs, at
   most one rerun, and the shapes of failure that look like flakes and are not.
