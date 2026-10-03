@@ -1,3 +1,8 @@
+---
+type: "research"
+description: "What a block id on a line of its own names in Obsidian — the block ending above it outside a list, the enclosing item inside one, the whole list after a blank, and nothing when a block follows the id directly outside a list — across 55 shapes of metadata and 17 embeds; which of two ids in a row registers, the last outside a list item and the first inside one; the four shapes where the outline's node differs from Obsidian's block; which of our operations separate the id today (move, delete and copy, in every shape but the indented one); the two groups those readings fall into, one attachable to its node and one to be marked; how far a post-processor can change what an embed shows, with public API and without; and what implementation measured — a link following a moved table, the blank line a tight seam gains below an id"
+---
+
 # Lone block ids: what they name, what an embed shows, and what separates them
 
 A block id written on a line of its own — `^t1` under a table, rather than ` ^t1` at the end of a

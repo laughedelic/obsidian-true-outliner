@@ -1,3 +1,8 @@
+---
+type: "research"
+description: "**Hub** for the decoration-experiments series (informed by prior-art research: obsidian-outliner, Logseq, Silverbullet): ground rules, shared fixture corpus, final results table with verdicts, the two never-triggered experiments, and the map to the per-experiment docs below"
+---
+
 # Decoration experiments: plan & results (2026-07-13 → 2026-07-19)
 
 Answers the postmortem's open question — is cross-kind visual unification achievable, and

@@ -1,3 +1,8 @@
+---
+type: "research"
+description: "What reaches the manual pass that the harness misses, and how much of the rendered editor an automated run can read, measured from a cloud session: the painted caret, scroll every frame, every painted frame through the screencast, per-keystroke latency, IME composition over the DevTools protocol, and what a model reads off a screenshot — plus the tooling those readings make possible and where each can run"
+---
+
 # What the rendered editor lets us observe
 
 Why the manual pass gates most fixes, what reaches it that the harness misses, and how much of

@@ -1,3 +1,8 @@
+---
+type: "research"
+description: "Existing Obsidian plugins in this space, how they work, and the gap analysis"
+---
+
 # Obsidian Plugin Landscape
 
 What exists today, how each plugin works internally, and where the gaps are.

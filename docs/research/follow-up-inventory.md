@@ -1,3 +1,8 @@
+---
+type: "research"
+description: "The migration record for the deferred backlog that had accumulated in the parking lots: a dated triage pass over every note here, sorted by what should happen to each item — defects diagnosed and located, decisions that do not close by being implemented, scoped feature work, verification and harness threads, and the ones that need a reproduction before they can be claimed — with the assessment behind which of them went to the issue tracker and which were deliberately left. A snapshot of a practice since retired (AGENTS.md, \"A follow-up is an issue\"), not a standing index"
+---
+
 # Follow-up inventory: what the research notes still carry
 
 A triage pass over every note in `docs/research/`, taken on 2026-09-16 against `main` at

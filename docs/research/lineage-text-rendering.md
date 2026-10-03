@@ -1,3 +1,8 @@
+---
+type: "research"
+description: "What the two surfaces that quote an ancestor chain — the backlinks footer's lineage rows and zoom's breadcrumb trail — actually put in the DOM: the measured table across every node kind, the three findings beyond the two reported symptoms, why D18's rendering rule never reached either surface, and the five candidate policies with an interactive comparison — settling on live rendering with no colour accent, the affordance carried by underline, cursor and hover"
+---
+
 # Lineage text: what the two ancestor-chain surfaces actually render
 
 D18 (in [structured-backlinks.md](structured-backlinks.md)) settled how a footer row's

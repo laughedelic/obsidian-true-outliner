@@ -1,3 +1,8 @@
+---
+type: "research"
+description: "Why Backspace at a heading's first content character deletes the marker's space instead of vetoing: the kind gate it fails in `classify`, the newline shapes that already veto, the measurement showing that widening classification alone turns the keypress into a whole-section deletion, and the single content-start column a heading resolves"
+---
+
 # Backspace at a heading's content start: where it leaves the enforcement funnel
 
 Measured 8 September 2026 against the plugin at `f4a76eb`, Obsidian 1.13.7 on macOS, plus

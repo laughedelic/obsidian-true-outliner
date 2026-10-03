@@ -1,3 +1,8 @@
+---
+type: "research"
+description: "Why two real-click cases failed intermittently under mobile emulation on the newest installer: the plugin recorded the click's `select` transaction in the four failing runs read, the selection of a tap lands about 360 ms after the click begins and WebDriver's `perform()` returns in the same window, so the case's one read can precede it — rates on both installers, unloaded and loaded, the timeline that separates them, taps on gaps, text and markers and a double click, the CI runs on `main` and on the change, and what waiting for the caret does"
+---
+
 # When a real click's caret lands, under mobile emulation
 
 Measured on 2026-09-29 in a Claude cloud session (Linux x64, Xvfb, 4 vCPUs) on `main` at

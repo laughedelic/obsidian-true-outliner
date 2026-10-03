@@ -1,3 +1,8 @@
+---
+type: "research"
+description: "Why a paragraph, fence, table or quote written under a list item stood one column right of everything else at its depth: the measured pair of regimes (the box where the depth rules put it, the leading whitespace rendering as characters on top of it, 26.17px for two spaces against 36px for a tab), the four different elements Obsidian makes of that run and where each states its width, the three findings that settled on an undrawn mark plus a zeroed wrapper rather than a stated width, and the one residue left inside an indented fence — plus the second pass on the run this layer leaves STANDING: the box Obsidian sizes from its own list-indent value per four columns, what it cost the caret and a click, and what measuring the characters instead moves, a list inside a quote included"
+---
+
 # A non-list line's own source indentation
 
 What the editor does with the leading whitespace of a line the outline has already positioned,

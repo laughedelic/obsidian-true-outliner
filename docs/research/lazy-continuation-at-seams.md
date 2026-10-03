@@ -1,3 +1,8 @@
+---
+type: "research"
+description: "Which lines Obsidian and CommonMark continue lazily into a quote, a callout or a list item written directly above them, where our parse continues nothing: reading mode and Live Preview measured row by row in Obsidian 1.13.7, the same shapes in `commonmark`, the one such seam the corpus holds (a block-id line), why one blank line settles every row except inside a list, where it makes a tight list loose, and how reading mode builds a loose list and the default theme draws it tight"
+---
+
 # Lazy continuation at the seams operations write
 
 Our parser models no lazy continuation (`block-start-margin`: "we model no lazy continuation

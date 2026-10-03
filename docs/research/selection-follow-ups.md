@@ -1,3 +1,8 @@
+---
+type: "research"
+description: "The same, for selection: what `selection-as-subtree-set`, `node-selection-extension` and `selection-aware-structural-ops` left open — modal block selection, cherry-picking, and moving a node into its parent's sibling"
+---
+
 # Selection-enforcement follow-ups (two tracks)
 
 Findings from the real-vault manual passes of `outline-selection-enforcement`

@@ -199,10 +199,11 @@ on, what to ignore, and what never to do unasked. A session arms no check-ins of
   keeps its measurements in place rather than pointing at a dead issue.
 - **Read the relevant `docs/research/` notes before touching decorations, selection, or CM6
   extensions.** They exist so a diagnosis is not paid for twice.
-- **A research note is named for its subject, with no numeric prefix**, and takes exactly one row
-  in `docs/research/index.md` — the file and that row are the whole of adding a note, and
-  `npm run lint` checks the two agree. Cite a note by its path (`docs/research/open-questions`
-  Q26), never by a number.
+- **A research note is named for its subject, with no numeric prefix**, and opens with YAML front
+  matter in the Open Knowledge Format's shape: `type: research` and a `description` saying what the
+  note holds, which stands where the index row did. The file is the whole of adding a note, and
+  `npm run lint` checks that every Markdown file directly in `docs/research/` has a block with both. Cite a note by its
+  path (`docs/research/open-questions` Q26), never by a number.
 - **A setting is one declaration in its feature's slice** under `src/plugin/settings/` — key,
   default, options with their labels, the tab's row — plus the getter/setter pair on the plugin
   that says what a change does, and that pair's row in `WRITERS`. Everything else derives from

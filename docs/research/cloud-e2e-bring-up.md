@@ -1,3 +1,8 @@
+---
+type: "research"
+description: "Two defects in a cloud session's e2e bring-up, measured on `main`: a snapshot `node_modules` four non-optional packages short of the lockfile while setup's `[ ! -d node_modules ]` guard passes (and why modification time cannot detect it, since a clone stamps the lockfile with its own time), and the Xvfb starter whose `exec` skips its `EXIT` trap so a run piped into `tail` stays open 377 s after a 43 s run ended, reproduced with a one-word command and with the proposed shape tried outside the repository; what the Docker path leaves unmeasured"
+---
+
 # Cloud e2e bring-up: a stale `node_modules`, and a wrapper that holds a piped run open
 
 Two defects that every cloud session pays for before its first narrow run (#336). Both are measured

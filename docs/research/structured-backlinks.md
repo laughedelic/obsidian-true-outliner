@@ -1,3 +1,8 @@
+---
+type: "research"
+description: "The structured-backlinks layer (README vision, Q10): prior art across Roam/Logseq/Tana/Orca and the three Obsidian attempts, what the public API does and does not permit (core backlinks have **no** public surface at all), and the seventeen design decisions taken against the interactive prototype — plus what is still open"
+---
+
 # Structured backlinks: prior art, API constraints, and design decisions
 
 The backlinks layer named in the README's vision and deferred as post-v1 in

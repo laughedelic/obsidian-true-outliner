@@ -1,3 +1,8 @@
+---
+type: "research"
+description: "Where our mapping algebra aligns with / diverges from org-mode, the closest living reference system"
+---
+
 # Org-mode Comparison
 
 Org-mode (Emacs) is the closest living reference for our mapping algebra: a plain-text file

@@ -1,3 +1,8 @@
+---
+type: "research"
+description: "Why a boundary normalized before an encode is normalized for the wrong node: the two-step order inside `finalize`, the five margin-anchored kinds a re-indent past column 3 demotes and the two rule spellings that become a list item rather than a paragraph there, the seam below a demoted `html` block that is its last block's — a table's, for `<div>` over one — and the table loop that claims any line with a pipe; why the tab-indented heading scope #158 loses nodes in is one Obsidian renders as code; a 924-combination differential in which `main` loses a payload node in 12 rows and changes an existing one in 8, and this reading in none; a 3 249-pair sweep of every bare seam, 296 wrong on `main` and 63 here, sorted into #197 and #198; the `commonmark` measurement that inverts #158's \"no free fix\" reading of the kind loss inside a list item; and #198's reverse direction, a paragraph written INTO the margin and promoted to the block its text opens there, measured over the sweep and a 933-move drag sweep"
+---
+
 # Seams across a re-indent
 
 A seam is the boundary between two adjacent nodes, and what stands in it — a blank line, or

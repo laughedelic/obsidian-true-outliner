@@ -1,3 +1,8 @@
+---
+type: "research"
+description: "**Open question** (Q34): should a list following a paragraph be that paragraph's child? The attachment rule's cost measured, the four candidate readings, what other formats and outliners do, why the indentation encoding is ruled out, and how to pick the question up"
+---
+
 # What is a list's parent? The paragraph attachment rule, and whether to keep it
 
 **Status: OPEN.** Nothing here is decided. This document records an exploration far enough that

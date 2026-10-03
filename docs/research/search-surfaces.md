@@ -1,3 +1,8 @@
+---
+type: "research"
+description: "Search: what the native search pane, the in-file find and the switcher permit a plugin (open, drive and read them; never re-render them), the measured cost of a whole-vault parse-and-match, a survey of how the reference outliners and note apps present search, the surfaces we can own in decided order — footer content filter, palette, in-note sparse tree, sidebar — the `SuggestModal` versus custom `Modal` prototype comparison with screenshots and the decision for `Modal`, the plain-text-first engine, and the plan with its stacking"
+---
+
 # Search: what the native UI permits, the surfaces we can own, and the palette prototype
 
 Researched 2026-09-10 and 2026-09-11, before any search change exists. The question that

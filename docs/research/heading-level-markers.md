@@ -1,3 +1,8 @@
+---
+type: "research"
+description: "Which mark tells H1 from H6 inside the unchanged marker box: the constraints (fixed box, the gutter's ink budget, one glyph on three surfaces, a drawn `<svg>` rather than type), what obsidian-lapel does and why it cannot be copied, the three review rounds and why each rejected family lost, and the decision — `H` or `#`, digit beside, subscript or none, six styles with fixed weights, monoline digits — with exact geometry. Companion mockup: [heading-marker-mockup.html](heading-marker-mockup.html), the six styles at real size in a nested document"
+---
+
 # Heading level markers: which mark tells H1 from H6
 
 Every heading has drawn the same blocky `H` since Experiment 5a, whatever its level. Telling

@@ -1,3 +1,8 @@
+---
+type: "research"
+description: "The research collection's entry point: what a true outliner is, the decisions taken in the first alignment rounds, and the feasibility verdict, with a short account of how the notes are kept"
+---
+
 # Research: A True Outliner for Obsidian
 
 Initial research for the **obsidian-true-outliner** project — an Obsidian plugin that turns
@@ -9,9 +14,8 @@ measurements, and a note written against a live Obsidian says which build it was
 
 ## Documents
 
-The note index lives in [index.md](index.md) — every note, in reading order, with a line on
-what it holds. A new note is a new file plus one row there; nothing else in the directory
-moves.
+Each note opens with front matter whose `description` says what it holds. A new note is a new
+file; nothing else in the directory moves.
 
 ## TL;DR
 

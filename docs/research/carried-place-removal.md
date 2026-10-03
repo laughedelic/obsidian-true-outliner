@@ -1,3 +1,8 @@
+---
+type: "research"
+description: "What abandoning a place does once Tab, Shift+Tab or the empty-item ladder has carried it: each gap and empty-node shape measured in the real app, the one control that already works and why, a renumbering the Enter before it leaves behind, and why the removal edit cannot be mapped through the carrying change"
+---
+
 # What abandoning a carried place does today
 
 Issue #249: a place a structural key CARRIED — Tab, Shift+Tab, the empty-item ladder's outdent —

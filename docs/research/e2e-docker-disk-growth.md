@@ -1,3 +1,8 @@
+---
+type: "research"
+description: "Why every `npm run test:e2e:docker` invocation stored hundreds of megabytes of new Docker data: the `chmod -R a+rwX node_modules` layer that copied all of node_modules up a second time, sitting under a `COPY . .` the previous run's own output invalidated every time, and the build context that let it. Per-rebuild deltas measured across three layouts, the reorder and the widened `.dockerignore` that take a repeat run to ≈ 0, and the re-measurement on the reporting macOS + OrbStack host — where btrfs reflinks make the `chmod` layer nearly free on disk, and the several GB per run turn out to be nested worktrees in the primary checkout's build context, excluded in turn"
+---
+
 # Why `test:e2e:docker` grew the host's disk by half a gigabyte per run
 
 `npm run test:e2e:docker` passes `--build` on every invocation, by design:
