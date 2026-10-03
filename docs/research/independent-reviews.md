@@ -1,3 +1,8 @@
+---
+type: "research"
+description: "Reviews by a fresh agent, for the `independent-review` skill: what the review sections of our PRs record (findings by kind and mode, what was taken and rejected, re-reviews, reviews that reversed each other), where a reviewer can work (a worktree under `.claude/worktrees/` and what it does to the primary checkout, a differential sweep across two worktrees with its negative control), posting a review from a cloud session, and deep and light settings compared on one brief"
+---
+
 # Independent reviews: what our PRs record, and the reviewer's workspace
 
 A review by a fresh agent, with none of the author's context, has run on most fix PRs since
