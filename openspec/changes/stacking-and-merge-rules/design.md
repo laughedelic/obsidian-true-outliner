@@ -54,9 +54,9 @@ forbids plain `git rebase`. With no tracking, the restack is git
 checked with the ancestor test. The worktree hazard that `stack-park.ts` worked around is stated once,
 as a condition of the restack: no layer checked out elsewhere, which a cloud session and a fresh clone
 satisfy. Landing is the maintainer's, from the PR page; there is no merge recipe, since agents do not
-merge. What was not measured stays stated: a cloud session force-pushing a layer other than its own
-branch, so who runs a restack from the cloud is left as it is today, a task the maintainer hands to a
-session on purpose. No skill: the recipes are a table in `docs/pr-stacks.md`, and `AGENTS.md` carries
+merge. A cloud session pushes every moved layer in one `git push --force-with-lease`, measured on throwaway
+branches, so a restack needs no primary checkout; the session that runs it is the one the maintainer
+asks, or the session that owns the layer that moved. No skill: the recipes are a table in `docs/pr-stacks.md`, and `AGENTS.md` carries
 one paragraph pointing to it.
 
 **The lifecycle line names the subject, in step 5.** "Then squash-merge" becomes the maintainer

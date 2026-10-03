@@ -33,11 +33,24 @@ above the one below (one each is a clean stack).
   `fatal: '<branch>' is already used by worktree` and `docs/pr-stacks.md` worked around with
   `scripts/stack-park.ts`. A cloud session and a fresh clone have one worktree and no such layer.
 
+## Pushing the moved layers from a cloud session
+
+Measured the same day from a cloud session on this repository, on two throwaway branches
+(`scratch/force-push-probe-a` and `-b`, `b` on `a`) pushed once, then restacked locally by the
+rewritten-lower-layer case above and pushed again from a checkout of a third branch, so neither was
+the checked-out one:
+
+| Request | Result |
+| --- | --- |
+| `git push origin scratch/force-push-probe-a scratch/force-push-probe-b` (new branches, two refs) | accepted |
+| `git push --force-with-lease origin scratch/force-push-probe-a scratch/force-push-probe-b` | `forced update` on both; the remote heads equal the local ones |
+| `git push --force-with-lease origin chore/stacking-and-merge-rules`, the session's own branch after a rebase | `forced update` |
+
+So a cloud session restacks a stack with git and pushes every layer in one command; the push scope
+in [`cloud-session-github-access`](cloud-session-github-access.md) does not limit it to the
+checked-out branch. The two scratch branches stay on the remote, since the proxy refuses a delete.
+
 ## Not measured
 
-- Pushing the moved layers: `git push --force-with-lease` of several branches at once, from a cloud
-  session. A cloud session's proxy scopes pushes
-  ([`cloud-session-github-access`](cloud-session-github-access.md), "What the session proxy
-  allows"), and force-pushing a layer other than the session's own branch has not been tried.
 - What GitHub's stack UI shows for a layer whose head was force-pushed.
 - Stacks of more than three layers, and a layer whose commits conflict with the new trunk.

@@ -53,8 +53,6 @@ away or undone over the September sessions (#339, a sub-issue of #334):
   environment sets
   ([`cloud-session-github-access`](../../../docs/research/cloud-session-github-access.md), "`gh stack`
   from the cloud").
-- **Who runs a restack from the cloud.** Whether a cloud session can force-push a layer other than its
-  own branch is unmeasured; until it is, a restack is a task the maintainer hands to a session.
 - **A restack script.** Two git recipes and a check are written down; a script waits until restacks are
   frequent enough to want one.
 - **A skill for the stack calls.** The recipe is four calls in `docs/pr-stacks.md`.

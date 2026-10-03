@@ -8,6 +8,9 @@
 - [x] 1.3 Measure what plain git does for each restack case, in scratch repositories. Verified by
       `docs/research/restacking-with-plain-git.md` and its index row, `node scripts/check-research-index.ts`
       exiting 0.
+- [x] 1.4 Measure whether a cloud session force-pushes layers that are not its checked-out branch, on
+      two throwaway branches. Verified by the table in the same note: both layers updated in one
+      `--force-with-lease` push.
 
 ## 2. The three edits
 
