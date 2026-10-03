@@ -6,7 +6,7 @@
 - [x] 1.2 Name the `gh-stack` release the routes were read from, in that section. Verified by the
       note naming v0.2.0, the module version in the downloaded binary's build info.
 - [x] 1.3 Measure what plain git does for each restack case, in scratch repositories. Verified by
-      `docs/research/restacking-with-plain-git.md` and its index row, `node scripts/check-research-index.ts`
+      `docs/research/restacking-with-plain-git.md` with its front matter, `node scripts/check-research-front-matter.ts`
       exiting 0.
 - [x] 1.4 Measure whether a cloud session force-pushes layers that are not its checked-out branch, on
       two throwaway branches. Verified by the table in the same note: both layers updated in one
@@ -72,10 +72,10 @@
 
 ## 5. Integration
 
-- [ ] 5.1 This branch is stacked on #351 (stack 356, #351's head `d38e10f`) at the maintainer's request,
+- [ ] 5.1 This branch is stacked on #351 (stack 356, #351's head `cb92fca`) at the maintainer's request,
       though the stacking test would not stack it: `git merge-tree` of the two exits 0 and nothing
       here reads code #351 adds. When #351 lands its commits are squashed into `main`, so restack with
-      `git rebase --onto origin/main d38e10f chore/stacking-and-merge-rules` (not `--update-refs`),
+      `git rebase --onto origin/main cb92fca chore/stacking-and-merge-rules` (not `--update-refs`),
       push with `--force-with-lease`, and set the PR's base to `main`; if #351 moves first, the same
       command from its previous tip. Verified by `git merge-tree --write-tree HEAD origin/main`
       exiting 0 on the result and the PR's file list holding only this change's files.

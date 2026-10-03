@@ -85,5 +85,5 @@ declares `skip_specs: true`.
 - `scripts/stack-park.ts`: deleted. `scripts/agent-setup.sh`: the `gh-stack` extension install and its
   message go.
 - `docs/research/cloud-session-github-access.md`: the measurement, and one reworded sentence.
-  `docs/research/restacking-with-plain-git.md` and its index row: the restack measurement.
+  `docs/research/restacking-with-plain-git.md`, with its front matter: the restack measurement.
 - No `src/` or `styles/` change, so no version bump.
