@@ -74,7 +74,8 @@ on `Bash|mcp__github__.*|…`, so the rule joins it with no matcher change. It r
 The rule is unconditional. The hook cannot tell a merge the maintainer asked for from one the session
 chose, as it can for `send_later` through `initiation`, and the maintainer's own line is "prepare for
 landing and leave it for me to merge" (#339), so the maintainer merges from the PR page. The refusal
-names the rule and says what to do: prepare landing, report, stop. Like the push rule it does not
+names the rule and says what to do: prepare landing, report, stop. The lexer both rules share ends a command at a newline, which it did not before, and skips a
+here-document's body. Like the push rule it does not
 expand `$(…)`, so a merge assembled inside one passes; that is a session working against its own hook.
 
 ## Measurement (task 1, done)

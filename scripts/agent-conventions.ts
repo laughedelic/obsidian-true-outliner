@@ -12,6 +12,10 @@
 //   to keep a "safety-net" check-in through `send_later` (docs/research/pr-watching-wakes.md).
 //   PreToolUse refuses `send_later` unless the maintainer asked for the reminder, and
 //   `ScheduleWakeup` unless the maintainer typed `/loop`.
+// - An agent never merges: the maintainer lands. PreToolUse refuses the GitHub MCP merge and
+//   auto-merge tools, and in Bash `gh pr merge`, `gh stack merge` and a `gh api` write to a pull
+//   request's `merge` or `auto_merge` path (AGENTS.md, "Change lifecycle", step 5). The hook cannot
+//   tell a merge the maintainer asked for from one the session chose, so the rule has no exception.
 // - PR descriptions carry no agent attribution. The GitHub MCP tool
 //   `create_pull_request` appends a footer outside the `attribution` settings;
 //   PostToolUse spots it and has the session rewrite the body, which sticks.
@@ -25,6 +29,10 @@ const HARNESS = /^(?:refs\/heads\/)?claude\//;
 const TYPES = "`feat/<slug>`, `fix/<slug>` or `chore/<slug>`";
 const SEND_LATER = "mcp__claude-code-remote__send_later";
 const SCHEDULE_WAKEUP = "ScheduleWakeup";
+const MERGE_TOOLS = new Set(["mcp__github__merge_pull_request", "mcp__github__enable_pr_auto_merge"]);
+// A pull request's `merge` route, and its `auto_merge` route, which the cloud proxy also serves
+// under `…/ccr/auto_merge`.
+const MERGE_PATH = /\/pulls\/\d+\/merge$|\/auto_merge$/;
 // A slash command the user typed is recorded in a `<command-name>` block of their message,
 // slash included; a skill only the model can invoke is recorded without one.
 const TYPED_LOOP = /<command-name>\/loop<\/command-name>/;
@@ -78,8 +86,11 @@ function preToolUse() {
   const { tool_name: tool, tool_input: args = {} } = input;
   if (tool === SEND_LATER) return refuseSelfReminder(args.initiation);
   if (tool === SCHEDULE_WAKEUP) return refuseSelfWake();
+  if (tool && MERGE_TOOLS.has(tool)) return refuseMerge(`\`${tool}\``);
   let target: string | undefined;
   if (tool === "Bash") {
+    const merge = mergeCommand(String(args.command ?? ""));
+    if (merge) return refuseMerge(merge);
     target = pushedHarnessBranch(String(args.command ?? ""));
   } else if (tool === "mcp__github__create_pull_request") {
     const head = String(args.head ?? "");
@@ -108,6 +119,43 @@ function refuseSelfReminder(initiation: unknown): void {
       "their own, so skip the reminder and end the turn. `human_request` is for a reminder the " +
       "maintainer asked for in their own words.",
   );
+}
+
+// Landing is the maintainer's. A session prepares it, reports, and stops.
+function refuseMerge(what: string): void {
+  deny(
+    `No merges by an agent (AGENTS.md, "Change lifecycle", step 5): ${what} is refused. Prepare landing ` +
+      "and stop; the maintainer merges from the PR page. Report that the PR is ready and what, if " +
+      "anything, is left.",
+  );
+}
+
+// The merge a Bash command line makes, as the words to show in the refusal. `gh pr merge` and
+// `gh stack merge` are named by their subcommand, found past any flags such as `-R owner/repo`;
+// `gh api` is a merge when it writes to a merge route, so a read of one and the DELETE that
+// turns auto-merge off pass. `$(…)` is not expanded, as for the push rule.
+function mergeCommand(command: string): string | undefined {
+  for (const words of shellCommands(command)) {
+    while (words.length && /^[A-Za-z_]\w*=/.test(words[0] ?? "")) words.shift();
+    if (words.shift() !== "gh") continue;
+    const group = words.findIndex((w, i) => (w === "pr" || w === "stack") && words[i + 1] === "merge");
+    if (group >= 0) return `\`gh ${words[group]} merge\``;
+    if (words.includes("api") && words.some((w) => MERGE_PATH.test(w)) && apiWrites(words)) {
+      return `\`gh api\` to ${words.find((w) => MERGE_PATH.test(w))}`;
+    }
+  }
+}
+
+// Whether a `gh api` call writes: an explicit method other than GET, or none and a field or body,
+// which `gh` sends as a POST.
+function apiWrites(words: string[]): boolean {
+  const flag = words.findIndex((w) => /^(-X|--method)(=|$)/.test(w) || /^-X./.test(w));
+  if (flag >= 0) {
+    const word = words[flag] ?? "";
+    const method = /^--method=|^-X./.test(word) ? word.replace(/^--method=|^-X/, "") : (words[flag + 1] ?? "");
+    return !/^(GET|DELETE)$/i.test(method);
+  }
+  return words.some((w) => /^(-f|-F|--field|--raw-field|--input)(=|$)/.test(w) || /^-[fF]./.test(w));
 }
 
 // `ScheduleWakeup` has no `initiation`; it exists for a `/loop` the user started, so a wake
@@ -184,17 +232,23 @@ function pushedHarnessBranch(command: string): string | undefined {
 }
 
 // The simple commands of a shell line as word lists: quotes group words and
-// hide operators, so a commit message is never read as a command of its own.
-// `$(…)` and backticks are not expanded; a push hidden in one is not caught.
+// hide operators, so a commit message is never read as a command of its own,
+// and a here-document's body is skipped for the same reason. A newline ends a
+// command. `$(…)` and backticks are not expanded; a push hidden in one is not caught.
 function shellCommands(line: string): string[][] {
   const commands: string[][] = [[]];
   let word = "";
   let inWord = false;
   let quote: string | null = null;
+  const heredocs: string[] = [];
   const endWord = () => {
     if (inWord) commands.at(-1)?.push(word);
     word = "";
     inWord = false;
+  };
+  const endCommand = () => {
+    endWord();
+    if (commands.at(-1)?.length) commands.push([]);
   };
   for (let i = 0; i < line.length; i++) {
     const c = line.charAt(i);
@@ -208,11 +262,33 @@ function shellCommands(line: string): string[][] {
     } else if (c === "\\" && i + 1 < line.length) {
       word += line.charAt(++i);
       inWord = true;
+    } else if (c === "<" && line.startsWith("<<", i) && !/^<<[<(]/.test(line.slice(i, i + 3))) {
+      // A here-document: its body is text, read from the next newline to the delimiter line.
+      const delimiter = /^<<-?\s*(?:'([^']+)'|"([^"]+)"|([^\s;|&<>()]+))/.exec(line.slice(i));
+      endWord();
+      if (delimiter) {
+        heredocs.push(delimiter[1] ?? delimiter[2] ?? delimiter[3] ?? "");
+        i += delimiter[0].length - 1;
+      } else {
+        i += 1;
+      }
+    } else if (c === "\n") {
+      endCommand();
+      for (const delimiter of heredocs.splice(0)) {
+        let start = i + 1;
+        while (start < line.length) {
+          const newline = line.indexOf("\n", start);
+          const end = newline === -1 ? line.length : newline;
+          const text = line.slice(start, end).replace(/^\t+/, "");
+          start = end + 1;
+          if (text === delimiter) break;
+        }
+        i = start - 1;
+      }
     } else if (/\s/.test(c)) {
       endWord();
-    } else if (c === ";" || c === "|" || c === "&" || c === "\n") {
-      endWord();
-      if (commands.at(-1)?.length) commands.push([]);
+    } else if (c === ";" || c === "|" || c === "&") {
+      endCommand();
     } else {
       word += c;
       inWord = true;

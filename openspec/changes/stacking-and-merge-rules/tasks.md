@@ -28,7 +28,7 @@
 
 ## 3. The merge hook
 
-- [ ] 3.1 In `scripts/agent-conventions.ts`, deny `mcp__github__merge_pull_request` and
+- [x] 3.1 In `scripts/agent-conventions.ts`, deny `mcp__github__merge_pull_request` and
       `mcp__github__enable_pr_auto_merge`, and in `Bash` deny `gh pr merge`, `gh stack merge` and
       `gh api` to a `…/pulls/{n}/merge` or `…/auto_merge` path, with a message naming the rule and
       saying to prepare landing and stop; add the rule to the file's header comment. Verified by piping
@@ -36,13 +36,15 @@
       `gh` and `pr`, an env prefix, and `git -C` before another command in the same line, prints a deny
       naming the rule; `gh pr view`, `gh pr create`, `gh api repos/o/r/pulls/1`, `git merge main`,
       `update_pull_request_branch` and a `git commit -m "gh pr merge"` print nothing; the branch-name
-      and `send_later` payloads still behave as before. Negative control: matching `gh pr` instead of
+      and `send_later` payloads still behave as before. The shell lexer the push rule shares now ends a
+      command at a newline and skips a here-document's body, since the merge rule otherwise missed a
+      merge on a second line and refused a body that only names one; each has rows and a control. Negative control: matching `gh pr` instead of
       `gh pr merge` must refuse `gh pr view` and fail that row.
-- [ ] 3.2 Check the rule in the session that made the edit: call `mcp__github__merge_pull_request` with a
+- [x] 3.2 Check the rule in the session that made the edit: call `mcp__github__merge_pull_request` with a
       pull request number that does not exist, so a hook that fails to refuse errors out and merges
       nothing, and see it refused with the rule's message. Verified by the refusal text, recorded in
       the PR.
-- [ ] 3.3 Update the sentence in `AGENTS.md`, "Agent files", that says what `agent-conventions.ts` does.
+- [x] 3.3 Update the sentence in `AGENTS.md`, "Agent files", that says what `agent-conventions.ts` does.
       Verified by `grep -n 'merge' AGENTS.md` showing it.
 
 ## 4. Dropping `gh stack`

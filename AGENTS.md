@@ -248,7 +248,8 @@ environment and reports what is missing everywhere else; a cloud environment's o
 provisioning is [`docs/cloud-sessions.md`](docs/cloud-sessions.md).
 
 `scripts/agent-conventions.ts` is the other hook script: the branch-name grant at session start,
-the refusal of a push or PR on a `claude/*` head, and the PR-footer check. Copilot reads neither,
+the refusal of a push or PR on a `claude/*` head, the refusal of a merge or auto-merge, and the
+PR-footer check. Copilot reads neither,
 and whether its coding agent can rename its own `copilot/*` branch is unmeasured; such a branch is
 renamed at landing, from the PR header.
 

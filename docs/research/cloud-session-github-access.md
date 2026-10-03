@@ -187,6 +187,23 @@ Three places could hold the branch convention; only one is early enough.
 | `git push --all origin`, `--mirror`, a `refs/heads/*` refspec, with a local `claude/*` branch | deny; allow once no such branch exists |
 | `git commit -m "git push origin claude/x"`, `git commit -m 'fix && git push origin claude/x'` | allow — quotes hide operators and words from the command lexer |
 | `GIT_TRACE=1 git push origin claude/x`, `cd /x && git push origin claude/x`, `echo "a; b" \| git push origin HEAD:claude/x` | deny |
+| `mcp__github__merge_pull_request`, `mcp__github__enable_pr_auto_merge` | deny — a merge is the maintainer's (AGENTS.md, "Change lifecycle", step 5) |
+| `gh pr merge 12`, `gh -R o/r pr merge 12`, `GH_TOKEN=x gh pr merge --auto 12`, `npm test && gh pr merge 12`, `gh stack merge --yes` | deny |
+| `gh api -X PUT …/pulls/12/merge`, `gh api -XPUT …/ccr/auto_merge`, `gh api …/pulls/12/merge -f merge_method=squash` (a field makes it a POST) | deny |
+| `gh pr view 12`, `gh pr create`, `gh api …/pulls/12`, `gh api …/pulls/12/merge` (a read), `gh api -X DELETE …/ccr/auto_merge` (turns it off), `git merge main`, `git commit -m "gh pr merge"`, `gh issue comment 1 -b "pr merge"`, MCP `update_pull_request_branch`, MCP `disable_pr_auto_merge` | allow |
+| `echo hi⏎git push origin claude/x`, `echo hi⏎gh pr merge 12` (the second command on a new line) | deny — a newline was whitespace before, so neither rule saw it |
+| `cat > f <<'EOF'⏎git push origin claude/x⏎EOF`, the same with a merge, and a `git commit -m "$(cat <<'EOF' … EOF)"` whose body names one | allow — a here-document's body is text; the command after its delimiter line is still read |
+
+The rows above are 35 piped `PreToolUse` payloads with the earlier rules' regressions among them, all
+as listed. Four copies of the script with one condition each changed fail exactly the rows that
+condition guards: matching `gh pr` instead of `gh pr merge` refuses `gh pr view` and `gh pr create`;
+dropping the method test refuses the read of `…/merge` and the DELETE of `…/auto_merge`; making a newline
+whitespace again lets the second-line merge and push through and refuses a heredoc body that names a
+merge; reading a heredoc body as commands refuses the two bodies. In the session that wrote the rule,
+`mcp__github__merge_pull_request` and `gh pr merge`, both on pull request 999999 (which does not exist,
+so a refusal that failed would have merged nothing), came back refused with the rule's message, and
+so did the edit to this note until the lexer skipped heredoc bodies: its heredoc held a line that
+read as a merge.
 
 The guard reads the command with a small shell lexer — quotes group words and hide operators,
 `VAR=value` prefixes and `git -C <dir>` are stepped over — rather than a regex over the whole
