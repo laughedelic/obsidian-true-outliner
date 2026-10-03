@@ -62,18 +62,21 @@
 
 ## 5. A real review
 
-- [ ] 5.1 Run an implementation review with the skill, as written, on an open fix PR chosen with
-      the maintainer, through to the posted review, and link it from this PR. Before posting,
+- [ ] 5.1 Run an implementation review with the skill, as written, on #280 (the maintainer's
+      choice), through to the posted review, and link it from this PR. Before posting,
       say on that PR that the review is coming and from where, so the session that owns it reads
       the events as a review to answer. Verified by the brief, quoted in this PR, holding only the
       template's fields, and by the review reaching a finding an earlier review on that PR
       recorded, or saying why it did not. Anything the skill left the session to work out is
       fixed in the skill before this task closes.
-- [ ] 5.2 Run a proposal review with the skill, as written, on an open plan chosen with the
-      maintainer, the same way. Verified as 5.1, with the finding to reach taken from that plan's
-      own review history or, where it has none, from this change's first review (a finding of
-      the same kind: a rule that contradicts the precedent it cites, or a verification that
-      cannot fail).
+- [ ] 5.2 Run a proposal review with the skill, as written, on this change's own plan as round 1
+      read it (`bf4f72b`, the proposal with no implementation, the maintainer's suggestion), and
+      post it on this PR labelled as a test of the skill. Verified by the brief holding only the
+      template's fields, and by setting what the review reaches beside round 1's 16 findings:
+      each one reached, missed, or reached in another form, with the top three (the convergence
+      rule, the step-back, the stacked base) named. Where the maintainer chooses to measure the
+      reviewer's model or effort (design, "Open Questions"), the same brief runs on each setting
+      and the comparison is recorded in `docs/research/independent-reviews.md`.
 
 ## 6. Check the change as a whole
 

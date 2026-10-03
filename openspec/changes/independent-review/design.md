@@ -163,8 +163,14 @@ gesture, a spec the change does not touch, the list of what was checked and foun
 the review's body. The review's body opens with a line naming the mode and the round, `Independent
 review: implementation, round 2, at <sha>`. The review is created with `commitID` set to the SHA
 in the brief: without it GitHub attaches the review to the PR's current head, and inline lines
-resolve against a file the reviewer never read. The reviewer also returns the same findings to
-the author, so the author's next step does not wait on a notification.
+resolve against a file the reviewer never read. The comments are added to the pending review and
+submitted together, so the review appears at once.
+
+GitHub still sends one event per inline comment. In this change's first review they arrived
+together: the author's session was woken once and read all 17 (the review and its 16 comments) in
+one call. What they cost is a second copy of the findings, after the one the reviewer returns. So
+the reviewer returns the review's URL and one line per finding, and the author reads the findings
+in full from the threads.
 
 Each finding is then a thread, and the thread is where its disposition lives: the author replies
 with what was done and resolves it. Each round is a separate review on the PR's timeline, at
@@ -174,9 +180,9 @@ lists the earlier threads rather than a copy of them.
 The session posts under the maintainer's account, as the author's replies to Copilot did on
 #246, so the review's state is `COMMENT`: GitHub does not let an account request changes on its
 own PR, and nothing here needs it to. A reviewer that runs as another session rather than as a
-subagent reaches the author through the PR's events. The review's events wake the author once per
-comment (this change's first review woke it 17 times); the author acts on the report its reviewer
-returned and reads those events as that report, not as new requests.
+subagent reaches the author through the PR's events the same way. The author reads those events
+as the review it asked for, not as new requests, and its own replies come back as one event each
+(16 for the first review's threads), which it skips.
 
 Alternatives considered:
 
@@ -203,10 +209,17 @@ finding the author later shows to be wrong is recorded as wrong, as #273 recorde
 claim.
 
 The disposition is the author's reply on the finding's thread, which it then resolves; a reply
-that names a fix names the commit. The PR description keeps a short "Reviews" section, one line
-per round linking its review with the counts of each disposition, plus the rejections and their
-reasons, since those are what the maintainer most needs to check. #269 and #264 are the model for
-how a rejection reads.
+that names a fix names the commit. The full exchange stays in the threads. The PR description's
+"Reviews" section is a summary across all rounds, rewritten as rounds accumulate: a link to each
+round's review, what the rounds changed in the design, the lessons a later change can use, and the
+threads a reader would not find on their own (a rejection, a finding later shown wrong, one left
+open). Trivial findings are not repeated there.
+
+**What the maintainer is asked.** The author acts on findings itself, and brings the user only
+what is theirs to decide: an open question, a decision that could go either way, and a finding
+that changes the design's direction or pivots the proposal. That is also why a proposal review
+runs before the maintainer reviews the plan: the maintainer then reads a plan that has absorbed
+the review, with the decisions it raised set out.
 
 ### Rounds converge, and every round from the third asks about the rule
 
@@ -313,11 +326,13 @@ Alternatives considered:
 
 ## Open Questions
 
-- **Should the proposal review run before the maintainer reviews the plan, or after?** The design
-  runs it once the draft PR is open (AGENTS.md, step 2) and before the maintainer reviews, so the
-  maintainer reads a plan that has already absorbed the review's findings. Running it after would
-  let the maintainer's review steer what the agent review checks.
-- **How much of the record stays in the PR description?** With the threads holding each finding,
-  the description could drop the "Reviews" section to a list of links, or keep the rejections in
-  full as the design says. The rejections are the part a reader checks, and the part a thread
-  list makes hardest to find.
+- **The reviewer's model and effort.** The Agent tool takes a `model` per call; reasoning effort
+  is set only by an `effort:` key in an agent definition under `.claude/agents/`, which cloud
+  sessions read from the repository, or inherited from the session (Claude Code's subagent
+  documentation). So a fixed effort, or a different effort per mode, needs one or two agent
+  definitions in the change. Nothing we have measured compares models or efforts on a review:
+  the first review ran on the session's model and effort, took 11 minutes and about 170k tokens,
+  and all 16 of its findings held up. Task 5.2 can measure it, by running the finished skill on
+  the plan as round 1 read it, on two settings, and comparing what each reaches with round 1's
+  16 findings. Until then the default is the session's own model and effort for every mode and
+  round, which needs no agent definition.
