@@ -16,9 +16,9 @@ as a command with the deterministic steps automated. The figures are in
   `.github/skills/`. A failed `Landed` on a PR with auto-merge set wakes the session, and the skill
   rebases onto the fresh `main`, archives, syncs, bumps, runs `check-landed.ts`, reviews the synced
   specs against the implementation, and pushes. The maintainer can also run it by hand.
-- **`landed.yml` gates the merge with a deployment.** The job declares `environment: landed` and runs
+- **`landed.yml` gates the merge with a deployment.** The job declares `environment: landing-zone` and runs
   only while `pull_request.auto_merge` is set. The `Protect main` ruleset requires a successful
-  deployment to `landed`. `Landed` itself stays outside the ruleset.
+  deployment to `landing-zone`. `Landed` itself stays outside the ruleset.
 - **`check-landed.ts` reads a fresh `origin/main`** in place of the event's base snapshot, requires a
   version above `main`'s, and requires a PR that has something to land to contain the `main` tip.
 - **The merge guard names `disable_pr_auto_merge`.** The guard from #352 already refuses the merge and
@@ -54,4 +54,4 @@ None.
 - `.github/workflows/landed.yml`, `scripts/check-landed.ts`, `scripts/agent-conventions.ts` and its test.
 - `.agents/skills/land/` and its two symlinks, `.agents/skills/steward/SKILL.md`, `AGENTS.md`.
 - The `Protect main` ruleset, which only the maintainer can change, and a GitHub environment
-  `landed`, which the first run creates.
+  `landing-zone`, which the first run creates.

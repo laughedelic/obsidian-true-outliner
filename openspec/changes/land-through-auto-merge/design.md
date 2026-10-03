@@ -23,8 +23,8 @@ anything that does not run leaves the PR blocked; landing steps a session does n
 
 A required check passes when its job is skipped. A required deployment does not: a job skipped by its
 `if` creates no deployment, so nothing satisfies the requirement. The job therefore carries
-`environment: landed` and `if: github.event.pull_request.auto_merge != null`, and the ruleset
-requires a successful deployment to `landed`. A PR without auto-merge cannot merge; a draft cannot
+`environment: landing-zone` and `if: github.event.pull_request.auto_merge != null`, and the ruleset
+requires a successful deployment to `landing-zone`. A PR without auto-merge cannot merge; a draft cannot
 enable it; a PR with nothing to land passes `check-landed.ts` at once and merges on the same gesture.
 
 The workflow keeps its per-PR concurrency group with cancel-in-progress: a push supersedes whatever an

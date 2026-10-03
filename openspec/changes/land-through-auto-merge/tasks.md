@@ -12,7 +12,7 @@
 
 ## 2. The workflow
 
-- [ ] 2.1 `.github/workflows/landed.yml`: the `auto_merge_enabled` trigger, `environment: landed`,
+- [ ] 2.1 `.github/workflows/landed.yml`: the `auto_merge_enabled` trigger, `environment: landing-zone`,
   `if: github.event.pull_request.auto_merge != null`, the fresh base, the per-PR concurrency group
   kept; the header comment says why the gate is a deployment and not a check
 - [ ] 2.2 On a throwaway PR: without auto-merge the job is skipped and no deployment appears; with it
@@ -34,7 +34,7 @@
 
 ## 5. The ruleset, last
 
-- [ ] 5.1 The maintainer adds the requirement of a successful deployment to `landed` to `Protect
+- [ ] 5.1 The maintainer adds the requirement of a successful deployment to `landing-zone` to `Protect
   main`, once `landed.yml` is on `main`; `Landed` is not added as a required check
 - [ ] 5.2 On a throwaway PR the maintainer enables auto-merge, a session lands it, and GitHub merges:
   the unapproved PR was blocked, the failed `Landed` woke the session, and auto-merge survived the push
