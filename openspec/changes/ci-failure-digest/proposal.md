@@ -14,12 +14,16 @@ annotations, so a digest has to be a check run of its own to be read that way.
 
 ## What Changes
 
-- **A failure digest**, published by each failing e2e job as a check run named
-  `digest: <platform> (<group>)` on the PR's head commit, and appended to the job's step summary.
-  It lists each failure's spec, test and first error line, and carries the drawing: a drawn case's
-  `before` / `expected` / `actual`, and the editor's drawing at the failure for any other case.
+- **A failure digest**, written by each failing e2e job to its log and its step summary, and, in
+  `ci.yml`'s jobs, published as a check run named `digest: <platform> (<group>)` on the PR's head
+  commit. It lists each failure's spec, test and first error line, and carries the drawing: a
+  drawn case's `before` / `expected` / `actual`, and the editor's drawing at the failure for any
+  other case. The log copy is what a session reads when the token cannot write checks.
 - **The harness records the drawing at failure**, which today it only prints, so the digest can
   carry it for every case and not only the drawn ones.
+- **A spike first**: whether the job's own check run can carry the digest, which would need no
+  extra row, and what the Checks API limits are. Its result is recorded in the research note and
+  can change tasks 3 and 4.
 - **A `ci-triage` skill** under `.agents/skills/`, linked from `.claude/skills/` and
   `.github/skills/`: the head SHA first, then the digest, then the base branch and sibling PRs, at
   most one rerun, and the shapes of failure that look like flakes and are not.
@@ -48,7 +52,10 @@ None.
 
 ## Impact
 
-- `.github/actions/e2e/action.yml`, `.github/workflows/ci.yml` (job permissions).
+- `.github/actions/e2e/action.yml` (a `check-run` input, off by default), `.github/workflows/ci.yml`
+  (turns it on, and job permissions). `.github/workflows/newest-installer.yml` also uses the
+  action: its failing jobs get the log and step-summary digest and no check run, since its
+  `permissions: contents: read` stays and its job names repeat CI's.
 - `scripts/failure-digest.ts`, `scripts/publish-failure-digest.ts`, `tests/failure-digest.test.ts`.
 - `e2e-tests/wdio.shared.mts` and one new record module beside `e2e-tests/known-failing.ts`.
 - `.agents/skills/ci-triage/` and two symlinks; `.agents/skills/steward/SKILL.md`; CLAUDE.md.

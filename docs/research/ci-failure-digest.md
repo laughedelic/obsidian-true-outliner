@@ -41,6 +41,11 @@ default and 8192 at most.
 ids, which is how a session finds one; its rows hold no `head_sha`, `run_attempt` or job
 conclusion beyond `conclusion`, so a digest has to state those in its own body.
 
+A check run's id is also its job's id: the `html_url` of `desktop (folding)`, check run
+111128807077, ends in `/job/111128807077`. So `get_job_logs` takes a check run's id as `job_id`, and
+the reviewer of #358 measured the tail of a failed job's log (job 109268990573): 39 lines of
+post-job cleanup follow the last step.
+
 ## What the harness holds of a failure
 
 | Piece | Where | Reaches the summary file |
@@ -82,8 +87,12 @@ would not list it. The head is `github.event.pull_request.head.sha`, empty on `p
 ## What is not measured here
 
 - The check-run output limits (the Checks API documents 65,535 characters each for `summary` and
-  `text`), and whether the `GITHUB_TOKEN` of this repository's `pull_request` runs may create a
-  check run. Both are measured on the scratch PR the change's last task opens.
+  `text`, and whether that counts bytes), whether the `GITHUB_TOKEN` of this repository's runs may
+  create a check run, whether `job.check_run_id` reaches a composite action, and whether a step's
+  patch of the job's own check run output survives the job's completion. Task 1.1 measures all
+  four on a scratch branch.
+- Whether a `neutral` check run wakes a session subscribed to the PR, and where a check run made
+  by `GITHUB_TOKEN` shows in the PR's checks list.
 - A Dependabot or fork PR's token, which GitHub makes read-only. The digest step is written to
   fail without failing the job; the Dependabot case is read on #332 or #333 once the change lands.
 - What a digest for a failing job looks like at its largest, for a run with many failures.
