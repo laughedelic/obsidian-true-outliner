@@ -75,11 +75,13 @@
 
 ## 5. Integration
 
-- [ ] 5.1 Rebase the branch onto `main` once #351 has landed, since both edit `AGENTS.md`'s lifecycle
-      list, and push with `--force-with-lease` (`.agents/skills/steward/SKILL.md`); resolve any conflict
-      in the lifecycle list by keeping #351's step 4 and this change's line in step 5. Verified by
-      `git merge-tree --write-tree HEAD origin/main` exiting 0 on the result, and by re-reading the
-      section.
+- [ ] 5.1 This branch is stacked on #351 (stack 356, #351's head `898cd4d`) at the maintainer's request,
+      though the stacking test would not stack it: `git merge-tree` of the two exits 0 and nothing
+      here reads code #351 adds. When #351 lands its commits are squashed into `main`, so restack with
+      `git rebase --onto origin/main 898cd4d chore/stacking-and-merge-rules` (not `--update-refs`),
+      push with `--force-with-lease`, and set the PR's base to `main`; if #351 moves first, the same
+      command from its previous tip. Verified by `git merge-tree --write-tree HEAD origin/main`
+      exiting 0 on the result and the PR's file list holding only this change's files.
 - [x] 5.2 Run `npm run typecheck:scripts`, `npm run lint`, and
       `openspec validate stacking-and-merge-rules --strict`. Verified by all three exiting 0, after
       `npm ci` replaced a `node_modules` that predated the lockfile.
