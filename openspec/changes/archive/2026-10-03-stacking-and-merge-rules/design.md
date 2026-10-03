@@ -35,7 +35,7 @@ is the cost of unstacked work that the rule already accepts.
 
 **The REST stacks API replaces `gh stack` for creating, extending and dissolving a stack.**
 `gh stack` cannot run in the cloud, but its stack operations are REST and the proxy allows them
-([`cloud-session-github-access`](../../../docs/research/cloud-session-github-access.md), "A stacked PR
+([`cloud-session-github-access`](../../../../docs/research/cloud-session-github-access.md), "A stacked PR
 from a cloud session"). The same calls work from any checkout, so one recipe serves the cloud and the
 primary checkout:
 
@@ -51,7 +51,7 @@ primary checkout:
 maintainer works almost entirely from cloud sessions, so the local tooling is carried for a workflow
 that is rarely run, and `gh stack`'s local tracking state is the only reason `docs/pr-stacks.md`
 forbids plain `git rebase`. With no tracking, the restack is git
-([`restacking-with-plain-git`](../../../docs/research/restacking-with-plain-git.md)), in three steps
+([`restacking-with-plain-git`](../../../../docs/research/restacking-with-plain-git.md)), in three steps
 that the first review round shaped: every layer reset to its remote after the fetch (a fresh clone has
 no lower layers, and a stale one would push over another session's commits), each layer rebased onto
 the one below, bottom first, and `git rebase --update-refs origin/main` from the top. A lower layer

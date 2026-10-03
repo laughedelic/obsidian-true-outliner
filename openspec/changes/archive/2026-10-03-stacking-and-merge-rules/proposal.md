@@ -9,14 +9,14 @@ away or undone over the September sessions (#339, a sub-issue of #334):
   every one (#274 says so in its description). Several runs also ran `git merge-tree` against each
   open PR to show the merge is clean. Two open PRs today share `src/ops.ts` and `src/reencode.ts`
   (#274 and #270) and merge cleanly
-  ([`cloud-session-github-access`](../../../docs/research/cloud-session-github-access.md), "A stacked
+  ([`cloud-session-github-access`](../../../../docs/research/cloud-session-github-access.md), "A stacked
   PR from a cloud session").
 - **"Opening a stacked PR … wait[s] for the primary checkout" was read as "a cloud session cannot open
   a stacked PR".** Three Bugfix runs skipped the only p1 (#136) on that reading, "for the third run in
   a row". Yet #190 (base `fix/a-split-run-keeps-its-own-numbers`) and #267 (base
   `fix/promoted-paragraph-seam`) were opened from cloud sessions through the GitHub tools. The
   requirement belongs to `gh stack`, which takes a lock and keeps state in the shared git directory
-  ([`docs/pr-stacks.md`](../../../docs/pr-stacks.md)).
+  ([`docs/pr-stacks.md`](../../../../docs/pr-stacks.md)).
 - **Who merges is unwritten.** The maintainer has said it in two sessions ("never merge PRs unless I
   asked explicitly", 09-17; "never merge yourself. prepare for landing and leave it for me to merge",
   09-26). The lifecycle says "Then squash-merge" without a subject. The `steward` skill already says
@@ -33,9 +33,9 @@ away or undone over the September sessions (#339, a sub-issue of #334):
   `POST /repos/{o}/{r}/stacks` through `gh api`; restack with `git rebase --update-refs` or `--onto`.
   Landing is the maintainer's, from the PR page. `scripts/stack-park.ts` and the setup script's
   `gh-stack` extension install go, since nothing uses them. The measurements are recorded
-  ([`cloud-session-github-access`](../../../docs/research/cloud-session-github-access.md), "A stacked
+  ([`cloud-session-github-access`](../../../../docs/research/cloud-session-github-access.md), "A stacked
   PR from a cloud session", and
-  [`restacking-with-plain-git`](../../../docs/research/restacking-with-plain-git.md)).
+  [`restacking-with-plain-git`](../../../../docs/research/restacking-with-plain-git.md)).
 - **One line in "Change lifecycle", step 5**: agents prepare landing and never merge; the maintainer
   merges.
 - **A narrow hook behind it.** `scripts/agent-conventions.ts` refuses the direct forms: the MCP
@@ -51,7 +51,7 @@ away or undone over the September sessions (#339, a sub-issue of #334):
 
 - **Making `gh stack` run from a cloud session.** The proxy refuses its GraphQL whatever the
   environment sets
-  ([`cloud-session-github-access`](../../../docs/research/cloud-session-github-access.md), "`gh stack`
+  ([`cloud-session-github-access`](../../../../docs/research/cloud-session-github-access.md), "`gh stack`
   from the cloud").
 - **A restack script.** Two git recipes and a check are written down; a script waits until restacks are
   frequent enough to want one.
