@@ -1,6 +1,6 @@
 ## 1. The record on GitHub
 
-- [ ] 1.1 Run a proposal review of this change by a fresh agent, briefed by hand from the design's
+- [x] 1.1 Run a proposal review of this change by a fresh agent, briefed by hand from the design's
       template (the skill does not exist yet), and have it post its findings as a `COMMENT` review
       on this PR with inline comments. Reply to each thread with its disposition and resolve it
       with `resolve_review_thread`. Verified by the review and its resolved threads on the PR, and

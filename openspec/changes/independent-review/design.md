@@ -185,10 +185,10 @@ Alternatives considered:
   finding is, and each round's list is rewritten by hand.
 - *One PR comment per round.* A record, but not anchored to the lines, and nothing to resolve.
 
-Creating, commenting on and submitting the review worked from a cloud session through the GitHub
-MCP tools. Whether resolving a thread does is measured in task 1.1: `resolve_review_thread` is
-GraphQL behind the GitHub MCP server, and the session's own proxy refuses GraphQL
-(`docs/research/cloud-session-github-access.md`).
+Every step worked from a cloud session through the GitHub MCP tools, in this change's first
+review: creating, commenting on and submitting the review, reading its threads, replying and
+resolving (`independent-reviews`, "Posting a review from a cloud session"). The session's own proxy
+refuses GraphQL, and the MCP server's thread operations are not affected by that.
 
 ### The author verifies, then decides, then records
 

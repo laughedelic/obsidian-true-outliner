@@ -150,6 +150,11 @@ author pushed a commit while the review ran; without the `commitID` the review w
 to the new head and resolved its line numbers against a file the reviewer never read. The author's
 session was woken once for the review and once per inline comment, 17 events.
 
+The author's half worked the same way. `pull_request_read` with `get_review_comments` returned
+the 16 threads with their `PRRT_` node ids, `add_reply_to_pull_request_comment` posted a reply on
+each, and `resolve_review_thread` resolved all 16. The session's own proxy refuses GraphQL
+(`cloud-session-github-access`), and the MCP server's thread reads and resolutions went through.
+
 ## Not measured
 
 - Whether a local session has a hook that reads either.
