@@ -17,7 +17,7 @@
 
 ## 2. The wrapper
 
-- [ ] 2.1 In `e2e-tests/docker/start-xvfb-and-run.sh`, send Xvfb's output to a log file removed by
+- [x] 2.1 In `e2e-tests/docker/start-xvfb-and-run.sh`, send Xvfb's output to a log file removed by
       the `EXIT` trap, print it when the socket does not appear, replace `exec "$@"` with the
       command in the foreground, and rewrite the script's header, which says it execs the command. Verified by `node scripts/e2e-narrow.ts 00-smoke | tail -5` run
       inside the wrapper in this cloud session, which returns when the run ends with the same exit
