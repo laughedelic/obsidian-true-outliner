@@ -52,11 +52,25 @@ control, and a path in the brief works in any harness, Copilot's included.
 
 ### The brief is a template of facts and claims
 
-The template has fixed fields: the mode and round; the PR, the branch, the head SHA and the
-merge base with `origin/main`; the issue and its reproduction; the specs and research notes the
-change touches; for an implementation, the diff command; for a later round, the earlier findings
-and what was done with each; and the claims to falsify. It has no field for a root cause, a
-suspicion or a place to look first.
+The template has fixed fields: the mode and round; the PR, the branch, the head SHA, the PR's
+base branch and the merge base with it; the issue and its reproduction; the specs and research
+notes the change touches; what the change depends on and does not touch (code, config, docs,
+earlier PRs whose reviews it follows); for an implementation, the diff command; for a later round,
+the earlier review threads; the claims to falsify; and what the reviewer must not modify. It has
+no field for a root cause, a suspicion or a place to look first.
+
+**The base is the PR's own.** For a PR on `main` it is `origin/main`. For a layer of a stack it
+is the layer below: #91's diff is 2 files against its own base and 739 against its merge base with
+`main` (`independent-reviews`, "Stacked layers"), so a review against `main` would credit the
+layer with everything below it. A whole-stack comparison against `main` is a second reading the
+brief may ask for, not the default.
+
+**The issue's diagnosis is read last.** Of our 72 `kind/bug` issues, 37 carry a `## Mechanism` or
+root-cause passage (`independent-reviews`, "Diagnoses in issues"), so handing over the issue hands
+over a diagnosis. The reviewer reproduces the case, derives the expected result from the specs and
+locates the cause in the code first, and only then reads the issue's and the plan's diagnosis,
+which the brief lists among the claims to falsify. The same order applies in proposal mode, where
+the plan under review carries the author's diagnosis.
 
 A **claim to falsify** is a sentence the change rests on, written so a measurement could prove it
 false: "`structural-operations`, *X*, already requires the expected result, so the fix type is
@@ -88,22 +102,32 @@ hints about where to look.
 
 ### The reviewer's workspace
 
-The reviewer fetches `origin/main` and the branch, and adds two detached worktrees under
-`.claude/worktrees/`: the branch's head, and the merge base. Never a local `main`, which misled
-two reviewers in #337's sessions, and never the author's checkout, which may carry unpushed
-work. The author pushes before briefing, so the reviewer reviews the SHA the brief names. The
-worktrees are detached because a worktree holding a branch blocks every restack of it
-(`docs/pr-stacks.md`, "Worktrees hold branches hostage").
+The reviewer fetches the PR's base branch and the branch from `origin`, and adds two detached
+worktrees under `.claude/worktrees/`: the branch's head, and the merge base with the PR's base.
+Never a local `main`, which misled two reviewers in #337's sessions, and never the author's
+checkout, which may carry unpushed work. The author pushes before briefing, so the reviewer
+reviews the SHA the brief names, and the author may push again while the review runs (this
+change's own first review saw that). The worktrees are detached because a worktree holding a
+branch blocks every restack of it (`docs/pr-stacks.md`, "Worktrees hold branches hostage").
 
 `.claude/worktrees/` is where our worktrees already live, and a worktree there finds
 `node_modules` by walking up to the primary checkout (`scripts/bin-path.ts`). We measured a probe
 in one worktree importing `src/` from both, run with `npx vitest` (`independent-reviews`, "The
 differential sweep"). A worktree under `/tmp` has no `node_modules` above it.
 
-Scratch probes go in `.scratch/` in the head worktree, which `.gitignore` covers, or in the
-session's scratchpad: never under `tests/` or anywhere tracked. The reviewer removes both
-worktrees at the end, so everything the author needs to re-run a finding is in the finding
-itself.
+Both worktrees resolve dependencies from the primary checkout's one `node_modules`. That is right
+while the base and the head have the same lockfile, and a wrong baseline otherwise, the failure
+#211 recorded (mocha 12 against 10.8.2). When the change touches `package.json` or
+`package-lock.json`, the reviewer runs `npm ci` in each worktree before running anything in it.
+
+Probes go in `.scratch/` in the head worktree, which `.gitignore` covers: never under `tests/` or
+anywhere tracked. It is the only place a probe runs. Vitest collects only under its root, nothing
+above the session's scratchpad has a `node_modules`, and `src/`'s extensionless imports do not
+resolve under Node's type stripping, so the scratchpad holds notes and outputs only
+(`independent-reviews`, "Where a probe runs"). A `.scratch/*.test.ts` probe is collected by a
+plain `npx vitest run` in that worktree, so the reviewer runs the suite as `npx vitest run tests/`.
+The reviewer removes both worktrees at the end, so everything the author needs to re-run a finding
+is in the finding itself.
 
 Two measured side effects are fixed in this change rather than worked around in the skill:
 
@@ -125,7 +149,8 @@ spec requirement), and how `main` behaves on the same case: the same, better or 
 - **PLAUSIBLE**: inferred from reading. The finding says what would confirm it.
 
 Findings are ranked by what leaving them would cost, in `triage`'s terms, so the rungs mean the
-same thing in a review as on an issue. An editor case is drawn as `presenting-examples` draws one,
+same thing in a review as on an issue. A finding about the plan or the tests (a wrong fix type, a
+test that cannot fail) takes the rung of the defect it would let through. An editor case is drawn as `presenting-examples` draws one,
 as a case file where it can be. The report ends with what the reviewer checked and found sound,
 which is how the author can say what the review covered (#245's implementation review is the
 example).
@@ -136,8 +161,10 @@ The reviewer posts its findings on the PR as one review, the way Copilot's revie
 finding that belongs to a line of the diff is an inline comment there, and the rest (a missing
 gesture, a spec the change does not touch, the list of what was checked and found sound) go in
 the review's body. The review's body opens with a line naming the mode and the round, `Independent
-review: implementation, round 2, at <sha>`. The reviewer also returns the same findings to the
-author, so the author's next step does not wait on a notification.
+review: implementation, round 2, at <sha>`. The review is created with `commitID` set to the SHA
+in the brief: without it GitHub attaches the review to the PR's current head, and inline lines
+resolve against a file the reviewer never read. The reviewer also returns the same findings to
+the author, so the author's next step does not wait on a notification.
 
 Each finding is then a thread, and the thread is where its disposition lives: the author replies
 with what was done and resolves it. Each round is a separate review on the PR's timeline, at
@@ -147,9 +174,9 @@ lists the earlier threads rather than a copy of them.
 The session posts under the maintainer's account, as the author's replies to Copilot did on
 #246, so the review's state is `COMMENT`: GitHub does not let an account request changes on its
 own PR, and nothing here needs it to. A reviewer that runs as another session rather than as a
-subagent reaches the author through the PR's events. Where the author is woken by its own review,
-it treats the event as the report it already holds, not as a new request (#335's steward rules on
-echoes).
+subagent reaches the author through the PR's events. The review's events wake the author once per
+comment (this change's first review woke it 17 times); the author acts on the report its reviewer
+returned and reads those events as that report, not as new requests.
 
 Alternatives considered:
 
@@ -158,14 +185,18 @@ Alternatives considered:
   finding is, and each round's list is rewritten by hand.
 - *One PR comment per round.* A record, but not anchored to the lines, and nothing to resolve.
 
-Whether resolving a thread works from a cloud session is measured in this change's first review
-(tasks, group 1): `resolve_review_thread` is GraphQL behind the GitHub MCP server, and the
-session's own proxy refuses GraphQL (`docs/research/cloud-session-github-access.md`).
+Creating, commenting on and submitting the review worked from a cloud session through the GitHub
+MCP tools. Whether resolving a thread does is measured in task 1.1: `resolve_review_thread` is
+GraphQL behind the GitHub MCP server, and the session's own proxy refuses GraphQL
+(`docs/research/cloud-session-github-access.md`).
 
 ### The author verifies, then decides, then records
 
-The author runs each finding's case before acting on it. A PLAUSIBLE finding is measured or is
-recorded as unmeasured; it is not acted on as if it were confirmed. Each finding then takes one
+The author runs each finding's case before acting on it. A PLAUSIBLE finding is measured, which
+confirms or disproves it, before it is acted on. One that cannot be measured in the session is
+recorded as unmeasured only at `p2` or below; at `p0` or `p1` it is filed, with the user's
+go-ahead, so a serious unmeasured finding never closes a round by being written down (`triage`,
+"Re-verify before trusting a claim"). Each finding then takes one
 disposition: **taken**, **rejected** with the evidence (a spec sentence, a measurement), **filed**
 as an issue with the user's go-ahead, or **recorded** as pre-existing and identical on `main`. A
 finding the author later shows to be wrong is recorded as wrong, as #273 recorded the typing
@@ -177,41 +208,52 @@ per round linking its review with the counts of each disposition, plus the rejec
 reasons, since those are what the maintainer most needs to check. #269 and #264 are the model for
 how a rejection reads.
 
-### Rounds converge, and the third asks about the rule
+### Rounds converge, and every round from the third asks about the rule
 
-A proposal usually takes one round, and another when its response changes the fix type, the
-mechanism or the scope. An implementation takes rounds until one converges:
+The rule writes down the test our PRs already apply when they skip a re-review: the edits after
+a review are local to code a reviewer has read (#245, #246 and #274 say so in those words). A
+review's findings may be taken and fixed without another round, as long as the fixes stay local.
 
-- **A significant finding** is CONFIRMED and changes behaviour, a spec statement or a test's
-  verdict.
-- **A significant change** is a response that changes a mechanism, or touches code the last
-  reviewer did not read.
-- A round **converges** when it brings no significant finding, and the author's response to it
-  makes no significant change. A rename, a test for behaviour already reviewed or a wording fix
-  is not significant, as #245, #246 and #274 reasoned when they skipped a re-review.
+- **A significant change** is a response to a round that changes a mechanism, a rule or a spec
+  statement, changes the fix type or the scope, or adds code the round's reviewer did not read.
+  A local fix to reviewed code, a test for reviewed behaviour, a rename or a wording fix is not
+  significant, even when it changes behaviour.
+- A round **converges** when the author's response to it makes no significant change, and none of
+  its findings is an unmeasured PLAUSIBLE one at `p0` or `p1` (see above).
+- A round that does not converge is followed by another, from a fresh reviewer.
 
-Each round is a fresh reviewer. Before briefing a third, the author lists every finding of the
-first two that was fixed by adding a condition, a special case or a narrower rule. When two or
-more of them patch the same rule, the findings are evidence the rule is wrong rather than
-exceptions to it: the author writes the rule that would give every expected result without the
-exceptions, takes it back to proposal mode, updates the PR and tells the user before writing more
-code. When they do not, the third round runs as usual, and its brief asks the reviewer the same
-question. #267's six designs over about 20 hours, each patching the last review's exceptions, are
-the case this step exists for (#337).
+Both modes follow the rule, and the rounds are counted across them: a proposal round and an
+implementation round of the same change are rounds one and two. Under this rule #264's second
+round would not have converged, because its cost fix added a pre-check the reviewer had not read;
+a third round would have read the pre-check and nothing else.
+
+**From the third round on, every round first asks about the rule.** Before briefing it, the
+author lists every finding of the earlier rounds whose fix added a condition, a special case or
+a narrower rule, or reversed an earlier round's direction. When two or more of them patch the same
+rule, the findings are evidence the rule is wrong rather than exceptions to it: the author writes
+the rule that would give every expected result without the exceptions, takes it back to proposal
+mode, updates the PR and tells the user before writing more code. When they do not, the round runs,
+and its brief asks the reviewer the same question. #267 went through six proposals over about
+20 hours, each patching the last review's exceptions (#267; `docs/research/created-seam-detection.md`),
+and the check would have run before its third.
 
 Alternatives considered:
 
 - *A fixed limit*, two or three rounds. #264's second round found no defect; #269's second found
-  seven things to take. No number fits both.
-- *Stopping when a round finds nothing*. A round that finds nothing but is answered with a new
-  mechanism has not reviewed that mechanism.
+  eight things to take. No number fits both.
+- *A round converges only when it finds nothing that changes behaviour.* This change's first draft
+  said so. By it, #246, #264 and #274 each needed another round, and with 89 of 120 implementation
+  findings taken in the survey nearly every round would need another.
+- *A step-back only before the third implementation round.* #267's loop was in proposal rounds,
+  and a loop that passes the check once can keep patching after it.
 
 ### What the modes check
 
 `proposal.md`, for a plan, a design or an OpenSpec change:
 
-- **The expected result.** Derive the expected drawing from the specs before reading the issue's
-  own, then compare. On #270 the issue's expected result was the output of the buggy fallback, and
+- **The expected result and the cause, before the plan's.** Reproduce the case, derive the
+  expected drawing from the specs and locate the cause in the code before reading the issue's
+  and the plan's own, then compare. On #270 the issue's expected result was the output of the buggy fallback, and
   three reviews accepted it (#337).
 - **The fix type**, quoting the requirement: *drift* (the specs already require the expected
   result and the code departs; no delta), *gap* (the specs are silent; the delta adds), *conflict*
@@ -238,14 +280,17 @@ Alternatives considered:
   change on the way without the design saying so. Poke holes in both.
 - **Reachability**: a defect the change calls latent or out of reach is checked through every
   gesture that reaches the code (#246's delete and drag).
-- **The tests**: run them; revert `src/` to the merge base in the head worktree and see each new
-  test fail; mutate the conditions the fix adds and see a test fail (#269's surviving
-  mutations); check that an e2e cannot pass by timing (#273).
-- **A differential sweep against `main`**, where the change is in `src/*.ts`: the same generated
-  inputs through the merge base's functions and the head's, counting where they differ and
-  sorting each difference into intended, regression and neutral (#264's 236 734 operations). For
-  a change in the plugin's CM6 or Obsidian wiring, the same case files run in both worktrees
-  instead.
+- **The tests**: run them (`npx vitest run tests/`, which leaves the probes out); revert `src/`
+  to the merge base in the head worktree and see each new test fail; mutate the conditions the
+  fix adds and see a test fail (#269's surviving mutations); check that an e2e cannot pass by
+  timing (#273).
+- **A differential sweep against the base**, where the change is in `src/*.ts`: the same
+  generated inputs through the merge base's functions and the head's, counting where they differ
+  and sorting each difference into intended, regression and neutral (#264's 236 734 operations).
+  A sweep that finds no difference counts for nothing until it has been shown to find one: a
+  deliberate change on one side, or inputs that reach the changed lines (`independent-reviews`,
+  "The differential sweep"). For a change in the plugin's CM6 or Obsidian wiring, the same case
+  files run in both worktrees instead.
 - **Code and specs agree**: each statement in the delta and in the requirements the change cites
   is true of the code, and each behaviour the code changes is stated somewhere.
 - **Cost**, when a hot path changed: `finalize` on a large note, against the merge base.
@@ -254,9 +299,9 @@ Alternatives considered:
 ## Risks / Trade-offs
 
 - **A review costs a fresh context per round.** A round reads the specs and the code from
-  nothing. The convergence rule bounds the count by what the rounds find rather than by a number,
-  so a change that keeps producing significant findings keeps paying; the step-back after the
-  second round is the check on that.
+  nothing. The convergence rule bounds the count by what the responses change rather than by a
+  number, so a change whose fixes keep reaching past reviewed code keeps paying; the question about
+  the rule before every round from the third is the check on that.
 - **The claims to falsify can steer.** A claim names what the author believes, and a reviewer may
   spend its time there. The reviewer's mode file asks it to work through its whole list, of which
   the claims are one item.
@@ -268,10 +313,10 @@ Alternatives considered:
 
 ## Open Questions
 
-- **Should the proposal review run before the draft PR opens, or after?** The design says after
-  the proposal is written and before the maintainer reviews it, so the maintainer reads a plan
-  that has already absorbed the review's findings. The PR could open first and the review land on
-  it as a comment.
+- **Should the proposal review run before the maintainer reviews the plan, or after?** The design
+  runs it once the draft PR is open (AGENTS.md, step 2) and before the maintainer reviews, so the
+  maintainer reads a plan that has already absorbed the review's findings. Running it after would
+  let the maintainer's review steer what the agent review checks.
 - **How much of the record stays in the PR description?** With the threads holding each finding,
   the description could drop the "Reviews" section to a list of links, or keep the rejections in
   full as the design says. The rejections are the part a reader checks, and the part a thread

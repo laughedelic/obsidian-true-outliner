@@ -25,7 +25,7 @@ routine's next revision (#348) depends on it.
   finding belongs to a line, and the author answers each thread with its disposition and resolves
   it. Each round is then its own review on the PR's timeline.
 - **A pointer** in `AGENTS.md` (`CLAUDE.md` is a symlink to it): step 4 of "Change lifecycle"
-  names the skill, and says when a round of reviews is done.
+  names the skill, and says when the reviews are done.
 - **The reviewer's worktree stays out of the author's way.** `.gitignore` gains
   `/.claude/worktrees/` and `/.scratch/`, and `vitest.config.ts` excludes `.claude/worktrees/**`.
   A worktree there shows as untracked in the primary checkout, and while one exists the
