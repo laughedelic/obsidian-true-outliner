@@ -79,8 +79,12 @@ adding `git worktree add --detach .claude/worktrees/probe origin/main` and a pro
 | Vitest's `configDefaults.exclude` | `**/node_modules/**`, `**/.git/**` |
 
 So while a reviewer's worktree exists, the author's `npm test` runs every unit test twice and
-runs the reviewer's probes, and the author's checkout carries an untracked directory, which is
-the state #337 reports a cloud session's stop hook acting on. ESLint is run on `src` and `tests`
+runs the reviewer's probes, and the author's checkout carries an untracked directory. A cloud
+session's stop hook acts on it: with the first proposal review of #351 running in
+`.claude/worktrees/review-337-head`, the author's turn ended on "There are untracked files in the
+repository. Please commit and push these changes to the remote branch", and `git status
+--porcelain` held only `?? .claude/worktrees/`. An entry for the path in `.git/info/exclude`
+cleared it. ESLint is run on `src` and `tests`
 by name and is unaffected.
 
 A worktree under `/tmp` has no `node_modules` above it, so neither `npx vitest` nor an import of
@@ -108,8 +112,6 @@ row, or by inputs that reach the changed lines.
 
 ## Not measured
 
-- Whether a cloud session's stop hook reads `.claude/worktrees/` as uncommitted work. #337 reports
-  it acting on untracked files under `tests/`; a directory was not tried.
 - Whether a local session has a hook that reads either.
 - A sweep through an operation (`finalize` and the ops that call it), which is what #264's own
   review ran; the recipe is the same with a different entry point and generator.
