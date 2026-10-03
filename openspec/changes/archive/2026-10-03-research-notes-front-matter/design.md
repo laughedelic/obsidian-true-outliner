@@ -2,7 +2,7 @@
 
 The index exists so a note can be found and so a new note has one place to be announced. Sessions
 found notes by reading and grepping them directly, and the announcement is what made PRs collide
-([`research-note-front-matter`](../../../docs/research/research-note-front-matter.md)). OKF puts the
+([`research-note-front-matter`](../../../../docs/research/research-note-front-matter.md)). OKF puts the
 same metadata on the note itself, so adding a note touches only that file.
 
 ## Goals / Non-Goals

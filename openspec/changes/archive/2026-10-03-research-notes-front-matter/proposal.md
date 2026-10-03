@@ -4,7 +4,7 @@
 parallel PR touches it, and `merge=union` duplicates a row whenever `main` rewords one; the sessions
 that hit it each wrote their own resolver. Agents rarely look anything up in it, and go straight to
 the notes (#340;
-[`docs/research/research-note-front-matter.md`](../../../docs/research/research-note-front-matter.md),
+[`docs/research/research-note-front-matter.md`](../../../../docs/research/research-note-front-matter.md),
 "What the index costs"). #340 is a sub-issue of #334.
 
 ## What Changes
