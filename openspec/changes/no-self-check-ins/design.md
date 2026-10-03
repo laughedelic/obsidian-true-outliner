@@ -30,6 +30,15 @@ the tool adds later. A refused call is the only signal that reaches the session,
 carries the rule's name and what to do: skip the reminder, rely on pushed events, and use
 `human_request` only for a reminder the maintainer asked for in their own words.
 
+**`ScheduleWakeup` is refused unless the user typed `/loop` in the session.** The tool has no
+`initiation`, and it exists only for dynamic `/loop`, so a wake outside one is the session's own
+([`pr-watching-wakes`](../../../docs/research/pr-watching-wakes.md), "`ScheduleWakeup`"). The hook
+reads the session's `transcript_path` and looks for a user-typed `/loop` in a user message, never in
+a tool result or an attachment, where the text also occurs. An unreadable transcript refuses, since
+allowing on a failed read would leave the rule open. What a typed `/loop` looks like in the transcript
+is unmeasured, so the pass path is checked on a synthetic transcript and the cost of a wrong guess is a
+refused `/loop`; the message says so and the rule is one regex to adjust.
+
 **A hook, not `permissions.deny`.** A deny is per tool name and would refuse the maintainer's own
 requested reminders. The rule goes in the existing script, which already dispatches on the tool.
 
@@ -53,6 +62,10 @@ is what we rely on. The skill is short and carries five rules:
    default would otherwise win.
 5. Unsubscribe when a PR goes on hold, and when a routine run ends.
 
+It also says that a session arms no check-ins, which the hook enforces, and that comments carry no
+footer of our own and an appended one is left in place. The maintainer decided the footer: the
+platform attaches it outside the session, so removing it is a fight we do not take.
+
 **No test file for the script.** It reads stdin and acts at import, so a unit test would first need
 the script restructured. The change checks it by piping payloads into it, recorded in the tasks.
 
@@ -60,10 +73,12 @@ the script restructured. The change checks it by piping payloads into it, record
 
 - **A session sets `human_request` to get past the hook** → the message and the skill say it is for
   reminders the maintainer asked for; the hook cannot enforce more than that.
-- **A session turns to another self-arming tool** → out of scope here, and a follow-up if observed.
+- **A session turns to `create_trigger` or `CronCreate`** → out of scope here, and a follow-up if
+  observed.
+- **The `/loop` marker is guessed wrong** → the maintainer's `/loop` is refused with a message that
+  names the rule; the fix is one pattern.
 - **The refusal does not apply to a running session** (settings read at start) → the last task
   checks it in a session started after the change.
 - **The skill and the environment's rules disagree** (they tell a session to keep a check-in
   scheduled, and to never end a CI-failure wake without a push) → the pointer puts the skill's
-  rules first, and the environment's precedence rule is the backstop. Which wins for the footer on
-  agent comments is the maintainer's call, asked in the PR.
+  rules first, and the environment's precedence rule is the backstop.

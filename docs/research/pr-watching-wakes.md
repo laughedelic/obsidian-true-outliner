@@ -40,6 +40,16 @@ direction and do not reproduce its totals (76 on #205, 43 on #276).
 payload with `initiation: "own_followup"` prints nothing, which the harness reads as allow. So no
 hook sees the call yet.
 
+## `ScheduleWakeup`
+
+The tool exists for `/loop` in dynamic mode, where the user gave no interval and the session paces
+itself. Its inputs are `delaySeconds`, `prompt`, `reason`, `noop` and `stop`: nothing says who
+wanted the wake, so the `initiation` test cannot apply. What separates a wake the user asked for from
+one the session armed is a `/loop` command the user typed earlier in the session. A hook's input
+carries `transcript_path`, and a user-typed skill or command appears in the transcript inside a
+`<command-name>` block. No transcript on this machine holds a typed `/loop`, so what one looks like
+is unread.
+
 ## Not measured
 
 - **The input a hook receives for `send_later`.** The script reads `tool_input` as the call's own
@@ -47,7 +57,12 @@ hook sees the call yet.
   allows only `human_request` refuses both.
 - **Whether a settings edit applies to a running session.** Hooks may be read once at session
   start. The change's last task checks the refusal in a session that began with the new settings.
+- **What a typed `/loop` leaves in the transcript.** The `ScheduleWakeup` rule looks for it, and a
+  wrong guess refuses the maintainer's own `/loop`.
+- **Whether the platform appends its footer to a comment** as it does to a PR body written through
+  the MCP tool. The maintainer's answer is to leave an appended footer alone, so nothing here
+  depends on it.
 - **Other tools that arm a self-wake.** `create_trigger` takes the same `initiation` enum and can
-  bind a routine to the session that creates it. `ScheduleWakeup` and `CronCreate` are also
-  available in this session. Whether a session that `send_later` refuses reaches for one of them is
-  unobserved.
+  bind a routine to the session that creates it, and `CronCreate` is available in this session. Whether
+  a session that `send_later` refuses reaches for one of them is unobserved; the maintainer left them
+  out until it is.

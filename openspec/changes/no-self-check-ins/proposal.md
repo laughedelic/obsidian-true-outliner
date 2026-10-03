@@ -12,8 +12,9 @@ hold the first, and the second has no written policy. #335 is a sub-issue of #33
 ## What Changes
 
 - **A hook rule.** `scripts/agent-conventions.ts` refuses `mcp__claude-code-remote__send_later`
-  unless its `initiation` input is `human_request`, and says which rule refused it. The
-  `PreToolUse` matcher in `.claude/settings.json` gains the tool name.
+  unless its `initiation` input is `human_request`, and `ScheduleWakeup` unless the user typed
+  `/loop` in the session, and says which rule refused each. The `PreToolUse` matcher in
+  `.claude/settings.json` gains both tool names.
 - **A `steward` skill**, `.agents/skills/steward/SKILL.md`, with symlinks from `.claude/skills/` and
   `.github/skills/`: how a session treats a PR's events here. Five rules, listed in the design.
 - **A pointer** in `AGENTS.md` (`CLAUDE.md` is a symlink to it): on PR events, follow the `steward`
@@ -24,13 +25,13 @@ hold the first, and the second has no written policy. #335 is a sub-issue of #33
 ## Non-goals
 
 - **A `permissions.deny` on the tool.** It would also block a reminder the maintainer asks for.
-- **Other self-arming tools** (`create_trigger`, `ScheduleWakeup`, `CronCreate`). Whether a session
-  turns to them once `send_later` is refused is unobserved
+- **Other self-arming tools** (`create_trigger`, `CronCreate`). Whether a session turns to them once
+  `send_later` and `ScheduleWakeup` are refused is unobserved
   ([`pr-watching-wakes`](../../../docs/research/pr-watching-wakes.md), "Not measured"); if it does,
   that is a follow-up issue with the evidence.
 - **Changing the environment's own PR rules**, which live outside the repository.
-- **Deciding the attribution footer on comments.** The maintainer decides it, in the PR; the skill
-  states the answer once there is one.
+- **Stripping the platform's footer from a comment.** The maintainer's answer is that agent comments
+  carry none of our own and an appended one is left alone, not edited out.
 
 ## Capabilities
 
