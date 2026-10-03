@@ -106,5 +106,5 @@
 
 ## 6. Check the change as a whole
 
-- [ ] 6.1 `npm run lint` (which checks the research index), `npm test` and
+- [x] 6.1 `npm run lint` (which checks the research index), `npm test` and
       `openspec validate independent-review --strict` pass.
