@@ -29,7 +29,8 @@ Two kinds of write exist, and each is made only on an open issue.
    `<!-- agent: triage -->`, so the maintainer's own comments and this routine's can be told apart,
    and it names the change and its evidence: `Dropped needs/diagnosis: #274 locates the cause in …`.
    A change of label and its comment are made together. A flag (a duplicate, a dependency, a pull
-   request) is a comment with no label change.
+   request) is a comment with no label change. Each change has its own comment; an issue with a label
+   change and a pull request link gets two.
 
 Nothing else is written. A run never closes, reopens, edits or retitles an issue, assigns anyone,
 sets a milestone, a project field or an issue field, links a sub-issue or a dependency, comments on
@@ -49,30 +50,30 @@ proxy (`docs/research/cloud-session-github-access.md`). Take `{r}` to be
 1. **The window.** The previous run's time is the `created_at` of the newest comment whose body
    starts with `<!-- agent: triage`, found in
    `gh api '{r}/issues/comments?sort=created&direction=desc&per_page=100'`. With no such comment the
-   window opens seven days back, and the run is a first run: it audits every open issue's labels
-   (step 3) before looking at anything else.
+   window opens at 00:00Z seven days before the run's date, and the run is a first run.
 2. **The feed.** From the window's start, read:
    - `gh api '{r}/issues/comments?since=<start>&per_page=100'`, paged: every comment on an issue or
      a pull request since then, from which a diagnosis, a re-measurement or a decision is read;
-   - `gh api '{r}/pulls?state=all&sort=updated&direction=desc&per_page=50'`, stopped once
-     `updated_at` falls before the start: a pull request's number, state, draft flag, merge time and
-     body;
+   - `gh api '{r}/pulls?state=open&per_page=100'`: every open pull request, whatever its age, with
+     its number, draft flag and body;
+   - `gh api '{r}/pulls?state=closed&sort=updated&direction=desc&per_page=50'`, stopped once
+     `updated_at` falls before the start: the pull requests that merged or closed in the window;
    - `gh api '{r}/issues?state=closed&since=<start>&per_page=100'`, pull requests excluded: the
      issues that closed in the window.
-3. **The list.** `list_issues` with `state: OPEN`, `fields: [number, title, labels, created_at,
-   updated_at, comments]` and no `body`, paged. This is the label audit. It is cheap, and it is the
-   only read made of every open issue.
+3. **The list.** An issue listing returns every body unless trimmed: use `list_issues` with `state: OPEN`, `fields: [number, title, labels, created_at,
+   updated_at, comments]`, paged, or a REST listing cut with `--jq` before it is printed. This is the
+   label audit. A listing is paged with `page=` and never with `--paginate`, whose follow-up request
+   the proxy refuses.
 4. **Per candidate.** Read an issue's body and comments (`issue_read` `get`, `get_comments`) only
    when it is a candidate:
    - created since the window opened, or lacking a `kind/`, an `area/` or a `p0`-`p3` label;
    - commented on, by anyone but this routine, since the window opened;
-   - named by a closing keyword (`Fixes`, `Closes`, `Resolves`) in the body of a pull request that
-     was opened, merged or closed since then;
+   - named by a closing keyword (`Fixes`, `Closes`, `Resolves`) in the body of an open pull request;
    - carrying a `needs/` label, when its comments or a pull request give a reason to drop it;
-   - blocked by an issue that closed in the window (below).
+   - blocked by an issue that closed, or a pull request that merged, in the window (below).
 
-   An issue that is none of these is left unread. A run that reads most of the open issues is
-   reading too much.
+   An issue that is none of these is left unread. Only a first run reads many: every issue created in
+   its window is a candidate, and the window is seven days.
 
 ## What each check decides
 
@@ -92,8 +93,10 @@ alone for a month costs, from what the issue says, taking the lower rung when tw
   the mechanism, meaning the code or the behaviour that causes it;
 - `needs/decision`: the maintainer's own comment (one without the routine's marker) states the
   choice, or a pull request carrying the choice's implementation is open for it;
-- `needs/research`: a note under `docs/research/` on the default branch measures it, and the issue or
-  a pull request links the note.
+- `needs/research`: a note under `docs/research/` exists on the default branch
+  (`gh api '{r}/contents/docs/research/<name>.md'`), and a comment of the maintainer's, or the text of a
+  merged pull request, says the note answers what the issue asked. A note that only exists, or
+  that answers part of it, leaves the label.
 
 A reason that is only a pull request's existence is not enough for `needs/diagnosis`; the pull
 request's text must say what causes the defect. When the evidence is partial, leave the label and
@@ -102,12 +105,15 @@ write no comment.
 **A priority change.** Only on new evidence: a comment since the label was set that records a
 re-measured severity, a narrower reach than the issue claimed, or a fix that removes the cost. Name
 the comment. Never re-rank an issue from scratch, and never raise a rung without a recorded cause;
-a comment that argues for a higher rung but records nothing new is left as it is.
+a comment that argues for a higher rung but records nothing new is left as it is. A rate of
+recurrence reported on a tooling issue ("failed in 2 of 5 runs") is listed in the summary as a
+question for the maintainer and does not move the rung.
 
 **A pull request.** When an open pull request names the issue after a closing keyword and no
 comment of the routine already links it, comment `Open PR #N (draft|ready) closes this.` When a pull
 request merged into a branch other than the default one names an issue that is still open, comment
-that the merge has not reached the default branch. A `Refs` or a bare mention is not a link.
+that the merge has not reached the default branch. A `Refs` or a bare mention is not a link. Every open pull request counts, not only those opened in
+the window.
 
 **A duplicate.** For an issue created since the window opened, read the open issues' titles from the
 list and, for a possible match, the match's body. Comment `Likely duplicate of #N: <the shared
@@ -115,17 +121,20 @@ cause or the shared case, in a clause>` only when both describe the same failure
 request; two issues in one area are not duplicates. The issue is not closed and no label is
 applied.
 
-**A dependency.** Read an issue's blockers from the `Blocked by` or `Depends on` lines of its body
-and comments, and from
-`gh api '{r}/issues/<n>/dependencies/blocked_by'`. For each issue that closed in the window, read
-`gh api '{r}/issues/<n>/timeline?per_page=100'`, take its `cross-referenced` sources that are open
-issues, and read each one's blockers. Comment:
-- `Blocked by #A, #B (open).` once for an issue that has open blockers and no earlier triage comment
-  naming exactly that set;
-- `Unblocked: #A closed; still blocked by #B.` or `Unblocked: #A, #B closed.` when a blocker closed
-  in the window.
+**A dependency.** An issue's blockers are the numbers in the `Blocked by` or `Depends on` lines of
+its body and comments and those from `gh api '{r}/issues/<n>/dependencies/blocked_by'`. A line that
+blocks only part of an issue ("the second half is blocked by #N") and a prose line with no number
+name no blocker. A blocker is resolved when it is a closed issue or a merged pull request.
 
-A blocker that is a pull request is read as the pull request's state.
+For each issue that closed, and each pull request that merged, in the window, read
+`gh api '{r}/issues/<n>/timeline?per_page=100'`, take its `cross-referenced` sources that are open
+issues, and read each one's blockers. Write one dependency comment per issue per run, in one of these
+forms:
+- `Blocked by #A, #B (open).` for an issue with open blockers and no earlier triage comment naming
+  exactly that set;
+- `Unblocked: #A closed.` or `Unblocked: #A, #B closed.` when blockers resolved in the window and none
+  is left;
+- `Unblocked: #A closed; still blocked by #B.` when blockers resolved in the window and others remain.
 
 ## Not repeating
 
@@ -142,6 +151,7 @@ would be:
 | --- | --- | --- | --- |
 
 `Change` is `+label`, `-label`, `flag` (duplicate, dependency, pull request). `Evidence` is a link
-to the comment, pull request or issue the change rests on. Follow it with the counts of issues
+to the comment, pull request or issue the change rests on; for a dependency read from the
+`blocked_by` endpoint, the blocker's link and the endpoint's name. Follow it with the counts of issues
 listed, issues read as candidates and writes made, and with the issues the run left alone because
 settling them needs a measurement or a decision that is not the routine's.
