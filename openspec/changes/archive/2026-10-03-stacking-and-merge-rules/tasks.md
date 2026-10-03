@@ -33,7 +33,7 @@
       message naming the rule and saying to prepare landing and stop; add the rule to the file's header
       comment; end a command at a newline and skip only a terminated here-document's body in the
       shared lexer. Verified by `tests/agent-conventions.test.ts`, 106 tests sending 108 payloads, the
-      earlier rules' regressions among them, and by thirty mutated copies of the script run through
+      earlier rules' regressions among them, and by thirty-one mutated copies of the script run through
       the same file by `AGENT_CONVENTIONS_SCRIPT`, each failing the rows its condition guards and none surviving
       (the table in `docs/research/cloud-session-github-access.md`, with the shapes the hook does not
       see). Negative control: matching `gh pr` instead of `gh pr merge` must fail `gh pr view`,

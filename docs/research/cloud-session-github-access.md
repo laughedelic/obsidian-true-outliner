@@ -236,7 +236,7 @@ by a line equal to its word, which the lexer then skips. Refused though it merge
 whose value ends in a full merge-route URL.
 
 The rows are `tests/agent-conventions.test.ts`: 106 tests sending 108 `PreToolUse` payloads to the
-script, the earlier rules' regressions among them. Thirty copies of the script with one condition each
+script, the earlier rules' regressions among them. Thirty-one copies of the script with one condition each
 changed, run through the same file by `AGENT_CONVENTIONS_SCRIPT`, each fail the rows that condition
 guards, and none survives:
 
@@ -251,6 +251,7 @@ guards, and none survives:
 | the route not anchored at `repos/…` | 1: a field whose value is a bare merge path |
 | the route not closed by `$` | 1: a write below a merge route |
 | the route's number must be digits | 2: `$PR`, `${PR}` |
+| the `auto-merge` alternative dropped from the route | 1: `-X PUT …/pulls/12/auto-merge` |
 | `gh` only as the first word | 16 |
 | only the first `gh` word read | 2: `sudo -u gh gh …`, `env -C ~/src/gh gh …` |
 | flags kept as positionals | 2: the `--repo=value` and glued `-R` forms |
