@@ -274,7 +274,7 @@ word was refused before, because the later words were read as refspecs, and is a
 (`git push origin feat/y⏎echo claude/w`); and `git push⏎echo hi` on a harness-branch checkout was
 allowed and is refused now. The push rule also reads a redirection's words as refspecs, on the earlier
 script and this one alike, so a bare `git push > log` from a harness checkout passes; that is unchanged
-here. In the session that wrote the rule, the MCP merge tool and the `gh` merge
+here, and is laughedelic/obsidian-true-outliner#361. In the session that wrote the rule, the MCP merge tool and the `gh` merge
 command, both on pull request 999999 (which does not exist, so a refusal that failed would have merged
 nothing), came back refused with the rule's message. The rule is a guard against the shapes a session
 writes, not a sandbox: a merge assembled in `$(…)`, a variable or a script written first is not seen.
