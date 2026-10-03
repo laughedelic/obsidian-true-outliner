@@ -1,6 +1,6 @@
 ---
 type: "research"
-description: "A dry run of the triage routine's prompt over the 90 open issues of 2026-10-03: what it reads, the 21 comments and one label change it would make, what it leaves to the maintainer, the ambiguities the run found in the prompt, and the REST reads a cloud session can make for it"
+description: "A dry run of the triage routine's prompt over the 90 open issues of 2026-10-03: what it reads, the 22 comments and one label change it would make, what it leaves to the maintainer, the ambiguities the run found in the prompt, and the REST reads a cloud session can make for it"
 ---
 
 # The triage routine, dry-run on the open issues
@@ -81,6 +81,7 @@ Every comment opens with `<!-- agent: triage -->`. `R` is this repository's URL.
 | --- | --- | --- |
 | #152 | Unblocked: #153 closed. | 09-26 |
 | #209 | Unblocked: #208 merged. | 09-27, a merged pull request; the endpoint is empty and the body says `Depends on #208` |
+| #284 | Unblocked: #287 closed. | 09-29; missing from run 2's own table, see below |
 | #292 | Unblocked: #289 closed. | 09-29 |
 | #293 | Unblocked: #289, #290 closed. | 09-29 |
 | #294 | Unblocked: #288, #315 closed. | 09-29 |
@@ -89,13 +90,18 @@ Every comment opens with `<!-- agent: triage -->`. `R` is this repository's URL.
 | #347 | Unblocked: #340 closed. | 10-03 |
 | #348 | Unblocked: #335, #336, #337 closed; still blocked by #297, #338. | 10-03 |
 
-Run 1 also flagged #284 (`Unblocked: #287 closed.`, 09-29), whose `blocked_by` endpoint lists #287
-closed inside the window; run 2 did not, so the dependency check is not yet repeatable between runs.
-The totals above are run 2's: 21 comments and one label change, none written.
+Run 2's first report omitted #284, and its reply to a follow-up question supplied the row. The
+prompt found blocked issues only through the timelines of items that closed in the window, and
+#287's timeline does not cite #284; it never said to read `blocked_by` on an issue itself. Run 1 had
+found #284 by another route. A `blocked_by` read of all 90 open issues, made outside the run after
+this, returns nine issues with blockers: #152, #284, #292, #293, #294, #296, #316, #347 and #348. They
+are nine of the ten rows above, and #209 is the one named only in text. The prompt now reads the
+endpoint for every open issue and keeps the timelines for text-only dependencies. With #284 the
+totals are 22 comments and one label change, none written.
 
 Spot checks against GitHub, read-only: #274's body has `Closes #257.` and a "Diagnosis" section
-naming the suggester; `blocked_by` returns the states shown for #152, #292, #293, #294, #296, #316,
-#347 and #348; #316's body reads "Blocked by #315, #312 and #313"; #209's reads "Depends on #208",
+naming the suggester; `blocked_by` returns the states shown for #152, #284, #292, #293, #294, #296,
+#316, #347 and #348; #316's body reads "Blocked by #315, #312 and #313"; #209's reads "Depends on #208",
 and #208 merged on 09-27; the eleven closing keywords above are the whole set in open pull
 requests, and the label audit recomputed outside the run matches its 90 and its zero.
 
@@ -137,9 +143,9 @@ Settled in the prompt:
 
 Known limits, left as they are:
 
-- A dependency flag reaches an issue only through the timeline of an item that closed in the window,
-  or when the issue is a candidate for another reason. An issue blocked by something open that was
-  never a candidate is not flagged.
+- A dependency written only in an issue's text is found through the timeline of the item that closed,
+  so one whose blocker closed outside the window, or whose line the issue's author wrote loosely, is
+  not.
 - "New evidence" for a priority is judged against the window and a comment's text; the date a label
   was set is not in the comments or the listing.
 - Whether a comment's evidence is enough (a pull request that "locates" a cause, a note that
@@ -153,7 +159,7 @@ Probed on 2026-10-03 from a cloud session, GET only.
 | Request | Result |
 | --- | --- |
 | `repos/{o}/{r}/issues/comments?sort=created&direction=desc` and `?since=` | 200; the window's start comes from here |
-| `repos/{o}/{r}/issues/{n}/dependencies/blocked_by` | 200; the native relationship, set by the maintainer |
+| `repos/{o}/{r}/issues/{n}/dependencies/blocked_by` | 200; the native relationship, set by the maintainer; ninety calls for the open issues |
 | `repos/{o}/{r}/issues/{n}/timeline` | 200; `cross-referenced` events name the issues that cite `n` |
 | `repos/{o}/{r}/pulls?state=open`, `?state=closed&sort=updated` | 200 |
 | `search/issues` | 403, "sessions are bound to their configured repositories" |

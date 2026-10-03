@@ -61,11 +61,15 @@ proxy (`docs/research/cloud-session-github-access.md`). Take `{r}` to be
      `updated_at` falls before the start: the pull requests that merged or closed in the window;
    - `gh api '{r}/issues?state=closed&since=<start>&per_page=100'`, pull requests excluded: the
      issues that closed in the window.
-3. **The list.** An issue listing returns every body unless trimmed: use `list_issues` with `state: OPEN`, `fields: [number, title, labels, created_at,
-   updated_at, comments]`, paged, or a REST listing cut with `--jq` before it is printed. This is the
-   label audit. A listing is paged with `page=` and never with `--paginate`, whose follow-up request
+3. **The list.** An issue listing returns every body unless trimmed: use `list_issues` with
+   `state: OPEN` and `fields: [number, title, labels, created_at, updated_at, comments]`, paged, or a
+   REST listing cut with `--jq` before it is printed. This is the label audit. A listing is paged with `page=` and never with `--paginate`, whose follow-up request
    the proxy refuses.
-4. **Per candidate.** Read an issue's body and comments (`issue_read` `get`, `get_comments`) only
+4. **The blockers.** `gh api '{r}/issues/<n>/dependencies/blocked_by'` for every open issue in the
+   list, cut with `--jq` to each blocker's number, state and `closed_at` or `merged_at`. The endpoint
+   is empty for most issues, so the calls are small. This is the only read that finds a native
+   dependency whose blocker closed days ago; a timeline does not.
+5. **Per candidate.** Read an issue's body and comments (`issue_read` `get`, `get_comments`) only
    when it is a candidate:
    - created since the window opened, or lacking a `kind/`, an `area/` or a `p0`-`p3` label;
    - commented on, by anyone but this routine, since the window opened;
@@ -127,15 +131,16 @@ result, or the same request; two issues in one area, or with one cause reached b
 gestures, are not duplicates. The issue is not closed and no label is
 applied.
 
-**A dependency.** An issue's blockers are the numbers in the `Blocked by` or `Depends on` lines of
-its body and comments and those from `gh api '{r}/issues/<n>/dependencies/blocked_by'`. A task-list line in
+**A dependency.** An issue's blockers are those the `blocked_by` read returned and the numbers in the
+`Blocked by` or `Depends on` lines of a candidate's body and comments. A task-list line in
 another issue (an umbrella's checklist) names that item's blockers, not the umbrella's. A line that
 blocks only part of an issue ("the second half is blocked by #N") and a prose line with no number
 name no blocker. A blocker is resolved when it is a closed issue or a merged pull request.
 
-For each issue that closed, and each pull request that merged, in the window, read
-`gh api '{r}/issues/<n>/timeline?per_page=100'`, take its `cross-referenced` sources that are open
-issues, and read each one's blockers. Write one dependency comment per issue per run, in one of these
+A dependency named only in text is found from the other side: for each issue that closed, and each
+pull request that merged, in the window, read `gh api '{r}/issues/<n>/timeline?per_page=100'`, take
+its `cross-referenced` sources that are open issues, and read each one's body for a line that names
+it as a blocker. Write one dependency comment per issue per run, in one of these
 forms:
 - `Blocked by #A, #B (open).` for an issue with open blockers and no earlier triage comment naming
   exactly that set;
