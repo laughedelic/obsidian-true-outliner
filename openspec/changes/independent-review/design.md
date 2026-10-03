@@ -240,11 +240,16 @@ of our own (`steward`, "Comments"):
 
 and `<!-- agent: author -->` with **Author** for a reply or a note. `steward` gains the rule: a
 woken session reads a reviewer comment as a review to answer when it asked for it; an author
-comment as an echo when it posted it, and as information from another session otherwise; an
-unmarked comment under the maintainer's login as the maintainer's; and a bot's as the bot's. The
-marker reaches a woken session: the event's comment text carries it
-(`docs/research/independent-reviews.md`, "Posting a review from a cloud session"). That keeps the rule where a woken session reads it, rather than in this skill,
-which a woken session has not loaded.
+comment as an echo when it posted it, and as information from another session otherwise; and an
+unmarked comment by its login, the maintainer's or another's. The marker reaches a woken session:
+the event's comment text carries it (`docs/research/independent-reviews.md`, "Posting a review
+from a cloud session"). That keeps the rule where a woken session reads it, rather than in this
+skill, which a woken session has not loaded.
+
+A review posts on the PR of the session that started it. #280's review from #351's session was
+the test of task 5.1, not a pattern: a marker therefore names a role, not the PR it came from. A
+session whose branch predates the markers posts none, and its replies read as unmarked until the
+branch includes them; that passes as branches are rebased.
 
 **Return only.** The brief has a field for where the findings go: on the PR, or returned to the
 author only. A return-only check returns its findings in full. It is a round: it counts towards

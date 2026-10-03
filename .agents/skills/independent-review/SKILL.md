@@ -110,7 +110,8 @@ Base: <same | better | worse> on the same case
 - An editor case is drawn as `presenting-examples` draws one, as a case file where it can be.
 - The report ends with **Checked and found sound**: what was checked and held.
 
-**Posting**, when the findings go on the PR, as one review through the GitHub MCP tools:
+**Posting**, when the findings go on the PR, as one review through the GitHub MCP tools. A review
+posts on the PR of the session that started it, never on another session's:
 
 1. `pull_request_review_write`, method `create`, with `commitID` set to the brief's SHA. Without
    it the review attaches to the PR's current head, and line numbers resolve against a file the
