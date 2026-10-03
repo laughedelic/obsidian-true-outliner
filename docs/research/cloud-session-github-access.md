@@ -87,12 +87,14 @@ section documents the repository scope that blocks `gh extension install`, and a
 under which "`git push` works only against the session's current working branch" — our rename
 before the first push keeps that branch current, which is consistent with the push above going
 through. The one documented configuration without this proxy is a self-hosted environment,
-which we do not run. So the extension is not installed in the cloud at all — neither by the
-environment's setup script nor by the session hook — and CLAUDE.md's stack instructions give a
-cloud session the layer's own work only, with a REST `gh api` listing in place of `gh pr list`. So a cloud session runs the half of the workflow that is REST and git: commit,
-push, open and edit a PR through the MCP tools or `gh api`, read CI. Stack surgery stays in the
-primary checkout, where CLAUDE.md already put it for a different reason. The session hook now
-says so at start, so a session does not find out one failed command at a time.
+which we do not run. So the extension was not installed in the cloud — neither by the
+environment's setup script nor by the session hook — and the stack instructions of the time gave a
+cloud session the layer's own work only, with a REST `gh api` listing in place of `gh pr list`. The
+stacks API measured below, which `gh stack` itself calls, replaced the extension for cloud sessions
+and the primary checkout alike (AGENTS.md, "Branching and PR stacks"), and it is installed nowhere
+now. A cloud session runs the REST and git workflow: commit, push, open and edit a PR through the
+MCP tools or `gh api`, create a stack, read CI. The session hook says so at start, so a session does
+not find out one failed command at a time.
 
 ## A stacked PR from a cloud session
 

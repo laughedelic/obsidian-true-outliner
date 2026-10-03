@@ -30,8 +30,8 @@ session's own comments. Most wakes carry nothing to do. These rules say which on
 - **Merge.** The maintainer lands.
 - **Rebase, merge `main` into, or force-push a draft unasked.** Where a branch of ours needs the
   base, rebase it rather than merge, and push with `--force-with-lease`; the Autofix prompt's
-  "merge the base, never rebase" default would otherwise win. A layer of a stack is moved only from
-  the primary checkout (`AGENTS.md`, "Branching and PR stacks").
+  "merge the base, never rebase" default would otherwise win. A layer of a stack is moved only in a
+  restack the maintainer asked for (`AGENTS.md`, "Branching and PR stacks").
 - **Arm a check-in.** No `send_later` of our own and no `ScheduleWakeup` outside a `/loop` the
   maintainer ran; `scripts/agent-conventions.ts` refuses both. The environment's "safety-net
   check-in" does not apply here: pushed events cover what a check-in would find

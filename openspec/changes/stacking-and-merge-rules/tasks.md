@@ -49,21 +49,25 @@
 
 ## 4. Dropping `gh stack`
 
-- [ ] 4.1 Rewrite `docs/pr-stacks.md` around the REST recipe and the git restack, with the ancestor
+- [x] 4.1 Rewrite `docs/pr-stacks.md` around the REST recipe and the git restack, with the ancestor
       test, the no-worktree condition and what is unmeasured; drop the `gh stack` table, the
       "Worktrees hold branches hostage" section and the landing section's `gh stack merge`, and say
-      that the maintainer lands. Verified by `grep -n 'gh stack\|stack-park' docs/pr-stacks.md`
-      printing nothing, and by running the restack recipe's commands once in a scratch repository
-      and the ancestor test passing on the result.
-- [ ] 4.2 Delete `scripts/stack-park.ts`. Verified by `npm run typecheck:scripts` exiting 0 and
+      that the maintainer lands. Verified by `grep -n 'gh stack\|stack-park' docs/pr-stacks.md` matching
+      only the sentence that says the extension is not used, and by running the trunk-moved recipe's
+      commands against a local bare `origin`: every adjacent pair an ancestor, one commit per layer,
+      and the three layers force-pushed in one command from a checkout of none of them.
+- [x] 4.2 Delete `scripts/stack-park.ts`. Verified by `npm run typecheck:scripts` exiting 0 and
       `grep -rn 'stack-park' . --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=archive`
       matching only this change's own files and the research notes.
-- [ ] 4.3 In `scripts/agent-setup.sh`, remove the `gh-stack` extension install and its note, and reword
+- [x] 4.3 In `scripts/agent-setup.sh`, remove the `gh-stack` extension install and its note, and reword
       the cloud message that says "no `gh stack` here" to say what the proxy refuses (`gh pr`,
       `gh repo`) and that stacks go through `gh api`; in `AGENTS.md`, "Agent files", drop the
       extension from the list of what the script installs. Verified by running the script in this
-      session and reading its notes, and `grep -rn 'gh-stack' scripts AGENTS.md .github` printing nothing.
-- [ ] 4.4 `docs/cloud-sessions.md`: the sentences that give a cloud session only the layer's own work and
+      session and reading its notes, and `grep -rn 'gh-stack\|gh stack' scripts AGENTS.md .github` matching only the merge rule's own
+      comments in `scripts/agent-conventions.ts`; run with `npm` and `apt-get` stubbed, as a cloud
+      session and outside the cloud, the script prints no extension note and the cloud note names the
+      stacks recipe.
+- [x] 4.4 `docs/cloud-sessions.md`: the sentences that give a cloud session only the layer's own work and
       say the setup script installs `gh` and not `gh-stack`. `docs/research/cloud-session-github-access.md`:
       the same sentence in the "`gh stack` from the cloud" section. Verified by
       `grep -rn "layer.s own work\|gh-stack" docs --include=*.md` matching only the research notes'
@@ -76,5 +80,6 @@
       in the lifecycle list by keeping #351's step 4 and this change's line in step 5. Verified by
       `git merge-tree --write-tree HEAD origin/main` exiting 0 on the result, and by re-reading the
       section.
-- [ ] 5.2 Run `npm run typecheck:scripts`, `npm run lint`, and
-      `openspec validate stacking-and-merge-rules --strict`. Verified by all three exiting 0.
+- [x] 5.2 Run `npm run typecheck:scripts`, `npm run lint`, and
+      `openspec validate stacking-and-merge-rules --strict`. Verified by all three exiting 0, after
+      `npm ci` replaced a `node_modules` that predated the lockfile.

@@ -241,7 +241,7 @@ of Claude Code's built-in `code-review`; so `independent-review` itself is linke
 the symlinks alone, rather than editing one by hand.
 
 `scripts/agent-setup.sh` is the one list of what an agent session needs — the project's
-dependencies, the OpenSpec CLI, the GitHub CLI, and outside the cloud its `gh-stack` extension. The `SessionStart`
+dependencies, the OpenSpec CLI and the GitHub CLI. The `SessionStart`
 hook in `.claude/settings.json` runs it and `copilot-setup-steps.yml` runs it with `--install`,
 so adding a tool means editing that script and nothing else. It installs only in a throwaway
 environment and reports what is missing everywhere else; a cloud environment's own half of the
