@@ -91,7 +91,7 @@
       `docs/research/independent-reviews.md`, "Deep and light on one brief": findings, shared
       themes, findings only one setting reached, findings shown wrong, time and tokens. What the
       round found about the skill itself is task 3.4.
-- [ ] 5.1 Run the skill as written on #280 (the maintainer's choice) as an implementation round,
+- [x] 5.1 Run the skill as written on #280 (the maintainer's choice) as an implementation round,
       deep (posted) and light (returned only) from one brief, after a note on #280, carrying the
       author marker, saying the review is coming and from where. Fixed before running: light holds
       for implementation mode if the Sonnet run reaches every CONFIRMED `p0`–`p2` finding of the

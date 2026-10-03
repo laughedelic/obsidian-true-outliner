@@ -263,6 +263,41 @@ review of round 2 (152 465 tokens, 346 s): most of a round's cost is reading the
 not its diff. One of its findings lay outside the diff, in a file new to the PR that no round had
 read.
 
+## Deep and light on code
+
+Round 2 of #280, an implementation review of a paste fix in `src/ops.ts` at `63149bf`, ran from one
+brief, deep (Opus, posted) and light (Sonnet, returned only). The pass condition, fixed before the
+runs, was that light reaches every CONFIRMED `p0`–`p2` finding of the deep run that the author
+confirms.
+
+| | Opus | Sonnet |
+| --- | --- | --- |
+| Wall time | 1 099 s | 1 786 s |
+| Subagent tokens | 195 537 | 230 956 |
+| Tool calls | 66 | 88 |
+| Findings | 4: 1 at `p2`, 3 at `p3`; all CONFIRMED | 4, all at `p3`; all CONFIRMED |
+
+The cases were run through `insertSubtrees` from two worktrees, `63149bf` and its merge base:
+
+- **Reached by both.** A paste that converges on `main` falls back on the branch, because a nested
+  node's own line keeps its offset from where its node was before the layout moved it. The deep
+  run ranked it `p2`, the light run `p3`. Both runs' smallest cases reproduce:
+  `- p` / `⏵- k` / `··⏵x` / `······> q` after `  1. b`, and `- p` / `⏵- n` / `····cont` /
+  `⏵··> q` after `- a`. Both runs also reached surviving mutations of the new rule, and the wrong
+  function named in the plan.
+- **Only the deep run.** A converted paste that regresses on one spelling, in 7 of 34 085 runs. The
+  author could not reproduce it from the finding's text, which leaves out the destination note.
+  Also a stale docstring in `src/reencode.ts`.
+- **Only the light run.** In a tab-indented note, a line kept in columns is spelled in spaces where
+  `main` wrote tabs (reproduced: `\t\t    text` against `\t\t\ttext`). Also four more surviving
+  mutations, and a sentence of the delta that reads wider than the code.
+
+So light passed the condition: it reached the one `p2` finding, though it ranked it a rung lower.
+On code it was neither cheaper nor faster than deep: it ran more of its own sweeps, which took more
+time and tokens. Taken with the proposal round, the two settings find most of the same things and
+each finds some the other does not; the lower cost of light is not borne out once the change has
+code to measure.
+
 ## Not measured
 
 - Whether a local session has a hook that reads `.claude/worktrees/` or `.scratch/`.

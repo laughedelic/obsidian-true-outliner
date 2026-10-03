@@ -77,8 +77,11 @@ On one brief, the plan of this change at round 2, both settings reached nine of 
 each found problems the other did not, Sonnet took about two thirds of Opus's time and slightly
 fewer tokens, and no finding of either was shown wrong (`docs/research/independent-reviews.md`,
 "Deep and light on one brief"). That is one run of each, in proposal mode, on a change with no
-code: it supports light where light is used and does not test it on code. Task 5.1 runs both on an
-implementation.
+code. On an implementation, #280, light reached the one `p2` finding deep reached, ranked a rung
+lower, and found a spelling regression deep did not; it took more time and tokens than deep,
+because it ran more sweeps of its own (`docs/research/independent-reviews.md`, "Deep and light on
+code"). So the settings differ in what they find more than in what they cost: light stays for the
+rounds it is named for, and its case rests on a second view, not on a saving.
 
 Alternatives considered:
 
@@ -400,4 +403,5 @@ Alternatives considered:
   does is not measured, and the ignore entry is harmless either way.
 - **Fix-type words live only in the skill.** If a later change defines them in
   `openspec/config.yaml`, the skill's sentence becomes a pointer.
-- **Light is supported by one run.** On one proposal brief; task 5.1 adds an implementation.
+- **Light is supported by two runs**, one proposal and one implementation, each a single run per
+  model, so neither separates the model from the variance between runs.
