@@ -8,10 +8,11 @@
 
 - [x] 2.1 Run the prompt with the trigger text `dry run` in a session barred from write tools, and
       record the run in `docs/research/triage-routine.md`. Verified by the run's own report: zero
-      writes, a table of 21 comments and one label change, and a list of what it left alone.
+      writes, a table of 22 comments and one label change, and a list of what it left alone.
 - [x] 2.2 Fold the ambiguities the run listed into the prompt, and run it again. Verified by the
       second run's table, whose rows are in the note. Negative control: the first run's table lacks the
-      four open-pull-request links and the #209 dependency that the revised wording adds.
+      four open-pull-request links and the #209 dependency that the revised wording adds, and the
+      second run's lacks #284 until a per-issue `blocked_by` read is in the prompt.
 - [x] 2.3 Check the run's rows against GitHub with read-only calls. Verified by the spot checks listed
       in the note.
 

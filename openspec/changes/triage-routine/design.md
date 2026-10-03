@@ -46,8 +46,8 @@ each cost one paged call. A first run is the exception, since its window holds m
 change, so an issue with a label change and a pull request link gets two. Whether to merge them into
 one line per issue is a question for review.
 
-**Dependencies come from the native `blocked_by` relationship and from `Blocked by` lines, and are
-only flagged.** The maintainer sets the relationship; the routine cannot write one, and a label for
+**Dependencies come from the native `blocked_by` relationship, read for every open issue, and from
+`Blocked by` lines, and are only flagged.** The maintainer sets the relationship; the routine cannot write one, and a label for
 "blocked" would have to be added to `labels.yml` first. A comment says what resolved and what still
 blocks.
 
@@ -60,7 +60,7 @@ and the real one, so what the maintainer reviews is what runs.
 
 ## Risks / Trade-offs
 
-- **A first run writes about twenty comments at once**, eight of them `Unblocked` notes on blockers that
+- **A first run writes about twenty comments at once**, nine of them `Unblocked` notes on blockers that
   closed days ago. They are accurate and the routine's later runs write one or two. The maintainer may
   prefer to run the first one as a dry run and write by hand what they want.
 - **The label write is unmeasured.** The prompt sends the whole resulting set so a replace and an
