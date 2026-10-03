@@ -53,9 +53,10 @@ proxy (`docs/research/cloud-session-github-access.md`). Take `{r}` to be
    window opens at 00:00Z seven days before the run's date, and the run is a first run.
 2. **The feed.** From the window's start, read:
    - `gh api '{r}/issues/comments?since=<start>&per_page=100'`, paged: every comment on an issue or
-     a pull request since then, from which a diagnosis, a re-measurement or a decision is read;
+     a pull request updated since then (the filter is on update time, so keep those whose
+     `created_at` is in the window), from which a diagnosis, a re-measurement or a decision is read;
    - `gh api '{r}/pulls?state=open&per_page=100'`: every open pull request, whatever its age, with
-     its number, draft flag and body;
+     its number, draft flag, base branch and body;
    - `gh api '{r}/pulls?state=closed&sort=updated&direction=desc&per_page=50'`, stopped once
      `updated_at` falls before the start: the pull requests that merged or closed in the window;
    - `gh api '{r}/issues?state=closed&since=<start>&per_page=100'`, pull requests excluded: the
@@ -69,7 +70,8 @@ proxy (`docs/research/cloud-session-github-access.md`). Take `{r}` to be
    - created since the window opened, or lacking a `kind/`, an `area/` or a `p0`-`p3` label;
    - commented on, by anyone but this routine, since the window opened;
    - named by a closing keyword (`Fixes`, `Closes`, `Resolves`) in the body of an open pull request;
-   - carrying a `needs/` label, when its comments or a pull request give a reason to drop it;
+   - carrying a `needs/` label and named by number in a feed comment or in the body of an open or
+     merged pull request already read;
    - blocked by an issue that closed, or a pull request that merged, in the window (below).
 
    An issue that is none of these is left unread. Only a first run reads many: every issue created in
@@ -80,7 +82,8 @@ proxy (`docs/research/cloud-session-github-access.md`). Take `{r}` to be
 Apply the `triage` skill's rungs and `needs/` meanings as written. Where it says to take the lower
 of two arguable rungs and say why, the comment says why.
 
-**New issue** (candidate by creation or by a missing axis). Add what is missing, so the issue ends
+**New issue** (candidate by creation or by a missing axis). Labels the issue already carries, the
+maintainer's included, are kept; add what is missing, so the issue ends
 with one `kind/`, at least one `area/`, one of `p0`-`p3`, and a `needs/` label when something stands
 between it and a start. Absent `needs/` is a judgement too: it says the next person can start. An
 issue with a drawn case and no named mechanism takes `needs/diagnosis`; one with no case,
@@ -88,7 +91,8 @@ issue with a drawn case and no named mechanism takes `needs/diagnosis`; one with
 alone for a month costs, from what the issue says, taking the lower rung when two are arguable.
 
 **A `needs/` label whose question was answered.** Drop it when, and only when:
-- `needs/repro`: a comment or the body holds a document, a gesture and a result;
+- `needs/repro`: a comment or the body holds a document, a gesture and a result, and does not say
+  the failure was not reproduced;
 - `needs/diagnosis`: a comment, or the body of a pull request or issue that names this one, states
   the mechanism, meaning the code or the behaviour that causes it;
 - `needs/decision`: the maintainer's own comment (one without the routine's marker) states the
@@ -102,7 +106,7 @@ A reason that is only a pull request's existence is not enough for `needs/diagno
 request's text must say what causes the defect. When the evidence is partial, leave the label and
 write no comment.
 
-**A priority change.** Only on new evidence: a comment since the label was set that records a
+**A priority change.** Only on new evidence: a comment created in the window that records a
 re-measured severity, a narrower reach than the issue claimed, or a fix that removes the cost. Name
 the comment. Never re-rank an issue from scratch, and never raise a rung without a recorded cause;
 a comment that argues for a higher rung but records nothing new is left as it is. A rate of
@@ -110,19 +114,22 @@ recurrence reported on a tooling issue ("failed in 2 of 5 runs") is listed in th
 question for the maintainer and does not move the rung.
 
 **A pull request.** When an open pull request names the issue after a closing keyword and no
-comment of the routine already links it, comment `Open PR #N (draft|ready) closes this.` When a pull
+comment of the routine already links it, comment `Open PR #N (draft|ready) closes this.`; when its base is not the default branch, `Open PR #N
+(draft|ready, base <branch>) closes this once it reaches the default branch.` When a pull
 request merged into a branch other than the default one names an issue that is still open, comment
 that the merge has not reached the default branch. A `Refs` or a bare mention is not a link. Every open pull request counts, not only those opened in
 the window.
 
 **A duplicate.** For an issue created since the window opened, read the open issues' titles from the
 list and, for a possible match, the match's body. Comment `Likely duplicate of #N: <the shared
-cause or the shared case, in a clause>` only when both describe the same failure or the same
-request; two issues in one area are not duplicates. The issue is not closed and no label is
+case, in a clause>` only when both describe the same failure, with the same gesture and the same
+result, or the same request; two issues in one area, or with one cause reached by different
+gestures, are not duplicates. The issue is not closed and no label is
 applied.
 
 **A dependency.** An issue's blockers are the numbers in the `Blocked by` or `Depends on` lines of
-its body and comments and those from `gh api '{r}/issues/<n>/dependencies/blocked_by'`. A line that
+its body and comments and those from `gh api '{r}/issues/<n>/dependencies/blocked_by'`. A task-list line in
+another issue (an umbrella's checklist) names that item's blockers, not the umbrella's. A line that
 blocks only part of an issue ("the second half is blocked by #N") and a prose line with no number
 name no blocker. A blocker is resolved when it is a closed issue or a merged pull request.
 
@@ -136,7 +143,13 @@ forms:
   is left;
 - `Unblocked: #A closed; still blocked by #B.` when blockers resolved in the window and others remain.
 
+A merged pull request reads `merged` where an issue reads `closed`.
+
 ## Not repeating
+
+A comment with no `<!-- agent:` marker is the maintainer's. One with a marker (`triage`, `author`,
+`reviewer`) is an agent's: its statements are evidence like any text on the issue, and none is a
+maintainer's decision.
 
 Before any comment, read the issue's earlier triage comments. A change already made, a flag already
 raised or a link already given is not made again, even when the window reaches it. A run that finds
