@@ -1,6 +1,6 @@
 ---
 type: "research"
-description: "What landing a PR costs, measured over the 84 PRs merged since 09-14 and the `Landed` runs since 09-25 (version collisions, red-by-design runs, the `landed.yml` skip race, what a strict up-to-date rule would cost), and the design: auto-merge as the one approval, a required `landed` deployment as the gate, and a `/land` skill that runs after it"
+description: "What landing a PR costs, measured over the 84 PRs merged since 09-14 and the `Landed` runs since 09-25 (version collisions, red-by-design runs, the `landed.yml` skip race, what a strict up-to-date rule would cost), and what each rule of the design in the `land-through-auto-merge` change would have done to them"
 ---
 
 # Landing as a command
@@ -8,9 +8,10 @@ description: "What landing a PR costs, measured over the 84 PRs merged since 09-
 Landing a PR — archive its OpenSpec change, sync the delta specs, bump the version, run
 `scripts/check-landed.ts` — costs a cycle on almost every PR and collides between PRs that land
 together. Issue #338 asks for a `/land` skill, a lock between concurrent landings and a view of
-what moves into a workflow. This note holds the measurements, the design they led to, and what we
-could not measure. A first version proposed a lock; review replaced it with auto-merge as the one
-approval, and the measurements that decided that stay here. Measured on 2026-10-03 from a cloud session, with REST reads
+what moves into a workflow. This note holds the measurements and what we could not measure; the
+proposal, design and tasks are the OpenSpec change `land-through-auto-merge`, which cites it. A
+first version proposed a lock; review replaced it with auto-merge as the one approval, and the
+measurements that decided that stay here. Measured on 2026-10-03 from a cloud session, with REST reads
 only: the 84 PRs merged since 2026-09-14, the 480 runs of `landed.yml` since it started on
 2026-09-25 (115 with logs read), and the repository's ruleset.
 
@@ -120,110 +121,11 @@ That is 18 of 84. A full CI run takes 7.2 minutes at the median, 9.1 at p90 and 
 (68 successful PR runs), so the ruleset's strict setting would have cost about that much on
 each of them.
 
-## Proposal
+## Replaying the last weeks against the rules
 
-**One gesture: the maintainer enables auto-merge.** It is the approval, the moment the squash
-message is read, and the trigger for landing. Everything after it is the session's work and the
-workflow's check; GitHub merges when the last requirement is met.
+The rules are the ones in `openspec/changes/land-through-auto-merge/design.md`: landing after
+approval, a required deployment as the gate, strict off, and a freshness rule for PRs that land.
 
-```
-maintainer   enables auto-merge (reads the squash message here)
-   │
-   ▼
-`Landed`     runs because auto-merge is set; the PR has not landed → fails → wakes the session
-   │
-   ▼
-session      /land: rebase, archive, sync, bump, check, final code↔spec review, push
-   │
-   ▼
-CI + `Landed` the push re-runs both; `Landed` passes → the `landed` deployment succeeds
-   │
-   ▼
-GitHub       every requirement is met → squash-merges
-```
-
-### The gate: a required deployment
-
-The `Protect main` ruleset gains a requirement that a deployment to the environment `landed`
-succeeds. `landed.yml`'s job declares `environment: landed` and carries
-`if: github.event.pull_request.auto_merge != null`. A job that the `if` skips creates no
-deployment, so a PR without auto-merge has nothing to satisfy the requirement and cannot merge.
-A required *check* would behave the opposite way: a skipped job passes it, which is why the check
-itself stays outside the ruleset.
-
-- Drafts cannot enable auto-merge, so the `if` covers them; no separate draft rule is needed.
-- A PR that has nothing to land (dependency updates, chores, tooling) still takes the gesture.
-  `check-landed.ts` passes at once for it, the deployment succeeds, and GitHub merges.
-- Strict (up to date with `main`) stays off, so a run of dependency updates merges without a
-  rebase and a CI rerun on each.
-- The workflow's triggers gain `auto_merge_enabled`, so enabling auto-merge starts a run. It
-  keeps cancelling in-progress runs per PR: a push supersedes whatever the older run would say.
-- Auto-merge stays enabled across the session's push, which is made as the maintainer.
-
-### What `check-landed.ts` checks
-
-Today's rules, with the base changed from the event's snapshot to a fresh `origin/main`, plus:
-
-- **The version is above `main`'s**, at least the bump the kind and paths call for.
-- **A PR that has something to land contains the `main` tip** when the check runs. This is the
-  freshness a strict ruleset would have given landing PRs, without charging it to the rest.
-
-### `/land`, step by step
-
-A skill, `.agents/skills/land/`, with the usual symlinks. A failed `Landed` on a PR with
-auto-merge set wakes the session; the maintainer can also run `/land` by hand.
-
-1. **Rebase** onto the fresh `origin/main`; push with `--force-with-lease` once, at the end. A
-   conflict stops the skill and shows it, spec conflicts first.
-2. **Archive** each OpenSpec change the PR opened, and **sync** its deltas into the main specs.
-3. **Bump** with `npm version <minor|patch>` against the fresh `main`: a feature takes a minor,
-   a fix a patch, anything else none. `npm version` writes the four files and no tag.
-4. **Check** with `node scripts/check-landed.ts origin/main "<title>"`.
-5. **Review** the synced specs against the implementation and the tests the `Covered by` lines
-   name. A disagreement stops the skill before the push: it reports on the PR and leaves
-   `Landed` red, so the PR waits with auto-merge still set. The review uses the independent-review
-   skill (#337) once that exists.
-6. **Push**, then report the version, the archived changes and the requirements the sync touched.
-
-The skill never merges and never touches auto-merge. The `PreToolUse` guard added in #352
-(`scripts/agent-conventions.ts`) already refuses `merge_pull_request`, `enable_pr_auto_merge`,
-`gh pr merge`, `gh stack merge` and a write to a merge or auto-merge route. It does not name
-`disable_pr_auto_merge`, which this design adds: allowing a disable and not an enable would need a
-rule about intent, and a session that finds a concern simply does not finish landing.
-
-### What this accepts
-
-- **A duplicate bump can still merge.** Strict is off, so two PRs landed against the same
-  `main` and approved close together can both bump to the same version, and the second releases
-  nothing. The window is one CI run (7 to 11 minutes) from a landing push to its merge. We accept
-  the occasional missed release while the project is in active development, and there is no
-  post-merge audit.
-- **A stale event can block a PR.** `auto_merge` in the payload is read when the event is
-  generated. A push whose payload predates the approval can skip, and cancel the run the approval
-  started. No deployment follows, so the PR is blocked, not merged; the next push or a re-run
-  clears it.
-- **The squash message is read before the landing commits exist.** They are mechanical, and a
-  custom message set when enabling auto-merge does not mention them.
-- **Stacked PRs are not covered.** GitHub offers no auto-merge on them, even on the layer
-  targeting `main`, so they cannot satisfy the requirement and `/land` refuses a PR whose base is
-  not `main`. We do not document the ruleset's bypass as a way to land them. Branch stacking, for
-  work whose code depends on another branch, stays; whether PR stacking keeps its place waits on
-  how this works.
-
-### Alternatives and what decided them
-
-| Option | Why not |
-| --- | --- |
-| A lock between landings: a label as the claim, an order from its events, a lapse | The first proposal. Landing after approval shortens the window the lock guarded from a median of 12 minutes (longest 68 hours) to one CI run, and the measured collisions would each have needed the lapse to expire before the lock helped |
-| Strict on for every PR | Atomic, but it would have blocked 18 of 84 merges for about 7 minutes each, 6 of 12 dependency updates among them |
-| A required check in place of a deployment | A job skipped by its `if`, or by the skip race measured above, passes a required check |
-| A job that cancels its own run when auto-merge is off | Ends as `cancelled`, not `neutral`; not tried |
-| A job on `push` to `main` that re-evaluates PRs with auto-merge set | Covers only the minutes between a PR going green and a merge that moved `main`; with strict off and a missed release accepted, it adds a workflow and a token question for nothing |
-| A post-merge audit for a feat or fix that left the version unchanged | A missed release is not a problem at this stage |
-| The bump made by a workflow | A commit authored with the default token starts no workflow, so the required checks would be missing on the new head |
-| A merge queue | Unavailable on a personal repository |
-
-## Replaying the last weeks against the design
 
 | Rule | Where it would have collided |
 | --- | --- |
@@ -241,18 +143,5 @@ rule about intent, and a session that finds a concern simply does not finish lan
   unmet. The maintainer has used a required deployment this way before; we did not probe it.
 - That a failed check on a PR with auto-merge set wakes a subscribed session. Check results wake
   sessions in general; this case was not observed.
-
-## What the implementation carries
-
-- `.github/workflows/landed.yml`: `environment: landed`, the `auto_merge` condition, the
-  `auto_merge_enabled` trigger, the fresh base.
-- `scripts/check-landed.ts`: the fresh base, the version rule, the freshness rule for PRs that land.
-- `.agents/skills/land/` and its two symlinks.
-- `scripts/agent-conventions.ts`: `mcp__github__disable_pr_auto_merge` joins the refused tools,
-  with a test beside those for the others.
-- CLAUDE.md "Change lifecycle", step 5 (the sequence becomes: enable auto-merge, `/land`, merge
-  on green), the steward skill's lines on merging and on rewriting a branch, and the
-  Bugfix routine's step 8 in #348.
-- The ruleset change is the maintainer's, and it goes last: the requirement is added once the
-  workflow is on `main`, since a PR that predates it carries the old workflow until its branch is
-  updated.
+- That a stale `auto_merge` in an event payload can cancel the run an approval started. The skip race
+  above shows stale payloads skip; the cancelling is inferred from the concurrency setting.
