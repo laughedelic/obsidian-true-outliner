@@ -1,3 +1,9 @@
+---
+type: "research"
+title: "What PR watching costs, and what the hook can see"
+description: "What PR watching costs a session and what a hook can see of it: the environment's built-in check-in rule, the `initiation` values of `send_later`, 100 reminders read from the account (77 set 60–61 minutes out, past the prompt cache), the matcher that does not yet reach the tool, and what is still unmeasured"
+---
+
 # What PR watching costs, and what the hook can see
 
 A session that opens or watches a PR is woken by CI results, review comments and the echoes of its

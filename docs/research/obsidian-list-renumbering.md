@@ -1,3 +1,9 @@
+---
+type: "research"
+title: "Obsidian's live list renumbering"
+description: "Obsidian's \"Smart lists\" transaction filter: how it measures a list level in tabs and four-space groups, so a three-column nested ordered item reads as its parent's sibling; the structural and typing gestures where it renumbers a list the edit never touched; that it runs before our default-precedence filters and after a `Prec.highest` one; the plugin dispatches it reaches (#252); and the shape of the ranges it appends to a user edit (#260)"
+---
+
 # Obsidian's live list renumbering
 
 Measured 26 September 2026 on Obsidian 1.13.7 (desktop, Linux), through the e2e harness, on

@@ -1,3 +1,9 @@
+---
+type: "research"
+title: "Hot files: where concurrent PRs collide, and which splits would stop it"
+description: "Where concurrently open PRs actually collide in the most-churned files: a per-region heatmap, co-change between the modules a split would create, and a simulated rebase of every overlapping PR pair. Most conflicts turn out to be two PRs editing the same code — chiefly the decoration pipeline's two consumers — and only a few sit at append points a feature-owned file would remove. The seams that follow from that, the git mechanics that constrain a move (squash-only merges, what `blame -C` does and does not follow), and their order against open work"
+---
+
 # Hot files: where concurrent PRs collide, and which splits would stop it
 
 Measured 2026-09-12 against `main` at `3e994a5` — its whole first-parent history, 115 commits

@@ -1,3 +1,9 @@
+---
+type: "research"
+title: "The marker a converted node is written with"
+description: "The marker a node converted into a list item is written with, and why a literal `-` was not cosmetic: CommonMark starts a new list wherever the bullet character changes, so a converted heading arriving in a `*` run took it from one rendered list to three — measured with `commonmark`, 2 lists to 4 and back to 2. The two rules that already read a destination's surroundings for a reparented node's kind and heading level, the third regime that was not reading them, ten measured shapes including the ordered donor that has to hand over its number for the arrival's children to land at the right column, the boundary between an arrival and a conversion, and what the change costs the split-numbering layer below it"
+---
+
 # The marker a converted node is written with
 
 A node converted into a list item on its way to a destination — a heading landing in a list

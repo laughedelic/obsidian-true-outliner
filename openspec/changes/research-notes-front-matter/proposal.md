@@ -10,10 +10,10 @@ the notes (#340;
 ## What Changes
 
 - **Front matter on every note** under `docs/research/`, `README.md` included, following the Open
-  Knowledge Format v0.2: `type` (`research-note`; `research-overview` for the README), `title` taken
+  Knowledge Format v0.2: `type: research` (the same value on every file, the README included), `title` taken
   from the note's H1, and `description` taken verbatim from the note's current index row.
-- **`docs/research/index.md` is deleted**, with its `merge=union` line in `.gitattributes` and
-  `scripts/check-research-index.ts`.
+- **`docs/research/index.md` is deleted**, with `.gitattributes` (which held only its
+  `merge=union` line) and `scripts/check-research-index.ts`.
 - **A new lint**, `scripts/check-research-front-matter.ts`, replaces the old one in `npm run lint`:
   every `.md` file under `docs/research/` opens with a parseable front-matter block whose `type` is a
   non-empty string.

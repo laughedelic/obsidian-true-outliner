@@ -1,3 +1,9 @@
+---
+type: "research"
+title: "Open Questions & Decisions"
+description: "Decisions that need alignment before any planning/spec work"
+---
+
 # Open Questions & Decisions
 
 Alignment log for pre-planning decisions. ✅ = decided, ❓ = open.

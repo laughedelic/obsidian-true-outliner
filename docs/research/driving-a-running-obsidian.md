@@ -1,3 +1,9 @@
+---
+type: "research"
+title: "Driving a running Obsidian"
+description: "One Obsidian kept running and driven over the DevTools protocol, measured for a driver skill: start and stop, which keys reach the plugin, the caret blink a screenshot has to outwait, and the rebuild-and-reload loop"
+---
+
 # Driving a running Obsidian
 
 What one long-lived Obsidian, driven over the DevTools protocol, costs and where it misleads. It

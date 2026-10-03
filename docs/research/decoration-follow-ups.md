@@ -1,3 +1,9 @@
+---
+type: "research"
+title: "Decoration follow-ups: deferred ideas and known gaps"
+description: "**Parking lot** for decoration work deliberately deferred: diagnosed gaps, mechanisms that work but have better shapes known, and design ideas. Items land here with enough diagnosis that picking one up later needs no re-discovery"
+---
+
 # Decoration follow-ups: deferred ideas and known gaps
 
 A parking lot for decoration-related improvements we have deliberately chosen **not** to

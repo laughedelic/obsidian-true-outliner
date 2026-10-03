@@ -1,3 +1,9 @@
+---
+type: "research"
+title: "A refused command is invisible: the S1 op-sequence flake"
+description: "Why a refused structural command is invisible to the e2e harness (`executeCommandById` reports that the command RAN, and the operation declines inside it with a Notice), the blind spot that gives a differential assertion — an operation refused in BOTH halves compares two identical wrong answers and passes — and the reproduction table behind an unexplained CI flake in S1's op sequence, left open rather than closed with the most available story"
+---
+
 # A refused command is invisible: the S1 op-sequence flake
 
 Why `70-footer-enforcement`'s structural-operation case failed on CI's mobile matrix and passed

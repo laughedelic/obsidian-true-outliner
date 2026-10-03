@@ -1,3 +1,9 @@
+---
+type: "research"
+title: "Block-selection chrome on a list-item root: where its left edge went"
+description: "Why a block selection rooted at a nested list item reached the view edge over every guide: the emitted left-edge variable measured against the spec's one-level-out rule, the list-item branch that anchored every root to the top of its list rather than to its own depth, the grid change that retired that branch's premise, and the one formula that replaces it"
+---
+
 # Block-selection chrome on a list-item root: where its left edge went
 
 Measured 12 September 2026 against `ebac7e7`, Obsidian 1.13 under the e2e harness.

@@ -1,3 +1,9 @@
+---
+type: "research"
+title: "Native list decoration: how Obsidian draws lists, and what we can own"
+description: "How Obsidian actually computes list geometry in Live Preview (public CSS variables, the `.cm-indent` quantizer, the cached hanging-indent measurement), what a measurement pass validated about retargeting it onto our own decoration grid, and the phased plan for bringing list decoration up to the level of the other kinds"
+---
+
 # Native list decoration: how Obsidian draws lists, and what we can own
 
 Research and measurement pass for the parking lot's **"native list decoration experiments"**

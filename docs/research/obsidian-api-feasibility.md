@@ -1,3 +1,9 @@
+---
+type: "research"
+title: "Obsidian API Feasibility"
+description: "Can the experience be built on public APIs only? Architecture options, guidelines/scorecard constraints, verdict"
+---
+
 # Obsidian API Feasibility
 
 The core question: **can a true-outliner experience be built with public plugin APIs only —

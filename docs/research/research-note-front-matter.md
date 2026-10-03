@@ -1,5 +1,5 @@
 ---
-type: "research-note"
+type: "research"
 title: "Front matter on research notes, in place of the index"
 description: "What the research index costs and returns, what the Open Knowledge Format asks of a note, and a dry run of converting every note: the figures behind replacing `docs/research/index.md` with front matter"
 ---
@@ -40,7 +40,8 @@ Read from `SPEC.md` in `GoogleCloudPlatform/open-knowledge-format` (v0.2; the co
 - Conformance is every non-reserved `.md` file having parseable front matter with a `type`.
   Consumers must not reject a bundle for unknown keys or missing optional fields.
 
-`docs/research/README.md` is a non-reserved `.md` file, so it takes front matter as well.
+`docs/research/README.md` is a non-reserved `.md` file, so it takes front matter as well. We use
+`type: research` on every file, the README included, since OKF leaves the values free.
 
 ## Dry run
 
@@ -61,5 +62,6 @@ against `main` at `fc7ca4d`:
 The rows are paragraphs, not the one sentence OKF describes. Taking them verbatim keeps the
 information the index carried; shortening them is a separate editorial pass.
 
-Not measured: how Obsidian's Properties view renders a 1000-character `description`, and whether
-anything in the plugin's own tooling globs `docs/research/*.md` and would read the new block.
+Obsidian's Properties view, checked by the maintainer on the sample note, does not render bold
+markup in a `description` and truncates a long one, with most of it still visible. Nothing in
+`scripts/`, `src/`, `tests/` or the workflows reads `docs/research/*.md` apart from the lint.

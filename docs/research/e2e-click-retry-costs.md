@@ -1,3 +1,9 @@
+---
+type: "research"
+title: "What a refused click costs in the e2e harness"
+description: "What a refused click costs in the e2e harness: why an intercepted click is not retried (four attempts sit on the mocha timeout, and WebdriverIO already re-clicks without waiting), and the probe showing the obstruction behind the CI flake was the phone drawer simply open rather than chrome passing through"
+---
+
 # What a refused click costs in the e2e harness
 
 Measured 2026-09-08, macOS, Obsidian v1.13.7 (installer v1.5.8), chrome 120.0.6099.283,

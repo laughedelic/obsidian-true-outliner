@@ -1,3 +1,9 @@
+---
+type: "research"
+title: "Telling which seams an operation created"
+description: "Which seams an operation created, answered six ways for `created-seams-are-separated`: today's parse-minimal rule, a per-reader kind table, node-id pairs, id pairs with lineage and a kind clause, a line diff, per-operation marking, and the edit site; what each review found against each, with the failing cases drawn, the comparison, and the questions a different review could re-open"
+---
+
 # Telling which seams an operation created
 
 `created-seams-are-separated` writes one blank line at every seam an operation creates outside a list

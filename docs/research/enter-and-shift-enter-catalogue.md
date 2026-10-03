@@ -1,3 +1,9 @@
+---
+type: "research"
+title: "Enter / Shift+Enter: measured behavior catalogue"
+description: "Measured catalogue of Enter / Shift+Enter across 49 cursor positions, the ten defects it found, and what the `enter-and-shift-enter-grammar` change did with each. A **pre-change** record: read the specs for current behavior"
+---
+
 # Enter / Shift+Enter: measured behavior catalogue
 
 Date: 2026-08-06. Produced for the `enter-and-shift-enter-grammar` change.

@@ -1,3 +1,9 @@
+---
+type: "research"
+title: "The Outliner Landscape"
+description: "What a \"true outliner\" is: the reference apps, the catalog of defining behaviors, lessons (good and bad) from each app"
+---
+
 # The Outliner Landscape
 
 ## What an outliner is (and is not)

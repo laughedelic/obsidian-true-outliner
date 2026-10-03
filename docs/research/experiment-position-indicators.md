@@ -1,3 +1,9 @@
+---
+type: "research"
+title: "Experiment: position indicators (current node + ancestor trail)"
+description: "Experiment: showing where the cursor sits in the outline — guide and marker highlighting, the axes they split on, and what real use settled"
+---
+
 # Experiment: position indicators (current node + ancestor trail)
 
 Findings behind the `hierarchy-position-indicators` change: an accent on the node the caret

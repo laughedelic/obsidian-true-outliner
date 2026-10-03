@@ -1,3 +1,9 @@
+---
+type: "research"
+title: "Folding mechanics: what Obsidian's fold actually is, measured before designing on it"
+description: "`better-folding-ux`'s gate: what Obsidian's folding actually is, measured against a real instance — that it is CodeMirror's own fold state behind an open `foldService` facet, that a provider buys the native chevron and per-file persistence for free, and that a structural operation destroys the fold on the subtree it moves, an indent included. Two first readings that re-measurement overturned are kept in place, marked, with what replaced them; a third question — what Obsidian's own fold settings do — is recorded as unresolved, with the contradictory readings that condemned the instrument. Companion mockups: [fold-marker-mockup.html](fold-marker-mockup.html), the folded-marker treatments and the guide-click hit band, and [fold-count-mockup.html](fold-count-mockup.html), seven ways to spend less on the hidden-descendant count — both drawn at real geometry"
+---
+
 # Folding mechanics: what Obsidian's fold actually is, measured before designing on it
 
 `better-folding-ux` rests on one question the design cannot answer by reasoning: is Obsidian's

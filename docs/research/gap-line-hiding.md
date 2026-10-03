@@ -1,3 +1,9 @@
+---
+type: "research"
+title: "Hiding gap lines: the mechanism, and what the outline gives up to do it"
+description: "The `hideGapLines` setting's gate: why a collapsed row is a line decoration rather than the zoom's block replacement, what the collapse measures against a real instance (heights, CodeMirror's height map, the seams, the footer), the two-generator measurement showing the caret's own row can never be one, and the three things the outline stops being able to say — a multi-blank gap, the loose/tight distinction, and a sibling pair against a wrapped node"
+---
+
 # Hiding gap lines: the mechanism, and what the outline gives up to do it
 
 A blank line between two blocks is a node's `trailingGap` (`model.ts`) — owned by the node above

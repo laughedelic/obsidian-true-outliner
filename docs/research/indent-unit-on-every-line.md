@@ -1,3 +1,9 @@
+---
+type: "research"
+title: "The indent unit on every line a node owns"
+description: "Why an indent in a tab-indented vault wrote a tab on a node's first line and spaces on every line below it: the two writers and the one that knew the unit, the prefix swap `reindentSubtreeVerbatim` already made for a paste, the three places the swap is not taken and why each would move a line or put a space before a tab, and a 690-row differential against `main` in which 21 rows change text, all toward one indentation, with no verdict or tree shape changed"
+---
+
 # The indent unit on every line a node owns
 
 An indent in a tab-indented vault wrote a node's first line with a tab and every line below it

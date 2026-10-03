@@ -32,8 +32,8 @@ them, because a note's heading is its own to reword.
 **The block is a double-quoted scalar per key.** 64 of the 70 rows contain a character that a plain
 scalar mishandles, so one quoting rule avoids deciding per row.
 
-**`type` is `research-note`, and `research-overview` for `README.md`.** OKF leaves values free. A
-second value for the README keeps it distinguishable from a note without adding a field.
+**`type` is `research` on every file, `README.md` included.** OKF leaves values free, and one
+short value needs no rule for which file takes which.
 
 **The lint parses with `yaml`**, already a dependency, rather than matching `^type:`. A block that
 does not parse is the failure the check is for, and a regular expression would pass `type: ` with
@@ -46,5 +46,6 @@ nothing after it.
 
 - **Parallel PRs that add a note and an index row** conflict with the deletion. Rebase them and
   drop the row; the conflict is one file and the fix is mechanical.
-- **Properties view in Obsidian** shows the block for anyone who opens the notes in a vault. A long
-  `description` may render poorly; this is unmeasured and the sample PR is where to look.
+- **Properties view in Obsidian** shows the block for anyone who opens the notes in a vault. The
+  maintainer looked at the sample: bold markup in a `description` does not render and a long one is
+  truncated, but most of it is visible.

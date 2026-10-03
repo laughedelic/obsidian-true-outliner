@@ -1,3 +1,9 @@
+---
+type: "research"
+title: "What a cloud session can reach on GitHub"
+description: "What a Claude cloud session can reach on GitHub — pushes to any branch, REST only, no GraphQL, no renames or deletes — measured to place the branch-name and PR-attribution conventions in hooks rather than CI, with the `gh` and `gh stack` install paths that do and do not work behind the session proxy"
+---
+
 # What a cloud session can reach on GitHub
 
 Why agent sessions kept breaking two conventions — branch names and attribution-free PR

@@ -1,3 +1,9 @@
+---
+type: "research"
+title: "Which Obsidian the e2e suite runs on, and what a running app says about itself"
+description: "Which installer, Electron and Chrome the e2e suite runs on and what `earliest` resolves to, a sweep of eight specs under Chrome 120 and 150, what a running app can say about its own versions through APIs the plugin may use, and the version-bump prefix the change takes"
+---
+
 # Which Obsidian the e2e suite runs on, and what a running app says about itself
 
 Measured on 2026-09-28 in a Claude cloud session (Linux x64, Xvfb, 4 vCPUs, `E2E_MAX_INSTANCES=2`)

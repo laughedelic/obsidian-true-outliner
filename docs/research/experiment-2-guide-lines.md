@@ -1,3 +1,9 @@
+---
+type: "research"
+title: "Experiment 2: guide lines — 2a vs. 2b head to head (2026-07-13)"
+description: "Experiment 2: guide lines — 2a (pixel-measured overlay) vs. 2b (CSS stacked-gradient) head to head. **2b chosen**"
+---
+
 # Experiment 2: guide lines — 2a vs. 2b head to head (2026-07-13)
 
 Part of the decoration-experiments series — see the

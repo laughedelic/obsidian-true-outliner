@@ -1,3 +1,9 @@
+---
+type: "research"
+title: "The marker-to-text gap: one measurement pass, and the gutter derived from it"
+description: "The one measurement pass behind `--to-marker-gutter`: what each qualifying mark's ink actually reaches, why a multi-digit ordered number is excluded, the floor the one-space sizing rules already imposed on the stated gap, the argument for the gap that was chosen, and the three stale-value defects the derivation exposed"
+---
+
 # The marker-to-text gap: one measurement pass, and the gutter derived from it
 
 `--to-marker-gutter` is the distance between a depth's column and the start of that depth's

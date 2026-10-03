@@ -1,3 +1,9 @@
+---
+type: "research"
+title: "Drawn cases in both directions: what the tracker holds, what the app returns"
+description: "What the tracker's 208 drawn cases carry and lack, what reading a drawing back and drawing the editor's state cost in a running spec, how 29 of those drawings ran unchanged in the real app on desktop and mobile emulation, and how many of the existing e2e cases are just state and keys, and what the open bugs' drawings do as case files that wait on a fix: which shapes run, which fail for a reason other than the one drawn, and where a report can go"
+---
+
 # Drawn cases in both directions: what the tracker holds, what the app returns
 
 What a drawn case (`.agents/skills/presenting-examples/SKILL.md`) can carry into a run, what a
