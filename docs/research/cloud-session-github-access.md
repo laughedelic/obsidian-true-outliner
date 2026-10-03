@@ -110,11 +110,39 @@ shows `base_ref_force_pushed` on 09-29 and `merged` on 10-02. So the proxy lets 
 whose base is another branch, and the base was not left on the lower branch for #267 by the time it
 merged. What moved it was not examined.
 
-Whether `gh stack init` adopts such a PR is **not measured here**: this session had no `gh stack`
-(`gh stack` is an unknown command and `POST /graphql` returns 403, as above), and the measurement
-needs the primary checkout. The plan is in
-[`openspec/changes/stacking-and-merge-rules/design.md`](../../openspec/changes/stacking-and-merge-rules/design.md),
-"Measurement plan"; its output lands in this section.
+Stacks themselves are REST. The `gh-stack` release binary reads PRs through GraphQL, which is why
+every `gh stack` command fails here, but its stack operations are four REST routes (found with
+`strings` on the `linux-amd64` asset of the `latest` release, downloaded on 2026-10-03, whose build
+info reads `github.com/github/gh-stack v0.2.0`): `GET` and `POST /repos/{o}/{r}/stacks`,
+`POST /repos/{o}/{r}/stacks/{n}/add` and `POST /repos/{o}/{r}/stacks/{n}/unstack`. The proxy allows
+them. Measured on 2026-10-03 from a cloud session, with #351 (a draft on `main`) as the lower layer
+and this change's own PR #352 as the upper:
+
+| Step | Request | Result |
+| --- | --- | --- |
+| list | `GET /repos/{o}/{r}/stacks` | 200: 18 stacks, 3 open, each with its PRs in order, bottom first |
+| repoint | MCP `update_pull_request`, #352 `base` = `chore/review-skill` | #352's `base.ref` reads back as `chore/review-skill` |
+| create | `POST /repos/{o}/{r}/stacks`, body `{"pull_requests":[351,352]}` | 201, stack 354, `open: true`, #351 then #352, `Location` header the stack's URL |
+| look | the maintainer, in the PR UI | the stack appears on both PRs |
+| unstack | `POST /repos/{o}/{r}/stacks/354/unstack` | 204; `GET …/stacks/354` is then 404 |
+| restore | MCP `update_pull_request`, #352 `base` = `main` | both PRs read back with base `main`, still draft |
+
+So a cloud session creates a real stack: a registered one that GitHub shows as a stack, not two PRs
+whose bases happen to chain. The PRs are named by number and nothing is adopted: the request needs
+no local `gh stack` state, and the PRs here were plain PRs opened outside `gh stack`.
+
+Stacks that exist already are consistent with that. #267 was created at 04:20:01 on 09-27 and stack
+268 (#264, #267) at 04:21:59; #190 on 09-21 and stack 191 (#189, #190) the same day. The listing
+does not say who made them.
+
+Not measured:
+
+- whether `POST /stacks` refuses a lower and an upper PR whose bases do not chain (the base was
+  repointed before the request);
+- whether the order of `pull_requests` is read bottom to top or checked (it was sent bottom to top);
+- `POST /stacks/{n}/add`;
+- `gh stack init` adopting a plain PR, and `gh stack link`, which resolves PRs through GraphQL and is
+  expected to fail here.
 
 The file-level stacking test against a merge, on two open PRs that both branch off `main`
 (`git merge-tree --write-tree --name-only`, git 2.43.0, 2026-10-03):

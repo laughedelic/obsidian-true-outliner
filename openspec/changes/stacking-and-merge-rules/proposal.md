@@ -28,17 +28,19 @@ away or undone over the September sessions (#339, a sub-issue of #334):
   branch adds, or when `git merge-tree` against it conflicts; a shared file with disjoint hunks is not
   a reason. The PR still states the reading.
 - **The stacked-PR sentence** in the same section, in the cloud-session paragraph: a cloud session
-  opens a stacked PR with `create_pull_request` and `base` set to the lower layer's branch;
-  registering it with `gh stack`, restacking and landing wait for the primary checkout. **This wording
-  is provisional until the measurement in task 1 is made**, and if `gh stack init` does not adopt such
-  a PR, the sentence says what adoption needs instead.
+  opens each layer's PR with `create_pull_request`, the upper's `base` set to the lower layer's branch,
+  and creates the stack with `POST /repos/{o}/{r}/stacks` through `gh api`; it never needs `gh stack`
+  for that. Restacking and landing wait for the primary checkout. The measurement is recorded
+  ([`cloud-session-github-access`](../../../docs/research/cloud-session-github-access.md), "A stacked
+  PR from a cloud session"): the stacks API is REST, and a stack of two open PRs was created from a
+  cloud session, seen in the UI and unstacked again.
 - **One line in "Change lifecycle", step 5**: agents prepare landing and never merge; the maintainer
   merges.
 - **The same statements wherever they repeat**: `docs/pr-stacks.md`, `docs/cloud-sessions.md`, and the
   sentence in `docs/research/cloud-session-github-access.md` that gives a cloud session "the layer's
   own work only".
-- **A measured section** in `docs/research/cloud-session-github-access.md`: whether `gh stack init`
-  adopts a PR opened outside `gh stack`, and what `submit` does with it.
+- **A measured section** in `docs/research/cloud-session-github-access.md`: the stacks API from a
+  cloud session, with what is still unmeasured.
 
 ## Non-goals
 

@@ -26,46 +26,36 @@ onto the other one (`gh stack`, from the primary checkout). The version files ar
 at landing, so two of them always conflict there, and that conflict is the cost of unstacked work that
 the rule already accepts.
 
-**A cloud session opens a stacked PR with `create_pull_request` and `base` set to the lower layer's
-branch.** `#190` and `#267` are PRs of this shape, read back with REST on 2026-10-03: `#190`'s `base.ref`
-is `fix/a-split-run-keeps-its-own-numbers` and it is recorded merged; `#267`'s is `main` now. What the
-primary checkout then does with such a PR is the measurement in task 1. Both outcomes are planned for:
+**A cloud session creates a stack itself, through the REST stacks API.** `gh stack` cannot run in the
+cloud, but its stack operations are REST and the proxy allows them
+([`cloud-session-github-access`](../../../docs/research/cloud-session-github-access.md), "A stacked PR
+from a cloud session"). The wording, in the cloud-session paragraph: open each layer's PR with
+`create_pull_request`, the upper's `base` the lower layer's branch, then
+`POST /repos/{o}/{r}/stacks` with `{"pull_requests":[<bottom>, …, <top>]}` through `gh api`;
+restacking and landing wait for the primary checkout, since a restack rewrites layers other sessions
+sit on and `docs/pr-stacks.md` runs it there. The recipe itself, with the unstack call, goes in
+`docs/pr-stacks.md`, which is where the stack operations are listed. The measurement closed the issue's
+question differently from its two expected outcomes: there is no adoption step, because the request
+names the PRs.
 
-| `gh stack init` … | the sentence says |
-| --- | --- |
-| adopts the PR (the stack lists its number, and `submit` updates it) | as the issue words it: a cloud session opens it with `base` set to the lower branch; registering it with `gh stack`, restacking and landing wait for the primary checkout |
-| does not (it lists the layer without the PR, or `submit` opens a second one) | what adoption needs, as measured, and whether a cloud session should open the PR at all or leave the layer for the primary checkout |
-
-The provisional wording in the first row is not written into `AGENTS.md` until the measurement is
-recorded.
+What the measurement left open stays out of the wording: whether the API checks that the bases chain,
+and the PR order it expects, are stated as "as measured: bottom to top, bases chained first".
 
 **The lifecycle line names the subject, in step 5.** "Then squash-merge" becomes the maintainer
 squash-merging after the agent has prepared landing. The rule is stated once there; the `steward` skill
 already says "Never merge" for the PR-event path and is left as it is.
 
-## Measurement plan (task 1)
+## Measurement (task 1, done)
 
-It needs the primary checkout, where `gh stack` runs (0.1.1 and newer). It uses two throwaway branches
-and two throwaway draft PRs on this repository, closed and deleted afterwards; a scratch repository is
-the alternative if the maintainer prefers one. Steps:
-
-1. Record `gh stack init --help` and `gh stack submit --help`, since the adoption flags are not
-   documented in `docs/pr-stacks.md`.
-2. Push `scratch/stack-lower` (off `main`) and `scratch/stack-upper` (off the lower), one file each.
-   Open both PRs with `gh api` as plain PRs: the lower on `main`, the upper with `base` the lower
-   branch. This is the call a cloud session makes through `create_pull_request`.
-3. `gh stack init` adopting both. Record whether it accepts the branches, and what
-   `gh stack view --json` lists: the PR numbers, or none.
-4. `gh stack submit --auto`. Record whether it updates the two PRs or opens new ones, and what
-   GitHub shows on them afterwards (the PR's own fields and its timeline).
-5. Control: the same two branches with no PRs, to separate what `init` records from what adoption adds.
-6. Close the PRs, delete the two branches, and remove the stack the control recorded.
-
-Each step's command and output goes into the research note verbatim.
+Made from the cloud session itself, on #351 and this PR, and recorded in the research note: list,
+repoint, `POST /stacks`, the maintainer's look in the UI, `POST /stacks/{n}/unstack`, restore. The
+stacks API was found by reading the `gh-stack` release binary, whose PR reads are GraphQL and whose
+stack operations are REST. Unmeasured, and listed there: whether the bases must chain, the order the
+list is read in, `/stacks/{n}/add`, `gh stack init` adopting a plain PR, and `gh stack link`.
 
 ## Risks
 
-- **The measurement shows something the issue did not expect.** The design has the second row of the
-  table for that.
+- **The API is undocumented.** The routes come from a release binary, not from GitHub's REST reference, so a
+  later version can move them. The recipe names the `gh-stack` version it was read from, v0.2.0.
 - **A merge-tree test run on a stale `<other>`.** The command starts from
   `git fetch origin <other>`, as the existing listing of open PRs implies.
