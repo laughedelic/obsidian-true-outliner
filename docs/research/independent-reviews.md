@@ -159,7 +159,17 @@ each, and `resolve_review_thread` resolved all 16. The session's own proxy refus
 Each of the 16 replies came back to the author's session as an event of its own; a reply to an
 existing thread is a single REST call, with no batched form.
 
+## An agent definition through a symlink
+
+In a worktree at `4b0f335`, with two probe definitions under `.claude/agents/`, one a plain file
+and one a symlink to `.agents/skills/probe-skill/agents/zz-probe-linked.md`, `claude -p` (Claude
+Code 2.1.288) asked to list its agent types starting `zz-probe`, without naming them, printed
+`zz-probe-linked` and `zz-probe-plain`. Claude Code's documentation names symlinks for skill
+directories and is silent on agent files.
+
 ## Not measured
+
+- Whether Copilot follows a symlink in `.github/agents/`.
 
 - Whether a local session has a hook that reads either.
 - A sweep through an operation (`finalize` and the ops that call it), which is what #264's own
