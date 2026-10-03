@@ -22,7 +22,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Bash|mcp__github__.*",
+        "matcher": "Bash|mcp__github__.*|mcp__claude-code-remote__send_later|ScheduleWakeup",
         "hooks": [
           {
             "type": "command",
