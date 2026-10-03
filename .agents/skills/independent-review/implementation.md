@@ -37,11 +37,11 @@ entry point over the same inputs on both sides, and writes counts and one exampl
 difference. `tests/generators.ts` and `docs/research/prototypes/` hold inputs to start from.
 
 ```ts
-// .claude/worktrees/review-<pr>-head/.scratch/sweep.test.ts
+// .claude/worktrees/review-<pr>-r<round>-head/.scratch/sweep.test.ts
 import { test } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import * as head from '../src/ops';
-import * as base from '../../review-<pr>-base/src/ops';
+import * as base from '../../review-<pr>-r<round>-base/src/ops';
 // …the same for parse, encode and model, from each tree
 
 test('sweep', () => {

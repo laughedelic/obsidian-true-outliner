@@ -73,10 +73,12 @@ model:
 
 ```bash
 git fetch origin <base branch> <branch>
-git worktree add --detach .claude/worktrees/review-<pr>-head <sha>
-git worktree add --detach .claude/worktrees/review-<pr>-base <merge base>
+git worktree add --detach .claude/worktrees/review-<pr>-r<round>-head <sha>
+git worktree add --detach .claude/worktrees/review-<pr>-r<round>-base <merge base>
 ```
 
+- Two reviews of one round can run at once (a deep and a light one): when the path exists, add a
+  suffix to both names.
 - They find `node_modules` through the primary checkout. When the change touches `package.json`
   or `package-lock.json`, run `npm ci` in each before running anything in it.
 - **Probes go in the head worktree's `.scratch/`**, which git ignores. It is the only place a test
