@@ -81,8 +81,8 @@ adding `git worktree add --detach .claude/worktrees/probe origin/main` and a pro
 
 So while a reviewer's worktree exists, the author's `npm test` runs every unit test twice and
 runs the reviewer's probes, and the author's checkout carries an untracked directory. A cloud
-session's stop hook acts on it: with the first proposal review of #351 running in
-`.claude/worktrees/review-337-head`, the author's turn ended on "There are untracked files in the
+session's stop hook acts on it: while the first proposal review of #351 ran in
+`.claude/worktrees/review-337-head`, the hook stopped the author session's turn with "There are untracked files in the
 repository. Please commit and push these changes to the remote branch", and `git status
 --porcelain` held only `?? .claude/worktrees/`. An entry for the path in `.git/info/exclude`
 cleared it. ESLint is run on `src` and `tests`
@@ -186,9 +186,43 @@ Code 2.1.288) asked to list its agent types starting `zz-probe`, without naming 
 `zz-probe-linked` and `zz-probe-plain`. Claude Code's documentation names symlinks for skill
 directories and is silent on agent files.
 
+## Deep and light on one brief
+
+Proposal round 2 of #351 ran twice from one brief, on the plan at `658fc92`: once with `model:
+opus`, posting its review, and once with `model: sonnet`, returning only. Both were
+`general-purpose` subagents of one session and inherited its effort; the Sonnet run reported that
+its prompt set a low reasoning effort, and the Opus run's effort was not reported.
+
+| | Opus | Sonnet |
+| --- | --- | --- |
+| Wall time | 525 s | 346 s |
+| Subagent tokens | 179 020 | 152 465 |
+| Tool calls | 60 | 32 |
+| Findings | 11: 6 at `p2`, 5 at `p3`; 10 CONFIRMED, 1 PLAUSIBLE | 10: 6 at `p2`, 4 at `p3`; 8 CONFIRMED, 2 PLAUSIBLE |
+| Shown wrong by the author | none | none |
+
+Nine themes were reached by both: the convergence rule's clauses disagreeing on #246 and #274; the
+question before round 3 not stopping #267's loop; the brief carrying the diagnosis; a return-only
+check leaving no record of its rejections; the markers unknown to `steward`; the deep and light
+scenarios overlapping; tasks 5.1 and 5.2 unable to fail; the artifacts out of step with each
+other; and "Do not modify" contradicting the workspace recipe.
+
+Only the Opus run found that a return-only check of unpushed work could not run as the design
+read, that the "recorded" disposition left defects in resolved threads against AGENTS.md's
+follow-up rule, and that the session's effort goes unrecorded. It also brought evidence the Sonnet
+run did not: the v2 Bugfix prompt's re-review rule and #348's "bent twice", and #267's step-back
+naming its method rather than its rule. Only the Sonnet run found that a case file hands the
+reviewer the author's `expected`, that task 5.2 named the wrong commit, that the brief did not say
+which tree the skill is read from, that "ready point" was undefined, and four lapses from
+AGENTS.md's conventions in the committed prose. Its reading of the round-1 reply footers was half
+right: the author session wrote them, as the cloud environment's instructions then said, so they
+say nothing about what the MCP tools append.
+
+This is one run of each, in proposal mode, on a change with no code, so it cannot separate the
+model from the variance between two runs of one model.
+
 ## Not measured
 
-
-- Whether a local session has a hook that reads either.
-- A sweep through an operation (`finalize` and the ops that call it), which is what #264's own
-  review ran; the recipe is the same with a different entry point and generator.
+- Whether a local session has a hook that reads `.claude/worktrees/` or `.scratch/`.
+- What a round limited to one response's diff costs, on either setting.
+- Whether Copilot's code review reads `.github/skills/code-review/SKILL.md`.

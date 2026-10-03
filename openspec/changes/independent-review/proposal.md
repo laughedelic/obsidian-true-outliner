@@ -13,8 +13,7 @@ routine's next revision (#348) depends on it.
 
 ## What Changes
 
-- **A skill**, `.agents/skills/independent-review/`, with symlinks in `.claude/skills/` and
-  `.github/skills/`. `SKILL.md` carries what every review shares: when one runs, the brief, the
+- **A skill**, `.agents/skills/independent-review/`, with a symlink in `.claude/skills/`. `SKILL.md` carries what every review shares: when one runs, the brief, the
   reviewer's workspace, the form of a finding, how the author verifies and records findings, and
   the rounds. Two files behind pointers carry the modes, since a review runs one of them:
   - `proposal.md`: what a reviewer of a plan, a design or an OpenSpec change checks.
@@ -26,16 +25,24 @@ routine's next revision (#348) depends on it.
 
   The reviewer posts its findings as a GitHub review on the PR, with inline comments where a
   finding belongs to a line, and the author answers each thread with its disposition and resolves
-  it. Each round is then its own review on the PR's timeline.
-- **A pointer** in `AGENTS.md` (`CLAUDE.md` is a symlink to it): step 4 of "Change lifecycle"
-  names the skill, and says when the reviews are done.
+  it. Each round is then its own review on the PR's timeline. A return-only check, between ready
+  points, returns its findings instead and is recorded in the PR description. Every comment a
+  session posts carries a role marker in place of an attribution footer.
+- **Copilot's review gets the checks**: `.github/skills/code-review/SKILL.md` points it at the
+  two mode files and the form of a finding, and tells it to start no agent of its own.
+- **`steward` reads the role markers**: one rule saying how a woken session treats a reviewer's
+  comment, an author's comment and an unmarked one.
+- **Pointers** in `AGENTS.md` (`CLAUDE.md` is a symlink to it): step 4 of "Change lifecycle"
+  names the skill and says when the reviews are done, and "Agent files" names the Copilot pointer
+  as the one skill that is not a link into `.agents/skills/`.
 - **The reviewer's worktree stays out of the author's way.** `.gitignore` gains
   `/.claude/worktrees/` and `/.scratch/`, and `vitest.config.ts` excludes `.claude/worktrees/**`.
   A worktree there shows as untracked in the primary checkout, and while one exists the
   primary checkout's `npm test` collects every unit test twice, plus whatever probe the
-  reviewer wrote (`independent-reviews`, "The reviewer's worktree").
+  reviewer wrote (`docs/research/independent-reviews.md`, "The reviewer's worktree").
 - **A research note**, `docs/research/independent-reviews.md`, and its row in the index: the
-  survey of the review sections in the PRs, and the worktree and sweep measurements above.
+  survey of the review sections in the PRs, the worktree and sweep measurements above, and the
+  comparison of the deep and light settings.
 
 ## The name
 
@@ -57,10 +64,10 @@ skill. Alternatives considered:
   that reaches a ready point; the routine that wires it in is #348.
 - **Replacing the maintainer's review or manual testing.** A review round is evidence for the
   maintainer, not an approval, and agents never merge.
-- **A fixed number of rounds.** The loop ends when a round brings no significant finding and
-  no significant change (#337, "Iteration").
-- **Copilot's review.** It stopped reviewing after #251, and nothing here depends on it. Its
-  form, a review with inline comments, is the one this skill's reviewer posts.
+- **A fixed number of rounds.** The loop ends when a round converges (design, "Rounds converge")
+  (#337, "Iteration").
+- **Depending on Copilot's review.** It stopped reviewing after #251. The pointer gives it the
+  same checks if it reviews again; nothing here waits on it.
 - **A brief generator script.** The brief is a short template filled from the PR; what makes it
   good is what it leaves out, which a script cannot judge.
 - **Reviews of research notes and docs-only PRs.** The modes are written for changes to the
@@ -81,9 +88,11 @@ declares `skip_specs: true`.
 
 ## Impact
 
-- `.agents/skills/independent-review/` (`SKILL.md`, `proposal.md`, `implementation.md`) and two
-  symlinks.
-- `AGENTS.md`: step 4 of "Change lifecycle".
+- `.agents/skills/independent-review/` (`SKILL.md`, `proposal.md`, `implementation.md`) and its
+  symlink in `.claude/skills/`.
+- `.github/skills/code-review/SKILL.md`.
+- `.agents/skills/steward/SKILL.md`: one rule on the role markers.
+- `AGENTS.md`: step 4 of "Change lifecycle", and a sentence in "Agent files".
 - `.gitignore`, `vitest.config.ts`: one entry each.
 - `docs/research/independent-reviews.md` and its row in `docs/research/index.md`.
 - No `src/` or `styles/` change, so no version bump.

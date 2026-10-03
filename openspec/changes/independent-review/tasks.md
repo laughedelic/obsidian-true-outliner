@@ -12,7 +12,7 @@
 ## 2. The worktree side effects
 
 - [x] 2.1 Add `/.claude/worktrees/` and `/.scratch/` to `.gitignore`, with a comment saying what
-      each holds, and remove the `/.claude/worktrees/` line this session added to
+      each holds, and remove the `/.claude/worktrees/` line a session added to
       `.git/info/exclude`. Verified by `git worktree add --detach .claude/worktrees/probe` at the
       branch head and a file in its `.scratch/`, after which `git check-ignore -v
       .claude/worktrees/probe` and, inside the probe, `git check-ignore -v .scratch/x` each name a
@@ -42,7 +42,7 @@
       `--help` or another skill already carries.
 - [x] 3.2 Write `proposal.md` and `implementation.md` beside it, each a list of checks that
       ends on what the reviewer reports, from the design's "What the modes check". The sweep
-      recipe in `implementation.md` is the one measured in `independent-reviews`. Verified by
+      recipe in `implementation.md` is the one measured in `docs/research/independent-reviews.md`. Verified by
       running the recipe as written, from a fresh worktree pair, on #264's merge commit against
       its parent, through an entry point that reaches #264's change (an operation that calls
       `finalize`), and getting a nonzero count of differences that the run sorts into intended,
@@ -50,34 +50,59 @@
       sweep through `parse` alone gives 0, as the note records, and the recipe's own check (a
       deliberate change on one side) turns that 0 into a failure to report rather than a
       result.
-- [x] 3.3 Add `.claude/skills/independent-review` and `.github/skills/independent-review` as
-      symlinks to `../../.agents/skills/independent-review`. Verified by `ls -L` reading
-      `SKILL.md` through both.
+- [x] 3.3 Add `.claude/skills/independent-review` as a symlink to
+      `../../.agents/skills/independent-review`. Verified by `ls -L` reading `SKILL.md` through it.
+- [ ] 3.4 Fold proposal round 2 into the skill (design as revised for it): the brief's fields
+      (no diagnosis, even as a claim; the reproduction as a case file's `before` and keys; the
+      skill's files by their path in the author's checkout; "Do not modify" as tracked files and
+      branches; where the findings go); "When" with ready points defined and return-only checks of
+      any commit, pushed or not; deep at the first review of a ready point, light for return-only
+      checks and for a round limited to the last response's diff, and the effort recorded beside
+      the model; the `agent:` marker on every comment a session posts; the five dispositions, with
+      a defect outside the change filed; the record written with `update_pull_request`, a
+      return-only check's line included; and "Rounds" as the design now states it, once the
+      maintainer has chosen at the step-back. Verified by a reading against the design, each
+      decision mapped to a passage, and by `grep -c "agent:" .agents/skills/independent-review/SKILL.md`
+      finding the marker in the posting and the answering steps.
+- [x] 3.5 Add `.github/skills/code-review/SKILL.md`, pointing Copilot's code review at
+      `proposal.md` or `implementation.md` by what the PR changes and at the order and the form
+      of a finding, and telling it to start no agent, create no worktree and post no second
+      review; remove the `.github/skills/independent-review` link. Verified by each of its three
+      links resolving from the file's directory. Whether Copilot reads it is unmeasured while
+      Copilot does not review this repository.
+- [ ] 3.6 Add the role markers to `.agents/skills/steward/SKILL.md`: a woken session reads a
+      comment opening `<!-- agent: reviewer` as a review to answer when it is the author, one
+      opening `<!-- agent: author -->` that it posted as an echo, and an unmarked one as the
+      maintainer's. Verified by `grep -n "agent:" .agents/skills/steward/SKILL.md`.
 
 ## 4. The pointer
 
 - [x] 4.1 In `AGENTS.md`, step 4 of "Change lifecycle" names the skill and says the reviews are
-      done when the response to a round makes no significant change. Verified by
-      `grep independent-review AGENTS.md` and by `CLAUDE.md` showing it through the symlink.
+      done when a round converges, before manual testing; "Agent files" names the Copilot
+      pointer. Verified by `grep independent-review AGENTS.md` and by `CLAUDE.md` showing it
+      through the symlink.
 
 ## 5. A real review
 
-- [ ] 5.1 Run an implementation review with the skill, as written, on #280 (the maintainer's
-      choice), through to the posted review, and link it from this PR. Before posting,
-      say on that PR that the review is coming and from where, so the session that owns it reads
-      the events as a review to answer. Verified by the brief, quoted in this PR, holding only the
-      template's fields, and by the review reaching a finding an earlier review on that PR
-      recorded, or saying why it did not. Anything the skill left the session to work out is
-      fixed in the skill before this task closes.
-- [ ] 5.2 Run a proposal review with the skill, as written, on this change's own plan as it
-      stands before the skill was written (the last commit before group 3, the maintainer's
-      suggestion), as this change's second proposal round, and post it on this PR. The same brief
-      runs twice: deep (Opus, posting) and light (Sonnet, returning only, so the PR gets one
-      review). Verified by the brief holding only the template's fields, and by the comparison
-      recorded in `docs/research/independent-reviews.md`: for each setting, the findings, how
-      many the author confirmed, how many were wrong, the time and the tokens, and which findings
-      only one setting reached. The skill's two scenarios are adjusted to that, and what the
-      round finds about the skill itself is fixed in it before this task closes.
+- [x] 5.2 Run the skill's proposal mode on the plan of `independent-review` as it stood before any of the
+      skill was written (`658fc92`, the last commit before group 2, the maintainer's suggestion),
+      as proposal round 2, deep (Opus, posted) and light (Sonnet, returned only) from one brief.
+      Verified by the brief holding only the template's fields, and by the comparison recorded in
+      `docs/research/independent-reviews.md`, "Deep and light on one brief": findings, shared
+      themes, findings only one setting reached, findings shown wrong, time and tokens. What the
+      round found about the skill itself is task 3.4.
+- [ ] 5.1 Run the skill as written on #280 (the maintainer's choice) as an implementation round,
+      deep (posted) and light (returned only) from one brief, after a note on #280, carrying the
+      author marker, saying the review is coming and from where. Fixed before running: light holds
+      for implementation mode if the Sonnet run reaches every CONFIRMED `p0`–`p2` finding of the
+      Opus run that the author confirms. Verified by the brief holding only the template's fields,
+      by the author's verification of every finding of both runs (confirmed, wrong, unmeasured), and
+      by the result recorded in `docs/research/independent-reviews.md`; if light does not hold, the
+      skill's light scenario narrows before this task closes.
+- [ ] 5.3 After task 3.4, run the round the convergence rule asks for: light, limited to the diff
+      of the response to round 2. Verified by its findings being answered on the PR like any
+      other round's, and by the round's time and tokens in the note, the first measure of what a
+      limited light round costs.
 
 ## 6. Check the change as a whole
 
