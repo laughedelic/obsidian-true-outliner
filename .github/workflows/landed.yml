@@ -1,30 +1,41 @@
 name: Landed
 
-# A pull request marked ready has been landed on its branch: its OpenSpec change
-# archived with the delta specs synced, and the version bumped when it ships
-# behaviour. `scripts/check-landed.ts` says what each of those reads.
+# The gate on merging a pull request. The maintainer enables auto-merge to approve one; this job
+# then checks that it has landed on its branch (its OpenSpec change archived with the delta specs
+# synced, the version above `main`'s) and, when it has, deploys to the `landing-zone` environment.
+# The `Protect main` ruleset requires a successful deployment there, and `Landed` itself is not a
+# required check: a required check passes when its job is skipped, while a job skipped by the `if`
+# below creates no deployment, so a pull request without auto-merge has nothing to satisfy the
+# requirement and cannot merge. A draft cannot enable auto-merge, so the same `if` covers drafts.
 #
-# Its own workflow rather than a job in CI, because it has to run on events CI
-# ignores: `ready_for_review` is the moment it starts to apply, and `edited`
-# carries a new title, which is where the kind comes from. Adding those to CI
-# would start the whole e2e matrix on every retitle. A draft skips the job, and
-# a skipped job counts as passing wherever the check is required.
+# `scripts/check-landed.ts` says what each rule reads. It is given the tip of `main` as it is when
+# the job runs, and not the event's `base.sha`, which is the base when the event was generated.
+#
+# Its own workflow rather than a job in CI, because it has to run on events CI ignores:
+# `auto_merge_enabled` starts the check and `edited` carries a new title, which is where the kind
+# comes from. Adding those to CI would start the whole e2e matrix on every retitle.
+#
+# The `auto_merge` field is read from the event, which is a snapshot: a push generated just before
+# the approval can skip and cancel the run the approval started. The pull request is then blocked,
+# not merged, and the next push or a re-run clears it.
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, edited]
+    types: [opened, synchronize, reopened, edited, auto_merge_enabled]
 
 permissions:
   contents: read
 
+# A push supersedes whatever an older run would say.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
   landed:
-    if: ${{ !github.event.pull_request.draft }}
+    if: ${{ github.event.pull_request.auto_merge != null }}
     runs-on: ubuntu-slim
+    environment: landing-zone
     steps:
       - uses: actions/checkout@v7
         with:
@@ -37,6 +48,7 @@ jobs:
       - run: npm install -g @fission-ai/openspec@1.13.1
 
       - env:
-          BASE: ${{ github.event.pull_request.base.sha }}
           TITLE: ${{ github.event.pull_request.title }}
-        run: node scripts/check-landed.ts "$BASE" "$TITLE"
+        run: |
+          git fetch --no-tags origin main
+          node scripts/check-landed.ts "$(git rev-parse origin/main)" "$TITLE"

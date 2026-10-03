@@ -98,14 +98,21 @@ Planning and implementation share one PR, in this order:
    maintainer reviews it, the implementation at each checkpoint pushed for review. Rounds run until
    one converges (the skill's "Rounds"); then iterate until manual testing passes, its fixes
    reviewed like any other response, and the head to be marked ready gets the last deep review.
-5. **Land.** Validate, sync the delta specs, archive the change, and bump the version — all on the
-   branch, before merging. Then the maintainer squash-merges: an agent prepares landing, reports and
-   stops, and never merges, by any route. A hook refuses the direct forms — `gh pr merge`, a `gh api`
-   write to a merge route, the GitHub MCP merge tools (`scripts/agent-conventions.ts`) — as a guard
-   behind this rule, not a sandbox. CI releases from `main` when `manifest.json` moves.
-   The `Landed` check holds a ready PR to this: no change it opened left unarchived, each one it
-   archived finished and synced, and a `feat` or `fix` that touches `src/` or `styles/` carrying a
-   minor or patch bump (`scripts/check-landed.ts`).
+5. **Land.** The maintainer enables auto-merge on the PR, reading the squash message as they do:
+   it is the one approval, and it starts landing. The `Landed` check then runs, finds a PR that has
+   something to land and has not landed, and fails, which wakes the session. The session follows the
+   `land` skill — rebase onto `main`, archive and sync the change, bump the version, run the check,
+   review the specs against the code, push — and GitHub merges when every requirement is met, a
+   successful deployment to `landing-zone` among them (`.github/workflows/landed.yml`). An agent
+   never merges, and never enables or disables auto-merge, by any route. A hook refuses the direct
+   forms — `gh pr merge`, a `gh api` write to a merge route, the GitHub MCP merge and auto-merge
+   tools (`scripts/agent-conventions.ts`) — as a guard behind this rule, not a sandbox. CI releases
+   from `main` when `manifest.json` moves.
+   `Landed` holds a PR to this: no change it opened left unarchived, each one it archived finished
+   and synced, a `feat` or `fix` that touches `src/` or `styles/` carrying a minor or patch bump
+   above `main`'s, and a PR that has something to land containing the tip of `main`
+   (`scripts/check-landed.ts`). A PR with nothing to land passes at once. A stacked PR cannot take
+   auto-merge, so the gate does not cover one.
 
 `npm version <patch|minor>` rewrites `manifest.json` and `versions.json` and deliberately creates
 no tag: the release is cut from the squashed merge commit, which no local tag can name.

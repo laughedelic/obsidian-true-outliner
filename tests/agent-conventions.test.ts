@@ -44,6 +44,7 @@ function decide(cwd: string, payload: Record<string, unknown>): Decision {
 const MERGE: Row[] = [
   ['MCP merge_pull_request', tool('mcp__github__merge_pull_request', { pullNumber: 1 }), 'deny'],
   ['MCP enable_pr_auto_merge', tool('mcp__github__enable_pr_auto_merge', { pullNumber: 1 }), 'deny'],
+  ['MCP disable_pr_auto_merge', tool('mcp__github__disable_pr_auto_merge', { pullNumber: 1 }), 'deny'],
   ['gh pr merge 12 --squash', bash('gh pr merge 12 --squash'), 'deny'],
   ['gh -R o/r pr merge 12', bash('gh -R laughedelic/obsidian-true-outliner pr merge 12'), 'deny'],
   ['gh --repo o/r pr merge 12', bash('gh --repo o/r pr merge 12'), 'deny'],
@@ -117,7 +118,6 @@ const MERGE: Row[] = [
   ['a commit message with an operator', bash("git commit -m 'x && gh pr merge 1'"), 'allow'],
   ['a comment that mentions a merge', bash('gh issue comment 1 -b "pr merge"'), 'allow'],
   ['MCP update_pull_request_branch', tool('mcp__github__update_pull_request_branch', { pullNumber: 1 }), 'allow'],
-  ['MCP disable_pr_auto_merge', tool('mcp__github__disable_pr_auto_merge', { pullNumber: 1 }), 'allow'],
 ];
 
 const LEXER: Row[] = [
