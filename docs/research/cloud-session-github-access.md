@@ -94,6 +94,37 @@ push, open and edit a PR through the MCP tools or `gh api`, read CI. Stack surge
 primary checkout, where CLAUDE.md already put it for a different reason. The session hook now
 says so at start, so a session does not find out one failed command at a time.
 
+## A stacked PR from a cloud session
+
+CLAUDE.md read "Opening a stacked PR, restacking, and landing wait for the primary checkout" as
+"a cloud session cannot open a stacked PR" in three Bugfix runs, which skipped #136 on it. What
+the remote holds, read back with REST on 2026-10-03 from a cloud session:
+
+| PR | `base.ref` | state | opened from |
+| --- | --- | --- | --- |
+| #190 | `fix/a-split-run-keeps-its-own-numbers` | merged, `merge_commit` `1baf963` | a cloud session, with the GitHub tools |
+| #267 | `main` | merged, `merge_commit` `5b41621` | a cloud session; its base was `fix/promoted-paragraph-seam` |
+
+`GET /repos/{o}/{r}/issues/{n}/timeline` lists no `base_ref_changed` event for either; #267's
+shows `base_ref_force_pushed` on 09-29 and `merged` on 10-02. So the proxy lets a session open a PR
+whose base is another branch, and the base was not left on the lower branch for #267 by the time it
+merged. What moved it was not examined.
+
+Whether `gh stack init` adopts such a PR is **not measured here**: this session had no `gh stack`
+(`gh stack` is an unknown command and `POST /graphql` returns 403, as above), and the measurement
+needs the primary checkout. The plan is in
+[`openspec/changes/stacking-and-merge-rules/design.md`](../../openspec/changes/stacking-and-merge-rules/design.md),
+"Measurement plan"; its output lands in this section.
+
+The file-level stacking test against a merge, on two open PRs that both branch off `main`
+(`git merge-tree --write-tree --name-only`, git 2.43.0, 2026-10-03):
+
+| Pair | Files in common (`git diff --name-only main...`) | `merge-tree` |
+| --- | --- | --- |
+| #274 `fix/empty-heading-level-shift`, #270 `fix/verbatim-swap-tab-guard` | `src/ops.ts`, `src/reencode.ts` | exit 0, a tree, no conflicts |
+
+The file test says stack; the merge says the two are independent.
+
 ## Why hooks, and not a CI check or a rename after the fact
 
 Three places could hold the branch convention; only one is early enough.
