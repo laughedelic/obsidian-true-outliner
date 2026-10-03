@@ -21,10 +21,8 @@ routine's next revision (#348) depends on it.
   - `implementation.md`: what a reviewer of a partial or complete implementation checks, with
     the recipe for a differential sweep against `main`.
 
-  The reviewer is an agent definition inside the skill,
-  `agents/independent-reviewer.md`, linked as `.claude/agents/independent-reviewer.md` and
-  `.github/agents/independent-reviewer.agent.md`: it carries the reviewer's model and effort and
-  preloads the skill, which holds the rules.
+  The reviewer is a `general-purpose` subagent started with the brief, on Opus for a deep review
+  or Sonnet for a light one, chosen per call.
 
   The reviewer posts its findings as a GitHub review on the PR, with inline comments where a
   finding belongs to a line, and the author answers each thread with its disposition and resolves
@@ -83,9 +81,8 @@ declares `skip_specs: true`.
 
 ## Impact
 
-- `.agents/skills/independent-review/` (`SKILL.md`, `proposal.md`, `implementation.md`,
-  `agents/independent-reviewer.md`) and four symlinks (`.claude/skills/`, `.github/skills/`,
-  `.claude/agents/`, `.github/agents/`).
+- `.agents/skills/independent-review/` (`SKILL.md`, `proposal.md`, `implementation.md`) and two
+  symlinks.
 - `AGENTS.md`: step 4 of "Change lifecycle".
 - `.gitignore`, `vitest.config.ts`: one entry each.
 - `docs/research/independent-reviews.md` and its row in `docs/research/index.md`.

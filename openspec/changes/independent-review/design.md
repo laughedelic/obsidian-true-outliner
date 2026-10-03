@@ -43,48 +43,37 @@ file to read, so the pointer cannot misfire. Alternatives considered:
 - *One file.* About 250 lines, of which a reviewer needs half. The mode checks are flat lists of
   peers, and a list that long buries the author's steps above it.
 
-### The skill speaks to the author, and an agent definition is the reviewer
+### The skill speaks to the author; the reviewer is started with a brief and a model
 
-The two halves reach an agent in different ways. A **skill** is loaded into the context of the
-agent that is already running, which keeps its own system prompt, model and tools. An **agent
-definition** under `.claude/agents/` is a separate agent type: its file's body becomes the
-subagent's whole system prompt, in place of Claude Code's, and its frontmatter sets the model,
-the reasoning effort, the tools and the skills preloaded at start. A session starts one with the
-Agent tool's `subagent_type`. Effort can be set only there, or inherited from the session; the
-model can also be chosen per call (Claude Code's subagent and skill documentation).
+The description triggers on the author's moments: a proposal or an implementation is ready, the
+user asks for a review or a second opinion. The reviewer is a `general-purpose` subagent started
+with the brief, which names the skill's files it reads by path, so a reviewer started any other way
+(another session, another harness) reads the same rules.
 
-So the author's half is the skill, and the reviewer is an agent definition that lives inside it:
+**Deep or light is the model, chosen per call.** The Agent tool takes a `model` per call;
+reasoning effort is set only in an agent definition under `.claude/agents/` or inherited from the
+session (Claude Code's subagent documentation). The skill names two settings, both at the
+session's effort:
 
-- `.agents/skills/independent-review/SKILL.md`: the description triggers on the author's moments
-  (a proposal or an implementation is ready, the user asks for a review or a second opinion).
-- `.agents/skills/independent-review/agents/independent-reviewer.md`: frontmatter for the model
-  and effort, `skills: [independent-review]` so the shared rules are preloaded, and a body of a few
-  lines: the reviewer's role, that its instructions are the skill's reviewer section and the mode
-  file the brief names, and what it returns. Everything else stays in the skill, so the definition
-  holds settings, not a second copy of the rules.
-- Symlinks put the definition where each tool looks: `.claude/agents/independent-reviewer.md`
-  and `.github/agents/independent-reviewer.agent.md`, as `.claude/skills/` and `.github/skills/`
-  already point into `.agents/skills/`. Claude Code loads an agent definition through a symlink
-  (`independent-reviews`, "An agent definition through a symlink"). Copilot reads custom agents
-  from `.github/agents/*.agent.md`; whether it follows a symlink there is not measured.
+- **Deep**, on Opus: every review at a ready point, and any round whose brief carries a new
+  mechanism or rule.
+- **Light**, on Sonnet: a return-only check, and a later round whose brief is limited to code the
+  last round's response added.
 
-The brief still names the skill's files by path, so a reviewer started any other way (a
-`general-purpose` subagent, another session, Copilot) reads the same rules.
-
-Copilot's code review reads skills from `.github/skills`, where this one is already linked, and
-uses one "when relevant", more often when its directory has a review-focused name (GitHub's
-Copilot code review documentation). So the reviewer's half may also guide Copilot's review when
-it runs again. That is a side effect we do not depend on.
+Task 5.2 measures the two on the same brief, and the skill's scenarios are set from that.
 
 Alternatives considered:
 
+- *An agent definition per setting*, holding the model and the effort, linked into
+  `.claude/agents/` from inside the skill. Claude Code loads one through a symlink
+  (`independent-reviews`, "An agent definition through a symlink"). It is the only way to fix the
+  effort, and it takes one file per combination of model and effort; with the model chosen per
+  call, two settings need none.
+- *Copilot through a custom agent* in `.github/agents/`. Copilot's code review reads skills from
+  `.github/skills`, where this skill is already linked, and offers there its own
+  `code-review/SKILL.md` for review instructions; it does not need an agent definition.
 - *A skill with `context: fork`*, which runs its own content in a subagent. The author would then
   not have the author's half in its context, and the brief would have to travel as arguments.
-- *The reviewer's rules in the agent definition's body.* The rules would then reach only a
-  Claude Code subagent started by that type, and a `general-purpose` reviewer or Copilot would
-  need a second copy.
-- *Two definitions now*, one per mode, to differ in effort. Nothing measured says the modes need
-  different settings; task 5.2 measures it first.
 
 ### The brief is a template of facts and claims
 
@@ -221,7 +210,8 @@ as the review it asked for, not as new requests, and its own replies come back a
 (16 for the first review's threads), which it skips.
 
 **Roles are marked.** The reviewer's comments and the author's replies post under the same
-account, the maintainer's, and the maintainer's own comments do too. So each opens with its role,
+account, the maintainer's, and the maintainer's own comments do too. They carry no attribution
+footer of our own (`steward`, "Comments"); the role marks them instead. So each opens with its role,
 visibly and in a marker a session can match:
 
 ```
@@ -232,7 +222,7 @@ visibly and in a marker a session can match:
 and a reply with `<!-- independent-review: author -->` and **Author**. A reader tells the three
 apart, and a session woken by a comment tells its own reply (an echo, skipped), the review it
 asked for (read as that review) and a person's comment (a request to answer) apart from the
-body alone.
+body alone. `steward` tells an echo by its text; the marker is the text it matches.
 
 **Return only.** The brief has a field for where the findings go: on the PR (the default at a
 ready point), or returned to the author only. Return only is for a check that is not a ready
@@ -383,10 +373,7 @@ Alternatives considered:
 
 ## Open Questions
 
-- **The reviewer's model and effort.** Nothing we have measured compares models or efforts on a
-  review: the first review ran on the session's model and effort, took 11 minutes and about 170k
-  tokens, and all 16 of its findings held up. Task 5.2 runs the finished skill on the plan as
-  round 1 read it, on Opus and on Sonnet, and compares what each reaches with round 1's 16
-  findings. The definition's `model` and `effort` are set from that; until then they inherit the
-  session's. Whether the modes, or later rounds, need different settings (and so a second
-  definition) is decided on the same evidence.
+- **Where the light setting holds.** Nothing we have measured compares models on a review: the
+  first review ran on the session's model (Opus) and effort, took 11 minutes and about 170k tokens,
+  and all 16 of its findings held up. Task 5.2 runs the same brief on Opus and on Sonnet, and the
+  skill's two scenarios are adjusted to what that shows.

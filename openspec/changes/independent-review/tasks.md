@@ -53,15 +53,6 @@
 - [ ] 3.3 Add `.claude/skills/independent-review` and `.github/skills/independent-review` as
       symlinks to `../../.agents/skills/independent-review`. Verified by `ls -L` reading
       `SKILL.md` through both.
-- [ ] 3.4 Write `.agents/skills/independent-review/agents/independent-reviewer.md` (frontmatter:
-      `name`, `description`, `skills: [independent-review]`; `model` and `effort` left to inherit
-      until 5.2) and link it as `.claude/agents/independent-reviewer.md` and
-      `.github/agents/independent-reviewer.agent.md`. Verified by a fresh `claude -p` in the
-      checkout listing `independent-reviewer` among its agent types, as the probe in
-      `independent-reviews` did, and by 5.1's reviewer being started with that
-      `subagent_type`. Negative control: with the `.claude/agents/` link removed, the type is
-      not listed. Whether Copilot reads the `.github/agents/` link is recorded as unmeasured
-      unless a Copilot session is available to check.
 
 ## 4. The pointer
 
@@ -78,16 +69,15 @@
       template's fields, and by the review reaching a finding an earlier review on that PR
       recorded, or saying why it did not. Anything the skill left the session to work out is
       fixed in the skill before this task closes.
-- [ ] 5.2 Run a proposal review with the skill, as written, on this change's own plan as round 1
-      read it (`bf4f72b`, the proposal with no implementation, the maintainer's suggestion), and
-      post it on this PR labelled as a test of the skill. Verified by the brief holding only the
-      template's fields, and by setting what the review reaches beside round 1's 16 findings:
-      each one reached, missed, or reached in another form, with the top three (the convergence
-      rule, the step-back, the stacked base) named. The same brief runs twice, through the
-      `independent-reviewer` type with `model` set per call to Opus and to Sonnet, the second run
-      returning only (no second review on the PR), and the two are compared on findings reached,
-      wrong findings, time and tokens in `docs/research/independent-reviews.md`. The
-      definition's `model` and `effort` are set from that comparison, and the PR says why.
+- [ ] 5.2 Run a proposal review with the skill, as written, on this change's own plan as it
+      stands before the skill was written (the last commit before group 3, the maintainer's
+      suggestion), as this change's second proposal round, and post it on this PR. The same brief
+      runs twice: deep (Opus, posting) and light (Sonnet, returning only, so the PR gets one
+      review). Verified by the brief holding only the template's fields, and by the comparison
+      recorded in `docs/research/independent-reviews.md`: for each setting, the findings, how
+      many the author confirmed, how many were wrong, the time and the tokens, and which findings
+      only one setting reached. The skill's two scenarios are adjusted to that, and what the
+      round finds about the skill itself is fixed in it before this task closes.
 
 ## 6. Check the change as a whole
 
