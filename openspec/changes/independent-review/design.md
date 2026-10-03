@@ -219,7 +219,10 @@ Alternatives considered:
   the issue or the maintainer). #269 moved from gap to conflict when a review read the requirement
   literally.
 - **Assumptions**, about Obsidian, CodeMirror and our parse: list them, measure the cheap ones,
-  name the rest.
+  name the rest. A claim about what the app does is measured in the app (`driving-obsidian`, or
+  a case file through `npm run case`), not in a bare CodeMirror: two of #273's reviews claimed a
+  join from bare CM6 that the app does not make, and four reviewer findings in the survey were
+  later disproved by a measurement in the app (`independent-reviews`).
 - **The design as a whole**: every entry point that reaches the same rule (keys, commands, the
   palette, a paste, a drag, a delete), and the same defect elsewhere.
 - **Each decision**, against its strongest alternative and a case where the alternative wins.

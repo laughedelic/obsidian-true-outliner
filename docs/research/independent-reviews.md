@@ -10,7 +10,58 @@ Measured on 2026-10-03 in a cloud session, against `main` at `5b41621`.
 
 ## The review sections of our PRs
 
-Pending: the tabulation of the 46 PRs whose description has a review section.
+Of the repository's 198 PRs, 46 have a description with a heading that names a review. In 20 of
+them the heading is a note to the reviewer and reports nothing. The other 25 report 216 findings,
+201 of them one by one; #64 ("a review found seven defects") and #300 ("fixed here or kept as
+documented limits") give counts without a line per finding. Each finding was sorted by the review
+that produced it, by kind, and by what the PR says was done with it: taken, rejected, filed or
+left out of scope, recorded only, or left open.
+
+| Review | Findings | Taken | Rejected | Filed or out of scope | Recorded or open |
+| --- | --- | --- | --- | --- | --- |
+| Plan or proposal | 55 | 42 | 8 | 4 | 1 |
+| Implementation | 120 | 89 | 15 | 7 | 9 |
+| Copilot | 15 | 15 | 0 | 0 | 0 |
+| Unattributed (a sweep, "review rounds") | 26 | 19 | 1 | 5 | 1 |
+
+| Kind | Plan | Implementation | Copilot | Unattributed |
+| --- | --- | --- | --- | --- |
+| A test that could not fail, missed a stated behaviour, survived a mutation or passed by timing | 6 | 22 | 4 | 4 |
+| The change or a spec contradicts a spec, or the fix type was wrong | 6 | 22 | 1 | 1 |
+| A concrete failing input, or a "latent" case shown reachable | 6 | 10 | 4 | 9 |
+| A defect in the change's own code or design, without a failing input | 5 | 17 | 1 | 3 |
+| A pre-existing defect found in passing | 3 | 11 | 0 | 5 |
+| A claim in the plan, the PR or a note that was false | 6 | 7 | 2 | 2 |
+| A different mechanism or scope proposed | 15 | 8 | 0 | 1 |
+| Worse than `main` | 2 | 6 | 2 | 0 |
+| Wording, cleanup, landing steps, cost | 6 | 17 | 1 | 1 |
+
+- **Rejections** are mostly of requests for more: of 24, 7 asked for more tests, 6 for a spec delta
+  or another fix type, and 5 for a different mechanism. Each rejection in #264 and #269 cites the
+  spec sentence or the measurement it rests on.
+- **Re-reviews.** Nine PRs say whether a further round ran, and why. #264, #269 and #270 ran one
+  because the first round's fixes changed a rule or the delta's shape; #245, #246, #247 and #274
+  did not, because the later edits were local to code a reviewer had read.
+- **Reviews that reversed each other**, in five PRs. #274: the plan review narrowed the fix and the
+  implementation review widened it again. #273: two reviews asked for a spec delta and the third
+  found drift defensible, left open. #270: the fix type went from drift to gap to conflict across
+  three reviews. #269: gap to conflict, then "partly a fact-extraction defect". #251: a drag
+  exception added at a plan review and dropped with the drag scope.
+- **Reviewer findings later shown wrong**, in four PRs, each by a measurement in the app: #122's
+  frontmatter report (identical on `main`, and Obsidian's metadata cache reads the note the same
+  way), #256's "rewrites are still renumbered", #273's typing claim made "from bare CM6", and
+  #280's alternative (46 of 9 471 runs lost the document's unit).
+- **Measured findings.** Seven PRs report a reviewer's sweep or probe with counts, among them #246
+  (a gesture sweep over about 600k operation results), #247 (2 failures in 3M generated runs) and
+  #264 (236 734 operations, with `main`'s losses beside the branch's). #245's, #273's and
+  #274's reviewers argued from reading, and the session measured afterwards.
+- **Briefing problems named in a PR.** #211: the first probe loaded the root's mocha 12 rather
+  than the mocha 10.8.2 the e2e runs, a wrong baseline. #273: two reviews reasoned from bare
+  CodeMirror where the app behaves differently. No review section mentions scratch files or a
+  hook; #337 reports those from the session transcripts.
+- **Copilot** reviewed 16 of the 20 PRs whose review heading reports nothing, and reviews of 7 PRs
+  hold Copilot comments their descriptions do not mention. Every Copilot finding a description
+  does report was taken.
 
 ## The reviewer's worktree
 
