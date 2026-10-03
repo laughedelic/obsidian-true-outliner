@@ -33,22 +33,49 @@ above the one below (one each is a clean stack).
   `fatal: '<branch>' is already used by worktree` and `docs/pr-stacks.md` worked around with
   `scripts/stack-park.ts`. A cloud session and a fresh clone have one worktree and no such layer.
 
+## The recipe in five situations
+
+`docs/pr-stacks.md`'s recipe, run as written in scratch repositories with a bare `origin` and a second
+clone standing for another session, on stacks of three layers. Each run ends with the ancestor test
+and the one-commit-per-layer count, then the push; the last column is whether the remote then equals
+the local layers.
+
+| Situation | Result |
+| --- | --- |
+| The trunk moves; every local layer present | whole; pushed; remote equals local |
+| The trunk moves; a fresh clone holding only the top layer, as a cloud session has | whole; pushed; remote equals local. Without the first loop, `--update-refs` moves only the top layer and the push fails with `src refspec A does not match any` |
+| The trunk moves, and another session pushed a commit to the bottom layer; the local layer is stale | whole, with that commit kept in the remote. Without the first loop, the fetch refreshes `origin/A`, the lease passes, and the push drops the other session's commit |
+| The trunk moves, and another session pushes to the bottom layer after the fetch, before the push | `stale info`: the bottom layer is refused and `--atomic` pushes none of them; the remote is unchanged |
+| Another session restacked the bottom layer and force-pushed it; the layers above sit on its old tip | whole with `--onto` and the old tip from `origin/A@{1}`; pushed |
+
+Two things the runs changed in the recipe:
+
+- **Order.** With the trunk moved and a lower layer gaining a commit at once, `git rebase
+  --update-refs origin/main` alone leaves the layer above carrying its own copy of the old lower
+  commits and the stack split. Rebasing each layer onto the one below first, bottom first, fixes it.
+- **`--force-if-includes`.** Added to the push, it refused all three layers in a fresh clone, right
+  after `git checkout -B <layer> origin/<layer>`: `remote ref updated since checkout`. The lease alone,
+  with the layers reset to the remote after the fetch, refused the late push of the fourth row, so the
+  flag is left out.
+
 ## Pushing the moved layers from a cloud session
 
-Measured the same day from a cloud session on this repository, on two throwaway branches
-(`scratch/force-push-probe-a` and `-b`, `b` on `a`) pushed once, then restacked locally by the
-rewritten-lower-layer case above and pushed again from a checkout of a third branch, so neither was
-the checked-out one:
+Measured the same day from a cloud session on this repository, on throwaway branches pushed once,
+rewritten locally by the rewritten-lower-layer case above, and pushed again from a checkout of a
+third branch (and, the second time, from a detached HEAD), so no pushed layer was the checked-out one:
 
 | Request | Result |
 | --- | --- |
 | `git push origin scratch/force-push-probe-a scratch/force-push-probe-b` (new branches, two refs) | accepted |
 | `git push --force-with-lease origin scratch/force-push-probe-a scratch/force-push-probe-b` | `forced update` on both; the remote heads equal the local ones |
+| `git push --atomic origin scratch/atomic-probe-a scratch/atomic-probe-b` (new branches, two refs) | accepted |
+| `git push --atomic --force-with-lease origin scratch/atomic-probe-a scratch/atomic-probe-b` after rewriting both | `forced update` on both; the remote heads equal the local ones |
 | `git push --force-with-lease origin chore/stacking-and-merge-rules`, the session's own branch after a rebase | `forced update` |
 
-So a cloud session restacks a stack with git and pushes every layer in one command; the push scope
-in [`cloud-session-github-access`](cloud-session-github-access.md) does not limit it to the
-checked-out branch. The two scratch branches stay on the remote, since the proxy refuses a delete.
+So a cloud session restacks a stack with git and pushes every layer in one atomic command; the push
+scope in [`cloud-session-github-access`](cloud-session-github-access.md) does not limit it to the
+checked-out branch. The proxy refuses a branch delete, so the throwaway branches stay on the remote until the
+maintainer removes them; the first pair was gone when the second was made.
 
 ## Not measured
 

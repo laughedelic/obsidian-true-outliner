@@ -1,0 +1,155 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import * as path from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+// The script is run as the harness runs it: a `PreToolUse` payload on stdin, a decision on stdout.
+// `AGENT_CONVENTIONS_SCRIPT` points the same rows at a mutated copy, which is how each condition's
+// rows are shown to fail without it.
+const SCRIPT = path.resolve(process.env.AGENT_CONVENTIONS_SCRIPT ?? 'scripts/agent-conventions.ts');
+
+type Decision = 'deny' | 'allow';
+type Row = [label: string, payload: Record<string, unknown>, expected: Decision];
+
+const bash = (command: string): Record<string, unknown> => ({ tool_name: 'Bash', tool_input: { command } });
+const tool = (name: string, input: Record<string, unknown> = {}): Record<string, unknown> => ({ tool_name: name, tool_input: input });
+
+let repos: string;
+let feature: string;
+let harness: string;
+
+beforeAll(() => {
+  repos = mkdtempSync(path.join(tmpdir(), 'agent-conventions-'));
+  const init = (name: string, branch: string): string => {
+    const dir = path.join(repos, name);
+    execFileSync('git', ['init', '-q', '-b', branch, dir]);
+    execFileSync('git', ['-C', dir, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'x']);
+    return dir;
+  };
+  feature = init('feature', 'feat/x');
+  harness = init('harness', 'claude/foo');
+});
+
+afterAll(() => rmSync(repos, { recursive: true, force: true }));
+
+function decide(cwd: string, payload: Record<string, unknown>): Decision {
+  const input = JSON.stringify({ hook_event_name: 'PreToolUse', cwd, ...payload });
+  const out = execFileSync('node', [SCRIPT], { input, encoding: 'utf8' });
+  if (/"permissionDecision":\s*"deny"/.test(out)) return 'deny';
+  expect(out.trim()).toBe('');
+  return 'allow';
+}
+
+const MERGE: Row[] = [
+  ['MCP merge_pull_request', tool('mcp__github__merge_pull_request', { pullNumber: 1 }), 'deny'],
+  ['MCP enable_pr_auto_merge', tool('mcp__github__enable_pr_auto_merge', { pullNumber: 1 }), 'deny'],
+  ['gh pr merge 12 --squash', bash('gh pr merge 12 --squash'), 'deny'],
+  ['gh -R o/r pr merge 12', bash('gh -R laughedelic/obsidian-true-outliner pr merge 12'), 'deny'],
+  ['gh --repo o/r pr merge 12', bash('gh --repo o/r pr merge 12'), 'deny'],
+  ['an env prefix', bash('GH_TOKEN=x gh pr merge --auto 12'), 'deny'],
+  ['after another command', bash('npm test && gh pr merge 12'), 'deny'],
+  ['in a subshell', bash('(cd /tmp && gh pr merge 12)'), 'deny'],
+  ['gh stack merge', bash('gh stack merge --yes --squash'), 'deny'],
+  ['gh api -X PUT …/merge', bash('gh api -X PUT repos/o/r/pulls/12/merge'), 'deny'],
+  ['gh api --method PUT … -f', bash('gh api --method PUT repos/o/r/pulls/12/merge -f merge_method=squash'), 'deny'],
+  ['gh api --method=put', bash('gh api --method=put repos/o/r/pulls/12/merge'), 'deny'],
+  ['gh api …/merge -f (an implied POST)', bash('gh api repos/o/r/pulls/12/merge -f merge_method=squash'), 'deny'],
+  ['gh api -XPUT …/ccr/auto_merge', bash('gh api -XPUT repos/o/r/pulls/12/ccr/auto_merge'), 'deny'],
+  ['a full URL', bash('gh api -X PUT https://api.github.com/repos/o/r/pulls/12/merge'), 'deny'],
+  ['the number in a variable', bash('gh api -X PUT "repos/{owner}/{repo}/pulls/$PR/merge"'), 'deny'],
+  ['the number in ${PR} with a field', bash('gh api -X PUT repos/o/r/pulls/${PR}/merge -f merge_method=squash'), 'deny'],
+  ['a query string', bash('gh api -X PUT "repos/o/r/pulls/999999/merge?merge_method=squash"'), 'deny'],
+  ['a for loop', bash('for n in 1 2; do gh pr merge $n --squash; done'), 'deny'],
+  ['if … then', bash('if true; then gh pr merge 1; fi'), 'deny'],
+  ['a brace group', bash('{ gh pr merge 1; }'), 'deny'],
+  ['a negation', bash('! gh pr merge 1'), 'deny'],
+  ['time', bash('time gh pr merge 1'), 'deny'],
+  ['env', bash('env GH_REPO=o/r gh pr merge 1'), 'deny'],
+  ['command', bash('command gh pr merge 1'), 'deny'],
+  ['an absolute path', bash('/usr/local/bin/gh pr merge 1'), 'deny'],
+  ['xargs', bash('echo 1 | xargs gh pr merge'), 'deny'],
+  ['bash -c', bash('bash -c "gh pr merge 1"'), 'deny'],
+  ['eval', bash('eval "gh pr merge 1"'), 'deny'],
+  ['a flag between pr and merge', bash('gh pr -R o/r merge 1'), 'deny'],
+  ['a line continuation', bash('gh pr \\\nmerge 12'), 'deny'],
+  ['the GraphQL merge mutation', bash('gh api graphql -f query="mutation { mergePullRequest(input: {pullRequestId: \\"x\\"}) { clientMutationId } }"'), 'deny'],
+  ['the GraphQL auto-merge mutation', bash('gh api graphql -f query="mutation { enablePullRequestAutoMerge(input: {pullRequestId: \\"x\\"}) { clientMutationId } }"'), 'deny'],
+  ['curl -X PUT', bash('curl -X PUT -H "Authorization: token $GH_TOKEN" https://api.github.com/repos/o/r/pulls/1/merge'), 'deny'],
+
+  ['gh pr view', bash('gh pr view 12'), 'allow'],
+  ['gh pr create', bash('gh pr create --draft'), 'allow'],
+  ['gh pr merge --disable-auto', bash('gh pr merge --disable-auto 999999'), 'allow'],
+  ['gh pr comment that mentions a merge', bash('gh pr comment 1 --body ready pr merge'), 'allow'],
+  ['gh api …/pulls/12', bash('gh api repos/o/r/pulls/12'), 'allow'],
+  ['a read of …/merge', bash('gh api repos/o/r/pulls/12/merge'), 'allow'],
+  ['a GET with a field', bash('gh api -X GET repos/o/r/pulls/12/merge -f x=1'), 'allow'],
+  ['the DELETE that turns auto-merge off', bash('gh api -X DELETE repos/o/r/pulls/12/ccr/auto_merge'), 'allow'],
+  ['a field whose value ends in a merge path', bash('gh api repos/o/r/issues/1/comments -f body=see/pulls/1/merge'), 'allow'],
+  ['a quoted field with a merge path', bash('gh api repos/o/r/issues/1/comments -f body="see /pulls/1/merge"'), 'allow'],
+  ['a GraphQL query', bash('gh api graphql -f query="query { viewer { login } }"'), 'allow'],
+  ['curl of a merge route', bash('curl https://api.github.com/repos/o/r/pulls/1/merge'), 'allow'],
+  ['git merge', bash('git merge main'), 'allow'],
+  ['a commit message', bash('git commit -m "gh pr merge"'), 'allow'],
+  ['a commit message with an operator', bash("git commit -m 'x && gh pr merge 1'"), 'allow'],
+  ['a comment that mentions a merge', bash('gh issue comment 1 -b "pr merge"'), 'allow'],
+  ['MCP update_pull_request_branch', tool('mcp__github__update_pull_request_branch', { pullNumber: 1 }), 'allow'],
+  ['MCP disable_pr_auto_merge', tool('mcp__github__disable_pr_auto_merge', { pullNumber: 1 }), 'allow'],
+];
+
+const LEXER: Row[] = [
+  ['a newline ends a command: a merge', bash('echo hi\ngh pr merge 12'), 'deny'],
+  ['a newline ends a command: a push', bash('echo hi\ngit push origin claude/x'), 'deny'],
+  ['a command after a heredoc is read', bash("cat > f <<'EOF'\nhello\nEOF\ngh pr merge 12"), 'deny'],
+  ['a command after a <<- heredoc is read', bash('cat <<-EOF\n\thi\n\tEOF\ngh pr merge 1'), 'deny'],
+  ['a command after a <<\\EOF heredoc is read', bash('cat <<\\EOF > f\nbody\nEOF\ngh pr merge 1'), 'deny'],
+  ['a merge after a here-string', bash('cat <<< hi; gh pr merge 1'), 'deny'],
+  ['a push on a later line after a here-string', bash('jq -r .number <<< "$json"\nnpm test && git push origin claude/x'), 'deny'],
+  ['a merge on a later line after a here-string', bash('jq -r .number <<< "$json"\nnpm test && gh pr merge 999999'), 'deny'],
+  ['a merge between a here-string word and a later line of that word', bash('cat <<< EOF\ngh pr merge 1\nEOF'), 'deny'],
+  ['a push on a later line after an arithmetic shift', bash('echo $((1<<2))\ngit push origin claude/x'), 'deny'],
+  ['an unterminated heredoc is read as commands', bash('cat <<EOF\ngh pr merge 1'), 'deny'],
+  ['a heredoc body that names a merge', bash("cat > f <<'EOF'\nnpm test && gh pr merge 12\ngh pr merge 12\nEOF"), 'allow'],
+  ['a heredoc body that names a push', bash("cat > f <<'EOF'\ngit push origin claude/x\nEOF"), 'allow'],
+  ['a <<\\EOF heredoc body that names a merge', bash('cat <<\\EOF > f\ngh pr merge 1\nEOF'), 'allow'],
+  ['a commit message heredoc that names a merge', bash('git commit -m "$(cat <<\'EOF\'\ngh pr merge 1\nEOF\n)"'), 'allow'],
+];
+
+const EARLIER: Row[] = [
+  ['git push origin claude/x', bash('git push origin claude/x'), 'deny'],
+  ['git push origin HEAD:claude/x', bash('git push origin HEAD:claude/x'), 'deny'],
+  ['git push origin fix/x', bash('git push origin fix/x'), 'allow'],
+  ['git push origin :claude/old (a delete)', bash('git push origin :claude/old'), 'allow'],
+  ['send_later, own_followup', tool('mcp__claude-code-remote__send_later', { initiation: 'own_followup' }), 'deny'],
+  ['send_later, human_request', tool('mcp__claude-code-remote__send_later', { initiation: 'human_request' }), 'allow'],
+  ['create_pull_request from a claude/* head', tool('mcp__github__create_pull_request', { head: 'claude/x' }), 'deny'],
+  ['create_pull_request from a fix/* head', tool('mcp__github__create_pull_request', { head: 'fix/x' }), 'allow'],
+];
+
+describe('the merge rule', () => {
+  it.each(MERGE)('%s', (_label, payload, expected) => {
+    expect(decide(feature, payload)).toBe(expected);
+  });
+});
+
+describe('the shell lexer both rules share', () => {
+  it.each(LEXER)('%s', (_label, payload, expected) => {
+    expect(decide(feature, payload)).toBe(expected);
+  });
+});
+
+describe('the rules that were already there', () => {
+  it.each(EARLIER)('%s', (_label, payload, expected) => {
+    expect(decide(feature, payload)).toBe(expected);
+  });
+
+  it('refuses a bare push from a checkout on a harness branch, and allows it from a feature branch', () => {
+    expect(decide(harness, bash('git push'))).toBe('deny');
+    expect(decide(feature, bash('git push'))).toBe('allow');
+  });
+
+  it('reads a push on a later line against the checkout it runs in', () => {
+    expect(decide(harness, bash('echo hi\ngit push'))).toBe('deny');
+    expect(decide(feature, bash('git push origin feat/y\necho claude/w'))).toBe('allow');
+  });
+});

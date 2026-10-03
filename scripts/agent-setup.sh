@@ -89,7 +89,7 @@ if command -v gh >/dev/null 2>&1; then
   # for their first request (docs/research/cloud-session-github-access.md).
   # Saying so up front spares the session a round of failed commands.
   if $cloud && ! gh api graphql -f query='{viewer{login}}' >/dev/null 2>&1; then
-    notes+=("GraphQL is refused by this session's proxy: \`gh pr\` and \`gh repo\` fail; use \`gh api repos/...\` (REST) or the GitHub MCP tools, which include stacks (docs/pr-stacks.md)")
+    notes+=("GraphQL is refused by this session's proxy: \`gh pr\` and \`gh repo\` fail; use \`gh api repos/...\` (REST, stacks included: docs/pr-stacks.md) or the GitHub MCP tools")
   fi
 fi
 

@@ -59,8 +59,9 @@ MCP tools do not (`docs/research/cloud-session-github-access.md`).
 echo '{"pull_requests":[<bottom>,<top>]}' | gh api -X POST repos/{owner}/{repo}/stacks --input -
 ```
 
-Restacking after the trunk or a lower layer moves is git — `git rebase --update-refs` — and one
-`git push --force-with-lease` of every layer. The recipes, the check that a stack is still whole, and
+Restacking after the trunk or a lower layer moves is git — each layer put on its remote, rebased onto
+the one below, then `git rebase --update-refs origin/main` from the top, with `--onto` and the old tip
+for a lower layer that was rewritten — and one `git push --atomic --force-with-lease` of every layer. The recipes, the check that a stack is still whole, and
 extending and dissolving one are in [`docs/pr-stacks.md`](docs/pr-stacks.md). A restack rewrites
 branches other sessions are sitting on, so a session working on a layer owns its one branch —
 commit, push, report — and moves the others only when asked to restack. The maintainer lands a stack,

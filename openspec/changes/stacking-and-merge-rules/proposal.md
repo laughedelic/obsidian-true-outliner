@@ -78,7 +78,8 @@ declares `skip_specs: true`.
 
 - `AGENTS.md`: the stacking test, the stack paragraphs, one lifecycle line, and the sentence describing
   `scripts/agent-conventions.ts`.
-- `scripts/agent-conventions.ts`: the merge rule and its header comment.
+- `scripts/agent-conventions.ts`: the merge rule, its header comment, and the shared lexer's newline and
+  here-document handling. `tests/agent-conventions.test.ts`: the hook's decisions as rows.
 - `docs/pr-stacks.md`: rewritten around the REST recipe and the git restack. `docs/cloud-sessions.md`:
   the repeated statements.
 - `scripts/stack-park.ts`: deleted. `scripts/agent-setup.sh`: the `gh-stack` extension install and its

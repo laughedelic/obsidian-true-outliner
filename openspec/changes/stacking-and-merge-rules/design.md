@@ -48,16 +48,21 @@ primary checkout:
 maintainer works almost entirely from cloud sessions, so the local tooling is carried for a workflow
 that is rarely run, and `gh stack`'s local tracking state is the only reason `docs/pr-stacks.md`
 forbids plain `git rebase`. With no tracking, the restack is git
-([`restacking-with-plain-git`](../../../docs/research/restacking-with-plain-git.md)): from the top layer
-`git rebase --update-refs main` for a moved trunk, and bottom-up
-`git rebase --onto <lower> <its old tip> <layer>` for a lower layer that was rewritten; the result is
-checked with the ancestor test. The worktree hazard that `stack-park.ts` worked around is stated once,
-as a condition of the restack: no layer checked out elsewhere, which a cloud session and a fresh clone
-satisfy. Landing is the maintainer's, from the PR page; there is no merge recipe, since agents do not
-merge. A cloud session pushes every moved layer in one `git push --force-with-lease`, measured on throwaway
-branches, so a restack needs no primary checkout; the session that runs it is the one the maintainer
-asks, or the session that owns the layer that moved. No skill: the recipes are a table in `docs/pr-stacks.md`, and `AGENTS.md` carries
-one paragraph pointing to it.
+([`restacking-with-plain-git`](../../../docs/research/restacking-with-plain-git.md)), in three steps
+that the first review round shaped: every layer reset to its remote after the fetch (a fresh clone has
+no lower layers, and a stale one would push over another session's commits), each layer rebased onto
+the one below, bottom first, and `git rebase --update-refs origin/main` from the top. A lower layer
+that was rewritten takes `--onto` and its old tip, from `origin/<lower>@{1}`, in place of the
+second step. The result is checked with the ancestor test, the bottom pair against `origin/main`, and
+pushed with `git push --atomic --force-with-lease`: the lease refuses a layer pushed to since the fetch
+and `--atomic` then pushes none, so a stack is never left split. `--force-if-includes` is out: it
+refused the push straight after the reset. The worktree hazard that `stack-park.ts` worked around is
+stated once, as a condition of the restack: no layer checked out elsewhere, which a cloud session and
+a fresh clone satisfy. Landing is the maintainer's, from the PR page; there is no merge recipe, since
+agents do not merge. A cloud session pushes every moved layer in one atomic push, measured on
+throwaway branches, so a restack needs no primary checkout; the session that runs it is the one the
+maintainer asks, or the session that owns the layer that moved. No skill: the recipe is in
+`docs/pr-stacks.md`, and `AGENTS.md` carries one paragraph pointing to it.
 
 **The lifecycle line names the subject, in step 5.** "Then squash-merge" becomes the maintainer
 squash-merging after the agent has prepared landing.
@@ -67,16 +72,30 @@ on `Bash|mcp__github__.*|…`, so the rule joins it with no matcher change. It r
 
 - the MCP tools `mcp__github__merge_pull_request` and `mcp__github__enable_pr_auto_merge`, since
   auto-merge is a merge the platform makes later;
-- in `Bash`, by the same shell lexer the push rule uses: `gh pr merge`, `gh stack merge` (a form the
-  docs no longer mention, refused for anyone who still has the extension), and `gh api` to a
-  `…/pulls/{n}/merge` or `…/auto_merge` path, the CCR auto-merge route included.
+- in `Bash`, by the same shell lexer the push rule uses, a command word that is `gh`, by base name,
+  past assignments, shell keywords and wrappers (`do`, `then`, `{`, `!`, `time`, `env`, `command`,
+  `xargs`), with `bash -c` and `eval` read through:
+  - `gh pr merge` and `gh stack merge`, found as the first two words that are not flags, so
+    `gh pr -R o/r merge` counts and `gh pr comment … pr merge` does not, except `--disable-auto`,
+    which turns auto-merge off;
+  - `gh api` whose endpoint (the first word that is neither a flag nor a flag's value) is a
+    `…/pulls/<n>/merge` or `…/auto_merge` route, the number a variable or digits and a query string
+    allowed, and which writes; a read, and the DELETE that turns auto-merge off, pass;
+  - `gh api graphql` carrying `mergePullRequest`, `enablePullRequestAutoMerge` or `enqueuePullRequest`;
+  - `curl` writing to a merge route.
 
 The rule is unconditional. The hook cannot tell a merge the maintainer asked for from one the session
 chose, as it can for `send_later` through `initiation`, and the maintainer's own line is "prepare for
 landing and leave it for me to merge" (#339), so the maintainer merges from the PR page. The refusal
-names the rule and says what to do: prepare landing, report, stop. The lexer both rules share ends a command at a newline, which it did not before, and skips a
-here-document's body. Like the push rule it does not
-expand `$(…)`, so a merge assembled inside one passes; that is a session working against its own hook.
+names the rule and says what to do: prepare landing, report, stop. It guards the shapes a session
+writes and is no sandbox: like the push rule it does not expand `$(…)`, and a merge held in a variable
+or in a script written first is not seen.
+
+The lexer both rules share now ends a command at a newline and ignores a line continuation, as the
+shell does. It skips a here-document's body only when a delimiter line follows, so `1<<2` in
+arithmetic and an unterminated here-document are read as commands, the cautious side for a rule that
+refuses; a here-string's `<<<` matches no delimiter and opens no body. The decisions are
+`tests/agent-conventions.test.ts`, run against mutated copies of the script for the negative controls.
 
 ## Measurement (task 1, done)
 

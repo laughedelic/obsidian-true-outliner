@@ -25,32 +25,45 @@ whose `internal/github` package is where to look if one moves.
 
 ## Restacking
 
-A restack puts every layer back on the one below it after the trunk or a lower layer has moved. Run
-it in a checkout where no layer of the stack is checked out in another worktree: `--update-refs`
-skips such a layer without an error, and the stack comes out split. A cloud session and a fresh clone
-have one worktree, so they qualify.
+A restack puts every layer back on the one below it after the trunk or a lower layer has moved.
+Run it in a checkout where no layer of the stack is checked out in another worktree:
+`--update-refs` skips such a layer without an error, and the stack comes out split. A cloud session
+and a fresh clone have one worktree, so they qualify. Name the layers bottom first.
 
-| What moved | Command |
-| --- | --- |
-| the trunk | from the top layer: `git fetch origin && git rebase --update-refs origin/main` |
-| a lower layer gained commits | from the top layer: `git rebase --update-refs <lower>` |
-| a lower layer was rewritten | bottom layer first, for each layer above it: `git rebase --onto <lower> <the lower's old tip> <layer>` |
+```bash
+git fetch origin
+git checkout -B <layer> origin/<layer>        # each layer, bottom first: no unpushed work on it, or stop and report
+git rebase <lower> <layer>                    # each layer above the bottom, bottom first: onto the layer below
+git rebase --update-refs origin/main          # from the top layer: onto the trunk
+```
 
-The old tip is read before the lower layer moves (`git rev-parse <lower>`, or its `origin/` ref before
-the fetch). `--update-refs` on a rewritten lower layer replays its old commit and conflicts.
+The first loop puts every layer on its remote, which a fresh clone lacks and a stale local branch
+gets wrong: another session may have pushed to a lower layer, and a push from a stale branch would
+drop its commits. The second keeps a lower layer's new commits, and is a no-op for one that did not
+gain any. The third is a no-op when the trunk did not move.
+
+A lower layer that was rewritten, by its own restack or by a force-push, is the one case these
+miss: the layers above still hold its old commits, and `git rebase <lower> <layer>` replays them
+and conflicts. Give `--onto` the old tip, bottom layer first, in place of the second line:
+
+```bash
+git rebase --onto <lower> <the lower's old tip> <layer>   # the old tip is origin/<lower>@{1} right after the fetch that moved it
+```
 
 Then check that the stack is whole, and push every layer in one command:
 
 ```bash
-git merge-base --is-ancestor <lower> <upper>   # for each adjacent pair
-git rev-list --count <lower>..<upper>          # the layer's own commits
-git push --force-with-lease origin <bottom> … <top>
+git merge-base --is-ancestor origin/main <bottom>   # and each adjacent pair: <lower> <upper>
+git rev-list --count <lower>..<upper>               # the layer's own commits
+git push --atomic --force-with-lease origin <bottom> … <top>
 ```
 
-A cloud session pushes the moved layers this way, whichever branch it has checked out. A layer
-reported as diverged from origin after a restack below it is reset to the remote
-(`AGENTS.md`, "Branching and PR stacks"); merging the layer below to update the base destroys the
-linear history the stack exists to keep.
+The lease refuses a layer another session has pushed to since the fetch, and `--atomic` then pushes
+none of them, so a stack is never left split on the remote. A cloud session pushes this way,
+whichever branch it has checked out. `--force-if-includes` is left out: it refused the push straight
+after the first loop. A layer reported as diverged from origin after a restack below it is reset to
+the remote (`AGENTS.md`, "Branching and PR stacks"); merging the layer below to update the base
+destroys the linear history the stack exists to keep.
 
 ## Landing
 
