@@ -35,33 +35,46 @@ gh api 'repos/{owner}/{repo}/pulls?state=open&per_page=100' \
 
 **Stack only what depends on the layer below.** Every layer above a moved one is rewritten, and
 each layer bumps the version, so `manifest.json`, `versions.json` and `package.json` conflict on
-every restack. The test is mechanical, and settles it before the branch exists:
+every restack. Stack when the change reads code the other branch adds, or when merging the two
+conflicts; a shared file with disjoint hunks is not a reason.
 
 ```bash
-git diff --name-only main...<candidate-base>
+git fetch origin <other>
+git diff origin/main...origin/<other>   # what the other branch adds: does the change read it?
+# the paths the merge conflicts in that this change touches; empty means no conflict
+comm -12 <(git merge-tree --write-tree --name-only HEAD origin/<other> | sed -n '2,/^$/p' | sort) \
+         <(git diff --name-only origin/main...HEAD | sort)
 ```
 
-Overlapping files, or code that reads what the other branch adds, means stack it. Otherwise
-branch off `main`, where it merges and releases on its own schedule. Prefer short stacks — two or
-three layers that are genuinely one unit of work. Offer the reading; let the user decide.
+Only a conflict in a path the change touches counts. A branch cut before `main` moved conflicts with
+any change wherever `main` deleted a note or bumped the version, so the bare exit code of
+`git merge-tree` reads "stack" for most open branches whatever the change is. `git diff --name-only`
+of the second command is the cheap first pass that picks which open branches are worth the third. The
+merge needs the change's code, so it runs before the PR opens and before the version bump, whose files
+the change would otherwise touch. Otherwise stay on `main`, where the change merges and releases on
+its own schedule. Prefer short stacks — two or three layers that are genuinely one unit of work. State
+the reading in the PR; let the user decide.
 
-**Stack surgery runs from the primary checkout** — adopting a stack, opening and updating its PRs
-with `gh stack submit`, restacking after the trunk moves, parking worktrees, landing the stack
-whole: [`docs/pr-stacks.md`](docs/pr-stacks.md) carries all of it. It rewrites branches other
-sessions are sitting on, so a session working on a layer leaves it alone and owns one branch:
-commit, push, report.
+**A stack is made through the REST API, from a cloud session or any checkout.** Open each layer's PR
+as a draft with `base` set to the lower layer's branch, then register the stack, bottom layer first.
+A cloud session's proxy refuses GraphQL, so `gh pr` and `gh repo` fail there; `gh api` and the GitHub
+MCP tools do not (`docs/research/cloud-session-github-access.md`).
 
-**A cloud session has no `gh stack` at all**, and does not try to get one: its GitHub proxy
-refuses the GraphQL queries every `gh stack` command opens with, whatever the environment's
-network access level or token (`docs/research/cloud-session-github-access.md`). What a cloud
-session can do with a stack is the layer's own work — commit and push its one branch, and read
-the stack's shape from the open PRs above. Opening a stacked PR, restacking, and landing wait
-for the primary checkout; a cloud session that finishes a layer says so in its report rather
-than reaching for a substitute.
+```bash
+echo '{"pull_requests":[<bottom>,<top>]}' | gh api -X POST repos/{owner}/{repo}/stacks --input -
+```
+
+Restacking after the trunk or a lower layer moves is git — each layer checked for unpushed work, put on
+its remote, rebased onto the one below, then `git rebase --update-refs origin/main` from the top, with `--onto` and the old tip
+for a lower layer that was rewritten — and one `git push --atomic --force-with-lease` of every layer. The recipes, the check that a stack is still whole, and
+extending and dissolving one are in [`docs/pr-stacks.md`](docs/pr-stacks.md). A restack rewrites
+branches other sessions are sitting on, so a session working on a layer owns its one branch —
+commit, push, report — and moves the others only when asked to restack. The maintainer lands a stack,
+from the PR page.
 
 A layer reported as *diverged from origin by N and M commits* is sitting on commits that a
 restack below it replaced. The remote is authoritative there: reset to it, and leave moving the
-layer itself to `gh stack rebase` from the primary checkout. Merging the layer below "to update
+layer itself to the restack in `docs/pr-stacks.md`. Merging the layer below "to update
 the base" resolves the divergence and destroys the linear history the stack exists to keep —
 which survives into `main`, because the whole stack squash-merges.
 
@@ -86,7 +99,10 @@ Planning and implementation share one PR, in this order:
    one converges (the skill's "Rounds"); then iterate until manual testing passes, its fixes
    reviewed like any other response, and the head to be marked ready gets the last deep review.
 5. **Land.** Validate, sync the delta specs, archive the change, and bump the version — all on the
-   branch, before merging. Then squash-merge; CI releases from `main` when `manifest.json` moves.
+   branch, before merging. Then the maintainer squash-merges: an agent prepares landing, reports and
+   stops, and never merges, by any route. A hook refuses the direct forms — `gh pr merge`, a `gh api`
+   write to a merge route, the GitHub MCP merge tools (`scripts/agent-conventions.ts`) — as a guard
+   behind this rule, not a sandbox. CI releases from `main` when `manifest.json` moves.
    The `Landed` check holds a ready PR to this: no change it opened left unarchived, each one it
    archived finished and synced, and a `feat` or `fix` that touches `src/` or `styles/` carrying a
    minor or patch bump (`scripts/check-landed.ts`).
@@ -234,14 +250,15 @@ of Claude Code's built-in `code-review`; so `independent-review` itself is linke
 the symlinks alone, rather than editing one by hand.
 
 `scripts/agent-setup.sh` is the one list of what an agent session needs — the project's
-dependencies, the OpenSpec CLI, the GitHub CLI, and outside the cloud its `gh-stack` extension. The `SessionStart`
+dependencies, the OpenSpec CLI and the GitHub CLI. The `SessionStart`
 hook in `.claude/settings.json` runs it and `copilot-setup-steps.yml` runs it with `--install`,
 so adding a tool means editing that script and nothing else. It installs only in a throwaway
 environment and reports what is missing everywhere else; a cloud environment's own half of the
 provisioning is [`docs/cloud-sessions.md`](docs/cloud-sessions.md).
 
 `scripts/agent-conventions.ts` is the other hook script: the branch-name grant at session start,
-the refusal of a push or PR on a `claude/*` head, and the PR-footer check. Copilot reads neither,
+the refusal of a push or PR on a `claude/*` head, the refusal of a merge or auto-merge, and the
+PR-footer check. Copilot reads neither,
 and whether its coding agent can rename its own `copilot/*` branch is unmeasured; such a branch is
 renamed at landing, from the PR header.
 

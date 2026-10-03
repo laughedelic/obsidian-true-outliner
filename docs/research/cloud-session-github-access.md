@@ -87,12 +87,99 @@ section documents the repository scope that blocks `gh extension install`, and a
 under which "`git push` works only against the session's current working branch" — our rename
 before the first push keeps that branch current, which is consistent with the push above going
 through. The one documented configuration without this proxy is a self-hosted environment,
-which we do not run. So the extension is not installed in the cloud at all — neither by the
-environment's setup script nor by the session hook — and CLAUDE.md's stack instructions give a
-cloud session the layer's own work only, with a REST `gh api` listing in place of `gh pr list`. So a cloud session runs the half of the workflow that is REST and git: commit,
-push, open and edit a PR through the MCP tools or `gh api`, read CI. Stack surgery stays in the
-primary checkout, where CLAUDE.md already put it for a different reason. The session hook now
-says so at start, so a session does not find out one failed command at a time.
+which we do not run. So the extension was not installed in the cloud — neither by the
+environment's setup script nor by the session hook — and the stack instructions of the time gave a
+cloud session the layer's own work only, with a REST `gh api` listing in place of `gh pr list`. The
+stacks API measured below, which `gh stack` itself calls, replaced the extension for cloud sessions
+and the primary checkout alike (AGENTS.md, "Branching and PR stacks"), and it is installed nowhere
+now. A cloud session runs the REST and git workflow: commit, push, open and edit a PR through the
+MCP tools or `gh api`, create a stack, read CI. The session hook says so at start, so a session does
+not find out one failed command at a time.
+
+## A stacked PR from a cloud session
+
+CLAUDE.md read "Opening a stacked PR, restacking, and landing wait for the primary checkout" as
+"a cloud session cannot open a stacked PR" in three Bugfix runs, which skipped #136 on it. What
+the remote holds, read back with REST on 2026-10-03 from a cloud session:
+
+| PR | `base.ref` | state | opened from |
+| --- | --- | --- | --- |
+| #190 | `fix/a-split-run-keeps-its-own-numbers` | merged, `merge_commit` `1baf963` | a cloud session, with the GitHub tools |
+| #267 | `main` | merged, `merge_commit` `5b41621` | a cloud session; its base was `fix/promoted-paragraph-seam` |
+
+`GET /repos/{o}/{r}/issues/{n}/timeline` lists no `base_ref_changed` event for either; #267's
+shows `base_ref_force_pushed` on 09-29 and `merged` on 10-02. So the proxy lets a session open a PR
+whose base is another branch, and the base was not left on the lower branch for #267 by the time it
+merged. What moved it was not examined.
+
+Stacks themselves are REST. The `gh-stack` release binary reads PRs through GraphQL, which is why
+every `gh stack` command fails here, but its stack operations are four REST routes (found with
+`strings` on the `linux-amd64` asset of the `latest` release, downloaded on 2026-10-03, whose build
+info reads `github.com/github/gh-stack v0.2.0`): `GET` and `POST /repos/{o}/{r}/stacks`,
+`POST /repos/{o}/{r}/stacks/{n}/add` and `POST /repos/{o}/{r}/stacks/{n}/unstack`. The proxy allows
+them. Measured on 2026-10-03 from a cloud session, with #351 (a draft on `main`) as the lower layer
+and this change's own PR #352 as the upper:
+
+| Step | Request | Result |
+| --- | --- | --- |
+| list | `GET /repos/{o}/{r}/stacks` | 200: 18 stacks, 3 open, each with its PRs in order, bottom first |
+| repoint | MCP `update_pull_request`, #352 `base` = `chore/review-skill` | #352's `base.ref` reads back as `chore/review-skill` |
+| create | `POST /repos/{o}/{r}/stacks`, body `{"pull_requests":[351,352]}` | 201, stack 354, `open: true`, #351 then #352, `Location` header the stack's URL |
+| look | the maintainer, in the PR UI | the stack appears on both PRs |
+| unstack | `POST /repos/{o}/{r}/stacks/354/unstack` | 204; `GET …/stacks/354` is then 404 |
+| restore | MCP `update_pull_request`, #352 `base` = `main` | both PRs read back with base `main`, still draft |
+
+So a cloud session creates a real stack: a registered one that GitHub shows as a stack, not two PRs
+whose bases happen to chain. The PRs are named by number and nothing is adopted: the request needs
+no local `gh stack` state, and the PRs here were plain PRs opened outside `gh stack`.
+
+Stacks that exist already are consistent with that. #267 was created at 04:20:01 on 09-27 and stack
+268 (#264, #267) at 04:21:59; #190 on 09-21 and stack 191 (#189, #190) the same day. The listing
+does not say who made them.
+
+When the bottom layer lands. #352 was stacked on #351 with the call above (stack 356). The
+maintainer squash-merged #351 into `main`. With no request from the session, GitHub then rewrote
+#352's branch (`d7e018b` became `6446b91`: the same tree, its 15 commits replayed above the new
+`main`, none of #351's), retargeted its base from `chore/review-skill` to `main`, and the stack
+listing read #351 closed and #352 open. #351's branch was deleted. The check on the old head,
+`e2e-mobile-passed`, failed because the push cancelled the jobs it gates, and the new head ran its
+own. A session holding the layer sees its local branch diverged from `origin`, and the remote is
+authoritative there (AGENTS.md, "Branching and PR stacks").
+
+Not measured:
+
+- whether `POST /stacks` refuses a lower and an upper PR whose bases do not chain (the base was
+  repointed before the request);
+- whether the order of `pull_requests` is read bottom to top or checked (it was sent bottom to top);
+- `POST /stacks/{n}/add`;
+- `gh stack init` adopting a plain PR, and `gh stack link`, which resolves PRs through GraphQL and is
+  expected to fail here;
+- whether GitHub restacks the layers above when the bottom one is merged by a merge commit or a
+  rebase, or when a layer's commits conflict with `main`.
+
+The file-level stacking test against a merge, on two open PRs that both branch off `main`
+(`git merge-tree --write-tree --name-only`, git 2.43.0, 2026-10-03):
+
+| Pair | Files in common (`git diff --name-only main...`) | `merge-tree` |
+| --- | --- | --- |
+| #274 `fix/empty-heading-level-shift`, #270 `fix/verbatim-swap-tab-guard` | `src/ops.ts`, `src/reencode.ts` | exit 0, a tree, no conflicts |
+
+The file test says stack; the merge says the two are independent.
+
+The merge's bare exit code, though, is not the test, which a later run showed. Run from this change's
+head against the other 24 open PR heads, after `git fetch`, with the same merge and the change's own
+diff (`git diff --name-only origin/main...HEAD`):
+
+| | branches |
+| --- | --- |
+| `git merge-tree --write-tree HEAD origin/<other>` exits 1 | 12 of 24 |
+| conflicted paths that the change touches | 0 of those 12 |
+| the control, a branch cut from `main` that edits the same `AGENTS.md` line the change edits | exit 1, and `AGENTS.md` is the conflicted path the change touches |
+
+The twelve conflict because `main` moved after they were cut: `docs/research/index.md` was deleted and
+they modified it, the version files of a branch already bumped for landing, `src/plugin/main.ts`, and
+search-palette e2e files. Any change cut from today's `main` conflicts with them whatever it edits. So
+`AGENTS.md` counts only the paths the change touches.
 
 ## Why hooks, and not a CI check or a rename after the fact
 
@@ -128,6 +215,70 @@ Three places could hold the branch convention; only one is early enough.
 | `git push --all origin`, `--mirror`, a `refs/heads/*` refspec, with a local `claude/*` branch | deny; allow once no such branch exists |
 | `git commit -m "git push origin claude/x"`, `git commit -m 'fix && git push origin claude/x'` | allow — quotes hide operators and words from the command lexer |
 | `GIT_TRACE=1 git push origin claude/x`, `cd /x && git push origin claude/x`, `echo "a; b" \| git push origin HEAD:claude/x` | deny |
+| `mcp__github__merge_pull_request`, `mcp__github__enable_pr_auto_merge` | deny — a merge is the maintainer's (AGENTS.md, "Change lifecycle", step 5) |
+| `gh pr merge 12` with any flags (`--squash`, `--auto`, `--disable-auto`, `--help`), `gh -R o/r pr merge 12`, `gh pr -R o/r merge 12`, `GH_TOKEN=x gh pr merge`, `npm test && gh pr merge 12`, `gh stack merge --yes` | deny |
+| the same behind a keyword or a wrapper: `for … do`, `if … then`, `{ … }`, `!`, `time`, `env -u X`, `command`, `xargs -n 1`, `sudo -u root`, `timeout 5`, an absolute path to `gh`, an assignment whose value is `$(…)`; the rule looks for the `gh` word, not the first word | deny |
+| `gh api -X PUT …/pulls/12/merge`, `…/pulls/$PR/merge`, `…/pulls/12/merge?merge_method=squash`, `-X GET -X PUT …/pulls/12/merge` (the last method flag wins), `-X PUT …/pulls/12/auto-merge`, `-XPUT …/ccr/auto_merge`, `…/pulls/12/merge -f merge_method=squash` (a field makes it a POST) | deny |
+| `gh pr view 12`, `gh pr create`, `gh pr comment … pr merge`, `gh api …/pulls/12`, `gh api …/pulls/12/merge` (a read), `gh api -X DELETE …/ccr/auto_merge` (turns it off), a write to a path that only ends in `auto_merge` or in a merge route, `git merge main`, `git commit -m "gh pr merge"`, MCP `update_pull_request_branch`, MCP `disable_pr_auto_merge` | allow |
+| `echo hi⏎git push origin claude/x`, `gh pr \⏎merge 12` (a second command on a new line, or a line continuation) | deny — a newline was whitespace before, so the push rule did not see it |
+| `# don't wait for CI⏎gh pr merge 1`, `npm test # it's fine⏎…`, `# retry \⏎git push origin claude/x`, `echo a # <<EOF⏎…` | deny — a comment runs to the end of its line, so its apostrophe, trailing backslash or `<<` hides nothing |
+| `cat > f <<'EOF'⏎git push origin claude/x⏎EOF`, the same with a merge, `<<\EOF`, and a `git commit -m "$(cat <<'EOF' … EOF)"` whose body names one | allow — a here-document's body is text; the command after its delimiter line is still read |
+| `jq .n <<< "$json"⏎npm test && git push origin claude/x`, `echo $((1<<2))⏎git push origin claude/x`, `cat <<EOF⏎gh pr merge 1` (no delimiter line) | deny — a here-string, an arithmetic shift and an unterminated here-document open no body |
+
+The merge rule is a guard behind the instruction in AGENTS.md and sees the direct forms only. Three
+reviews found shapes it does not see, and the maintainer chose to leave them out rather than parse a
+shell. Not seen: `curl` and GraphQL mutations; a command inside `bash -c`, `eval`, backticks or
+`$(…)`; a variable or a script written first or piped to a shell; a `gh` alias; a function or a `case`
+arm that builds the command from its arguments; a subshell that opens the command (`(gh pr merge 1)`);
+and a `<<` the shell does not read as a here-document (arithmetic, a partly quoted delimiter) followed
+by a line equal to its word, which the lexer then skips. Refused though it merges nothing:
+`gh pr merge --help`, an unquoted `echo gh pr merge`, `-X=GET` (which `gh` reads as GET), and a field
+whose value ends in a full merge-route URL.
+
+The rows are `tests/agent-conventions.test.ts`: 109 tests sending 111 `PreToolUse` payloads to the
+script, the earlier rules' regressions among them. Thirty-two copies of the script with one condition each
+changed, run through the same file by `AGENT_CONVENTIONS_SCRIPT`, each fail the rows that condition
+guards, and none survives:
+
+| Condition changed | Rows that fail |
+| --- | --- |
+| `gh pr` instead of `gh pr merge` | 3: `gh pr view`, `gh pr create`, a `gh pr comment` that mentions a merge |
+| the method test dropped | 6, the reads and the DELETE among them |
+| the first method flag read instead of the last | 3: `-X GET -X PUT`, `--method GET --method=PUT`, and `-X PUT -X GET` |
+| `--method=` not read | 2: `--method=GET` and `--method=DELETE` on a merge route |
+| GET and DELETE matched case-sensitively | 1: a lower-case delete |
+| each write flag dropped from the write test (`-F`, `--field`, `--raw-field`, `--input`, a glued `-fX`), five copies | 1 each: the row for that flag |
+| the old route pattern, anchored at its end only | 6 |
+| the route not anchored at `repos/…` | 1: a field whose value is a bare merge path |
+| the route not closed by `$` | 1: a write below a merge route |
+| the route's number must be digits | 2: `$PR`, `${PR}` |
+| the `auto-merge` alternative dropped from the route | 1: `-X PUT …/pulls/12/auto-merge` |
+| `gh` only as the first word | 16 |
+| only the first `gh` word read | 2: `sudo -u gh gh …`, `env -C ~/src/gh gh …` |
+| flags kept as positionals | 2: the `--repo=value` and glued `-R` forms |
+| the `-R` value counted as a word | 3 |
+| a tool missing from the MCP set | 1 each |
+| a newline is whitespace again | 8 |
+| comments not recognised | 5 |
+| a here-document body read as commands | 6 |
+| an unterminated here-document skipped to the end | 2 |
+| `<<<` rejected only at its first character, the guard of the first draft | 1: the here-string whose word reappears as a later line |
+| a line continuation not skipped, outside or inside double quotes | 1 each |
+| `<<-` not read, and tabs not stripped from the delimiter line | 1: a tab-indented terminator that names a merge |
+| the `<<"EOF"` form dropped | 1 |
+| only the first here-document of a line skipped | 1 |
+
+A differential sweep of the earlier script against the new lexer (80 000 decisions, each difference
+checked against bash with stubbed commands) found two further classes that changed, both correct for a
+line with no redirection and neither listed above: a push followed by a later line carrying a `claude/*`
+word was refused before, because the later words were read as refspecs, and is allowed now
+(`git push origin feat/y⏎echo claude/w`); and `git push⏎echo hi` on a harness-branch checkout was
+allowed and is refused now. The push rule also reads a redirection's words as refspecs, on the earlier
+script and this one alike, so a bare `git push > log` from a harness checkout passes; that is unchanged
+here, and is laughedelic/obsidian-true-outliner#361. In the session that wrote the rule, the MCP merge tool and the `gh` merge
+command, both on pull request 999999 (which does not exist, so a refusal that failed would have merged
+nothing), came back refused with the rule's message. The rule is a guard against the shapes a session
+writes, not a sandbox: a merge assembled in `$(…)`, a variable or a script written first is not seen.
 
 The guard reads the command with a small shell lexer — quotes group words and hide operators,
 `VAR=value` prefixes and `git -C <dir>` are stepped over — rather than a regex over the whole

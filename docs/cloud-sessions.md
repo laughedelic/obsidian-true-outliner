@@ -21,8 +21,6 @@ tool added to the repository script reaches the cloud without touching the dialo
 
 # The GitHub CLI from Ubuntu's own repository: cli.github.com is unreachable from
 # a session, and every call a session makes to GitHub is REST, which any gh serves.
-# No gh-stack: every one of its commands opens with a GraphQL query the session's
-# GitHub proxy refuses, so the extension would only ever fail.
 apt-get update || true
 apt-get install -y --no-install-recommends gh || true
 
@@ -75,17 +73,15 @@ half of our workflow a cloud session can run. Measured in
 | REST on Projects (`users/{owner}/projectsV2/...`) and on any other path outside `repos/{owner}/{repo}` | refused by the proxy, which admits repository-scoped paths only |
 | Discussions | listing is allowed and returns REST results; creating one, and reading the categories, are refused |
 
-The GraphQL refusal is the one that matters: `gh stack`, `gh pr` and `gh repo` open with a
-GraphQL query, so none of them works from a cloud session however `gh` is installed. It is a
-property of the GitHub proxy, not of the environment's network access level: the documentation
-says the proxy applies whichever level is set, serves only a pinned set of GraphQL operations,
-and refuses the rest whatever token the session carries. A Custom allowlist or a personal
-`GH_TOKEN` in the environment does not lift it; only a self-hosted environment routes GitHub
-traffic elsewhere, and we run none. So the setup script installs `gh` and not `gh-stack`, the
-session hook skips the extension in the cloud, and CLAUDE.md's stack instructions give a cloud
-session only the layer's own work. The
-session hook says so on start. PR work from the cloud goes through the GitHub MCP tools or
-`gh api`, and stack surgery stays where CLAUDE.md already puts it — the primary checkout. The
+The GraphQL refusal is the one that matters: `gh pr` and `gh repo` open with a GraphQL query, so
+neither works from a cloud session however `gh` is installed. It is a property of the GitHub proxy,
+not of the environment's network access level: the documentation says the proxy applies whichever
+level is set, serves only a pinned set of GraphQL operations, and refuses the rest whatever token the
+session carries. A Custom allowlist or a personal `GH_TOKEN` in the environment does not lift it;
+only a self-hosted environment routes GitHub traffic elsewhere, and we run none. So a session
+reaches GitHub through the GitHub MCP tools and `gh api`, which are REST, and that includes
+stacks (`POST /repos/{o}/{r}/stacks`, [`docs/pr-stacks.md`](pr-stacks.md)). The session hook says so
+on start. The
 `gh auth status` verdict is misleading here: it reports the token invalid while every REST call
 with it succeeds, which is why the hook checks with `gh api user`.
 

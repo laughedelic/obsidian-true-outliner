@@ -12,6 +12,11 @@
 //   to keep a "safety-net" check-in through `send_later` (docs/research/pr-watching-wakes.md).
 //   PreToolUse refuses `send_later` unless the maintainer asked for the reminder, and
 //   `ScheduleWakeup` unless the maintainer typed `/loop`.
+// - An agent never merges: the maintainer lands. AGENTS.md ("Change lifecycle", step 5) says so,
+//   and PreToolUse refuses the direct forms as a guard behind it: the GitHub MCP merge and
+//   auto-merge tools, and in Bash `gh pr merge`, `gh stack merge` and a `gh api` write to a merge
+//   route. It sees no more than that, and has no exception: it cannot tell a merge the maintainer
+//   asked for from one the session chose.
 // - PR descriptions carry no agent attribution. The GitHub MCP tool
 //   `create_pull_request` appends a footer outside the `attribution` settings;
 //   PostToolUse spots it and has the session rewrite the body, which sticks.
@@ -25,6 +30,10 @@ const HARNESS = /^(?:refs\/heads\/)?claude\//;
 const TYPES = "`feat/<slug>`, `fix/<slug>` or `chore/<slug>`";
 const SEND_LATER = "mcp__claude-code-remote__send_later";
 const SCHEDULE_WAKEUP = "ScheduleWakeup";
+const MERGE_TOOLS = new Set(["mcp__github__merge_pull_request", "mcp__github__enable_pr_auto_merge"]);
+// A pull request's `merge` route, its `auto-merge` route, or the cloud proxy's `…/ccr/auto_merge`, as
+// a `repos/…` path. The number may be a shell variable and a query string may follow.
+const MERGE_ROUTE = /(?:^|\/)repos\/[^/]+\/[^/]+\/pulls\/[^/?]+\/(?:merge|auto-merge|ccr\/auto_merge)(?:\?.*)?$/;
 // A slash command the user typed is recorded in a `<command-name>` block of their message,
 // slash included; a skill only the model can invoke is recorded without one.
 const TYPED_LOOP = /<command-name>\/loop<\/command-name>/;
@@ -78,8 +87,11 @@ function preToolUse() {
   const { tool_name: tool, tool_input: args = {} } = input;
   if (tool === SEND_LATER) return refuseSelfReminder(args.initiation);
   if (tool === SCHEDULE_WAKEUP) return refuseSelfWake();
+  if (tool && MERGE_TOOLS.has(tool)) return refuseMerge(`\`${tool}\``);
   let target: string | undefined;
   if (tool === "Bash") {
+    const merge = mergeCommand(String(args.command ?? ""));
+    if (merge) return refuseMerge(merge);
     target = pushedHarnessBranch(String(args.command ?? ""));
   } else if (tool === "mcp__github__create_pull_request") {
     const head = String(args.head ?? "");
@@ -108,6 +120,67 @@ function refuseSelfReminder(initiation: unknown): void {
       "their own, so skip the reminder and end the turn. `human_request` is for a reminder the " +
       "maintainer asked for in their own words.",
   );
+}
+
+// Landing is the maintainer's. A session prepares it, reports, and stops.
+function refuseMerge(what: string): void {
+  deny(
+    `No merges by an agent (AGENTS.md, "Change lifecycle", step 5): ${what} is refused. Prepare landing ` +
+      "and stop; the maintainer merges from the PR page. Report that the PR is ready and what, if " +
+      "anything, is left.",
+  );
+}
+
+// The merge a Bash command line makes, as the words to show in the refusal: the direct forms only,
+// as a guard behind the instruction in AGENTS.md and no sandbox. The command word is any `gh` word
+// among a simple command's words, so `env`, `xargs`, `sudo`, `time` and the like need no list of
+// their options. `gh pr merge` and `gh stack merge` are named by their first two words that are not
+// flags (`-R owner/repo` stands between them) and are refused with any flags; `gh api` is a merge
+// when a word is a merge route and it writes, so a read of one and the DELETE that turns auto-merge
+// off pass.
+//
+// Not seen: `curl` and GraphQL mutations; a command inside `bash -c`, `eval`, backticks or `$(…)`;
+// a variable or a script written first or piped to a shell; a `gh` alias; a function or a `case`
+// arm that builds the command from its arguments; a subshell that opens the command
+// (`(gh pr merge 1)`); and a `<<` the shell does not read as a here-document (arithmetic, a
+// partly quoted delimiter) followed by a line equal to its word. Refused though it merges nothing:
+// `gh pr merge --help`, an unquoted `echo gh pr merge`, `-X=GET` (which `gh` reads as GET), and a
+// field whose value ends in a full merge-route URL.
+function mergeCommand(command: string): string | undefined {
+  for (const words of shellCommands(command)) {
+    for (let i = 0; i < words.length; i++) {
+      if (words[i]?.split("/").pop() !== "gh") continue;
+      const found = ghMerge(words.slice(i + 1));
+      if (found) return found;
+    }
+  }
+}
+
+// What `gh` was asked to do, past its flags: the `-R`/`--repo` value is not a word of the command.
+function ghMerge(words: string[]): string | undefined {
+  const positional: string[] = [];
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i] ?? "";
+    if (word === "-R" || word === "--repo") i++;
+    else if (!word.startsWith("-")) positional.push(word);
+  }
+  const [group, subcommand] = positional;
+  if ((group === "pr" || group === "stack") && subcommand === "merge") return `\`gh ${group} merge\``;
+  if (group !== "api") return undefined;
+  const route = words.find((w) => MERGE_ROUTE.test(w));
+  if (route && apiWrites(words)) return `\`gh api\` to ${route}`;
+}
+
+// Whether a `gh api` call writes: an explicit method other than GET (the last of the method flags,
+// as `gh` reads them), or none and a field or body, which `gh` sends as a POST.
+function apiWrites(words: string[]): boolean {
+  const flag = words.findLastIndex((w) => /^(-X|--method)(=|$)/.test(w) || /^-X./.test(w));
+  if (flag >= 0) {
+    const word = words[flag] ?? "";
+    const method = /^--method=|^-X./.test(word) ? word.replace(/^--method=|^-X/, "") : (words[flag + 1] ?? "");
+    return !/^(GET|DELETE)$/i.test(method);
+  }
+  return words.some((w) => /^(-f|-F|--field|--raw-field|--input)(=|$)/.test(w) || /^-[fF]./.test(w));
 }
 
 // `ScheduleWakeup` has no `initiation`; it exists for a `/loop` the user started, so a wake
@@ -184,35 +257,61 @@ function pushedHarnessBranch(command: string): string | undefined {
 }
 
 // The simple commands of a shell line as word lists: quotes group words and
-// hide operators, so a commit message is never read as a command of its own.
-// `$(…)` and backticks are not expanded; a push hidden in one is not caught.
+// hide operators, so a commit message is never read as a command of its own,
+// and a here-document's body is skipped for the same reason. A newline ends a
+// command. `$(…)` and backticks are not expanded; a push hidden in one is not caught.
 function shellCommands(line: string): string[][] {
   const commands: string[][] = [[]];
   let word = "";
   let inWord = false;
   let quote: string | null = null;
+  const heredocs: string[] = [];
   const endWord = () => {
     if (inWord) commands.at(-1)?.push(word);
     word = "";
     inWord = false;
   };
+  const endCommand = () => {
+    endWord();
+    if (commands.at(-1)?.length) commands.push([]);
+  };
   for (let i = 0; i < line.length; i++) {
     const c = line.charAt(i);
     if (quote) {
       if (c === quote) quote = null;
+      else if (c === "\\" && quote === '"' && line.charAt(i + 1) === "\n") i++;
       else if (c === "\\" && quote === '"' && i + 1 < line.length) word += line.charAt(++i);
       else word += c;
     } else if (c === "'" || c === '"') {
       quote = c;
       inWord = true;
+    } else if (c === "\\" && line.charAt(i + 1) === "\n") {
+      i++; // a line continuation joins nothing and ends nothing
     } else if (c === "\\" && i + 1 < line.length) {
       word += line.charAt(++i);
       inWord = true;
+    } else if (c === "#" && !inWord) {
+      // A comment runs to the end of the line: an apostrophe or a trailing backslash in it opens
+      // no quote and continues no line.
+      while (i + 1 < line.length && line.charAt(i + 1) !== "\n") i++;
+    } else if (c === "<" && line.startsWith("<<", i)) {
+      // A here-document: its body is text, read from the next newline to the delimiter line.
+      // A here-string's `<<<` matches no delimiter and is stepped over, so it opens no body.
+      const delimiter = /^<<-?\s*(?:'([^']+)'|"([^"]+)"|\\?([^\s;|&<>()]+))/.exec(line.slice(i));
+      endWord();
+      if (delimiter) {
+        heredocs.push(delimiter[1] ?? delimiter[2] ?? delimiter[3] ?? "");
+        i += delimiter[0].length - 1;
+      } else {
+        i += 1;
+      }
+    } else if (c === "\n") {
+      endCommand();
+      for (const delimiter of heredocs.splice(0)) i = heredocEnd(line, i, delimiter) ?? i;
     } else if (/\s/.test(c)) {
       endWord();
-    } else if (c === ";" || c === "|" || c === "&" || c === "\n") {
-      endWord();
-      if (commands.at(-1)?.length) commands.push([]);
+    } else if (c === ";" || c === "|" || c === "&") {
+      endCommand();
     } else {
       word += c;
       inWord = true;
@@ -220,6 +319,20 @@ function shellCommands(line: string): string[][] {
   }
   endWord();
   return commands.filter((c) => c.length);
+}
+
+// The index of the newline that ends a here-document's delimiter line, the newline at `newline`
+// opening its body. Without such a line the text after it is not a body (`1<<2` in arithmetic opens
+// none), and it is read as commands: the cautious side for a rule that refuses.
+function heredocEnd(line: string, newline: number, delimiter: string): number | undefined {
+  let start = newline + 1;
+  while (start < line.length) {
+    const next = line.indexOf("\n", start);
+    const end = next === -1 ? line.length : next;
+    const text = line.slice(start, end).replace(/^\t+/, "");
+    start = end + 1;
+    if (text === delimiter) return start - 1;
+  }
 }
 
 // The MCP tool's footer is appended at creation, outside the session, and every
