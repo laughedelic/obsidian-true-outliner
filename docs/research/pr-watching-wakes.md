@@ -26,8 +26,8 @@ through the MCP surface.
 | Reading | Value |
 | --- | --- |
 | Minutes from creation to firing, 60 or 61 | 77 of 100 |
-| Other gaps | 45, 46, 91, 120, 180 and 240 minutes, 2 or 1 each |
-| Names that carry a PR number | #205 in 22, #276 in 22, #318 in 6, #285 in 2 |
+| Other gaps | 23 of 100, in 18 distinct values from 11 to 721 minutes |
+| Names that carry a PR number | 52 of 100: #205 in 22, #276 in 22, #318 in 6, #285 in 2 |
 
 A reminder 60 minutes out fires after the 1-hour prompt cache has expired, which is the mechanism
 #335 describes. The counts are one page of several: they agree with the issue's per-PR figures in
@@ -53,18 +53,35 @@ held to the rule. The pass path of `send_later` was read on a piped payload only
 The tool exists for `/loop` in dynamic mode, where the user gave no interval and the session paces
 itself. Its inputs are `delaySeconds`, `prompt`, `reason`, `noop` and `stop`: nothing says who
 wanted the wake, so the `initiation` test cannot apply. What separates a wake the user asked for from
-one the session armed is a `/loop` command the user typed earlier in the session. A hook's input
-carries `transcript_path`, and a user-typed skill or command appears in the transcript inside a
-`<command-name>` block. No transcript on this machine holds a typed `/loop`, so what one looks like
-is unread.
+one the session armed is a `/loop` command the user typed earlier in the session, and a hook's input
+carries `transcript_path` to look for it in.
+
+What the transcript holds, from two readings:
+
+- **This session's transcript, Claude Code 2.1.288.** A skill the model invoked through the `Skill`
+  tool left a `tool_use`, a `tool_result` reading "Launching skill: …", and a user message flagged
+  `isMeta` that begins with the skill's text. It holds no `<command-name>` block. The only user entries
+  that contain the text `<command-name>` are `tool_result` entries, from this session's own searches,
+  which is why the hook counts only text the user wrote.
+- **The installed bundle, Claude Code 2.1.42**, read for the strings it writes. A command the user
+  typed, and a user-invocable skill, are recorded as `<command-message>loop</command-message>`,
+  `<command-name>/loop</command-name>` and `<command-args>…</command-args>`, with the slash. A skill
+  that is not user-invocable, and one preloaded into an agent, are recorded as
+  `<command-name>loop</command-name>` with `<skill-format>true</skill-format>`, without it. The two
+  forms differ in the slash alone, so the hook requires it.
+
+The bundle is older than the session that ran the hook, so what a typed `/loop` leaves in 2.1.288 is
+still unread.
 
 ## Not measured
 
 - **The input a hook receives for `send_later`.** The script reads `tool_input` as the call's own
   arguments. Whether an omitted `initiation` arrives absent or as its default is unread; a rule that
   allows only `human_request` refuses both.
-- **What a typed `/loop` leaves in the transcript.** The `ScheduleWakeup` rule looks for it, and a
-  wrong guess refuses the maintainer's own `/loop`.
+- **What a typed `/loop` leaves in a 2.1.288 transcript.** The `ScheduleWakeup` rule looks for the
+  form the 2.1.42 bundle writes, and a wrong guess refuses the maintainer's own `/loop`. A model-invoked
+  skill leaving `<command-name>` in some version would let the model satisfy the rule itself; 2.1.288
+  does not.
 - **Whether the platform appends its footer to a comment** as it does to a PR body written through
   the MCP tool. The maintainer's answer is to leave an appended footer alone, so nothing here
   depends on it.

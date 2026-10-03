@@ -36,8 +36,10 @@ carries the rule's name and what to do: skip the reminder, rely on pushed events
 reads the session's `transcript_path` and looks for a user-typed `/loop` in a user message, never in
 a tool result or an attachment, where the text also occurs. An unreadable transcript refuses, since
 allowing on a failed read would leave the rule open. What a typed `/loop` looks like in the transcript
-is unmeasured, so the pass path is checked on a synthetic transcript and the cost of a wrong guess is a
-refused `/loop`; the message says so and the rule is one regex to adjust.
+in the running version is unmeasured: the installed 2.1.42 bundle writes `<command-name>/loop</command-name>`
+for a typed command and the same tag without the slash for a skill only the model can invoke, so the
+pattern requires the slash. The pass path is checked on a synthetic transcript, and the cost of a wrong
+guess is a refused `/loop`; the message says so and the rule is one regex to adjust.
 
 **A hook, not `permissions.deny`.** A deny is per tool name and would refuse the maintainer's own
 requested reminders. The rule goes in the existing script, which already dispatches on the tool.

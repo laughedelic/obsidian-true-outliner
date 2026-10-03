@@ -11,9 +11,10 @@
 - [x] 1.2 In the same script, deny `ScheduleWakeup` unless a user message in the session's
       `transcript_path` holds a typed `/loop`; add the tool to the matcher. Verified by piping
       payloads with a synthetic transcript: one with a typed `/loop` in a user message passes, one
-      whose only `/loop` is in a tool result or an attachment is denied, an unreadable path is denied.
-      Negative control: matching the marker in any entry type must let the tool-result transcript
-      through and fail that row.
+      whose only `/loop` is in a tool result or an attachment is denied, one whose marker lacks the
+      slash is denied, an unreadable path is denied. Negative controls: matching the marker in any
+      entry type must let the tool-result transcript through, and making the slash optional must let
+      the slash-less one through, each failing its row.
 - [x] 1.3 Check the rules in the session that made the edit: call `send_later` with
       `initiation: "own_followup"` and `ScheduleWakeup` and see both refused; the reminder
       the maintainer asks for passes on the piped payload only, since a real one would arm a routine
