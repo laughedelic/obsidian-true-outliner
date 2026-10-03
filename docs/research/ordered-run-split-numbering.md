@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "What a run is once a foreign marker divides one"
 description: "What a run is once a foreign marker divides one: the pasted bullet that rewrote `10. ten` to `8. ten`, the 2026-08-24 change that carried the split outcome along as a non-defect, and the distinction it missed — a removal takes the members that carried the start, a split takes nothing. The rendering the rewritten markers change, measured with `commonmark`; the rule that recovers a start only where the fragment's own numbers cannot stand; the four refinements measurement forced, among them the split-and-join shape that stays under the join rule and the nine-digit ceiling that preserving a number newly reaches, where a tenth digit costs the item its kind and its subtree its column; and a differential against `main` over 3000 generated documents covering the paste path as well as the four relocating operations, in which all 28 354 differing cases preserve strictly more of the source — with the non-consecutive frame that bounds that claim to sources whose runs already read consecutively"
 ---
 

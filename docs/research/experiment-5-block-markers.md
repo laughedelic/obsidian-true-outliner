@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Experiment 5: per-kind block markers — 5a vs. 5b head to head (2026-07-16 → 2026-07-19)"
 description: "Experiment 5: per-kind block markers — 5a (SVG icons, DOM mechanism) vs. 5b (CSS shapes → uniform dot) head to head. **5a chosen**; includes the comparison verdict and the 5a hardening checklist"
 ---
 

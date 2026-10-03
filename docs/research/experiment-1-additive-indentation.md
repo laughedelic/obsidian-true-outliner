@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Experiment 1: additive-only indentation (2026-07-13)"
 description: "Experiment 1: additive-only indentation — design, results, 3 real-vault bugs. **Kept**; the foundation for everything after"
 ---
 

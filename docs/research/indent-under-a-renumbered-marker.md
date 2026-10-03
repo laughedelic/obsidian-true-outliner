@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Indenting under a target the same operation renumbers"
 description: "Why a depth property failed on one CI seed and not the next: the fifty-eight-node counterexample shrunk to `9. a` / `9. b` / `- c`, the renumbering that makes the target `10. b` after the subject was already encoded against `9. b`'s content column, the narrowing mirror no depth measurement can fail on, the measurement placing the defect at the property's own first commit, and why the counterexample is pinned where the seed is not"
 ---
 

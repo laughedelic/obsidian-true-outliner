@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Backspace at a heading's content start: where it leaves the enforcement funnel"
 description: "Why Backspace at a heading's first content character deletes the marker's space instead of vetoing: the kind gate it fails in `classify`, the newline shapes that already veto, the measurement showing that widening classification alone turns the keypress into a whole-section deletion, and the single content-start column a heading resolves"
 ---
 

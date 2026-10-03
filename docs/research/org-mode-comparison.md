@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Org-mode Comparison"
 description: "Where our mapping algebra aligns with / diverges from org-mode, the closest living reference system"
 ---
 

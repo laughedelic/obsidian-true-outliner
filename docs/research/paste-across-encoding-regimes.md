@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Paste across encoding regimes"
 description: "What a paste actually does when the payload cannot mean at its destination what it meant at its source: the three insert paths and the guard that only two of them run, twenty-eight measured shapes with their verdicts and re-parsed trees, the five defects they separate — including the original 2026-07-25 report reproduced through a path the change never assumed — the four things the measurement settles that the change treats as open, and the one policy question left, with what each candidate costs"
 ---
 

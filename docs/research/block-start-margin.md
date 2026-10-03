@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Block starts measured from the list item that holds them"
 description: "Why a quote, callout, rule or HTML block inside a list item reads as a paragraph (#136, #158's kind half): the `^ {0,3}` anchors measured from column 0 rather than from the holding item's content column; a prototype that measures quotes, callouts and rules from the item; 610 shapes read by `commonmark`, `main` and the prototype — 184 of 570 in-item shapes agreeing on `main`, 422 with the prototype, none of them moving away; the corpus unchanged; the insertion differential's kind losses from 132 to 54, the rest being #138's root divergence and HTML blocks; why headings stay measured from column 0, and why HTML blocks do too — an inline tag opening a block, and a block running past the item that holds it"
 ---
 

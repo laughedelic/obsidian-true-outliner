@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Surfaces: where the outline can be drawn, and what each way costs"
 description: "Where the outline can be drawn and what each way costs: why the editor's chrome was not readily reusable, the seam between the two renderers, the public `getSectionInfo` route to reading mode, and the embedded-real-editor technique — **recorded, not proposed** — with the eight non-public touchpoints it needs and the README promise that decides it"
 ---
 

@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Postmortem: the `outline-decorations` change (2026-07-13)"
 description: "Postmortem on the failed `outline-decorations` visual-chrome attempt: what was tried, why the CSS-override strategy kept breaking, and why the testing approach gave false confidence"
 ---
 

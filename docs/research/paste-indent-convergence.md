@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "A paste converges on the document's indent unit"
 description: "Why a pasted subtree kept the clipboard's indentation below its roots, and how each level is now written from its depth in the document's unit: which lines keep their offset instead (continuations, a child that is not a list item, an atom's content), the unit read under a bullet rather than a number, a move reading the unit before its removal, a converted block's children and an empty note's first paste, and a 1 774-row differential against `main` with no verdict or tree shape changed and every text change toward one unit"
 ---
 

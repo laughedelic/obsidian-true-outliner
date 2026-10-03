@@ -16,7 +16,7 @@ same metadata on the note itself, so adding a note touches only that file.
 **Non-Goals:**
 
 - Generating an index from the front matter. Nothing reads one today.
-- Validating `title` or `description` against the body; they are optional in OKF.
+- Validating `description` against the body; the lint checks that it is present, not that it is true.
 
 ## Decisions
 
@@ -25,9 +25,10 @@ reworded one would be a second change mixed into the first. OKF describes the ke
 the rows run to 1011 characters; that mismatch is recorded in the research note and left to the
 rework.
 
-**`title` is the H1, copied.** OKF derives an absent title from the filename, which loses the
-subject line the notes already have. The copy can drift from the heading; the lint does not compare
-them, because a note's heading is its own to reword.
+**`description` is required, `title` is absent.** OKF only recommends `description`, but the index
+row was the one summary every note was made to write, so a note without one would leave nothing to
+find it by. `title` would copy the H1 and could drift from it, and OKF derives an absent title from
+the filename; agents read the notes, and a note's first line is its heading.
 
 **The block is a double-quoted scalar per key.** 64 of the 70 rows contain a character that a plain
 scalar mishandles, so one quoting rule avoids deciding per row.
@@ -46,6 +47,3 @@ nothing after it.
 
 - **Parallel PRs that add a note and an index row** conflict with the deletion. Rebase them and
   drop the row; the conflict is one file and the fix is mechanical.
-- **Properties view in Obsidian** shows the block for anyone who opens the notes in a vault. The
-  maintainer looked at the sample: bold markup in a `description` does not render and a long one is
-  truncated, but most of it is visible.

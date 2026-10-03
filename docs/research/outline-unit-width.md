@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "The outline unit: a wider default, and an override that is guaranteed"
 description: "The level-to-level unit: why it widened once the gutter tightened, the four candidates measured and read, and how an override of its single declaration went from an incidental property to a stated contract with a test — plus the spelled unit the widening flushed out of an e2e spec"
 ---
 

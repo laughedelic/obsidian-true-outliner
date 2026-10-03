@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Open Questions & Decisions"
 description: "Decisions that need alignment before any planning/spec work"
 ---
 

@@ -1,6 +1,8 @@
 /**
  * Checks that every Markdown file under `docs/research/` opens with a YAML front-matter block
- * carrying a non-empty `type`, the one key the Open Knowledge Format requires of a document.
+ * carrying a non-empty `type`, the one key the Open Knowledge Format requires of a document, and a
+ * non-empty `description`, which we require on top of it because it replaces the summary the index
+ * gave each note.
  *
  * A note is a file with that block and nothing else: there is no index to keep in step, so adding
  * a note touches only the note itself.
@@ -29,8 +31,10 @@ function problemWith(text: string): string | undefined {
   }
 
   if (typeof data !== 'object' || data === null || Array.isArray(data)) return 'front matter is not a mapping';
-  const type = (data as Record<string, unknown>).type;
-  if (typeof type !== 'string' || type.trim() === '') return 'front matter has no non-empty `type`';
+  for (const key of ['type', 'description']) {
+    const value = (data as Record<string, unknown>)[key];
+    if (typeof value !== 'string' || value.trim() === '') return `front matter has no non-empty \`${key}\``;
+  }
   return undefined;
 }
 
@@ -46,8 +50,8 @@ const problems = files.flatMap((file) => {
 if (problems.length > 0) {
   console.error('docs/research/ front matter is incomplete:\n');
   for (const problem of problems) console.error(`  ${problem}`);
-  console.error('\nEvery Markdown file here opens with a `---` block holding at least `type: research`.');
+  console.error('\nEvery Markdown file here opens with a `---` block holding at least `type: research` and a `description`.');
   process.exit(1);
 }
 
-console.log(`docs/research/: ${files.length} files, all with front matter and a type.`);
+console.log(`docs/research/: ${files.length} files, all with a type and a description.`);

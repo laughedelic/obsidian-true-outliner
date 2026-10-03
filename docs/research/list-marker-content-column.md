@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Two spaces after a bullet: where a list item's content column actually is"
 description: "Why two spaces after a bullet turned an item's deeper children into raw dashes and checkboxes: the shape that reproduces it with the plugin off, how Obsidian's Live Preview mode measures a list item's content column and empties its list stack, the one-space column our parser and re-encoder assumed instead, the measurement showing an indent under `-  parent` written one column short, and what follows for seeing the run and removing it: the mark, the Backspace the classifier lets through, where Cmd-Left and Mod-Backspace land, and the one-space run a rewritten line comes out with"
 ---
 

@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Dragging a node by its mark"
 description: "`drag-nodes-with-a-drop-preview`'s gate, and the affordance-budget question answered with figures: the 0.83px of unclaimed run left between the parent guide's press band and the fold indicator, which rules out a handle of its own; the measured finding that a real pointer reaches a mark and that its press already zooms at `pointerdown`, so the zoom has to resolve at release; the task checkbox whose claim turns out to be on the click and not the press, which makes a task draggable by its own mark; where a held drag's moves stop arriving, and why a held touch lost its drag to the platform's pan; what survives a decoration rebuild; and the seam-and-depth model a drop target is chosen by. Companion mockup: [prototypes/drop-indicator.html](prototypes/drop-indicator.html), the five ways of saying where a run will land, drawn at the measured geometry"
 ---
 

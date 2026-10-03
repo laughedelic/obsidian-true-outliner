@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Front matter on research notes, in place of the index"
 description: "What the research index costs and returns, what the Open Knowledge Format asks of a note, and a dry run of converting every note: the figures behind replacing `docs/research/index.md` with front matter"
 ---
 
@@ -45,7 +44,7 @@ Read from `SPEC.md` in `GoogleCloudPlatform/open-knowledge-format` (v0.2; the co
 
 ## Dry run
 
-A script built each note's block from its current index row and H1, and parsed the result back with
+A script built each note's block from its current index row, and parsed the result back with
 the `yaml` package, which the repository already depends on (`sync-labels.ts`). Run on 2026-10-03
 against `main` at `fc7ca4d`:
 
@@ -53,7 +52,6 @@ against `main` at `fc7ca4d`:
 | --- | --- |
 | Markdown files in `docs/research/` besides `index.md` | 71: 70 notes and `README.md` |
 | Notes with an index row | 70 of 70; no row without a file |
-| Files with an H1 on which `title` could be taken | 71 of 71 |
 | Blocks that parse back to the values put in | 71 of 71, written as double-quoted scalars |
 | Rows containing a character that needs quoting in a plain scalar (`:`, `` ` ``, `*`, `[`, …) | 64 of 70 |
 | Longest row | 1011 characters |
@@ -62,6 +60,11 @@ against `main` at `fc7ca4d`:
 The rows are paragraphs, not the one sentence OKF describes. Taking them verbatim keeps the
 information the index carried; shortening them is a separate editorial pass.
 
-Obsidian's Properties view, checked by the maintainer on the sample note, does not render bold
-markup in a `description` and truncates a long one, with most of it still visible. Nothing in
-`scripts/`, `src/`, `tests/` or the workflows reads `docs/research/*.md` apart from the lint.
+Nothing in `scripts/`, `src/`, `tests/` or the workflows reads `docs/research/*.md` apart from the
+lint.
+
+## What we kept out
+
+`title` is not used: it would copy each note's H1, and the copy can drift from the heading.
+`description` is required, although OKF only recommends it, because it replaces the summary the
+index row gave each note.

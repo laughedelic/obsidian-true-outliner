@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "A provisional position's guides: what the extension carries that the typed row does not"
 description: "Why a provisional position's row can draw a guide that the same row loses once a character is typed: the reported shape row by row against its heading-parent control, the extension rule that takes \"which guides\" from the node owning the gap instead of from the node the position stands for, how far that reaches across the generated corpus (most new-node positions, never a bisecting one), and the candidate rule measured against it — whose only residual is the childless parent the spec keeps on purpose"
 ---
 

@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Obsidian API Feasibility"
 description: "Can the experience be built on public APIs only? Architecture options, guidelines/scorecard constraints, verdict"
 ---
 

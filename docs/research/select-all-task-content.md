@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Select All on a task item: where the first rung actually lands"
 description: "Why the first Mod-A press on a task item settled as the whole line, dash included: the rung the ladder computes for every task shape, the measurement showing Obsidian's checkbox-widget mount moving a range boundary at the list marker's end to column 0 with the plugin on or off, and why the rung now starts past the task marker while the caret's own boundary does not"
 ---
 

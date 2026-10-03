@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Three CI-only failures, and what CI said when asked directly"
 description: "Two things a CI runner does slower than a developer machine, and the three cases that failed there without ever reproducing locally: Obsidian's metadata cache still indexing the vault when the first footer read lands (the rate measured, the three waits that did not work and the one that gates on a still resolved-link count), and two cases whose driving outran mocha's per-case budget — one of which kept running underneath its successors after being abandoned — plus why a budget raised with `this.timeout()` from inside a case never reached wdio's timer, and where one has to be declared instead"
 ---
 

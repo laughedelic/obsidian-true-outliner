@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Backlinks footer: spike series plan & results"
 description: "**Hub** for the backlinks-footer spike series: ground rules (inherited from decoration-experiments-plan.md), the shared fixture corpus and what each fixture is diagnostic for, and the results table — including S1, which may veto the footer surface outright"
 ---
 

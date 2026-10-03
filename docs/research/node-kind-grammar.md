@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "What a node becomes where it lands"
 description: "What a node becomes where it lands, across drop, paste, indent and outdent: the landing columns drawn as numbered positions, the keep-the-kind principle and the rules read against it, the one place drop and paste differ on purpose (a heading among a heading's list items) and why, the drop's sweep of preview-versus-release parents (58,077 destinations to none outside atom runs), and the two routes to a shared grammar — a formal model with one conversion function, and a reader's choice where that function has more than one answer"
 ---
 

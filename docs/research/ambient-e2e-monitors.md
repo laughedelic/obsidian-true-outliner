@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Ambient monitors: what each reading measures, and what it reported"
 description: "The readings taken around every e2e case (painted caret, scroll, grid, height map, layout shift, errors, notices): where a hook sees a case, what each reading returns across document shapes, and what the monitors reported over the whole suite while report-only"
 ---
 

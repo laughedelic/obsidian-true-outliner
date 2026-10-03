@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Zoom's hiding mechanism: the block-replace bet, measured before the design was built on it"
 description: "`outline-zoom`'s gate: block-level replace decorations measured against a real instance before the design was built on them — what held (hiding, boundary arithmetic, widget atoms, visible-line chrome, `showPanel`), the design claim that did not (confinement is not free), and the footer fix that turned out to be the only possible one"
 ---
 

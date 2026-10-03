@@ -7,12 +7,13 @@
 ## 2. Conversion
 
 - [x] 2.1 Add the front-matter block to the remaining notes and `README.md`, with a throwaway script
-      that builds each block from the note's H1 and index row. Verified by `git diff --stat` showing only added
+      that builds each block from the note's index row. Verified by `git diff --stat` showing only added
       lines in each note and by the new lint passing on all 72 files.
 - [x] 2.2 Add `scripts/check-research-front-matter.ts` and run it from `npm run lint` in place of
       `scripts/check-research-index.ts`. Verified by exiting 0 on the tree. Negative controls: a note
       with no block, a block that does not parse, a block with no `type`, one with `type:` empty or
-      `""`, and one that is not a mapping each make it exit 1 naming the file.
+      `""`, one with no `description`, and one that is not a mapping each make it exit 1 naming the
+      file.
 - [x] 2.3 Delete `docs/research/index.md`, `scripts/check-research-index.ts` and `.gitattributes`,
       which held only the `merge=union` line.
 

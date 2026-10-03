@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Editing at the zoom boundary: what the shipped feature actually does"
 description: "What editing at the zoom boundary actually does today: the measured catalogue of every gesture that can reach past the visible range, run zoomed and unzoomed side by side; the two separable defects (escaping edits applied then silently exited, and in-scope tail appends exiting too); the dispatched-range arithmetic behind the second; what the reference outliners do with a zoomed root; and the one defect this pass found that has nothing to do with zoom"
 ---
 

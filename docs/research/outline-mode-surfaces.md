@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "24 — Outline mode as an explicit state: surfaces and API feasibility"
 description: "Outline mode as an explicit state: the public-API verdict for every indicator surface (status bar desktop-only, ribbon both platforms, switcher and core status-bar pencil not extensible), the decision — revised mid-planning — to make the mode per-tab with a global default, and the alternatives rejected with their costs"
 ---
 

@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Decoration lessons: cross-experiment findings"
 description: "Accumulated cross-experiment findings (CSS cascade/box model, CodeMirror 6, Obsidian internals, verification discipline) — read before touching decorations or CM6 extensions"
 ---
 

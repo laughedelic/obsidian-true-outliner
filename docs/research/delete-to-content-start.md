@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Cmd+Backspace on a list item: where \"delete to the start of the line\" actually reaches"
 description: "Why Cmd+Backspace on a list item removed the whole node or left an empty line with the caret at the bullet: the visual-row range CodeMirror's own command builds, the two branches it takes through classification depending only on whether the item owns a trailing gap, and the content-start rule the key gets instead of a wider classifier"
 ---
 

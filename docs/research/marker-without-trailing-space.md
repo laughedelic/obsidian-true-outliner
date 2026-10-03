@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "A marker with no trailing space: what each reader makes of it, and which one we follow"
 description: "Why a line holding nothing but `-` renders as a raw dash: the `\\s+` in the list regex of the CodeMirror markdown mode Live Preview runs, read out of the 1.13.7 bundle, the heading rule that admits a marker at end of line one line below it, the reflow measured when an ambiguous dash was read as an item, and what follows from reading the marker the way the editing surface does"
 ---
 

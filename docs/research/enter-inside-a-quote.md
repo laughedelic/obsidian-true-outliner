@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Enter inside a quote: a replacement the editor synthesizes around the caret"
 description: "Why Enter inside a quote or callout replaced the whole node with the character before the caret: the transaction Obsidian actually dispatches (a one-character REPLACEMENT that re-inserts what it removed, with the `> ` prefix), the multi-block paste rule that read its two blocks as a paste, the type-over path that escalated the range to the whole quote, every row of the issue driven through both gates, the same reading reached by a paste over a selected word, the pre-edit-selection fact that separates the two, and the two fixes rejected — a pure-insertion gate that reverses a pinned type-over, and a change minimization that can lose a keystroke"
 ---
 

@@ -1,6 +1,6 @@
 ---
 type: "research"
-title: "Research: A True Outliner for Obsidian"
+description: "The research collection's entry point: what a true outliner is, the decisions taken in the first alignment rounds, and the feasibility verdict, with a short account of how the notes are kept"
 ---
 
 # Research: A True Outliner for Obsidian

@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Experiment: position indicators (current node + ancestor trail)"
 description: "Experiment: showing where the cursor sits in the outline — guide and marker highlighting, the axes they split on, and what real use settled"
 ---
 

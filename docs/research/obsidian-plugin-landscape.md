@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "Obsidian Plugin Landscape"
 description: "Existing Obsidian plugins in this space, how they work, and the gap analysis"
 ---
 

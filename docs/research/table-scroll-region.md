@@ -1,6 +1,5 @@
 ---
 type: "research"
-title: "A table that fits, scrolling both ways: what the wrapper's scroll region holds"
 description: "Why a table that fits its line scrolls both ways in outline mode: the 16 px the wrapper's scroll region exceeds its box by on every table, the four pieces of native table-edit chrome that 16 px is — two scrollable, two clipped where a scroll container cannot reach — the `overflow-x`-alone rule that promotes the other axis to `auto`, four candidate fixes measured to dead ends, the chrome reservation that returns every figure to stock on desktop and mobile, and why the smaller-looking alternative (a scroll container only when the table is wide) risks the whole-note sideways scroll it would be gating"
 ---
 
