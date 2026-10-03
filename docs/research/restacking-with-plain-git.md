@@ -1,6 +1,6 @@
 ---
 type: "research"
-description: "Moving a stack of PRs with git alone, without the `gh stack` extension: `rebase --update-refs` for a moved trunk, `--onto` with the old tip for a rewritten lower layer, the worktree case that splits a stack silently, the restack recipe run in five situations (a fresh clone, a stale local layer, a late push by another session, a rewritten layer), and pushing the moved layers atomically from a cloud session"
+description: "Moving a stack of PRs with git alone, without the `gh stack` extension: `rebase --update-refs` for a moved trunk, `--onto` with the old tip for a rewritten lower layer, the worktree case that splits a stack silently, the restack recipe run in seven situations (a fresh clone, a stale local layer, a late push by another session, a layer amended or restacked by another session, an unpushed local commit), and pushing the moved layers atomically from a cloud session"
 ---
 
 # Restacking with plain git

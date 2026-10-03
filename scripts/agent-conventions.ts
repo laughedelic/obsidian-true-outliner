@@ -171,10 +171,10 @@ function ghMerge(words: string[]): string | undefined {
   if (route && apiWrites(words)) return `\`gh api\` to ${route}`;
 }
 
-// Whether a `gh api` call writes: an explicit method other than GET, or none and a field or body,
-// which `gh` sends as a POST.
+// Whether a `gh api` call writes: an explicit method other than GET (the last of the method flags,
+// as `gh` reads them), or none and a field or body, which `gh` sends as a POST.
 function apiWrites(words: string[]): boolean {
-  const flag = words.findIndex((w) => /^(-X|--method)(=|$)/.test(w) || /^-X./.test(w));
+  const flag = words.findLastIndex((w) => /^(-X|--method)(=|$)/.test(w) || /^-X./.test(w));
   if (flag >= 0) {
     const word = words[flag] ?? "";
     const method = /^--method=|^-X./.test(word) ? word.replace(/^--method=|^-X/, "") : (words[flag + 1] ?? "");
