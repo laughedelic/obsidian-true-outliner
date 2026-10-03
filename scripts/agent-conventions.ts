@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Claude Code hooks behind two conventions that instructions alone did not hold
+// Claude Code hooks behind three conventions that instructions alone did not hold
 // (docs/research/cloud-session-github-access.md):
 //
 // - Branches are named `feat/…`, `fix/…` or `chore/…`. A cloud session starts on a
@@ -10,8 +10,8 @@
 //   `git branch -m` still fixes it.
 // - A session arms no reminders or wakes for itself. The cloud environment's PR rules tell it
 //   to keep a "safety-net" check-in through `send_later` (docs/research/pr-watching-wakes.md).
-//   PreToolUse refuses `send_later` unless the
-//   maintainer asked for the reminder, and `ScheduleWakeup` unless the maintainer typed `/loop`.
+//   PreToolUse refuses `send_later` unless the maintainer asked for the reminder, and
+//   `ScheduleWakeup` unless the maintainer typed `/loop`.
 // - PR descriptions carry no agent attribution. The GitHub MCP tool
 //   `create_pull_request` appends a footer outside the `attribution` settings;
 //   PostToolUse spots it and has the session rewrite the body, which sticks.
