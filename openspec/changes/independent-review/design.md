@@ -209,7 +209,9 @@ say what the review covered (#245's implementation review is the example).
 The reviewer posts its findings on the PR as one review, the way Copilot's reviews arrive: each
 finding that belongs to a line of the diff is an inline comment there, and the rest (a missing
 gesture, a spec the change does not touch, the list of what was checked and found sound) go in
-the review's body. The review is created with `commitID` set to the SHA in the brief: without it
+the review's body, which repeats no inline finding: it holds the findings on no line, one line
+per claim of the brief, and the checked-and-sound list folded in `<details>`. The review is
+created with `commitID` set to the SHA in the brief: without it
 GitHub attaches the review to the PR's current head, and inline lines resolve against a file the
 reviewer never read. The comments are added to the pending review and submitted together.
 

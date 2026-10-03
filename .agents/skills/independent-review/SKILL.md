@@ -113,8 +113,11 @@ Base: <same | better | worse> on the same case
    reviewer never read.
 2. `add_comment_to_pending_review` for each finding that belongs to a line of the diff (`path`,
    `line`, `startLine` for a range, side `RIGHT`, `subjectType` `LINE`).
-3. `pull_request_review_write`, method `submit_pending`, event `COMMENT`, with the findings that
-   belong to no line and the list of what was found sound in the body.
+3. `pull_request_review_write`, method `submit_pending`, event `COMMENT`. The body holds only what
+   no thread holds, and repeats no inline finding:
+   - the findings that belong to no line, in full;
+   - one line per claim of the brief: "holds", or the finding that breaks it;
+   - "Checked and found sound" and anything not checked, inside `<details>`.
 
 Each comment and the body open with the role, since everything posts under the maintainer's
 account, and carry no attribution footer (the platform appends one; `steward`, "Comments"):
@@ -159,16 +162,16 @@ The PR description's "Reviews" section is a summary across all rounds, rewritten
 `update_pull_request` as rounds accumulate (a REST write appends a footer to the description). The
 back and forth stays in the threads.
 
-- One line per round, return-only checks included: the review's link, mode, SHA, model and effort
-  (where known), the count of findings and of each disposition, and why a round was skipped when
-  one was. A return-only check's line lists the findings it rejected or showed wrong, since it has
-  no threads to hold them.
-- What the rounds changed in the design.
-- Lessons a later change can use.
-- The threads a reader would not find on their own: a rejection, a finding shown wrong, one left
-  open.
+- A table, one row per round, return-only checks included: the review's link, mode, SHA, model and
+  effort (where known), the count of findings and of each disposition, and why a round was skipped
+  when one was. A return-only check's row lists the findings it rejected or showed wrong, since it
+  has no threads to hold them.
+- A step-back, when one ran, and what the user chose.
+- Inside `<details>`: what the rounds changed in the design, the lessons a later change can use,
+  and links to the threads a reader would not find on their own (a rejection, a finding shown
+  wrong, one left open).
 
-Trivial findings are not repeated there.
+No finding is restated there; the threads hold them.
 
 ## Rounds
 
