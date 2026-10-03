@@ -85,7 +85,12 @@ session's stop hook acts on it: while the first proposal review of #351 ran in
 `.claude/worktrees/review-337-head`, the hook stopped the author session's turn with "There are untracked files in the
 repository. Please commit and push these changes to the remote branch", and `git status
 --porcelain` held only `?? .claude/worktrees/`. An entry for the path in `.git/info/exclude`
-cleared it. ESLint is run on `src` and `tests`
+cleared it.
+
+The hook reads the session's working directory, not the primary checkout. With the session moved
+into a worktree at a commit whose `.gitignore` predates `/.scratch/` (#280's head), a probe in that
+worktree's `.scratch/` stopped the turn the same way, while the primary checkout's `git status
+--porcelain` printed nothing. ESLint is run on `src` and `tests`
 by name and is unaffected.
 
 A worktree under `/tmp` has no `node_modules` above it, so neither `npx vitest` nor an import of

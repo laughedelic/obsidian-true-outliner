@@ -84,6 +84,10 @@ git worktree add --detach .claude/worktrees/review-<pr>-r<round>-base <merge bas
 - Run the suite as `npx vitest run tests/`; a plain run also collects the probes.
 - A claim about what the app does is measured in the app, with `driving-obsidian` or a case file
   through `npm run case`, never in a bare CodeMirror.
+- **Stay in the primary checkout**, and reach a worktree with `git -C <path>` or a subshell
+  (`(cd <path> && …)`). A cloud session's stop hook reads the session's working directory, and a
+  worktree at a commit older than this skill does not ignore `.scratch/`. This holds for an author
+  who runs a finding's case in a worktree too.
 - At the end, `git worktree remove --force` the worktrees this review made, and only those.
 
 **Order.** Reproduce the case, derive the expected result from the specs, and locate the cause in
