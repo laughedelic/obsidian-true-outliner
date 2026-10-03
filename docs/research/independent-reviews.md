@@ -111,6 +111,24 @@ changed path, which runs inside an operation's re-parse. A sweep that finds no d
 nothing until it has been shown to find one, by a deliberate change on one side as in the second
 row, or by inputs that reach the changed lines.
 
+Through an operation the same pair of worktrees reaches the change. A probe imports `parse`,
+`encode`, `walkNodes` and `moveSubtreesTo` from each tree, and moves every node of 28 documents
+to every place on both sides: the four documents of
+`prototypes/seam-differential/drag-sweep.test.ts.txt`, each with seven openers (the six there and
+`plain`). Each pair of results is sorted by the text and by whether the re-parse lost a node:
+
+| Result, #264 against its parent | Moves |
+| --- | --- |
+| same text | 1 073 |
+| base loses a node, head does not (intended) | 18 |
+| head loses a node, base does not (regression) | 0 |
+| text differs, neither loses (neutral) | 1 |
+
+The neutral one is #264's tightening below a promoted paragraph: `- kid` / blank / `  # looks
+like a heading` / blank / `after` on the base, and the same with no blank before `after` on the
+head. The run took 3 s. The prototype's own README copies its probes into `tests/` to run them,
+which is the place #337 reports the stop hook acting on.
+
 ## Where a probe runs
 
 A probe at `<session scratchpad>/probe/sp.test.ts` that imports `src/parse`, run with

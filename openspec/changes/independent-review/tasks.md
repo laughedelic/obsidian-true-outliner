@@ -11,7 +11,7 @@
 
 ## 2. The worktree side effects
 
-- [ ] 2.1 Add `/.claude/worktrees/` and `/.scratch/` to `.gitignore`, with a comment saying what
+- [x] 2.1 Add `/.claude/worktrees/` and `/.scratch/` to `.gitignore`, with a comment saying what
       each holds, and remove the `/.claude/worktrees/` line this session added to
       `.git/info/exclude`. Verified by `git worktree add --detach .claude/worktrees/probe` at the
       branch head and a file in its `.scratch/`, after which `git check-ignore -v
@@ -20,7 +20,7 @@
       Negative control: without the first entry `git check-ignore` exits 1 and `git status` prints
       `?? .claude/worktrees/`. The check names its source, so a local exclude file cannot pass
       it.
-- [ ] 2.2 In `vitest.config.ts`, set `exclude` to `configDefaults.exclude` plus
+- [x] 2.2 In `vitest.config.ts`, set `exclude` to `configDefaults.exclude` plus
       `.claude/worktrees/**`, with a comment saying why. Verified with the probe worktree above,
       at the branch head so it carries the exclude itself: `npx vitest list --filesOnly` in the
       primary checkout names no file under `.claude/worktrees/`; in the probe,
@@ -30,7 +30,7 @@
 
 ## 3. The skill
 
-- [ ] 3.1 Write `.agents/skills/independent-review/SKILL.md`: the `name`, a `description` whose
+- [x] 3.1 Write `.agents/skills/independent-review/SKILL.md`: the `name`, a `description` whose
       branches are the author's moments (a proposal ready, an implementation ready, a user asking
       for a review or a second opinion); when a review runs; the brief as a template with its
       fixed fields; the reviewer's section (workspace, scratch, the findings form, posting the
@@ -40,7 +40,7 @@
       skill appearing in a new session's skill list, and by a reading against the design: each
       decision in design.md maps to a passage, and no passage restates what a command's
       `--help` or another skill already carries.
-- [ ] 3.2 Write `proposal.md` and `implementation.md` beside it, each a list of checks that
+- [x] 3.2 Write `proposal.md` and `implementation.md` beside it, each a list of checks that
       ends on what the reviewer reports, from the design's "What the modes check". The sweep
       recipe in `implementation.md` is the one measured in `independent-reviews`. Verified by
       running the recipe as written, from a fresh worktree pair, on #264's merge commit against
@@ -50,13 +50,13 @@
       sweep through `parse` alone gives 0, as the note records, and the recipe's own check (a
       deliberate change on one side) turns that 0 into a failure to report rather than a
       result.
-- [ ] 3.3 Add `.claude/skills/independent-review` and `.github/skills/independent-review` as
+- [x] 3.3 Add `.claude/skills/independent-review` and `.github/skills/independent-review` as
       symlinks to `../../.agents/skills/independent-review`. Verified by `ls -L` reading
       `SKILL.md` through both.
 
 ## 4. The pointer
 
-- [ ] 4.1 In `AGENTS.md`, step 4 of "Change lifecycle" names the skill and says the reviews are
+- [x] 4.1 In `AGENTS.md`, step 4 of "Change lifecycle" names the skill and says the reviews are
       done when the response to a round makes no significant change. Verified by
       `grep independent-review AGENTS.md` and by `CLAUDE.md` showing it through the symlink.
 

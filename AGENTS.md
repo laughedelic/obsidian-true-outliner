@@ -81,7 +81,9 @@ Planning and implementation share one PR, in this order:
    implementation rather than only the proposal. Review it on GitHub before writing any code.
 3. **Apply.** Implement against `tasks.md`, committing checkpoints as each group closes; pushing a
    checkpoint is what runs the full e2e sweep in CI.
-4. **Review at each ready point**, address the findings, and iterate until manual testing passes.
+4. **Review at each ready point** with the `independent-review` skill: the proposal before the
+   maintainer reviews it, the implementation at each checkpoint pushed for review. Rounds run until
+   the response to one makes no significant change; then iterate until manual testing passes.
 5. **Land.** Validate, sync the delta specs, archive the change, and bump the version — all on the
    branch, before merging. Then squash-merge; CI releases from `main` when `manifest.json` moves.
    The `Landed` check holds a ready PR to this: no change it opened left unarchived, each one it
