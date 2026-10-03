@@ -3,16 +3,17 @@
 Landing a PR — archive its OpenSpec change, sync the delta specs, bump the version, run
 `scripts/check-landed.ts` — costs a cycle on almost every PR and collides between PRs that land
 together. Issue #338 asks for a `/land` skill, a lock between concurrent landings and a view of
-what moves into a workflow. This note holds the measurements the design rests on, the proposal,
-and what we could not measure. Measured on 2026-10-03 from a cloud session, with REST reads
+what moves into a workflow. This note holds the measurements, the design they led to, and what we
+could not measure. A first version proposed a lock; review replaced it with auto-merge as the one
+approval, and the measurements that decided that stay here. Measured on 2026-10-03 from a cloud session, with REST reads
 only: the 84 PRs merged since 2026-09-14, the 480 runs of `landed.yml` since it started on
 2026-09-25 (115 with logs read), and the repository's ruleset.
 
 ## Constraints
 
 Fixed by review of #338, and taken as given: archive, spec sync and the final code↔spec review
-stay in the PR; the maintainer merges by hand after reading the squash message and agents never
-merge; `main` takes no commits besides squashes; no release PRs; a release is cut automatically
+stay in the PR; the maintainer decides every merge, by hand or by enabling auto-merge, after reading the
+squash message, and agents never merge; `main` takes no commits besides squashes; no release PRs; a release is cut automatically
 when a merge moves `manifest.json`; Obsidian reads `manifest.json` from the default branch, so
 the version has to be on `main`; GitHub's merge queue is unavailable here.
 
@@ -91,210 +92,161 @@ because `Landed` is not required.
 
 ### What the environment allows
 
-Read from this session: `GET /repos/{o}/{r}/issues/{n}/events` and `/timeline` work, so label
-events and their order are readable from a cloud session. Not measured, because each is a write
-to the repository: whether a cloud session can add and remove a label on a PR through REST or
-MCP, and whether it can create a check run. `docs/research/cloud-session-github-access.md`
-measured PR writes as allowed and ref deletes as refused, so a lock that a session has to
-delete cannot rely on a session releasing it.
+A cloud session's GitHub traffic goes through a proxy that allows REST on this repository,
+including PR writes, and refuses GraphQL and ref deletes
+(`docs/research/cloud-session-github-access.md`). It pushes and calls the API as the maintainer,
+so GitHub cannot tell a session's `enable_pr_auto_merge` from the maintainer's click. The GitHub
+MCP tools include `enable_pr_auto_merge`, `disable_pr_auto_merge` and `merge_pull_request`.
 
-Two things constrain how a session waits. A session arms no check-ins, so it cannot poll. And
-the cloud environment's PR instructions list commit statuses as not pushed to a session, while check runs are,
-so anything meant to wake a waiting session has to be a check run.
+A session arms no check-ins, so it is woken by events, and a failing check is one.
+
+### What a rule that PRs be up to date would cost
+
+Counting the 84 merged PRs whose merge target was not an ancestor of their head, that is, those
+that merged while behind `main`:
+
+| PRs | Merged behind `main` |
+| --- | --- |
+| That write `manifest.json` or a main spec (43) | 7, among them two stack layers |
+| Dependabot (12) | 6; #238, #239 and #240 merged 36 seconds apart, 7, 8 and 9 commits behind |
+| Everything else (29) | 5 |
+
+That is 18 of 84. A full CI run takes 7.2 minutes at the median, 9.1 at p90 and 11.2 at most
+(68 successful PR runs), so the ruleset's strict setting would have cost about that much on
+each of them.
 
 ## Proposal
 
-**Correctness comes from detection; efficiency comes from the lock.** A wrong bump must never
-look right against the `main` it will merge onto, and a lock only reduces how often one has to
-be redone. Both halves matter, and the measurements say the second is the smaller.
+**One gesture: the maintainer enables auto-merge.** It is the approval, the moment the squash
+message is read, and the trigger for landing. Everything after it is the session's work and the
+workflow's check; GitHub merges when the last requirement is met.
 
-### What the lock guards
+```
+maintainer   enables auto-merge (reads the squash message here)
+   │
+   ▼
+`Landed`     runs because auto-merge is set; the PR has not landed → fails → wakes the session
+   │
+   ▼
+session      /land: rebase, archive, sync, bump, check, final code↔spec review, push
+   │
+   ▼
+CI + `Landed` the push re-runs both; `Landed` passes → the `landed` deployment succeeds
+   │
+   ▼
+GitHub       every requirement is met → squash-merges
+```
 
-The lock guards what every landing writes: `manifest.json` (with `versions.json` and the two
-`package` files) and the main specs. A PR whose diff writes neither — chores, dependency bumps,
-docs — takes no lock and needs no landing. That is 41 of the 84. The test is the diff, the same
-one `check-landed.ts` already reads.
+### The gate: a required deployment
+
+The `Protect main` ruleset gains a requirement that a deployment to the environment `landed`
+succeeds. `landed.yml`'s job declares `environment: landed` and carries
+`if: github.event.pull_request.auto_merge != null`. A job that the `if` skips creates no
+deployment, so a PR without auto-merge has nothing to satisfy the requirement and cannot merge.
+A required *check* would behave the opposite way: a skipped job passes it, which is why the check
+itself stays outside the ruleset.
+
+- Drafts cannot enable auto-merge, so the `if` covers them; no separate draft rule is needed.
+- A PR that has nothing to land (dependency updates, chores, tooling) still takes the gesture.
+  `check-landed.ts` passes at once for it, the deployment succeeds, and GitHub merges.
+- Strict (up to date with `main`) stays off, so a run of dependency updates merges without a
+  rebase and a CI rerun on each.
+- The workflow's triggers gain `auto_merge_enabled`, so enabling auto-merge starts a run. It
+  keeps cancelling in-progress runs per PR: a push supersedes whatever the older run would say.
+- Auto-merge stays enabled across the session's push, which is made as the maintainer.
+
+### What `check-landed.ts` checks
+
+Today's rules, with the base changed from the event's snapshot to a fresh `origin/main`, plus:
+
+- **The version is above `main`'s**, at least the bump the kind and paths call for.
+- **A PR that has something to land contains the `main` tip** when the check runs. This is the
+  freshness a strict ruleset would have given landing PRs, without charging it to the rest.
 
 ### `/land`, step by step
 
-A skill, `.agents/skills/land/`, with the usual symlinks. The maintainer runs it in the PR's
-session when the PR is ready to merge, and the skill stops where the maintainer merges.
+A skill, `.agents/skills/land/`, with the usual symlinks. A failed `Landed` on a PR with
+auto-merge set wakes the session; the maintainer can also run `/land` by hand.
 
-1. **Preconditions.** The PR is open, ready, on a branch whose base is `main` (a layer of a stack
-   is landed from the primary checkout, `docs/pr-stacks.md`), and the required checks are green
-   on the head. Otherwise stop and say which.
-2. **Classify.** Read the kind from the title, whether the diff ships (`src/`, `styles/`) and
-   whether it opens an OpenSpec change. Nothing to write means nothing to land: report that and
-   stop.
-3. **Take the lock.** Add the `landing` label, then read the queue (below). If another PR holds
-   the lock, say which and since when, and end the turn. The `Landed` check on this PR will say
-   `queued behind #N`.
-4. **Bring in `main`.** `git fetch origin main`, rebase onto it, push with
-   `--force-with-lease` once at the end. `/land` is the explicit ask the steward skill requires
-   for rewriting the branch. A conflict stops the skill and shows it, spec conflicts first.
-5. **Archive and sync.** `openspec archive` for each change the PR opened, and the sync the
-   `openspec-sync-specs` skill performs. A delta that does not apply cleanly stops the skill.
-6. **Bump.** The target is a function of the kind, whether the PR ships and the version on the
-   fresh `origin/main`: a feature takes a minor bump, a fix a patch, anything else none. Run
-   `npm version <minor|patch>`; it writes all four files and no tag.
-7. **Check.** `node scripts/check-landed.ts origin/main "<title>"` against the tip fetched in
-   step 4, then commit and push.
-8. **Final review.** Compare the synced specs against the implementation and the tests the
-   `Covered by` lines name, and report disagreements. This is the review the maintainer asked
-   for; it uses the independent-review skill (#337) once that exists.
-9. **Report and stop.** The squash commit title and body as GitHub will build them, the version,
-   the archived changes, the spec requirements added, modified or removed, when the lock lapses,
-   and the CI state. The skill never merges.
+1. **Rebase** onto the fresh `origin/main`; push with `--force-with-lease` once, at the end. A
+   conflict stops the skill and shows it, spec conflicts first.
+2. **Archive** each OpenSpec change the PR opened, and **sync** its deltas into the main specs.
+3. **Bump** with `npm version <minor|patch>` against the fresh `main`: a feature takes a minor,
+   a fix a patch, anything else none. `npm version` writes the four files and no tag.
+4. **Check** with `node scripts/check-landed.ts origin/main "<title>"`.
+5. **Review** the synced specs against the implementation and the tests the `Covered by` lines
+   name. A disagreement stops the skill before the push: it reports on the PR and leaves
+   `Landed` red, so the PR waits with auto-merge still set. The review uses the independent-review
+   skill (#337) once that exists.
+6. **Push**, then report the version, the archived changes and the requirements the sync touched.
 
-Re-running `/land` is idempotent: archived changes are skipped, a bump that already equals the
-target is skipped, the lock claim is refreshed.
+The skill never merges and never touches auto-merge. A `PreToolUse` refusal in
+`scripts/agent-conventions.ts` covers `enable_pr_auto_merge`, `disable_pr_auto_merge` and
+`merge_pull_request`, together with `gh pr merge`, and the steward skill's "never merge" line
+says the same. Disabling is refused with enabling: allowing one and not the other would need
+a rule about intent.
 
-### The lock
+### What this accepts
 
-The lock is a claim, not a guarantee, and it is the same object `Landed` reads.
+- **A duplicate bump can still merge.** Strict is off, so two PRs landed against the same
+  `main` and approved close together can both bump to the same version, and the second releases
+  nothing. The window is one CI run (7 to 11 minutes) from a landing push to its merge. We accept
+  the occasional missed release while the project is in active development, and there is no
+  post-merge audit.
+- **A stale event can block a PR.** `auto_merge` in the payload is read when the event is
+  generated. A push whose payload predates the approval can skip, and cancel the run the approval
+  started. No deployment follows, so the PR is blocked, not merged; the next push or a re-run
+  clears it.
+- **The squash message is read before the landing commits exist.** They are mechanical, and a
+  custom message set when enabling auto-merge does not mention them.
+- **Stacked PRs are not covered.** GitHub offers no auto-merge on them, even on the layer
+  targeting `main`, so they cannot satisfy the requirement and `/land` refuses a PR whose base is
+  not `main`. We do not document the ruleset's bypass as a way to land them. Branch stacking, for
+  work whose code depends on another branch, stays; whether PR stacking keeps its place waits on
+  how this works.
 
-- **Held** by a `landing` label on an open, ready PR. The label is declared in
-  `.github/labels.yml` like every other.
-- **Queue order** is the id of each PR's latest `labeled` event for that label. Event ids are
-  assigned by the server, so two sessions that add the label in the same second still get a
-  total order, and each sees the same one when it reads back. No compare-and-swap is needed.
-- **The holder** is the first PR in the queue whose claim is younger than 3 hours. A claim
-  older than that does not block one queued behind it. The 3 hours is the p89 of the windows
-  measured above; it is a constant in `scripts/landing.ts`, not a setting.
-- **Released** when the PR merges, closes, goes back to draft, loses the label, or its claim
-  lapses with another PR queued. A merge or a close needs no action: only open PRs count.
-  Nothing a session has to delete is part of it.
-- **Waiting** is event-driven. When `main` moves, a job in `landed.yml` re-evaluates every open
-  PR carrying the label and rewrites its check run; a queued PR whose turn has come gets
-  `lock free: run /land`, which wakes a session that watches it. The maintainer can also run
-  `/land` again by hand.
-
-Two PRs, one holder that idles and one that takes over:
-
-```
- #A  /land ── holds ─────────────────── lapses (3 h) ·········· main is 0.14.3,
- #B             /land ── queued ───────────────────┴─ holds ── merged        A bumps to 0.14.3
- main  0.14.2 ─────────────────────────────────────────────── 0.14.3        → run /land again
-```
-
-When a claim lapses and the second PR merges first, the first PR's bump is stale. That is not
-a failure of the lock; it is what the detection below is for, and the cost is today's: one
-`/land` re-run.
-
-### What moves into a workflow
-
-| Stays in the skill | Moves into `landed.yml` |
-| --- | --- |
-| Rebase, archive, spec sync, `npm version`, the final review, the report | Reading the queue and the check's result from the current `main` |
-| Pushing the branch | Re-evaluating open landing PRs when `main` moves |
-| | Writing the check run in its three states |
-
-The bump itself stays a session's commit. A workflow that pushed it would need a token whose
-push re-triggers CI, because a commit authored with the default token starts no workflow and the
-required checks would then be missing on the new head; and the maintainer would be merging a
-commit no one reviewed. We do not know that such a token exists, and nothing here needs it.
-
-### What `Landed` checks afterwards
-
-Every run reads live state instead of the event payload: the PR's draft flag from the API, and
-`origin/main` fetched fresh in place of `pull_request.base.sha`. The job has no `if`, so it
-cannot be skipped, and the per-PR concurrency group can keep cancelling, since the newest run
-reads current state and so is always right. That removes the race.
-
-The result is a check run, written through the Checks API, in three states instead of a job's
-pass or fail:
-
-| The PR | Check |
-| --- | --- |
-| a draft | `neutral` — "draft" |
-| has nothing to land (`check-landed.ts` passes without the label) | `success` — "nothing to land" |
-| has something to land and has not asked | `neutral` — "run /land" |
-| asked, and another PR holds the lock | `neutral` — "queued behind #N" |
-| asked, holds the lock, and every rule below holds | `success` |
-| asked, and a rule below fails | `failure`, naming it |
-
-`neutral` is the state that ends the "red by design" comments: a ready PR that has not landed is
-grey, not red. The rules `check-landed.ts` applies are today's, plus three:
-
-- **The version is the target.** At least the one `/land` computes from the fresh `origin/main`,
-  and strictly above it. Today it is only "forward of the stale base".
-- **The branch has the base's version.** The version at the merge base equals the version at
-  the `main` tip. This is what turns a duplicate bump (#75, #81) from a silent loss into a red.
-- **The holder is current.** A PR holding the lock whose bump no longer follows `main` fails
-  and says `main moved to X: run /land`.
-
-After a merge, the `push` job also audits the squash: a `feat` or `fix` that touches `src/` or
-`styles/` and left `manifest.json` as it found it fails the run on `main`, naming the PR. It is
-the only place where #81's lost release would have been caught after the fact.
-
-### What this does not make safe
-
-A bump is checked against `main` when a run happens, so two bumping PRs merged within the
-latency of that run (about half a minute) are not caught first. The maintainer merges by hand,
-one at a time, and this is the same window as today with the check now able to see it. A
-required check would not close it, because `neutral` and `skipped` both count as passing in a
-required check.
-
-### Alternatives measured or argued against
+### Alternatives and what decided them
 
 | Option | Why not |
 | --- | --- |
-| No lock; detection only | The simplest, and the right first step. It misses the cheap win of telling the second PR to wait instead of finding out at merge. Kept as the fallback if the lock proves unused |
-| A workflow `concurrency` group as the lock | A group holds only while a run is in progress. A landing lasts from `/land` to a hand merge: minutes to days |
-| A ref created for the claim (`land-lock`) | Creating a ref is atomic, but no queue and no holder identity, and a session cannot delete the ref; only a workflow could release it, and a lapse needs one anyway |
-| A queue as comments on a pinned issue | Same ordering as label events, with a second place to look and a place to clean |
-| The bump computed in a workflow at merge | Needs a commit on `main` besides the squash, which the constraints exclude |
-| Making the version unique per PR | The version has to grow with merge order, and a merge order that differs from numbering would make Obsidian skip the update |
+| A lock between landings: a label as the claim, an order from its events, a lapse | The first proposal. Landing after approval shortens the window the lock guarded from a median of 12 minutes (longest 68 hours) to one CI run, and the measured collisions would each have needed the lapse to expire before the lock helped |
+| Strict on for every PR | Atomic, but it would have blocked 18 of 84 merges for about 7 minutes each, 6 of 12 dependency updates among them |
+| A required check in place of a deployment | A job skipped by its `if`, or by the skip race measured above, passes a required check |
+| A job that cancels its own run when auto-merge is off | Ends as `cancelled`, not `neutral`; not tried |
+| A job on `push` to `main` that re-evaluates PRs with auto-merge set | Covers only the minutes between a PR going green and a merge that moved `main`; with strict off and a missed release accepted, it adds a workflow and a token question for nothing |
+| A post-merge audit for a feat or fix that left the version unchanged | A missed release is not a problem at this stage |
+| The bump made by a workflow | A commit authored with the default token starts no workflow, so the required checks would be missing on the new head |
 | A merge queue | Unavailable on a personal repository |
 
-## Replaying the last weeks against the rules
+## Replaying the last weeks against the design
 
 | Rule | Where it would have collided |
 | --- | --- |
-| Lock on `manifest.json` or a main spec | **#245 / #246 (09-26).** #246 held from 11:28 and was idle for 6 hours. At 3 hours its claim lapses; #245 takes the lock at 17:22, merges at 17:29, and #246 is red at once with `main moved to 0.13.6`. The cost is the re-bump #246 paid anyway. No gain except that it shows up in seconds |
-| | **#264 / #274 (09-29).** Both would have been green at 0.14.3. With the lock, #274 reads `queued behind #264` at 05:38; #264 idles 68 hours, so the claim lapses at 08:31 and #274 may take it. A visible conflict instead of two PRs sitting on one number, but not fewer re-bumps |
-| | **#317, #319, #310 (09-29 → 10-02).** Chores that sync `e2e-verification` or `drawn-case-files` while #264 held. Without a lapse they would have queued up to 68 hours behind an idle holder; with 3 hours, at most 3 |
-| | **#232, #233, #234 (09-25).** A stack landed as a unit with `gh stack merge`; each layer shows the same spec diff. `/land` refuses a layer, so none of them would have taken the lock |
-| Fresh `main` and the base's version | **#75 / #81 (09-08).** Red on #81 as soon as #75 merged, instead of a lost release. Predates `Landed`, so replayed from history, not from a run |
-| Three-state check | **9 of 12** shipping PRs since 09-25 that ran red before landing would have been grey; the 19 red runs become 0 |
-| No `if` on the job, live state | **#226, #317.** Neither would have ended `skipped`; the newest run on their head reads the live draft flag |
+| Landing after approval | The window between a bump and its merge becomes one CI run. Of the 36 landing pushes (35 merged PRs and #274), two pairs fall within 11 minutes of each other: #264 and #274 (7 minutes, both to 0.14.3, a real duplicate) and #109 and #111 (11 minutes, no collision because #109 merged in between). #245 and #246 would not have collided: #246's bump would not have waited 8 hours |
+| The deployment gate | None of the 8 skipped runs after a ready flip, including #226 and #317, could have let an unlanded PR merge: a skipped run creates no deployment |
+| Strict off | The 18 PRs that merged behind `main` merge as they did, with no extra rebase |
+| Freshness for PRs that land | #108, #122, #190, #196 and #303 merged 1 to 2 commits behind and would have been told to rebase at the landing check. #233 and #234 were stack layers and are outside the design |
+| No check before approval | The 19 red runs on 9 of the 12 PRs that bumped become one red run per landing PR, after approval, which is the signal that wakes the session |
+| Not stopping #75 and #81 | Both bumped 0.3.0 to 0.4.0 and merged one second apart; a version above `main`'s is checked when each lands, and the pair would still pass |
 
-Where the lock would have prevented a re-bump outright: none of the collisions the logs can show.
-In both, the holder was idle past any lapse we could defend. The
-lock would have made each visible one step earlier and told the maintainer who to merge first.
-That is a smaller win than the skill and the check carry, and it is why the lock is the part to
-revisit after a few weeks of use. An upper bound on the same replay, taking each landing to start
-at the archive commit and not at the bump: 13 overlapping pairs, 3 of them the stack above.
+## Not measured
 
-## Open decisions
-
-1. **One stage or two.** The skill, the three-state check, the fresh-`main` rules and the race fix
-   stand without the lock, and carry most of the measured saving. The lock adds the label, the
-   queue and the lapse. We recommend two PRs in that order, so that the lock is built against a
-   few weeks of use of the first; it is a small addition, since the check already reads `main`.
-2. **The lapse.** 3 hours, set from the measured windows. A holder who is slower loses the claim
-   and re-runs `/land`. Shorter costs more re-runs; longer lets an idle holder block a chore that
-   syncs a spec.
-3. **Whether `Landed` becomes required.** Not recommended: three states do not survive a
-   required check. The ruleset is the maintainer's to change in any case.
-4. **A token for a workflow-made bump.** If the maintainer has or wants a PAT or app token whose
-   pushes trigger CI, the bump could move into a workflow later. Nothing here depends on it.
-5. **Whether a cloud session can write the label and a check run.** Unmeasured because each is
-   a write. The first implementation commit measures both on its own PR before the skill relies
-   on them, and the skill falls back to telling the maintainer what to add if either is refused.
+- That `if: github.event.pull_request.auto_merge != null` on a job that declares `environment:`
+  creates no deployment when skipped, and that the ruleset's deployment requirement is then
+  unmet. The maintainer has used a required deployment this way before; we did not probe it.
+- That a failed check on a PR with auto-merge set wakes a subscribed session. Check results wake
+  sessions in general; this case was not observed.
 
 ## What the implementation carries
 
-Stage one:
-
-- `scripts/landing.ts`: the target version and, later, the queue and the lapse, shared by the
-  skill, `check-landed.ts` and the workflow, with unit tests over the recorded cases above.
-- `scripts/check-landed.ts`: fresh base, the version rules, a JSON result with the three states.
-- `.github/workflows/landed.yml`: no job-level `if`, live PR state, the check run, the `push`
-  job, the squash audit.
-- `.agents/skills/land/` and its two symlinks, without the lock steps.
-- CLAUDE.md "Change lifecycle", step 5, and the steward skill's line on rewriting a branch,
-  both pointing at `/land`. The Bugfix routine's step 8 follows in #348.
-
-Stage two: the `landing` label in `.github/labels.yml`, the queue and lapse in
-`scripts/landing.ts`, the queued state in the check, and step 3 of the skill.
+- `.github/workflows/landed.yml`: `environment: landed`, the `auto_merge` condition, the
+  `auto_merge_enabled` trigger, the fresh base.
+- `scripts/check-landed.ts`: the fresh base, the version rule, the freshness rule for PRs that land.
+- `.agents/skills/land/` and its two symlinks.
+- `scripts/agent-conventions.ts`: the refusals above, with tests.
+- CLAUDE.md "Change lifecycle", step 5 (the sequence becomes: enable auto-merge, `/land`, merge
+  on green), the steward skill's lines on merging and on rewriting a branch, and the
+  Bugfix routine's step 8 in #348.
+- The ruleset change is the maintainer's, and it goes last: the requirement is added once the
+  workflow is on `main`, since a PR that predates it carries the old workflow until its branch is
+  updated.
