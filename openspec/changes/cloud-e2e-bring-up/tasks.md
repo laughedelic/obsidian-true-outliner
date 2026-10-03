@@ -1,6 +1,6 @@
 ## 1. The drift check
 
-- [ ] 1.1 Write `scripts/lockfile-drift.ts` (the comparison as an exported function, a CLI that
+- [x] 1.1 Write `scripts/lockfile-drift.ts` (the comparison as an exported function, a CLI that
       exits 0 or 1 and prints the first differences) and a unit test in `tests/` that feeds it
       lockfile pairs: in sync, a lockfile entry missing, a version that differs, an installed entry
       the lockfile dropped, an optional entry missing (not drift), the root `""` entry present only in the lockfile (not
@@ -9,7 +9,7 @@
       unreadable file) and that drift names the first differing entries on stdout. Verified by
       `npm test`. Negative controls: counting a missing optional entry as drift must fail the
       optional row, and not skipping the root entry must fail the root row.
-- [ ] 1.2 In `scripts/agent-setup.sh`, replace the `[ ! -d node_modules ]` guard with a run of the
+- [x] 1.2 In `scripts/agent-setup.sh`, replace the `[ ! -d node_modules ]` guard with a run of the
       script: drift runs `npm ci` in a throwaway environment and reports it elsewhere. Verified on
       this VM's stale snapshot, which the script reports as missing four packages, and again after
       `npm ci`, which it reports as in sync, both recorded in the research note. Negative control:
@@ -31,7 +31,7 @@
 
 ## 3. Docs
 
-- [ ] 3.1 In `docs/cloud-sessions.md`, remove the paragraph that tells a session to redirect the
+- [x] 3.1 In `docs/cloud-sessions.md`, remove the paragraph that tells a session to redirect the
       wrapper's output to a file, and rewrite the one before it: the wrapper runs the command and
       stops Xvfb when it ends. In `e2e-tests/docker/README.md`, "No `xvfb-run`", replace "`exec`ing whatever
       command it's given" with what the wrapper does now: it runs the command and stops Xvfb when it
@@ -39,7 +39,7 @@
       "From inside a spec". Verified by `grep -n "exec\|redirect"
       docs/cloud-sessions.md e2e-tests/docker/README.md e2e-tests/docker/start-xvfb-and-run.sh`, which
       no longer describes the starter as exec'ing.
-- [ ] 3.2 Add the "after" measurements to `docs/research/cloud-e2e-bring-up.md`.
+- [x] 3.2 Add the "after" measurements to `docs/research/cloud-e2e-bring-up.md`.
 
 ## 4. Integration
 

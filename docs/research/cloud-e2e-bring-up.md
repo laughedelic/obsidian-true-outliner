@@ -3,7 +3,7 @@
 Two defects that every cloud session pays for before its first narrow run (#336). Both are measured
 here on `main` at `5b41621`, in a cloud session on a 4-vCPU VM with Node 22.22.0 and npm 10.9.4,
 `OBSIDIAN_CACHE=/opt/obsidian-cache`, `E2E_MAX_INSTANCES=2`. The fix is the change
-`cloud-e2e-bring-up`; its "after" readings are added to this note when it lands.
+`cloud-e2e-bring-up`; "After the change" below holds its readings, taken in the same session.
 
 ## A stale `node_modules`
 
@@ -85,13 +85,47 @@ The exit status passes through because `set -e` ends the script with the failed 
 and the `EXIT` trap does not change it. The full narrow run through the real change is the "after"
 reading, taken once the change is applied.
 
+## After the change
+
+The wrapper and `scripts/lockfile-drift.ts` as committed on `fix/cloud-e2e-bring-up`, on the same
+VM, the stale snapshot from the first section still in place when the drift check first ran.
+
+| Reading | Value |
+| --- | --- |
+| `node scripts/e2e-narrow.ts 00-smoke` through the wrapper, piped to `tail -5`, under `pipefail`, bounded by `timeout 180` | `tail` printed the spec's summary; the pipeline returned after 15.2 s, exit 0 (11 s in the spec), where the same pipeline stayed open past 377 s before |
+| `sh -c 'echo failing; exit 7'` through the wrapper, piped to `tail -5`, under `pipefail` | printed `failing`; returned in 0.2 s, exit 7 |
+| `sh -c 'echo ok; exit 3'` through it, not piped | exit 3; Xvfb gone, no X socket, no temporary log 3 s later |
+| Control: the committed `exec` wrapper, `echo hello` piped to `tail -5`, bounded by `timeout 15` | killed at 15.0 s, exit 124, as before |
+| A stub `Xvfb` that prints one line and exits 1, with the wrapper running `echo` | after 9.9 s printed "Xvfb did not come up in time; its output:" and the stub's line; exit 1; no temporary log left |
+| `node scripts/lockfile-drift.ts` on the stale snapshot | exit 1: 4 places, naming `@types/commonmark@0.27.10` first, the same four packages as the first section |
+| `scripts/agent-setup.sh` on that snapshot, without `CLAUDE_CODE_REMOTE` | reports `npm dependencies out of date (… 4 place(s): …); run `npm ci``, installs nothing |
+| The same script from `main`'s `HEAD`, on that snapshot | no npm note: the old guard passes |
+| `scripts/agent-setup.sh` with `CLAUDE_CODE_REMOTE=true` on that snapshot | ran `npm ci` and reported `installed npm dependencies (…)`; 9.6 s for the whole script |
+| `node scripts/lockfile-drift.ts` after that install, and the script's npm note | exit 0; no note |
+| The drift check on the in-sync tree, five runs | 88 to 100 ms each, against 8.8 s for the `npm ci` it guards |
+
+- **A failed start found a defect in the first draft of the wrapper.** The trap read
+  `kill $XVFB_PID 2>/dev/null; rm -f "$XVFB_LOG"`. Under `set -e` a `kill` of a process that had
+  already exited ended the trap before the `rm`, leaving the temporary log behind. The stub run
+  showed it; the trap now reads `kill … || true; rm -f …`. The original trap, with only the `kill`,
+  could not show this.
+- **Xvfb is defunct for about a second after the wrapper exits.** `pgrep -x Xvfb` counted one
+  process directly after a run and none 3 s later: the wrapper has gone, so init reaps it. The
+  server itself is stopped, and its socket is gone at once.
+- **The two guards differ on this snapshot only in content.** Both see `node_modules` present;
+  only the content check sees four packages short.
+
+## Docker interruption
+
+On `main`, with the `exec` wrapper, the maintainer interrupted `npm run test:e2e:docker` with
+Ctrl-C: the prompt came back after about 1 s, and the run printed "Goodbye". The same reading on
+the changed wrapper is the one that gates landing.
+
 ## Not measured
 
-- **The Docker path.** `scripts/e2e-docker.ts` passes the wrapper to `docker compose run` as the
-  container's command, so without `exec` the shell is PID 1 where the test runner was, and an
-  interrupt reaches the shell, which holds its trap until the foreground command ends. This VM
-  has the Docker client and no daemon (`docker ps` cannot reach the socket). Whether a Ctrl-C of
-  `npm run test:e2e:docker` still stops the container promptly is for a machine with a daemon, and the change does not land before it is read.
-- **A failed Xvfb start under the proposed wrapper.** The log-on-failure path is written from the
-  design and gets its reading when the change is applied.
-- **The cost of the drift check itself.** Recorded at the apply step against the 8.8 s above.
+- **The Docker path under the changed wrapper.** `scripts/e2e-docker.ts` passes the wrapper to
+  `docker compose run` as the container's command, so without `exec` the shell is PID 1 where the
+  test runner was, and an interrupt reaches the shell, which holds its trap until the foreground
+  command ends. This VM has the Docker client and no daemon (`docker ps` cannot reach the socket).
+  Whether a Ctrl-C of `npm run test:e2e:docker` still stops the container within the baseline's
+  second is for a machine with a daemon, and the change does not land before it is read.

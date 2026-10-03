@@ -283,7 +283,8 @@ warm readings in the table above.
 The launcher's starter, `sh e2e-tests/docker/start-xvfb-and-run.sh`, leaves Xvfb running after the
 command it wraps has finished, holding whatever stdout it was started with. Piped into `tail`, the
 first probe run returned no output for 400 s after its results had been written, and finished only
-when Xvfb was killed by hand. Redirecting the output to a file avoids it.
+when Xvfb was killed by hand. Redirecting the output to a file avoided it. The starter has since been changed to stop Xvfb when
+the command ends, so a piped run returns ([`cloud-e2e-bring-up`](cloud-e2e-bring-up.md)).
 
 ## Re-running the probes
 
