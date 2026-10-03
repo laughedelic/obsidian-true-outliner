@@ -40,15 +40,20 @@ conflicts; a shared file with disjoint hunks is not a reason.
 
 ```bash
 git fetch origin <other>
-git diff origin/main...origin/<other>             # what the other branch adds: does the change read it?
-git merge-tree --write-tree HEAD origin/<other>   # exits 1 and names the paths when the two conflict
+git diff origin/main...origin/<other>   # what the other branch adds: does the change read it?
+# the paths the merge conflicts in that this change touches; empty means no conflict
+comm -12 <(git merge-tree --write-tree --name-only HEAD origin/<other> | sed -n '2,/^$/p' | sort) \
+         <(git diff --name-only origin/main...HEAD | sort)
 ```
 
-`git diff --name-only` of the second is the cheap first pass that picks which open branches are worth
-the third. The merge needs the change's code, so it runs before the PR opens and before the version
-bump, which every unstacked branch makes and which would always conflict. Otherwise stay on `main`,
-where the change merges and releases on its own schedule. Prefer short stacks — two or three layers
-that are genuinely one unit of work. State the reading in the PR; let the user decide.
+Only a conflict in a path the change touches counts. A branch cut before `main` moved conflicts with
+any change wherever `main` deleted a note or bumped the version, so the bare exit code of
+`git merge-tree` reads "stack" for most open branches whatever the change is. `git diff --name-only`
+of the second command is the cheap first pass that picks which open branches are worth the third. The
+merge needs the change's code, so it runs before the PR opens and before the version bump, whose files
+the change would otherwise touch. Otherwise stay on `main`, where the change merges and releases on
+its own schedule. Prefer short stacks — two or three layers that are genuinely one unit of work. State
+the reading in the PR; let the user decide.
 
 **A stack is made through the REST API, from a cloud session or any checkout.** Open each layer's PR
 as a draft with `base` set to the lower layer's branch, then register the stack, bottom layer first.

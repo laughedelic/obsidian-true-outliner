@@ -14,8 +14,11 @@ against `origin/fix/verbatim-swap-tab-guard`.
 1. *The change reads code the other branch adds.* Answered by reading `git diff main...<other>` against
    what the change calls, imports or assumes. This is the case where the change cannot work, or cannot
    be tested, without the other branch, and it is the reading the sessions already stated in their PRs.
-2. *`git merge-tree --write-tree HEAD <other>` conflicts.* It exits 1 and lists the conflicted paths.
-   This is the mechanical half, and it replaces the file-level proxy for it.
+2. *The merge conflicts in a path this change touches.* `git merge-tree --write-tree --name-only HEAD
+   <other>` lists the conflicted paths, and only those in the change's own diff count. The bare exit code
+   is not the test: against the open branches it read "conflict" for half of them because `main` had
+   moved, none in a path the change touches (the research note's measurement and its control). This is
+   the mechanical half, and it replaces the file-level proxy for it.
 
 A shared file with disjoint hunks passes both. The PR keeps stating the reading, as now.
 
@@ -73,8 +76,8 @@ squash-merging after the agent has prepared landing.
 joins it with no matcher change. It sees the direct forms only:
 
 - the MCP tools `mcp__github__merge_pull_request` and `mcp__github__enable_pr_auto_merge`;
-- in `Bash`, a simple command that holds a `gh` word (by base name, wherever it stands, so `env`,
-  `xargs`, `sudo` and the like need no list of their options) and then either `pr merge` or
+- in `Bash`, a simple command that holds a `gh` word (by base name, any of them, so `env`, `xargs`,
+  `sudo` and the like need no list of their options) and then either `pr merge` or
   `stack merge` as the first two words that are not flags, with any flags, or `api` with a word that is
   a merge route (`repos/…/pulls/<n>/merge` or `…/ccr/auto_merge`, the number a variable or digits, a
   query string allowed) and a write; a read, and the DELETE that turns auto-merge off, pass.
@@ -83,14 +86,19 @@ The rule is unconditional. The hook cannot tell a merge the maintainer asked for
 chose, as it can for `send_later` through `initiation`, and the maintainer's own line is "prepare for
 landing and leave it for me to merge" (#339), so the maintainer merges from the PR page.
 
-**The hook stays narrow, by choice.** Two review rounds found shapes it does not see (`curl` and
-GraphQL, `bash -c`, `eval`, `$(…)`, a variable or a script, a subshell opening the command, a phantom
-`<<` followed by a lookalike line) and the rule patched itself across both. Parsing a shell to close
-them is out of proportion to a guard behind a sentence; the step-back was answered with the narrow
-rule, and the gaps are listed in the research note and the hook's comment, not hidden. It also refuses
-what it cannot tell apart: `gh pr merge --help`, and an unquoted `echo gh pr merge`.
+**The hook stays narrow, by choice.** Three review rounds found shapes it does not see, and the rule
+patched itself across the first two. Parsing a shell to close them is out of proportion to a guard
+behind a sentence; the step-back was answered with the narrow rule, and what the hook does not see is
+one list, in the hook's comment, `design.md` and the research note: `curl` and GraphQL mutations; a
+command inside `bash -c`, `eval`, backticks or `$(…)`; a variable or a script written first or piped to
+a shell; a `gh` alias; a function or a `case` arm that builds the command from its arguments; a subshell
+that opens the command (`(gh pr merge 1)`); and a `<<` the shell does not read as a here-document
+(arithmetic, a partly quoted delimiter) followed by a line equal to its word. It also refuses what it
+cannot tell apart: `gh pr merge --help`, an unquoted `echo gh pr merge`, `-X=GET` (which `gh` reads as
+GET) and a field whose value ends in a full merge-route URL.
 
-The lexer both rules share ends a command at a newline and ignores a line continuation, as the shell
+The lexer both rules share ends a command at a newline, ends a comment at its line (so an
+apostrophe or a trailing backslash in one hides nothing) and ignores a line continuation, as the shell
 does. It skips a here-document's body only when a delimiter line follows, so `1<<2` in arithmetic and
 an unterminated here-document are read as commands, the cautious side for a rule that refuses; a
 here-string's `<<<` matches no delimiter and opens no body. The decisions are

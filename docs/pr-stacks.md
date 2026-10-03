@@ -54,8 +54,8 @@ git rebase --onto <lower> <the lower's old tip> <layer>
 The old tip is the commit the layer above was built on. For a layer another session rewrote and
 force-pushed, it is `origin/<lower>@{1}` right after the fetch that moved it; confirm that
 `git merge-base --is-ancestor <old tip> origin/<layer>` holds, since a second fetch moves `@{1}`. For
-the layer above that one, which the loop above has just rewritten, it is `origin/<lower>`: the remote
-ref has not moved, and has no `@{1}`.
+the layer above that one, which the loop above has just rewritten, it is `origin/<lower>`, which the
+restack has not moved (its `@{1}`, where it exists, is older still).
 
 Then check that the stack is whole, and push every layer in one command:
 

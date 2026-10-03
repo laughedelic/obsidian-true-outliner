@@ -132,19 +132,27 @@ function refuseMerge(what: string): void {
 }
 
 // The merge a Bash command line makes, as the words to show in the refusal: the direct forms only,
-// as a guard behind the instruction in AGENTS.md and no sandbox. The command word is `gh` wherever
-// it stands among a simple command's words, so `env`, `xargs`, `sudo`, `time` and the like need no
-// list of their options. `gh pr merge` and `gh stack merge` are named by their first two words that
-// are not flags (`-R owner/repo` stands between them) and are refused with any flags; `gh api` is a
-// merge when a word is a merge route and it writes, so a read of one and the DELETE that turns
-// auto-merge off pass. Not seen: `curl` and GraphQL, a command inside `bash -c`, `eval`, `$(…)`, a
-// variable or a script, a function or a `case` arm.
+// as a guard behind the instruction in AGENTS.md and no sandbox. The command word is any `gh` word
+// among a simple command's words, so `env`, `xargs`, `sudo`, `time` and the like need no list of
+// their options. `gh pr merge` and `gh stack merge` are named by their first two words that are not
+// flags (`-R owner/repo` stands between them) and are refused with any flags; `gh api` is a merge
+// when a word is a merge route and it writes, so a read of one and the DELETE that turns auto-merge
+// off pass.
+//
+// Not seen: `curl` and GraphQL mutations; a command inside `bash -c`, `eval`, backticks or `$(…)`;
+// a variable or a script written first or piped to a shell; a `gh` alias; a function or a `case`
+// arm that builds the command from its arguments; a subshell that opens the command
+// (`(gh pr merge 1)`); and a `<<` the shell does not read as a here-document (arithmetic, a
+// partly quoted delimiter) followed by a line equal to its word. Refused though it merges nothing:
+// `gh pr merge --help`, an unquoted `echo gh pr merge`, `-X=GET` (which `gh` reads as GET), and a
+// field whose value ends in a full merge-route URL.
 function mergeCommand(command: string): string | undefined {
   for (const words of shellCommands(command)) {
-    const gh = words.findIndex((w) => w.split("/").pop() === "gh");
-    if (gh < 0) continue;
-    const found = ghMerge(words.slice(gh + 1));
-    if (found) return found;
+    for (let i = 0; i < words.length; i++) {
+      if (words[i]?.split("/").pop() !== "gh") continue;
+      const found = ghMerge(words.slice(i + 1));
+      if (found) return found;
+    }
   }
 }
 
@@ -282,6 +290,10 @@ function shellCommands(line: string): string[][] {
     } else if (c === "\\" && i + 1 < line.length) {
       word += line.charAt(++i);
       inWord = true;
+    } else if (c === "#" && !inWord) {
+      // A comment runs to the end of the line: an apostrophe or a trailing backslash in it opens
+      // no quote and continues no line.
+      while (i + 1 < line.length && line.charAt(i + 1) !== "\n") i++;
     } else if (c === "<" && line.startsWith("<<", i)) {
       // A here-document: its body is text, read from the next newline to the delimiter line.
       // A here-string's `<<<` matches no delimiter and is stepped over, so it opens no body.

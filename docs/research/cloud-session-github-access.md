@@ -166,6 +166,21 @@ The file-level stacking test against a merge, on two open PRs that both branch o
 
 The file test says stack; the merge says the two are independent.
 
+The merge's bare exit code, though, is not the test, which a later run showed. Run from this change's
+head against the other 24 open PR heads, after `git fetch`, with the same merge and the change's own
+diff (`git diff --name-only origin/main...HEAD`):
+
+| | branches |
+| --- | --- |
+| `git merge-tree --write-tree HEAD origin/<other>` exits 1 | 12 of 24 |
+| conflicted paths that the change touches | 0 of those 12 |
+| the control, a branch cut from `main` that edits the same `AGENTS.md` line the change edits | exit 1, and `AGENTS.md` is the conflicted path the change touches |
+
+The twelve conflict because `main` moved after they were cut: `docs/research/index.md` was deleted and
+they modified it, the version files of a branch already bumped for landing, `src/plugin/main.ts`, and
+search-palette e2e files. Any change cut from today's `main` conflicts with them whatever it edits. So
+`AGENTS.md` counts only the paths the change touches.
+
 ## Why hooks, and not a CI check or a rename after the fact
 
 Three places could hold the branch convention; only one is early enough.
@@ -206,43 +221,59 @@ Three places could hold the branch convention; only one is early enough.
 | `gh api -X PUT …/pulls/12/merge`, `…/pulls/$PR/merge`, `…/pulls/12/merge?merge_method=squash`, `-XPUT …/ccr/auto_merge`, `…/pulls/12/merge -f merge_method=squash` (a field makes it a POST) | deny |
 | `gh pr view 12`, `gh pr create`, `gh pr comment … pr merge`, `gh api …/pulls/12`, `gh api …/pulls/12/merge` (a read), `gh api -X DELETE …/ccr/auto_merge` (turns it off), a write to a path that only ends in `auto_merge` or in a merge route, `git merge main`, `git commit -m "gh pr merge"`, MCP `update_pull_request_branch`, MCP `disable_pr_auto_merge` | allow |
 | `echo hi⏎git push origin claude/x`, `gh pr \⏎merge 12` (a second command on a new line, or a line continuation) | deny — a newline was whitespace before, so the push rule did not see it |
+| `# don't wait for CI⏎gh pr merge 1`, `npm test # it's fine⏎…`, `# retry \⏎git push origin claude/x`, `echo a # <<EOF⏎…` | deny — a comment runs to the end of its line, so its apostrophe, trailing backslash or `<<` hides nothing |
 | `cat > f <<'EOF'⏎git push origin claude/x⏎EOF`, the same with a merge, `<<\EOF`, and a `git commit -m "$(cat <<'EOF' … EOF)"` whose body names one | allow — a here-document's body is text; the command after its delimiter line is still read |
 | `jq .n <<< "$json"⏎npm test && git push origin claude/x`, `echo $((1<<2))⏎git push origin claude/x`, `cat <<EOF⏎gh pr merge 1` (no delimiter line) | deny — a here-string, an arithmetic shift and an unterminated here-document open no body |
 
-The merge rule is a guard behind the instruction in AGENTS.md and sees the direct forms only. Two
-reviews found shapes it does not see, and the maintainer chose to leave them out rather than parse
-a shell: `curl` and GraphQL mutations (`gh api graphql`, `curl` to `/graphql`), a command inside
-`bash -c`, `eval`, `$(…)`, a variable or a script written first or piped to a shell, a subshell that
-opens the command (`(gh pr merge 1)`), and a `<<` that the shell
-does not read as a here-document (a comment, `((…))`, a partly quoted delimiter) followed by a line
-equal to its word, which the lexer then skips. It also refuses what it can: `gh pr merge --help`, and
-an unquoted `echo gh pr merge`.
+The merge rule is a guard behind the instruction in AGENTS.md and sees the direct forms only. Three
+reviews found shapes it does not see, and the maintainer chose to leave them out rather than parse a
+shell. Not seen: `curl` and GraphQL mutations; a command inside `bash -c`, `eval`, backticks or
+`$(…)`; a variable or a script written first or piped to a shell; a `gh` alias; a function or a `case`
+arm that builds the command from its arguments; a subshell that opens the command (`(gh pr merge 1)`);
+and a `<<` the shell does not read as a here-document (arithmetic, a partly quoted delimiter) followed
+by a line equal to its word, which the lexer then skips. Refused though it merges nothing:
+`gh pr merge --help`, an unquoted `echo gh pr merge`, `-X=GET` (which `gh` reads as GET), and a field
+whose value ends in a full merge-route URL.
 
-The rows are `tests/agent-conventions.test.ts`: 80 tests sending 82 `PreToolUse` payloads to the
-script, the earlier rules' regressions among them. Thirteen copies of the script with one condition
-each changed, run through the same file by `AGENT_CONVENTIONS_SCRIPT`, fail the rows that condition
-guards and no others:
+The rows are `tests/agent-conventions.test.ts`: 104 tests sending 106 `PreToolUse` payloads to the
+script, the earlier rules' regressions among them. Thirty copies of the script with one condition each
+changed, run through the same file by `AGENT_CONVENTIONS_SCRIPT`, each fail the rows that condition
+guards, and none survives:
 
 | Condition changed | Rows that fail |
 | --- | --- |
-| `gh pr` instead of `gh pr merge` | `gh pr view`, `gh pr create`, a `gh pr comment` that mentions a merge |
-| the method test dropped | the read of `…/merge`, a GET with a field, the DELETE of `…/auto_merge` |
-| the route not anchored at `repos/…` | the two fields whose value ends in a merge path, and the three writes to other paths |
-| the route's number must be digits | `$PR`, `${PR}` |
-| `gh` only as the first word | the fourteen rows where it is not: an env prefix, a keyword, a wrapper, an assignment |
-| the `-R` value counted as a word | `gh -R o/r pr merge`, `gh --repo o/r pr merge`, `gh pr -R o/r merge` |
-| a tool missing from the MCP set | its own row, one each |
-| a newline is whitespace again | the push on a second line, the arithmetic shift, the push read against a checkout, and two heredoc bodies that name a merge |
-| a here-document body read as commands | the three bodies that name a merge or a push |
-| an unterminated here-document skipped to the end | the arithmetic shift and the unterminated here-document |
-| `<<<` rejected only at its first character, the guard of the first draft | the here-string whose word reappears as a later line |
-| a line continuation not skipped | `gh pr \⏎merge` |
+| `gh pr` instead of `gh pr merge` | 3: `gh pr view`, `gh pr create`, a `gh pr comment` that mentions a merge |
+| the method test dropped | 6, the reads and the DELETE among them |
+| `--method=` not read | 2: `--method=GET` and `--method=DELETE` on a merge route |
+| GET and DELETE matched case-sensitively | 1: a lower-case delete |
+| each write flag dropped from the write test (`-F`, `--field`, `--raw-field`, `--input`, a glued `-fX`), five copies | 1 each: the row for that flag |
+| the old route pattern, anchored at its end only | 6 |
+| the route not anchored at `repos/…` | 1: a field whose value is a bare merge path |
+| the route not closed by `$` | 1: a write below a merge route |
+| the route's number must be digits | 2: `$PR`, `${PR}` |
+| `gh` only as the first word | 16 |
+| only the first `gh` word read | 2: `sudo -u gh gh …`, `env -C ~/src/gh gh …` |
+| flags kept as positionals | 2: the `--repo=value` and glued `-R` forms |
+| the `-R` value counted as a word | 3 |
+| a tool missing from the MCP set | 1 each |
+| a newline is whitespace again | 8 |
+| comments not recognised | 5 |
+| a here-document body read as commands | 6 |
+| an unterminated here-document skipped to the end | 2 |
+| `<<<` rejected only at its first character, the guard of the first draft | 1: the here-string whose word reappears as a later line |
+| a line continuation not skipped, outside or inside double quotes | 1 each |
+| `<<-` not read, and tabs not stripped from the delimiter line | 1: a tab-indented terminator that names a merge |
+| the `<<"EOF"` form dropped | 1 |
+| only the first here-document of a line skipped | 1 |
 
-A differential sweep of the earlier script against the new lexer found two further classes that
-changed, both correct and neither listed above: a push followed by a later line carrying a `claude/*`
+A differential sweep of the earlier script against the new lexer (80 000 decisions, each difference
+checked against bash with stubbed commands) found two further classes that changed, both correct for a
+line with no redirection and neither listed above: a push followed by a later line carrying a `claude/*`
 word was refused before, because the later words were read as refspecs, and is allowed now
 (`git push origin feat/y⏎echo claude/w`); and `git push⏎echo hi` on a harness-branch checkout was
-allowed and is refused now. In the session that wrote the rule, the MCP merge tool and the `gh` merge
+allowed and is refused now. The push rule also reads a redirection's words as refspecs, on the earlier
+script and this one alike, so a bare `git push > log` from a harness checkout passes; that is unchanged
+here. In the session that wrote the rule, the MCP merge tool and the `gh` merge
 command, both on pull request 999999 (which does not exist, so a refusal that failed would have merged
 nothing), came back refused with the rule's message. The rule is a guard against the shapes a session
 writes, not a sandbox: a merge assembled in `$(…)`, a variable or a script written first is not seen.

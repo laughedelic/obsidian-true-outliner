@@ -32,9 +32,9 @@
       `mcp__github__enable_pr_auto_merge`, and in `Bash` the direct forms the design lists, with a
       message naming the rule and saying to prepare landing and stop; add the rule to the file's header
       comment; end a command at a newline and skip only a terminated here-document's body in the
-      shared lexer. Verified by `tests/agent-conventions.test.ts`, 80 tests sending 82 payloads, the
-      earlier rules' regressions among them, and by thirteen mutated copies of the script run through
-      the same file by `AGENT_CONVENTIONS_SCRIPT`, each failing exactly the rows its condition guards
+      shared lexer. Verified by `tests/agent-conventions.test.ts`, 104 tests sending 106 payloads, the
+      earlier rules' regressions among them, and by thirty mutated copies of the script run through
+      the same file by `AGENT_CONVENTIONS_SCRIPT`, each failing the rows its condition guards and none surviving
       (the table in `docs/research/cloud-session-github-access.md`, with the shapes the hook does not
       see). Negative control: matching `gh pr` instead of `gh pr merge` must fail `gh pr view`,
       `gh pr create` and the `gh pr comment` row.
@@ -69,7 +69,8 @@
       say the setup script installs `gh` and not `gh-stack`. `docs/research/cloud-session-github-access.md`:
       the same sentence in the "`gh stack` from the cloud" section. Verified by
       `grep -rn "layer.s own work\|gh-stack" docs --include=*.md` matching only the research notes'
-      history of what was measured.
+      history of what was measured and the one line of `docs/pr-stacks.md` that names the binary the
+      routes were read from.
 
 ## 5. Integration
 
