@@ -2,9 +2,9 @@
 
 The `PreToolUse` hook already runs `scripts/agent-conventions.ts` for `Bash` and `mcp__github__.*`,
 and the script denies by printing a `permissionDecision: "deny"` with a reason
-([`cloud-session-github-access`](../../../docs/research/cloud-session-github-access.md)). Today the
+([`cloud-session-github-access`](../../../../docs/research/cloud-session-github-access.md)). Today the
 matcher does not reach `send_later`, and the script allows it
-([`pr-watching-wakes`](../../../docs/research/pr-watching-wakes.md), "The hook today"). The tool's
+([`pr-watching-wakes`](../../../../docs/research/pr-watching-wakes.md), "The hook today"). The tool's
 `initiation` input says who wanted the reminder; the environment's own check-ins carry
 `own_followup` or none.
 
@@ -32,7 +32,7 @@ carries the rule's name and what to do: skip the reminder, rely on pushed events
 
 **`ScheduleWakeup` is refused unless the user typed `/loop` in the session.** The tool has no
 `initiation`, and it exists only for dynamic `/loop`, so a wake outside one is the session's own
-([`pr-watching-wakes`](../../../docs/research/pr-watching-wakes.md), "`ScheduleWakeup`"). The hook
+([`pr-watching-wakes`](../../../../docs/research/pr-watching-wakes.md), "`ScheduleWakeup`"). The hook
 reads the session's `transcript_path` and looks for a user-typed `/loop` in a user message, never in
 a tool result or an attachment, where the text also occurs. An unreadable transcript refuses, since
 allowing on a failed read would leave the rule open. What a typed `/loop` looks like in the transcript
@@ -51,7 +51,7 @@ takes its own branch and returns after denying, leaving the existing ones untouc
 **The skill states what to do, and `AGENTS.md` points to it.** The environment's PR instructions read
 `.claude/skills/steward/SKILL.md` from the PR's head branch and give it precedence on conventions and
 proactivity, but that is undocumented
-([`pr-watching-wakes`](../../../docs/research/pr-watching-wakes.md)), so the pointer in `AGENTS.md`
+([`pr-watching-wakes`](../../../../docs/research/pr-watching-wakes.md)), so the pointer in `AGENTS.md`
 is what we rely on. The skill is short and carries five rules:
 
 1. On a draft, or a PR waiting on the maintainer, act only on red CI on the current head or on a

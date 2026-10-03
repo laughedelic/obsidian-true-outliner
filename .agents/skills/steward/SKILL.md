@@ -32,7 +32,7 @@ session's own comments. Most wakes carry nothing to do. These rules say which on
 
 ## Comments
 
-A comment the session posts carries no attribution footer of our own. The platform may append one;
+A comment the session posts carries no attribution footer of our own. The platform appends one;
 leave it, and never edit a comment to remove it.
 
 ## Ending

@@ -4,7 +4,7 @@ A session that watches a PR is told by the cloud environment to arm a reminder f
 `send_later`, and does, hour after hour, on PRs that were waiting for the maintainer. Most of those
 reminders fire past the prompt cache's lifetime and find nothing, and the maintainer stopped them by
 hand in at least nine sessions (#335;
-[`docs/research/pr-watching-wakes.md`](../../../docs/research/pr-watching-wakes.md), "Reminders on
+[`docs/research/pr-watching-wakes.md`](../../../../docs/research/pr-watching-wakes.md), "Reminders on
 the account"). The same sessions also re-diagnosed non-events at every PR notification: gates red
 because a push cancelled the run, and the echoes of their own comments. Instructions alone did not
 hold the first, and the second has no written policy. #335 is a sub-issue of #334.
@@ -27,7 +27,7 @@ hold the first, and the second has no written policy. #335 is a sub-issue of #33
 - **A `permissions.deny` on the tool.** It would also block a reminder the maintainer asks for.
 - **Other self-arming tools** (`create_trigger`, `CronCreate`). Whether a session turns to them once
   `send_later` and `ScheduleWakeup` are refused is unobserved
-  ([`pr-watching-wakes`](../../../docs/research/pr-watching-wakes.md), "Not measured"); if it does,
+  ([`pr-watching-wakes`](../../../../docs/research/pr-watching-wakes.md), "Not measured"); if it does,
   that is a follow-up issue with the evidence.
 - **Changing the environment's own PR rules**, which live outside the repository.
 - **Stripping the platform's footer from a comment.** The maintainer's answer is that agent comments
