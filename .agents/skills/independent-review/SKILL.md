@@ -14,13 +14,12 @@ rule is in [`docs/research/independent-reviews.md`](../../../docs/research/indep
 ## When
 
 - **A ready point** is a commit put up for review: the plan once the draft PR holds it, a
-  checkpoint that closes a task group, and the head before the PR is marked ready. Its first
-  review is **deep** and posts on the PR.
-- **A response that changes what the change does or states** is followed by a **light** round on
-  that response's diff ("Rounds").
+  checkpoint that closes a task group, and the head the author would mark ready, after manual
+  testing. Its first review is **deep**, reads the whole change, and posts on the PR.
+- **A response that changes what the change does or states**, a fix from manual testing included,
+  is followed by a **light** round on that response's diff, which also posts ("Rounds").
 - **A return-only check** reviews any commit between ready points, pushed or not, and returns its
   findings instead of posting them. It is **light**.
-- **Before the PR is marked ready**, a **deep** review reads the whole change again.
 
 ## 1. Brief
 
@@ -183,8 +182,9 @@ Rounds are counted across both modes, and include return-only checks. Each is a 
   and on the round's line in "Reviews". The default is the round; the skip is the judgement.
 - **A round converges** when its response needs no further round, and none of its findings is an
   unmeasured PLAUSIBLE one at `p0` or `p1`.
-- **Before the PR is marked ready**, a deep review reads the whole change, whatever the light
-  rounds read.
+- **The last ready point**, the head the author would mark ready, gets its deep review of the
+  whole change whatever the light rounds read. Landing's archive, sync and version bump come
+  after it and are not reviewed.
 
 **From round 3, ask about the rule first.** List every earlier finding whose fix added a
 condition, a special case or a narrower rule, or reversed an earlier round's direction. When two

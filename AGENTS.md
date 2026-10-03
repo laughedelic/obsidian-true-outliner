@@ -83,7 +83,8 @@ Planning and implementation share one PR, in this order:
    checkpoint is what runs the full e2e sweep in CI.
 4. **Review at each ready point** with the `independent-review` skill: the proposal before the
    maintainer reviews it, the implementation at each checkpoint pushed for review. Rounds run until
-   one converges (the skill's "Rounds"); then iterate until manual testing passes.
+   one converges (the skill's "Rounds"); then iterate until manual testing passes, its fixes
+   reviewed like any other response, and the head to be marked ready gets the last deep review.
 5. **Land.** Validate, sync the delta specs, archive the change, and bump the version — all on the
    branch, before merging. Then squash-merge; CI releases from `main` when `manifest.json` moves.
    The `Landed` check holds a ready PR to this: no change it opened left unarchived, each one it

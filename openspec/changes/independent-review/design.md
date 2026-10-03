@@ -47,8 +47,10 @@ file to read, so the pointer cannot misfire. Alternatives considered:
 ### When a review runs
 
 A **ready point** is a commit the author puts up for review: the plan once the draft PR holds it,
-a checkpoint that closes a task group, and the head before the PR is marked ready. Each gets a
-review that posts on the PR. Between ready points the author may ask for a **return-only check**
+a checkpoint that closes a task group, and the head the author would mark ready, after manual
+testing. Each gets a deep review of the whole change that posts on the PR. A light round after a
+response, a manual-testing fix included, posts too. Landing's archive, sync and version bump come
+after the last ready point and are not reviewed. Between ready points the author may ask for a **return-only check**
 of any commit, pushed or not, which returns its findings instead of posting them.
 
 ### The skill speaks to the author; the reviewer is started with a brief and a model
@@ -63,8 +65,7 @@ way (another session, another harness) reads the same files.
 reasoning effort is set only in an agent definition under `.claude/agents/` or inherited from the
 session (Claude Code's subagent documentation). The skill names two settings:
 
-- **Deep**, on Opus: the first review at every ready point, and the whole-change review before
-  the PR is marked ready.
+- **Deep**, on Opus: the first review at every ready point, the last one included.
 - **Light**, on Sonnet: a return-only check, and a later round whose brief is limited to the diff
   of the last round's response.
 
@@ -231,10 +232,12 @@ of our own (`steward`, "Comments"):
 **Reviewer** · proposal, round 2
 ```
 
-and `<!-- agent: author -->` with **Author** for a reply or a note. A comment with no marker is the
-maintainer's. `steward` gains the rule: a woken session reads a reviewer comment as a review to
-answer when it is the author, an author comment as an echo when it posted it, and an unmarked one
-as the maintainer's. That keeps the rule where a woken session reads it, rather than in this skill,
+and `<!-- agent: author -->` with **Author** for a reply or a note. `steward` gains the rule: a
+woken session reads a reviewer comment as a review to answer when it asked for it; an author
+comment as an echo when it posted it, and as information from another session otherwise; an
+unmarked comment under the maintainer's login as the maintainer's; and a bot's as the bot's. The
+marker reaches a woken session: the event's comment text carries it
+(`docs/research/independent-reviews.md`, "Posting a review from a cloud session"). That keeps the rule where a woken session reads it, rather than in this skill,
 which a woken session has not loaded.
 
 **Return only.** The brief has a field for where the findings go: on the PR, or returned to the
@@ -291,8 +294,9 @@ Rounds are counted across both modes and include return-only checks.
 - **The author may judge a round unnecessary** and skip it, saying why in the thread it answers
   and on the round's line in "Reviews". No deterministic test separates a fix that needs another
   look from one that does not, and the maintainer reads the reason.
-- **Before the PR is marked ready, a deep review reads the whole change again**, so a series of
-  light rounds, each on its own diff, cannot leave the whole unreviewed since the first.
+- **The last ready point, the head the author would mark ready, gets a deep review of the whole
+  change**, so a series of light rounds, each on its own diff, cannot leave the whole unreviewed
+  since the first.
 - **A round converges** when its response needs no further round, by the rule or by the author's
   stated judgement, and none of its findings is an unmeasured PLAUSIBLE one at `p0` or `p1`.
 
@@ -382,7 +386,10 @@ Alternatives considered:
 
 - **A review costs a fresh context per round.** A light round follows each change to behaviour
   unless the author states why not, so a change with many taken findings runs more rounds than our
-  PRs have. Each is light and limited to one response's diff; task 5.3 measures what one costs.
+  PRs have. Limiting a light round to one response's diff did not make it cheaper than a full light
+  review: about 150k tokens and six minutes either way, most of it reading the change's context
+  (`docs/research/independent-reviews.md`, "A light round on one response's diff"). So the
+  author's stated skip, not the diff's size, is what keeps a series of rounds affordable.
 - **The claims to falsify can steer.** A claim names what the author believes, and a reviewer may
   spend its time there. The mode file asks it to work through its whole list, of which the claims
   are one item.

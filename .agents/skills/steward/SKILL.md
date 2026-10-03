@@ -15,10 +15,13 @@ session's own comments. Most wakes carry nothing to do. These rules say which on
 - **Ignore** events for a superseded commit (read the PR's head first and compare), gates red because
   a push cancelled the run (`e2e-*-passed` after a newer push), and echoes of the session's own
   comments. Comments post under the maintainer's login, so tell them apart by their text. A
-  session's comment opens with a role marker: `<!-- agent: reviewer, … -->` is an independent
-  review (`independent-review`), a review to answer when this session asked for it, and
-  `<!-- agent: author -->` is an echo when this session sent it. A comment with no marker is the
-  maintainer's.
+  session's comment opens with a role marker:
+  - `<!-- agent: reviewer, … -->` is an independent review (`independent-review`): a review to
+    answer when this session asked for it;
+  - `<!-- agent: author -->` is an echo when this session sent it, and otherwise a note from another
+    session: information, not a request;
+  - a comment with no marker under the maintainer's login is the maintainer's, and a bot's (its
+    login ends in `[bot]`) is the bot's.
 - **Ask an open question once**, in the PR, then wait. A later wake is not a reason to ask again.
 
 ## Never

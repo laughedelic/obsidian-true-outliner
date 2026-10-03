@@ -99,7 +99,7 @@
       by the author's verification of every finding of both runs (confirmed, wrong, unmeasured), and
       by the result recorded in `docs/research/independent-reviews.md`; if light does not hold, the
       skill's light scenario narrows before this task closes.
-- [ ] 5.3 After task 3.4, run the round the convergence rule asks for: light, limited to the diff
+- [x] 5.3 After task 3.4, run the round the convergence rule asks for: light, limited to the diff
       of the response to round 2. Verified by its findings being answered on the PR like any
       other round's, and by the round's time and tokens in the note, the first measure of what a
       limited light round costs.
