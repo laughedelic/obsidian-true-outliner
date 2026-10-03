@@ -24,7 +24,8 @@ Both reproduce on `main` in a cloud session
   of inheriting stdout, and runs the command without `exec`, so the `EXIT` trap kills Xvfb and a
   piped run returns when the command does. The log is printed if Xvfb does not come up.
 - **The docs follow.** `docs/cloud-sessions.md` drops the instruction to redirect output to a
-  file and says what the wrapper does now; the research note that first measured the hang gets a
+  file and says what the wrapper does now, as does `e2e-tests/docker/README.md`, which still says
+  the wrapper `exec`s; the research note that first measured the hang gets a
   pointer to the fix.
 
 ## Non-goals
@@ -53,7 +54,8 @@ plugin, and declares `skip_specs: true`.
 ## Impact
 
 - `scripts/lockfile-drift.ts` (new), `scripts/agent-setup.sh`.
-- `e2e-tests/docker/start-xvfb-and-run.sh`, used by `npm run test:e2e:docker` and by cloud sessions.
+- `e2e-tests/docker/start-xvfb-and-run.sh` and `e2e-tests/docker/README.md`, used by
+  `npm run test:e2e:docker` and by cloud sessions.
 - `docs/cloud-sessions.md`, `docs/research/rendered-ui-observability.md` (one pointer),
   `docs/research/cloud-e2e-bring-up.md` and its row in `docs/research/index.md`.
 - No `src/` or `styles/` change, so no version bump (`scripts/check-landed.ts` asks for one only

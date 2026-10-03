@@ -91,7 +91,7 @@ reading, taken once the change is applied.
   container's command, so without `exec` the shell is PID 1 where the test runner was, and an
   interrupt reaches the shell, which holds its trap until the foreground command ends. This VM
   has the Docker client and no daemon (`docker ps` cannot reach the socket). Whether a Ctrl-C of
-  `npm run test:e2e:docker` still stops the container promptly is for a machine with a daemon.
+  `npm run test:e2e:docker` still stops the container promptly is for a machine with a daemon, and the change does not land before it is read.
 - **A failed Xvfb start under the proposed wrapper.** The log-on-failure path is written from the
   design and gets its reading when the change is applied.
 - **The cost of the drift check itself.** Recorded at the apply step against the 8.8 s above.

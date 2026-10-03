@@ -26,6 +26,10 @@ differs in version, and an installed entry the lockfile no longer has. Modificat
 here because a clone stamps the lockfile with the clone time, which is later than any snapshot, so
 the check would fire in every session; the content check fires on drift only.
 
+**The root entry is skipped.** The lockfile's `""` key is the project itself and has no counterpart
+in the hidden lockfile, so it is excluded from both directions; an implementation that compared it
+would report drift in every session.
+
 **Optional entries are skipped when absent.** Platform-specific optional packages (49 of the
 lockfile's 932 entries are optional and absent from a fresh install on this VM) are legitimately
 absent on a platform they do not target.
@@ -59,7 +63,7 @@ status is the command's. A run piped into `tail` returns because nothing else ho
 - **The wrapper becomes PID 1 in the Docker container**, where the test runner was. A Ctrl-C or
   `docker stop` reaches the shell, which holds the trap until the foreground command finishes.
   This VM has no Docker daemon, so the change is unmeasured here → a task has the maintainer run
-  `npm run test:e2e:docker` and interrupt it; if interruption regressed, the fix is to run the
+  `npm run test:e2e:docker` and interrupt it, and landing waits on that result; if interruption regressed, the fix is to run the
   command in the background and forward `INT` and `TERM` to it, a follow-up with that measurement.
 - **A leftover Xvfb on `:99`** from an earlier hung run makes the next wrapper's own server exit
   ("already active"), while the readiness poll passes on the old socket. The run works, on the
