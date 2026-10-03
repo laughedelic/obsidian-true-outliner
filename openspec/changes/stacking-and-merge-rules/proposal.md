@@ -28,14 +28,14 @@ away or undone over the September sessions (#339, a sub-issue of #334):
   branch adds, or when `git merge-tree` against it conflicts; a shared file with disjoint hunks is not
   a reason. The PR still states the reading. The file list stays as the cheap first pass that picks
   which branches to merge.
-- **The REST stacks API in place of `gh stack` for creating, extending and dissolving a stack**, in
-  "Branching and PR stacks" and `docs/pr-stacks.md`, for cloud sessions and the primary checkout alike:
-  open each layer's PR with its base on the lower layer's branch, then `POST /repos/{o}/{r}/stacks`
-  through `gh api`. `gh stack` stays for `checkout`, `rebase`, `sync` and `merge`, which work on local
-  git state, and restacking stays in the primary checkout. The measurement is recorded
+- **The REST stacks API and plain git in place of `gh stack`**, in "Branching and PR stacks" and
+  `docs/pr-stacks.md`: open each layer's PR with its base on the lower layer's branch, then
+  `POST /repos/{o}/{r}/stacks` through `gh api`; restack with `git rebase --update-refs` or `--onto`.
+  Landing is the maintainer's, from the PR page. `scripts/stack-park.ts` and the setup script's
+  `gh-stack` extension install go, since nothing uses them. The measurements are recorded
   ([`cloud-session-github-access`](../../../docs/research/cloud-session-github-access.md), "A stacked
-  PR from a cloud session"): the stacks API is REST, and a stack of two open PRs was created from a
-  cloud session, seen in the UI and unstacked again.
+  PR from a cloud session", and
+  [`restacking-with-plain-git`](../../../docs/research/restacking-with-plain-git.md)).
 - **One line in "Change lifecycle", step 5**: agents prepare landing and never merge; the maintainer
   merges.
 - **A hook that enforces it.** `scripts/agent-conventions.ts` refuses `merge_pull_request` and
@@ -53,8 +53,10 @@ away or undone over the September sessions (#339, a sub-issue of #334):
   environment sets
   ([`cloud-session-github-access`](../../../docs/research/cloud-session-github-access.md), "`gh stack`
   from the cloud").
-- **Replacing `gh stack checkout`, `rebase`, `sync` and `merge`.** They work on local git state and the
-  restack is the primary checkout's work; REST has no counterpart.
+- **Who runs a restack from the cloud.** Whether a cloud session can force-push a layer other than its
+  own branch is unmeasured; until it is, a restack is a task the maintainer hands to a session.
+- **A restack script.** Two git recipes and a check are written down; a script waits until restacks are
+  frequent enough to want one.
 - **A skill for the stack calls.** The recipe is four calls in `docs/pr-stacks.md`.
 - **A direct push to `main`.** That is branch protection's, not this hook's. Nor does the hook refuse
   `update_pull_request_branch`, which updates a PR's branch and merges nothing.
@@ -79,6 +81,10 @@ declares `skip_specs: true`.
 - `AGENTS.md`: the stacking test, the stack paragraphs, one lifecycle line, and the sentence describing
   `scripts/agent-conventions.ts`.
 - `scripts/agent-conventions.ts`: the merge rule and its header comment.
-- `docs/pr-stacks.md`, `docs/cloud-sessions.md`: the repeated statements.
+- `docs/pr-stacks.md`: rewritten around the REST recipe and the git restack. `docs/cloud-sessions.md`:
+  the repeated statements.
+- `scripts/stack-park.ts`: deleted. `scripts/agent-setup.sh`: the `gh-stack` extension install and its
+  message go.
 - `docs/research/cloud-session-github-access.md`: the measurement, and one reworded sentence.
+  `docs/research/restacking-with-plain-git.md` and its index row: the restack measurement.
 - No `src/` or `styles/` change, so no version bump.

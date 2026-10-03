@@ -25,17 +25,16 @@ before the branch did; a merge cannot. What it costs: the answer is a snapshot o
 which can move after the check; a conflict found late means moving the new commits onto the other
 branch, not the work done twice; and a merge needs each other open head fetched, so the old
 `git diff --name-only main...<other>` is kept as the cheap first pass that names the few heads worth
-a `merge-tree`. A conflict puts the branch onto the other one (`gh stack`, from the primary checkout).
+a `merge-tree`. A conflict puts the branch onto the other one, with the git restack below.
 The version files are the reason for "before the bump": every unstacked PR bumps `manifest.json`,
 `versions.json` and `package.json` at landing, so two of them always conflict there, and that conflict
 is the cost of unstacked work that the rule already accepts.
 
-**The REST stacks API is the way to create, extend and dissolve a stack, locally and in the cloud.**
+**The REST stacks API replaces `gh stack` for creating, extending and dissolving a stack.**
 `gh stack` cannot run in the cloud, but its stack operations are REST and the proxy allows them
 ([`cloud-session-github-access`](../../../docs/research/cloud-session-github-access.md), "A stacked PR
-from a cloud session"). The same calls work from the primary checkout, since the extension makes them
-too, so one recipe replaces the `gh stack init`, `add` and `submit` rows and the sentence about
-cloud sessions:
+from a cloud session"). The same calls work from any checkout, so one recipe serves the cloud and the
+primary checkout:
 
 | To | Call |
 | --- | --- |
@@ -45,13 +44,20 @@ cloud sessions:
 | extend one | `POST /repos/{o}/{r}/stacks/{n}/add` (not measured) |
 | dissolve one | `POST /repos/{o}/{r}/stacks/{n}/unstack` |
 
-`gh stack` stays for what REST does not do: `checkout`, `rebase`, `sync` and `merge` work on local git
-state, which `scripts/stack-park.ts` also reads, and a restack rewrites layers other sessions sit on,
-so it stays in the primary checkout. `docs/pr-stacks.md` splits its table in two on that line. No
-skill: the recipe is four calls, kept where the stack operations are already listed, and `AGENTS.md`
-carries one paragraph pointing to it. Unmeasured, and stated as such in the recipe: whether the API
-checks that the bases chain, the order it expects (bottom to top as measured), and whether
-`gh stack checkout` takes up a stack that was created by hand.
+**Plain git replaces `gh stack rebase`, `sync` and `checkout`, and `scripts/stack-park.ts` goes.** The
+maintainer works almost entirely from cloud sessions, so the local tooling is carried for a workflow
+that is rarely run, and `gh stack`'s local tracking state is the only reason `docs/pr-stacks.md`
+forbids plain `git rebase`. With no tracking, the restack is git
+([`restacking-with-plain-git`](../../../docs/research/restacking-with-plain-git.md)): from the top layer
+`git rebase --update-refs main` for a moved trunk, and bottom-up
+`git rebase --onto <lower> <its old tip> <layer>` for a lower layer that was rewritten; the result is
+checked with the ancestor test. The worktree hazard that `stack-park.ts` worked around is stated once,
+as a condition of the restack: no layer checked out elsewhere, which a cloud session and a fresh clone
+satisfy. Landing is the maintainer's, from the PR page; there is no merge recipe, since agents do not
+merge. What was not measured stays stated: a cloud session force-pushing a layer other than its own
+branch, so who runs a restack from the cloud is left as it is today, a task the maintainer hands to a
+session on purpose. No skill: the recipes are a table in `docs/pr-stacks.md`, and `AGENTS.md` carries
+one paragraph pointing to it.
 
 **The lifecycle line names the subject, in step 5.** "Then squash-merge" becomes the maintainer
 squash-merging after the agent has prepared landing.
@@ -61,8 +67,9 @@ on `Bash|mcp__github__.*|…`, so the rule joins it with no matcher change. It r
 
 - the MCP tools `mcp__github__merge_pull_request` and `mcp__github__enable_pr_auto_merge`, since
   auto-merge is a merge the platform makes later;
-- in `Bash`, by the same shell lexer the push rule uses: `gh pr merge`, `gh stack merge`, and `gh api`
-  to a `…/pulls/{n}/merge` or `…/auto_merge` path, the CCR auto-merge route included.
+- in `Bash`, by the same shell lexer the push rule uses: `gh pr merge`, `gh stack merge` (a form the
+  docs no longer mention, refused for anyone who still has the extension), and `gh api` to a
+  `…/pulls/{n}/merge` or `…/auto_merge` path, the CCR auto-merge route included.
 
 The rule is unconditional. The hook cannot tell a merge the maintainer asked for from one the session
 chose, as it can for `send_later` through `initiation`, and the maintainer's own line is "prepare for
@@ -82,6 +89,9 @@ list is read in, `/stacks/{n}/add`, `gh stack init` adopting a plain PR, and `gh
 
 - **The API is undocumented.** The routes come from a release binary, not from GitHub's REST reference, so a
   later version can move them. The recipe names the `gh-stack` version it was read from, v0.2.0.
+- **A restack by hand skips a step.** The ancestor test after it is the guard, and the one case that
+  fails silently, a layer checked out elsewhere, is a stated condition. A script would carry both; none is
+  planned until a restack is run often enough to want one.
 - **A merge-tree test run on a stale `<other>`.** The command starts from
   `git fetch origin <other>`, as the existing listing of open PRs implies.
 - **The merge rule refuses a merge the maintainer wanted a session to make.** Then the maintainer merges
