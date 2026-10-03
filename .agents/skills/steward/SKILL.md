@@ -14,8 +14,11 @@ session's own comments. Most wakes carry nothing to do. These rules say which on
   review comment. Anything else, end the turn.
 - **Ignore** events for a superseded commit (read the PR's head first and compare), gates red because
   a push cancelled the run (`e2e-*-passed` after a newer push), and echoes of the session's own
-  comments. Comments post under the maintainer's login, so tell an echo by its text: it is one the
-  session sent.
+  comments. Comments post under the maintainer's login, so tell them apart by their text. A
+  session's comment opens with a role marker: `<!-- agent: reviewer, … -->` is an independent
+  review (`independent-review`), a review to answer when this session asked for it, and
+  `<!-- agent: author -->` is an echo when this session sent it. A comment with no marker is the
+  maintainer's.
 - **Ask an open question once**, in the PR, then wait. A later wake is not a reason to ask again.
 
 ## Never
@@ -32,8 +35,9 @@ session's own comments. Most wakes carry nothing to do. These rules say which on
 
 ## Comments
 
-A comment the session posts carries no attribution footer of our own. The platform appends one;
-leave it, and never edit a comment to remove it.
+A comment the session posts opens with `<!-- agent: author -->` (or the reviewer's marker, when it
+posts a review) and carries no attribution footer of our own. The platform appends one; leave it,
+and never edit a comment to remove it.
 
 ## Ending
 

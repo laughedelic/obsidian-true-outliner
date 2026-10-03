@@ -64,7 +64,7 @@ skill. Alternatives considered:
   that reaches a ready point; the routine that wires it in is #348.
 - **Replacing the maintainer's review or manual testing.** A review round is evidence for the
   maintainer, not an approval, and agents never merge.
-- **A fixed number of rounds.** The loop ends when a round converges (design, "Rounds converge")
+- **A fixed number of rounds.** The loop ends when a round converges (design, "Rounds")
   (#337, "Iteration").
 - **Depending on Copilot's review.** It stopped reviewing after #251. The pointer gives it the
   same checks if it reviews again; nothing here waits on it.

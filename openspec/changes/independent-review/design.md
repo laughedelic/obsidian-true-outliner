@@ -63,7 +63,8 @@ way (another session, another harness) reads the same files.
 reasoning effort is set only in an agent definition under `.claude/agents/` or inherited from the
 session (Claude Code's subagent documentation). The skill names two settings:
 
-- **Deep**, on Opus: the first review at every ready point.
+- **Deep**, on Opus: the first review at every ready point, and the whole-change review before
+  the PR is marked ready.
 - **Light**, on Sonnet: a return-only check, and a later round whose brief is limited to the diff
   of the last round's response.
 
@@ -278,25 +279,29 @@ wrong, one left open). Trivial findings are not repeated there.
 what is theirs: an open question, a decision that could go either way, a finding that changes the
 design's direction or pivots the proposal, the go-ahead to file an issue, and the step-back below.
 
-### Rounds converge, and a rule that keeps being patched stops the loop
+### Rounds: one deep review, light iterations, and the author's judgement
 
 Rounds are counted across both modes and include return-only checks.
 
-- **A response needs another round** when it changes what the change does or states: any
-  behaviour, a mechanism, a rule, a spec statement, the fix type or the scope, however small the
-  edit. A test for reviewed behaviour, a rename, a comment or a wording fix does not.
-- **The next round is limited to that response's diff** and runs light, so a small fix costs a
-  small round.
-- **A round converges** when its response needs no further round and none of its findings is an
-  unmeasured PLAUSIBLE one at `p0` or `p1`.
+- **A ready point opens with a deep review** of the whole change.
+- **A response that changes what the change does or states** (behaviour, a mechanism, a rule, a
+  spec statement, the fix type or the scope, however small the edit) is followed by a light round
+  limited to that response's diff. A test for reviewed behaviour, a rename, a comment or a wording
+  fix is not.
+- **The author may judge a round unnecessary** and skip it, saying why in the thread it answers
+  and on the round's line in "Reviews". No deterministic test separates a fix that needs another
+  look from one that does not, and the maintainer reads the reason.
+- **Before the PR is marked ready, a deep review reads the whole change again**, so a series of
+  light rounds, each on its own diff, cannot leave the whole unreviewed since the first.
+- **A round converges** when its response needs no further round, by the rule or by the author's
+  stated judgement, and none of its findings is an unmeasured PLAUSIBLE one at `p0` or `p1`.
 
 This departs from #246 and #274, which skipped a re-review after fixes that changed a mechanism
 and widened the scope, on the grounds that the edits were local to reviewed code. That test is the
 v2 Bugfix prompt's re-review rule, whose clauses disagree in exactly those cases and which #348
-records as "bent twice". A rule with an exemption for local fixes needs a judgement of "local" the
-PRs did not make consistently; a light round on a small diff is cheaper than that judgement made
-wrong. #264's second round, whose cost fix added a pre-check no reviewer read, would have had a
-light third round over the pre-check.
+records as "bent twice". Here the default is a light round, and skipping it is a decision the
+author states rather than a test it applies. #264's second round, whose cost fix added a pre-check
+no reviewer read, would by default have had a light third round over the pre-check.
 
 **Before every round from the third, the author asks about the rule.** List every earlier finding
 whose fix added a condition, a special case or a narrower rule, or reversed an earlier round's
@@ -312,13 +317,17 @@ direction. When two or more patch the same rule, ask two more things:
 Then the author stops, updates the PR with the list and the answers, and asks the user to choose:
 a rule written anew, a generated check before the next round, or another round as it stands.
 Rewriting the rule alone is what #267's approaches 4 to 6 already did. Rounds 1 and 2 of #351
-each patched the convergence rule, and this section is what that step-back produced.
+each patched the convergence rule; this section is the maintainer's choice at that step-back.
 
 Alternatives considered:
 
 - *A fixed limit*, two or three rounds. #264's second round found no defect; #269's second found
   eight things to take. No number fits both.
-- *An exemption for local fixes to reviewed code*, the v2 prompt's rule. Above.
+- *An exemption for local fixes to reviewed code*, the v2 prompt's rule, applied as a test.
+  Above.
+- *A rule with no room for judgement.* Every behaviour change would start a round, including
+  ones the author can see need none, and a change could spend more on light rounds than on its
+  work; nothing would ever look at the whole again.
 - *A round converges only when it finds nothing that changes behaviour.* Every taken finding would
   start a full round; the survey has three in four implementation findings taken.
 - *A step-back only before the third implementation round.* #267's loop was in proposal rounds,
@@ -371,10 +380,9 @@ Alternatives considered:
 
 ## Risks / Trade-offs
 
-- **A review costs a fresh context per round.** The convergence rule starts a round for any change
-  to behaviour, so a change with many taken findings runs more rounds than our PRs have; each such
-  round is light and limited to one response's diff. What a light round on a small diff costs is
-  not yet measured.
+- **A review costs a fresh context per round.** A light round follows each change to behaviour
+  unless the author states why not, so a change with many taken findings runs more rounds than our
+  PRs have. Each is light and limited to one response's diff; task 5.3 measures what one costs.
 - **The claims to falsify can steer.** A claim names what the author believes, and a reviewer may
   spend its time there. The mode file asks it to work through its whole list, of which the claims
   are one item.

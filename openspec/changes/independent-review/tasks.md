@@ -52,7 +52,7 @@
       result.
 - [x] 3.3 Add `.claude/skills/independent-review` as a symlink to
       `../../.agents/skills/independent-review`. Verified by `ls -L` reading `SKILL.md` through it.
-- [ ] 3.4 Fold proposal round 2 into the skill (design as revised for it): the brief's fields
+- [x] 3.4 Fold proposal round 2 into the skill (design as revised for it): the brief's fields
       (no diagnosis, even as a claim; the reproduction as a case file's `before` and keys; the
       skill's files by their path in the author's checkout; "Do not modify" as tracked files and
       branches; where the findings go); "When" with ready points defined and return-only checks of
@@ -70,7 +70,7 @@
       review; remove the `.github/skills/independent-review` link. Verified by each of its three
       links resolving from the file's directory. Whether Copilot reads it is unmeasured while
       Copilot does not review this repository.
-- [ ] 3.6 Add the role markers to `.agents/skills/steward/SKILL.md`: a woken session reads a
+- [x] 3.6 Add the role markers to `.agents/skills/steward/SKILL.md`: a woken session reads a
       comment opening `<!-- agent: reviewer` as a review to answer when it is the author, one
       opening `<!-- agent: author -->` that it posted as an echo, and an unmarked one as the
       maintainer's. Verified by `grep -n "agent:" .agents/skills/steward/SKILL.md`.

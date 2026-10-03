@@ -13,63 +13,59 @@ rule is in [`docs/research/independent-reviews.md`](../../../docs/research/indep
 
 ## When
 
-- **Proposal**: once the draft PR holds the plan, before the maintainer reviews it.
-- **Implementation**: at each ready point, a checkpoint pushed for review, and before the PR is
-  marked ready.
-- **A check that is not a ready point** (a partial implementation before it is pushed, a question
-  to settle before touching the PR): the same review, returning its findings instead of posting
-  them.
-- **Another round**, while the last one has not converged ("Rounds").
+- **A ready point** is a commit put up for review: the plan once the draft PR holds it, a
+  checkpoint that closes a task group, and the head before the PR is marked ready. Its first
+  review is **deep** and posts on the PR.
+- **A response that changes what the change does or states** is followed by a **light** round on
+  that response's diff ("Rounds").
+- **A return-only check** reviews any commit between ready points, pushed or not, and returns its
+  findings instead of posting them. It is **light**.
+- **Before the PR is marked ready**, a **deep** review reads the whole change again.
 
-## 1. Push, then brief
+## 1. Brief
 
-Push first: the reviewer reads `origin` at the SHA the brief names, never the author's checkout.
-Then fill every field of the brief, or write "none":
+For a ready point, push first; the review is posted against the SHA the brief names. Fill every
+field, or write "none":
 
 ```
 Independent review: <proposal | implementation>, round <n>, of #<pr>.
-Read .agents/skills/independent-review/SKILL.md ("The reviewer") and
-.agents/skills/independent-review/<proposal | implementation>.md, and follow them.
+Read <author's checkout>/.agents/skills/independent-review/SKILL.md ("The reviewer") and
+<author's checkout>/.agents/skills/independent-review/<proposal | implementation>.md, and follow them.
 
-Head:        <branch> at <sha>
-Base:        <the PR's base branch>; merge base <sha>
-Diff:        git diff <merge base> <sha>
-Issue:       #<n>
-Reproduction: <case file path, or the drawn case>
-Touches:     <specs by capability path; research notes>
-Depends on:  <code, config, docs and earlier PRs the change relies on and does not touch>
-Earlier rounds: <each review's link; each thread with what was done and its evidence>
+Head:         <branch> at <sha>
+Base:         <the PR's base branch>; merge base <sha>
+Diff:         git diff <merge base> <sha>          (a light round: git diff <last round's sha> <sha>)
+Issue:        #<n>, and the plan at <path>: read both after locating the cause yourself
+Reproduction: <the case file's `before` column and keys, no result column>
+Touches:      <specs by capability path; research notes>
+Depends on:   <files and documents the change relies on and does not touch>
+Earlier rounds: <each earlier review's link; each return-only check's line from "Reviews">
 Claims to falsify:
-1. <a sentence the change rests on, written so a measurement could prove it false>
-Do not modify: <the primary checkout at <path>, any branch>
-Findings go: <on the PR | return only>
+1. <a sentence about what the author believes is sound, written so a measurement could prove it false>
+Do not modify: the tracked files and branches of <author's checkout>
+Findings go:  <on the PR | return only>
 ```
 
-- **The base is the PR's own.** A layer of a stack is reviewed against the layer below, not `main`.
+- **The skill's files are read from the author's checkout**, by absolute path: the tree under
+  review may predate the skill.
+- **The base is the PR's own.** A layer of a stack is reviewed against the layer below.
+- **The brief never carries the diagnosis**, the issue's or the plan's, not even as a claim: the
+  brief is read first. Nor a result column: an `expected` is the author's answer.
 - **A claim is what the author believes sound**: "`structural-operations`, *X*, already requires
   the expected result, so the fix type is drift", "each new test fails with `src/` from the merge
-  base". The issue's diagnosis and the plan's go here, as claims.
-- **Nothing says where the defect is.** No root cause, no suspicion, no place to look first: a
-  reviewer handed one finds it and stops.
-- **Earlier rounds are decisions with their evidence**, so a rejected finding comes back only with
-  a case its rejection did not consider.
+  base". Never where the defect is.
 - **From round 3**, the brief also asks the question in "Rounds".
 
-Done when every field is filled or "none", and no line says what the author suspects.
+Done when every field is filled or "none", and no line says what the author suspects or expects.
 
 ## 2. Start the reviewer
 
-A `general-purpose` subagent, the brief as its prompt, in the background. The setting is its
-model:
-
-- **Deep** (`model: opus`): every review at a ready point, and any round whose brief carries a
-  new mechanism or rule.
-- **Light** (`model: sonnet`): a return-only check, and a later round whose brief is limited to
-  code the last round's response added.
+A `general-purpose` subagent with the brief as its prompt, in the background, with the model of
+its setting: **deep** `model: opus`, **light** `model: sonnet`. Both inherit the session's effort.
 
 ## The reviewer
 
-**Workspace.** Two detached worktrees, from `origin`:
+**Workspace.** Two detached worktrees:
 
 ```bash
 git fetch origin <base branch> <branch>
@@ -77,22 +73,24 @@ git worktree add --detach .claude/worktrees/review-<pr>-r<round>-head <sha>
 git worktree add --detach .claude/worktrees/review-<pr>-r<round>-base <merge base>
 ```
 
-- Two reviews of one round can run at once (a deep and a light one): when the path exists, add a
-  suffix to both names.
-- They find `node_modules` through the primary checkout. When the change touches `package.json`
-  or `package-lock.json`, run `npm ci` in each before running anything in it.
+- An unpushed commit is reachable the same way: a worktree shares the checkout's objects.
+- When the path exists (a second review of the same round), add a suffix to both names.
+- The fetch moves the checkout's remote-tracking refs and the worktrees add git metadata; neither
+  is a modification the brief forbids.
+- When the change touches `package.json` or `package-lock.json`, run `npm ci` in each worktree
+  before running anything in it: both otherwise share the primary checkout's install.
 - **Probes go in the head worktree's `.scratch/`**, which git ignores. It is the only place a test
-  probe runs: Vitest collects under its root, and nothing outside the checkout resolves the
-  dependencies. `/tmp` and the session's scratchpad hold notes and outputs. Nothing goes under
+  probe runs. `/tmp` and the session's scratchpad hold notes and outputs. Nothing goes under
   `tests/` or any tracked path.
 - Run the suite as `npx vitest run tests/`; a plain run also collects the probes.
 - A claim about what the app does is measured in the app, with `driving-obsidian` or a case file
   through `npm run case`, never in a bare CodeMirror.
-- At the end, `git worktree remove --force` both, and leave the primary checkout as it was.
+- At the end, `git worktree remove --force` the worktrees this review made, and only those.
 
 **Order.** Reproduce the case, derive the expected result from the specs, and locate the cause in
-the code before reading the issue's or the plan's diagnosis. Then work through every check in the
-mode file; the brief's claims are one of them.
+the code. Then read the issue and the plan, and test their diagnosis as a claim. Then work through
+every check in the mode file; the brief's claims are one of them. A light round reads the diff in
+its brief and what that diff touches.
 
 **A finding:**
 
@@ -120,17 +118,15 @@ Base: <same | better | worse> on the same case
    belong to no line and the list of what was found sound in the body.
 
 Each comment and the body open with the role, since everything posts under the maintainer's
-account:
+account, and carry no attribution footer (the platform appends one; `steward`, "Comments"):
 
 ```
-<!-- independent-review: reviewer, <mode>, round <n>, <sha> -->
+<!-- agent: reviewer, <mode>, round <n>, <sha> -->
 **Reviewer** · <mode>, round <n>
 ```
 
-No attribution footer of our own (`steward`, "Comments").
-
 **Return** the review's URL and one line per finding (number, label, rung, sentence). A
-return-only review returns the findings in full.
+return-only check returns the findings in full.
 
 ## 3. Verify, decide, answer
 
@@ -138,30 +134,36 @@ For each finding, in rank order:
 
 1. **Run its case.** A PLAUSIBLE finding is measured, which confirms or disproves it, before it is
    acted on. One that cannot be measured in the session is recorded as unmeasured at `p2` or
-   below, and filed at `p0` or `p1`, with the user's go-ahead.
-2. **Decide one disposition**: **taken** (fixed, naming the commit), **rejected** (with the spec
-   sentence or the measurement it rests on), **filed** (the issue), **recorded** (pre-existing and
-   identical on the base), or **wrong** (and what showed it).
-3. **Answer on the thread and resolve it.** The reply opens with
-   `<!-- independent-review: author -->` and **Author** ·, disposition first. Thread ids come from
-   `pull_request_read`, method `get_review_comments`; `resolve_review_thread` resolves.
+   below, and filed at `p0` or `p1`.
+2. **Decide one disposition**:
+   - **taken**: fixed, naming the commit;
+   - **rejected**, with the spec sentence or the measurement it rests on;
+   - **filed**: an issue, with the user's go-ahead. A defect outside the change, pre-existing or
+     not, is always filed (`AGENTS.md`, "A follow-up is an issue");
+   - **recorded**: not a defect, or one already tracked, naming the issue;
+   - **wrong**, with what showed it.
+3. **Answer on the thread and resolve it**, disposition first, opening with
+   `<!-- agent: author -->` and **Author** ·, no footer. Thread ids come from `pull_request_read`,
+   method `get_review_comments`; `resolve_review_thread` resolves.
 
 The review's events are the review the author asked for, and the author's own replies come back
-as one event each: echoes, which `steward` skips, and the marker is the text that tells them
-apart. **The user is asked only** about an open
-question, a decision that could go either way, and a finding that changes the design's direction
-or pivots the proposal.
+as echoes, which `steward` skips. **The user is asked only** about an open question, a decision
+that could go either way, a finding that changes the design's direction or pivots the proposal,
+the go-ahead to file an issue, and the step-back in "Rounds".
 
 Done when every thread has its reply and is resolved, or is left open with the question to the
 user named.
 
 ## 4. Record
 
-The PR description's "Reviews" section is a summary across all rounds, rewritten as rounds
-accumulate. The back and forth stays in the threads.
+The PR description's "Reviews" section is a summary across all rounds, rewritten with
+`update_pull_request` as rounds accumulate (a REST write appends a footer to the description). The
+back and forth stays in the threads.
 
-- One line per round: the review's link, mode, SHA, setting, the count of findings and of each
-  disposition. A return-only check the author acted on gets a line too.
+- One line per round, return-only checks included: the review's link, mode, SHA, model and effort
+  (where known), the count of findings and of each disposition, and why a round was skipped when
+  one was. A return-only check's line lists the findings it rejected or showed wrong, since it has
+  no threads to hold them.
 - What the rounds changed in the design.
 - Lessons a later change can use.
 - The threads a reader would not find on their own: a rejection, a finding shown wrong, one left
@@ -171,19 +173,27 @@ Trivial findings are not repeated there.
 
 ## Rounds
 
-Rounds are counted across both modes: a proposal round and an implementation round of one change
-are rounds 1 and 2. Each round is a fresh reviewer.
+Rounds are counted across both modes, and include return-only checks. Each is a fresh reviewer.
 
-- **A significant change** is a response that changes a mechanism, a rule or a spec statement,
-  changes the fix type or the scope, or adds code the round's reviewer did not read. A local fix
-  to reviewed code, a test for reviewed behaviour, a rename or a wording fix is not, even when it
-  changes behaviour.
-- **A round converges** when the response to it makes no significant change and none of its
-  findings is an unmeasured PLAUSIBLE one at `p0` or `p1`. Until one does, the next round runs.
+- **A response that changes what the change does or states** (behaviour, a mechanism, a rule, a
+  spec statement, the fix type or the scope, however small the edit) is followed by a light round
+  on that response's diff. A test for reviewed behaviour, a rename, a comment or a wording fix is
+  not.
+- **The author may judge a round unnecessary** and skip it, saying why in the thread it answers
+  and on the round's line in "Reviews". The default is the round; the skip is the judgement.
+- **A round converges** when its response needs no further round, and none of its findings is an
+  unmeasured PLAUSIBLE one at `p0` or `p1`.
+- **Before the PR is marked ready**, a deep review reads the whole change, whatever the light
+  rounds read.
 
 **From round 3, ask about the rule first.** List every earlier finding whose fix added a
 condition, a special case or a narrower rule, or reversed an earlier round's direction. When two
-or more patch the same rule, they are evidence the rule is wrong, not exceptions to it: write the
-rule that gives every expected result without them, take it back to proposal mode, update the PR,
-and tell the user before writing more code. When they do not, run the round, and put the same
-question in its brief.
+or more patch the same rule, ask also:
+
+- Are the findings about the rule, or about constraints every candidate rule shares?
+- Do they come from cases built by hand that a generated check (an oracle, a sweep) would settle?
+
+Then stop, put the list and the answers in the PR, and ask the user to choose: a rule written
+anew, a generated check before the next round, or another round as it stands. Rewriting the rule
+alone is what kept #267 looping. When nothing patches the same rule twice, run the round, and put
+the same question in its brief.
