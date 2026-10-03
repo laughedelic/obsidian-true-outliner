@@ -1,3 +1,8 @@
+---
+type: "research"
+description: "What landing a PR costs, measured over the 84 PRs merged since 09-14 and the `Landed` runs since 09-25 (version collisions, red-by-design runs, the `landed.yml` skip race, what a strict up-to-date rule would cost), and the design: auto-merge as the one approval, a required `landed` deployment as the gate, and a `/land` skill that runs after it"
+---
+
 # Landing as a command
 
 Landing a PR — archive its OpenSpec change, sync the delta specs, bump the version, run
@@ -180,11 +185,11 @@ auto-merge set wakes the session; the maintainer can also run `/land` by hand.
    skill (#337) once that exists.
 6. **Push**, then report the version, the archived changes and the requirements the sync touched.
 
-The skill never merges and never touches auto-merge. A `PreToolUse` refusal in
-`scripts/agent-conventions.ts` covers `enable_pr_auto_merge`, `disable_pr_auto_merge` and
-`merge_pull_request`, together with `gh pr merge`, and the steward skill's "never merge" line
-says the same. Disabling is refused with enabling: allowing one and not the other would need
-a rule about intent.
+The skill never merges and never touches auto-merge. The `PreToolUse` guard added in #352
+(`scripts/agent-conventions.ts`) already refuses `merge_pull_request`, `enable_pr_auto_merge`,
+`gh pr merge`, `gh stack merge` and a write to a merge or auto-merge route. It does not name
+`disable_pr_auto_merge`, which this design adds: allowing a disable and not an enable would need a
+rule about intent, and a session that finds a concern simply does not finish landing.
 
 ### What this accepts
 
@@ -243,7 +248,8 @@ a rule about intent.
   `auto_merge_enabled` trigger, the fresh base.
 - `scripts/check-landed.ts`: the fresh base, the version rule, the freshness rule for PRs that land.
 - `.agents/skills/land/` and its two symlinks.
-- `scripts/agent-conventions.ts`: the refusals above, with tests.
+- `scripts/agent-conventions.ts`: `mcp__github__disable_pr_auto_merge` joins the refused tools,
+  with a test beside those for the others.
 - CLAUDE.md "Change lifecycle", step 5 (the sequence becomes: enable auto-merge, `/land`, merge
   on green), the steward skill's lines on merging and on rewriting a branch, and the
   Bugfix routine's step 8 in #348.
