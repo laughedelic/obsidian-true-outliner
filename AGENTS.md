@@ -94,8 +94,10 @@ Planning and implementation share one PR, in this order:
    one converges (the skill's "Rounds"); then iterate until manual testing passes, its fixes
    reviewed like any other response, and the head to be marked ready gets the last deep review.
 5. **Land.** Validate, sync the delta specs, archive the change, and bump the version — all on the
-   branch, before merging. Then the maintainer squash-merges: agents prepare landing and never merge
-   (`scripts/agent-conventions.ts` refuses it). CI releases from `main` when `manifest.json` moves.
+   branch, before merging. Then the maintainer squash-merges: an agent prepares landing, reports and
+   stops, and never merges, by any route. A hook refuses the direct forms — `gh pr merge`, a `gh api`
+   write to a merge route, the GitHub MCP merge tools (`scripts/agent-conventions.ts`) — as a guard
+   behind this rule, not a sandbox. CI releases from `main` when `manifest.json` moves.
    The `Landed` check holds a ready PR to this: no change it opened left unarchived, each one it
    archived finished and synced, and a `feat` or `fix` that touches `src/` or `styles/` carrying a
    minor or patch bump (`scripts/check-landed.ts`).

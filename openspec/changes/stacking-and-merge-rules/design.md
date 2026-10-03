@@ -67,34 +67,33 @@ maintainer asks, or the session that owns the layer that moved. No skill: the re
 **The lifecycle line names the subject, in step 5.** "Then squash-merge" becomes the maintainer
 squash-merging after the agent has prepared landing.
 
-**A hook refuses an agent's merge.** `scripts/agent-conventions.ts` already dispatches `PreToolUse`
-on `Bash|mcp__github__.*|…`, so the rule joins it with no matcher change. It refuses:
+**An agent never merges, and a narrow hook backs the instruction.** The rule is a sentence in
+`AGENTS.md`, "Change lifecycle", step 5: an agent prepares landing, reports and stops, by any route.
+`scripts/agent-conventions.ts` already dispatches `PreToolUse` on `Bash|mcp__github__.*|…`, so a guard
+joins it with no matcher change. It sees the direct forms only:
 
-- the MCP tools `mcp__github__merge_pull_request` and `mcp__github__enable_pr_auto_merge`, since
-  auto-merge is a merge the platform makes later;
-- in `Bash`, by the same shell lexer the push rule uses, a command word that is `gh`, by base name,
-  past assignments, shell keywords and wrappers (`do`, `then`, `{`, `!`, `time`, `env`, `command`,
-  `xargs`), with `bash -c` and `eval` read through:
-  - `gh pr merge` and `gh stack merge`, found as the first two words that are not flags, so
-    `gh pr -R o/r merge` counts and `gh pr comment … pr merge` does not, except `--disable-auto`,
-    which turns auto-merge off;
-  - `gh api` whose endpoint (the first word that is neither a flag nor a flag's value) is a
-    `…/pulls/<n>/merge` or `…/auto_merge` route, the number a variable or digits and a query string
-    allowed, and which writes; a read, and the DELETE that turns auto-merge off, pass;
-  - `gh api graphql` carrying `mergePullRequest`, `enablePullRequestAutoMerge` or `enqueuePullRequest`;
-  - `curl` writing to a merge route.
+- the MCP tools `mcp__github__merge_pull_request` and `mcp__github__enable_pr_auto_merge`;
+- in `Bash`, a simple command that holds a `gh` word (by base name, wherever it stands, so `env`,
+  `xargs`, `sudo` and the like need no list of their options) and then either `pr merge` or
+  `stack merge` as the first two words that are not flags, with any flags, or `api` with a word that is
+  a merge route (`repos/…/pulls/<n>/merge` or `…/ccr/auto_merge`, the number a variable or digits, a
+  query string allowed) and a write; a read, and the DELETE that turns auto-merge off, pass.
 
 The rule is unconditional. The hook cannot tell a merge the maintainer asked for from one the session
 chose, as it can for `send_later` through `initiation`, and the maintainer's own line is "prepare for
-landing and leave it for me to merge" (#339), so the maintainer merges from the PR page. The refusal
-names the rule and says what to do: prepare landing, report, stop. It guards the shapes a session
-writes and is no sandbox: like the push rule it does not expand `$(…)`, and a merge held in a variable
-or in a script written first is not seen.
+landing and leave it for me to merge" (#339), so the maintainer merges from the PR page.
 
-The lexer both rules share now ends a command at a newline and ignores a line continuation, as the
-shell does. It skips a here-document's body only when a delimiter line follows, so `1<<2` in
-arithmetic and an unterminated here-document are read as commands, the cautious side for a rule that
-refuses; a here-string's `<<<` matches no delimiter and opens no body. The decisions are
+**The hook stays narrow, by choice.** Two review rounds found shapes it does not see (`curl` and
+GraphQL, `bash -c`, `eval`, `$(…)`, a variable or a script, a subshell opening the command, a phantom
+`<<` followed by a lookalike line) and the rule patched itself across both. Parsing a shell to close
+them is out of proportion to a guard behind a sentence; the step-back was answered with the narrow
+rule, and the gaps are listed in the research note and the hook's comment, not hidden. It also refuses
+what it cannot tell apart: `gh pr merge --help`, and an unquoted `echo gh pr merge`.
+
+The lexer both rules share ends a command at a newline and ignores a line continuation, as the shell
+does. It skips a here-document's body only when a delimiter line follows, so `1<<2` in arithmetic and
+an unterminated here-document are read as commands, the cautious side for a rule that refuses; a
+here-string's `<<<` matches no delimiter and opens no body. The decisions are
 `tests/agent-conventions.test.ts`, run against mutated copies of the script for the negative controls.
 
 ## Measurement (task 1, done)

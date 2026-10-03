@@ -29,14 +29,15 @@
 ## 3. The merge hook
 
 - [x] 3.1 In `scripts/agent-conventions.ts`, deny `mcp__github__merge_pull_request` and
-      `mcp__github__enable_pr_auto_merge`, and in `Bash` the merges the design lists, with a message
-      naming the rule and saying to prepare landing and stop; add the rule to the file's header
+      `mcp__github__enable_pr_auto_merge`, and in `Bash` the direct forms the design lists, with a
+      message naming the rule and saying to prepare landing and stop; add the rule to the file's header
       comment; end a command at a newline and skip only a terminated here-document's body in the
-      shared lexer. Verified by `tests/agent-conventions.test.ts`, 77 tests sending 79 payloads,
-      the earlier rules' regressions among them, and by fifteen mutated copies of the script run through the same file by
-      `AGENT_CONVENTIONS_SCRIPT`, each failing exactly the rows its condition guards (the table in
-      `docs/research/cloud-session-github-access.md`). Negative control: matching `gh pr` instead of
-      `gh pr merge` must fail `gh pr view`, `gh pr create` and the `gh pr comment` row.
+      shared lexer. Verified by `tests/agent-conventions.test.ts`, 80 tests sending 82 payloads, the
+      earlier rules' regressions among them, and by thirteen mutated copies of the script run through
+      the same file by `AGENT_CONVENTIONS_SCRIPT`, each failing exactly the rows its condition guards
+      (the table in `docs/research/cloud-session-github-access.md`, with the shapes the hook does not
+      see). Negative control: matching `gh pr` instead of `gh pr merge` must fail `gh pr view`,
+      `gh pr create` and the `gh pr comment` row.
 - [x] 3.2 Check the rule in the session that made the edit: call `mcp__github__merge_pull_request` with a
       pull request number that does not exist, so a hook that fails to refuse errors out and merges
       nothing, and see it refused with the rule's message. Verified by the refusal text, recorded in

@@ -38,9 +38,9 @@ away or undone over the September sessions (#339, a sub-issue of #334):
   [`restacking-with-plain-git`](../../../docs/research/restacking-with-plain-git.md)).
 - **One line in "Change lifecycle", step 5**: agents prepare landing and never merge; the maintainer
   merges.
-- **A hook that enforces it.** `scripts/agent-conventions.ts` refuses `merge_pull_request` and
-  `enable_pr_auto_merge` from the GitHub MCP server, and in `Bash` `gh pr merge`, `gh stack merge` and
-  `gh api` to a merge or auto-merge path. The `PreToolUse` matcher already reaches all of them.
+- **A narrow hook behind it.** `scripts/agent-conventions.ts` refuses the direct forms: the MCP
+  `merge_pull_request` and `enable_pr_auto_merge`, and in `Bash` `gh pr merge`, `gh stack merge` and a
+  `gh api` write to a merge route. It is a guard behind the sentence, and sees no more.
 - **The same statements wherever they repeat**: `docs/pr-stacks.md`, `docs/cloud-sessions.md`, and the
   sentence in `docs/research/cloud-session-github-access.md` that gives a cloud session "the layer's
   own work only".

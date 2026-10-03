@@ -201,36 +201,42 @@ Three places could hold the branch convention; only one is early enough.
 | `git commit -m "git push origin claude/x"`, `git commit -m 'fix && git push origin claude/x'` | allow — quotes hide operators and words from the command lexer |
 | `GIT_TRACE=1 git push origin claude/x`, `cd /x && git push origin claude/x`, `echo "a; b" \| git push origin HEAD:claude/x` | deny |
 | `mcp__github__merge_pull_request`, `mcp__github__enable_pr_auto_merge` | deny — a merge is the maintainer's (AGENTS.md, "Change lifecycle", step 5) |
-| `gh pr merge 12`, `gh -R o/r pr merge 12`, `gh pr -R o/r merge 12`, `GH_TOKEN=x gh pr merge --auto 12`, `npm test && gh pr merge 12`, `gh stack merge --yes` | deny |
-| the same behind a shell keyword or wrapper: `for … do`, `if … then`, `{ … }`, `!`, `time`, `env`, `command`, `xargs`, an absolute path to `gh`, `bash -c "…"`, `eval "…"` | deny |
-| `gh api -X PUT …/pulls/12/merge`, `…/pulls/$PR/merge`, `…/pulls/12/merge?merge_method=squash`, `-XPUT …/ccr/auto_merge`, `…/pulls/12/merge -f merge_method=squash` (a field makes it a POST), `gh api graphql` with `mergePullRequest` or `enablePullRequestAutoMerge`, `curl -X PUT …/pulls/1/merge` | deny |
-| `gh pr view 12`, `gh pr create`, `gh pr merge --disable-auto 12`, `gh api …/pulls/12`, `gh api …/pulls/12/merge` (a read), `gh api -X DELETE …/ccr/auto_merge` (turns it off), a field whose value ends in a merge path, a GraphQL query, `curl` of a merge route, `git merge main`, `git commit -m "gh pr merge"`, MCP `update_pull_request_branch`, MCP `disable_pr_auto_merge` | allow |
-| `echo hi⏎git push origin claude/x`, `echo hi⏎gh pr merge 12`, `gh pr \⏎merge 12` (the second command on a new line, or a line continuation) | deny — a newline was whitespace before, so neither rule saw it |
+| `gh pr merge 12` with any flags (`--squash`, `--auto`, `--disable-auto`, `--help`), `gh -R o/r pr merge 12`, `gh pr -R o/r merge 12`, `GH_TOKEN=x gh pr merge`, `npm test && gh pr merge 12`, `gh stack merge --yes` | deny |
+| the same behind a keyword or a wrapper: `for … do`, `if … then`, `{ … }`, `!`, `time`, `env -u X`, `command`, `xargs -n 1`, `sudo -u root`, `timeout 5`, an absolute path to `gh`, an assignment whose value is `$(…)`; the rule looks for the `gh` word, not the first word | deny |
+| `gh api -X PUT …/pulls/12/merge`, `…/pulls/$PR/merge`, `…/pulls/12/merge?merge_method=squash`, `-XPUT …/ccr/auto_merge`, `…/pulls/12/merge -f merge_method=squash` (a field makes it a POST) | deny |
+| `gh pr view 12`, `gh pr create`, `gh pr comment … pr merge`, `gh api …/pulls/12`, `gh api …/pulls/12/merge` (a read), `gh api -X DELETE …/ccr/auto_merge` (turns it off), a write to a path that only ends in `auto_merge` or in a merge route, `git merge main`, `git commit -m "gh pr merge"`, MCP `update_pull_request_branch`, MCP `disable_pr_auto_merge` | allow |
+| `echo hi⏎git push origin claude/x`, `gh pr \⏎merge 12` (a second command on a new line, or a line continuation) | deny — a newline was whitespace before, so the push rule did not see it |
 | `cat > f <<'EOF'⏎git push origin claude/x⏎EOF`, the same with a merge, `<<\EOF`, and a `git commit -m "$(cat <<'EOF' … EOF)"` whose body names one | allow — a here-document's body is text; the command after its delimiter line is still read |
 | `jq .n <<< "$json"⏎npm test && git push origin claude/x`, `echo $((1<<2))⏎git push origin claude/x`, `cat <<EOF⏎gh pr merge 1` (no delimiter line) | deny — a here-string, an arithmetic shift and an unterminated here-document open no body |
 
-The rows are `tests/agent-conventions.test.ts`: 77 tests sending 79 `PreToolUse` payloads to the script,
-the earlier rules' regressions among them. Fifteen copies of the script with one condition each changed,
-run through the same file by `AGENT_CONVENTIONS_SCRIPT`, fail the rows that condition guards and no
-others:
+The merge rule is a guard behind the instruction in AGENTS.md and sees the direct forms only. Two
+reviews found shapes it does not see, and the maintainer chose to leave them out rather than parse
+a shell: `curl` and GraphQL mutations (`gh api graphql`, `curl` to `/graphql`), a command inside
+`bash -c`, `eval`, `$(…)`, a variable or a script written first or piped to a shell, a subshell that
+opens the command (`(gh pr merge 1)`), and a `<<` that the shell
+does not read as a here-document (a comment, `((…))`, a partly quoted delimiter) followed by a line
+equal to its word, which the lexer then skips. It also refuses what it can: `gh pr merge --help`, and
+an unquoted `echo gh pr merge`.
+
+The rows are `tests/agent-conventions.test.ts`: 80 tests sending 82 `PreToolUse` payloads to the
+script, the earlier rules' regressions among them. Thirteen copies of the script with one condition
+each changed, run through the same file by `AGENT_CONVENTIONS_SCRIPT`, fail the rows that condition
+guards and no others:
 
 | Condition changed | Rows that fail |
 | --- | --- |
 | `gh pr` instead of `gh pr merge` | `gh pr view`, `gh pr create`, a `gh pr comment` that mentions a merge |
 | the method test dropped | the read of `…/merge`, a GET with a field, the DELETE of `…/auto_merge` |
-| the `--disable-auto` exemption dropped | `gh pr merge --disable-auto` |
-| any word may be the endpoint | the two fields whose value ends in a merge path |
-| keywords and wrappers not stepped over | `for`, `if`, a brace group, `!`, `time`, `env`, `command`, `xargs` |
-| the route's number must be digits and end the word | `$PR`, `${PR}`, the query string |
+| the route not anchored at `repos/…` | the two fields whose value ends in a merge path, and the three writes to other paths |
+| the route's number must be digits | `$PR`, `${PR}` |
+| `gh` only as the first word | the fourteen rows where it is not: an env prefix, a keyword, a wrapper, an assignment |
 | the `-R` value counted as a word | `gh -R o/r pr merge`, `gh --repo o/r pr merge`, `gh pr -R o/r merge` |
-| `bash -c` and `eval` not read through | `bash -c`, `eval` |
-| the GraphQL mutations not read | both mutations |
-| `curl` not read | `curl -X PUT` |
-| a line continuation not skipped | `gh pr \⏎merge` |
-| a newline is whitespace again | ten rows: the second-line merge and push, the three commands after a delimiter line, the merge between a here-string word and its later line, the arithmetic shift, the unterminated here-document, a push read against the checkout, and the one heredoc body that holds `npm test && gh pr merge 12` |
+| a tool missing from the MCP set | its own row, one each |
+| a newline is whitespace again | the push on a second line, the arithmetic shift, the push read against a checkout, and two heredoc bodies that name a merge |
 | a here-document body read as commands | the three bodies that name a merge or a push |
 | an unterminated here-document skipped to the end | the arithmetic shift and the unterminated here-document |
 | `<<<` rejected only at its first character, the guard of the first draft | the here-string whose word reappears as a later line |
+| a line continuation not skipped | `gh pr \⏎merge` |
 
 A differential sweep of the earlier script against the new lexer found two further classes that
 changed, both correct and neither listed above: a push followed by a later line carrying a `claude/*`

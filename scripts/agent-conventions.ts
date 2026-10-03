@@ -12,10 +12,11 @@
 //   to keep a "safety-net" check-in through `send_later` (docs/research/pr-watching-wakes.md).
 //   PreToolUse refuses `send_later` unless the maintainer asked for the reminder, and
 //   `ScheduleWakeup` unless the maintainer typed `/loop`.
-// - An agent never merges: the maintainer lands. PreToolUse refuses the GitHub MCP merge and
-//   auto-merge tools, and in Bash `gh pr merge`, `gh stack merge` and a `gh api` write to a pull
-//   request's `merge` or `auto_merge` path (AGENTS.md, "Change lifecycle", step 5). The hook cannot
-//   tell a merge the maintainer asked for from one the session chose, so the rule has no exception.
+// - An agent never merges: the maintainer lands. AGENTS.md ("Change lifecycle", step 5) says so,
+//   and PreToolUse refuses the direct forms as a guard behind it: the GitHub MCP merge and
+//   auto-merge tools, and in Bash `gh pr merge`, `gh stack merge` and a `gh api` write to a merge
+//   route. It sees no more than that, and has no exception: it cannot tell a merge the maintainer
+//   asked for from one the session chose.
 // - PR descriptions carry no agent attribution. The GitHub MCP tool
 //   `create_pull_request` appends a footer outside the `attribution` settings;
 //   PostToolUse spots it and has the session rewrite the body, which sticks.
@@ -30,16 +31,9 @@ const TYPES = "`feat/<slug>`, `fix/<slug>` or `chore/<slug>`";
 const SEND_LATER = "mcp__claude-code-remote__send_later";
 const SCHEDULE_WAKEUP = "ScheduleWakeup";
 const MERGE_TOOLS = new Set(["mcp__github__merge_pull_request", "mcp__github__enable_pr_auto_merge"]);
-// A pull request's `merge` route, and its `auto_merge` route, which the cloud proxy also serves
-// under `…/ccr/auto_merge`. The number may be a shell variable and a query string may follow.
-const MERGE_ROUTE = /\/pulls\/[^/\s?]+\/merge(?:\?.*)?$|\/auto_merge(?:\?.*)?$/;
-const GRAPHQL_MERGE = /\b(?:mergePullRequest|enablePullRequestAutoMerge|enqueuePullRequest)\b/;
-// What can stand before the command word of a simple command: shell keywords and the commands that
-// run another one.
-const BEFORE_COMMAND = new Set(["if", "then", "else", "elif", "do", "while", "until", "!", "{", "time", "command", "exec", "builtin", "sudo", "nohup", "env", "xargs"]);
-const SHELLS = new Set(["bash", "sh", "zsh", "dash"]);
-// The `gh api` flags that take a value, so the endpoint is the first word that is neither.
-const API_VALUE_FLAGS = new Set(["-X", "--method", "-H", "--header", "-f", "-F", "--field", "--raw-field", "--jq", "-q", "--template", "-t", "--input", "--hostname", "-p", "--preview", "--cache"]);
+// A pull request's `merge` route, or the cloud proxy's `…/ccr/auto_merge`, as a `repos/…` path. The
+// number may be a shell variable and a query string may follow.
+const MERGE_ROUTE = /(?:^|\/)repos\/[^/]+\/[^/]+\/pulls\/[^/?]+\/(?:merge|ccr\/auto_merge)(?:\?.*)?$/;
 // A slash command the user typed is recorded in a `<command-name>` block of their message,
 // slash included; a skill only the model can invoke is recorded without one.
 const TYPED_LOOP = /<command-name>\/loop<\/command-name>/;
@@ -137,41 +131,20 @@ function refuseMerge(what: string): void {
   );
 }
 
-// The merge a Bash command line makes, as the words to show in the refusal. The command word is
-// found past assignments, shell keywords and wrappers (`do`, `then`, `env`, `xargs`, …), by its
-// base name, and `bash -c` and `eval` are read through. `gh pr merge` and `gh stack merge` are
-// named by their first two words that are not flags (`-R owner/repo` stands between them), save
-// `--disable-auto`, which turns auto-merge off. `gh api` is a merge when its endpoint is a merge
-// route and it writes, or when it sends a merge mutation, so a read of a route and the DELETE that
-// turns auto-merge off pass; `curl` is read the same way. A command assembled in `$(…)`, a
-// variable or a script written first is not seen, as for the push rule.
-function mergeCommand(command: string, depth = 0): string | undefined {
-  for (const raw of shellCommands(command)) {
-    const words = [...raw];
-    let wrapped = false;
-    for (;;) {
-      const first = words[0] ?? "";
-      if (/^[A-Za-z_]\w*=/.test(first) || BEFORE_COMMAND.has(first)) {
-        wrapped ||= BEFORE_COMMAND.has(first);
-        words.shift();
-      } else if (wrapped && first.startsWith("-")) {
-        words.shift();
-      } else {
-        break;
-      }
-    }
-    const program = (words.shift() ?? "").split("/").pop() ?? "";
-    if (depth < 3 && (SHELLS.has(program) || program === "eval")) {
-      const script = program === "eval" ? words.join(" ") : words[words.indexOf("-c") + 1];
-      const inner = script && (program === "eval" || words.includes("-c")) ? mergeCommand(script, depth + 1) : undefined;
-      if (inner) return inner;
-    } else if (program === "gh") {
-      const found = ghMerge(words);
-      if (found) return found;
-    } else if (program === "curl") {
-      const route = words.find((w) => MERGE_ROUTE.test(w));
-      if (route && curlWrites(words)) return `\`curl\` to ${route}`;
-    }
+// The merge a Bash command line makes, as the words to show in the refusal: the direct forms only,
+// as a guard behind the instruction in AGENTS.md and no sandbox. The command word is `gh` wherever
+// it stands among a simple command's words, so `env`, `xargs`, `sudo`, `time` and the like need no
+// list of their options. `gh pr merge` and `gh stack merge` are named by their first two words that
+// are not flags (`-R owner/repo` stands between them) and are refused with any flags; `gh api` is a
+// merge when a word is a merge route and it writes, so a read of one and the DELETE that turns
+// auto-merge off pass. Not seen: `curl` and GraphQL, a command inside `bash -c`, `eval`, `$(…)`, a
+// variable or a script, a function or a `case` arm.
+function mergeCommand(command: string): string | undefined {
+  for (const words of shellCommands(command)) {
+    const gh = words.findIndex((w) => w.split("/").pop() === "gh");
+    if (gh < 0) continue;
+    const found = ghMerge(words.slice(gh + 1));
+    if (found) return found;
   }
 }
 
@@ -184,22 +157,10 @@ function ghMerge(words: string[]): string | undefined {
     else if (!word.startsWith("-")) positional.push(word);
   }
   const [group, subcommand] = positional;
-  if ((group === "pr" || group === "stack") && subcommand === "merge") {
-    return words.includes("--disable-auto") ? undefined : `\`gh ${group} merge\``;
-  }
+  if ((group === "pr" || group === "stack") && subcommand === "merge") return `\`gh ${group} merge\``;
   if (group !== "api") return undefined;
-  const endpoint = apiEndpoint(words);
-  if (endpoint && MERGE_ROUTE.test(endpoint) && apiWrites(words)) return `\`gh api\` to ${endpoint}`;
-  if (endpoint === "graphql" && words.some((w) => GRAPHQL_MERGE.test(w))) return "`gh api graphql` with a merge mutation";
-}
-
-// The first word of a `gh api` call that is neither a flag nor a flag's value.
-function apiEndpoint(words: string[]): string | undefined {
-  for (let i = words.indexOf("api") + 1; i < words.length; i++) {
-    const word = words[i] ?? "";
-    if (API_VALUE_FLAGS.has(word)) i++;
-    else if (!word.startsWith("-")) return word;
-  }
+  const route = words.find((w) => MERGE_ROUTE.test(w));
+  if (route && apiWrites(words)) return `\`gh api\` to ${route}`;
 }
 
 // Whether a `gh api` call writes: an explicit method other than GET, or none and a field or body,
@@ -212,17 +173,6 @@ function apiWrites(words: string[]): boolean {
     return !/^(GET|DELETE)$/i.test(method);
   }
   return words.some((w) => /^(-f|-F|--field|--raw-field|--input)(=|$)/.test(w) || /^-[fF]./.test(w));
-}
-
-// Whether a `curl` call writes: a PUT, POST or PATCH, or a body.
-function curlWrites(words: string[]): boolean {
-  const flag = words.findIndex((w) => /^(-X|--request)(=|$)/.test(w) || /^-X./.test(w));
-  if (flag >= 0) {
-    const word = words[flag] ?? "";
-    const method = /^--request=|^-X./.test(word) ? word.replace(/^--request=|^-X/, "") : (words[flag + 1] ?? "");
-    return /^(PUT|POST|PATCH)$/i.test(method);
-  }
-  return words.some((w) => /^(-d|--data\S*|--json|-T|--upload-file)(=|$)/.test(w));
 }
 
 // `ScheduleWakeup` has no `initiation`; it exists for a `/loop` the user started, so a wake
