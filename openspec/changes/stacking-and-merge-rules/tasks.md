@@ -72,13 +72,13 @@
 
 ## 5. Integration
 
-- [ ] 5.1 This branch is stacked on #351 (stack 356, #351's head `cb92fca`) at the maintainer's request,
-      though the stacking test would not stack it: `git merge-tree` of the two exits 0 and nothing
-      here reads code #351 adds. When #351 lands its commits are squashed into `main`, so restack with
-      `git rebase --onto origin/main cb92fca chore/stacking-and-merge-rules` (not `--update-refs`),
-      push with `--force-with-lease`, and set the PR's base to `main`; if #351 moves first, the same
-      command from its previous tip. Verified by `git merge-tree --write-tree HEAD origin/main`
-      exiting 0 on the result and the PR's file list holding only this change's files.
+- [x] 5.1 This branch was stacked on #351 (stack 356) at the maintainer's request, though the stacking
+      test would not stack it: `git merge-tree` of the two exits 0 and nothing here reads code #351
+      adds. When the maintainer squash-merged #351, GitHub restacked the branch itself and retargeted
+      the base to `main`, so no `--onto` restack was needed. Verified on the restacked head `6446b91`:
+      `main` an ancestor, 15 commits above it, the PR's file list holding only this change's files,
+      and `git merge-tree --write-tree HEAD origin/main` exiting 0; the observation is in
+      `docs/research/cloud-session-github-access.md`, "A stacked PR from a cloud session".
 - [x] 5.2 Run `npm run typecheck:scripts`, `npm run lint`, and
       `openspec validate stacking-and-merge-rules --strict`. Verified by all three exiting 0, after
       `npm ci` replaced a `node_modules` that predated the lockfile.

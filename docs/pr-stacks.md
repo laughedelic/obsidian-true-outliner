@@ -76,5 +76,8 @@ destroys the linear history the stack exists to keep.
 
 The maintainer lands a stack, from the PR page, and the whole stack squash-merges so the linear
 history survives into `main`. An agent prepares landing and stops; `scripts/agent-conventions.ts`
-refuses a merge. Landing the bottom layer alone to release it costs a restack of every layer above
-it — one more reason independent work does not belong in a stack.
+refuses a merge. When the bottom layer is squash-merged, GitHub restacks the layers above it: it
+rewrites each branch onto `main` with that layer's own commits and retargets its base, measured with
+#351 under #352. A session holding one of those layers finds its local branch diverged from `origin`
+and resets to the remote (`AGENTS.md`, "Branching and PR stacks"); each layer reruns its CI on the new
+head.

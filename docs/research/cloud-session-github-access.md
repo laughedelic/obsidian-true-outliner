@@ -137,6 +137,15 @@ Stacks that exist already are consistent with that. #267 was created at 04:20:01
 268 (#264, #267) at 04:21:59; #190 on 09-21 and stack 191 (#189, #190) the same day. The listing
 does not say who made them.
 
+When the bottom layer lands. #352 was stacked on #351 with the call above (stack 356). The
+maintainer squash-merged #351 into `main`. With no request from the session, GitHub then rewrote
+#352's branch (`d7e018b` became `6446b91`: the same tree, its 15 commits replayed above the new
+`main`, none of #351's), retargeted its base from `chore/review-skill` to `main`, and the stack
+listing read #351 closed and #352 open. #351's branch was deleted. The check on the old head,
+`e2e-mobile-passed`, failed because the push cancelled the jobs it gates, and the new head ran its
+own. A session holding the layer sees its local branch diverged from `origin`, and the remote is
+authoritative there (AGENTS.md, "Branching and PR stacks").
+
 Not measured:
 
 - whether `POST /stacks` refuses a lower and an upper PR whose bases do not chain (the base was
@@ -144,7 +153,9 @@ Not measured:
 - whether the order of `pull_requests` is read bottom to top or checked (it was sent bottom to top);
 - `POST /stacks/{n}/add`;
 - `gh stack init` adopting a plain PR, and `gh stack link`, which resolves PRs through GraphQL and is
-  expected to fail here.
+  expected to fail here;
+- whether GitHub restacks the layers above when the bottom one is merged by a merge commit or a
+  rebase, or when a layer's commits conflict with `main`.
 
 The file-level stacking test against a merge, on two open PRs that both branch off `main`
 (`git merge-tree --write-tree --name-only`, git 2.43.0, 2026-10-03):
