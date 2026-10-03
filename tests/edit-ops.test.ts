@@ -1774,6 +1774,15 @@ describe('a paste spelled in tabs under a space-indented item is written in the 
     expect(kinds).toEqual(['paragraph', 'paragraph']);
   });
 
+  it('a nested node’s own line spelled apart from it moves with the block', () => {
+    // `> q` is a line of `x` only because it sits four columns past `- p`'s
+    // content column. `x` lands at that content column; kept two columns past
+    // `x`, `> q` would open a quote and send the block to its own characters.
+    expect(paste('- p\n\t- k\n  \tx\n      > q\n')).toBe(
+      '- a\n  1. b\n  - p\n    - k\n    x\n        > q\n',
+    );
+  });
+
   it('a drop writes the same', () => {
     const md = `${doc}- p\n\n  para\n\n  - n\n\t1. m\n`;
     const source = parse(md);

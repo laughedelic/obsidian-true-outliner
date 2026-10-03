@@ -248,11 +248,13 @@ function addsTabAfterSpace(from: string, to: string, rest: string): boolean {
  * ends, and a child written one tab past its item's indentation would fall
  * short of the item's content column once the prefix is narrower than a stop.
  *
- * A line that does not open with the node's own indentation goes to `carry`,
- * which moves it with the block it belongs to, as a paste always has. A line
- * the source wrote in a different unit from its node says nothing about where
- * it belongs, and spelling its offset in spaces moved a tab continuation to
- * where `>` opens a quote.
+ * A line that does not open with the node's own indentation goes to `carry`.
+ * For a node's own lines that moves it with the block it belongs to, as a
+ * paste always has: a line the source wrote in a different unit from its node
+ * is text or not by its column past the node's container, and spelling its
+ * offset from the node in spaces moved a tab continuation to where `>` opens
+ * a quote. A child's first line is placed by its column past its parent, and
+ * its caller's `carry` keeps that column.
  *
  * An atom's lines are content, and go through `reprefixLine` instead.
  */

@@ -19,11 +19,10 @@ each line's offset from its node; the child spelled apart meets the first and br
 
 - The read-back keeps the blank lines between the block's own nodes and leaves out only the gap
   after its last line.
-- A child's line, or a nested node's own line, at or past its node's indentation that does not
-  open with it keeps its offset in columns, in spaces after the new indentation. A line short of
-  it, a lazy continuation, and the block root's own lines are carried with the root's prefix as
-  before: the read-back measures the root from its own column rather than its container's, so it
-  would not see a root's line kept in columns land on a block start.
+- A child's first line that does not open with its parent's indentation keeps its offset from the
+  parent in columns, in spaces after the parent's new indentation. A node's own lines are carried
+  with the root's prefix as before: whether such a line is text depends on its column past the
+  node's container, which a node laid out afresh does not keep.
 
 ## Non-goals
 
@@ -47,6 +46,7 @@ None.
 
 ## Impact
 
-`readsAsWritten` in `src/ops.ts`, `rewriteOwnLine` in `src/reencode.ts`; reached by paste and
+`readsAsWritten` and `rewriteSubtree` in `src/ops.ts`, which hands `rewriteOwnLine` a `carry` that
+keeps a child's column; reached by paste and
 cross-scope moves. #267 and #270 carry the same requirement in their deltas, so whichever is
 archived after another merges the requirement by hand.

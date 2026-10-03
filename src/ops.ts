@@ -2400,25 +2400,23 @@ function rewriteSubtree(
   unit: string,
   carry: (line: string) => string,
   columnDelta = 0,
-  nested = false,
 ): OutlineNode {
   const from = leadingWhitespace(node.lines[0] ?? '');
-  const apart = keepColumnPast(from, indentText, columnDelta, carry);
-  // The root's own lines are read back from its own column, not from its
-  // container's, so a line kept in columns there can open a block the
-  // read-back does not see; they are carried with the root.
-  const own = nested ? apart : carry;
   const lines = isAtom(node)
     ? reprefixAtomLines(node, indentText)
     : node.lines.map((line, i) =>
         i === 0
           ? carryContentColumn(line, indentText + line.slice(from.length))
-          : rewriteOwnLine(line, from, indentText, unit, columnDelta, own),
+          : rewriteOwnLine(line, from, indentText, unit, columnDelta, carry),
       );
   // An attached id is one of the node's own lines, never an atom's content.
   const written = withIdLine({ ...node, lines }, (line) =>
-    rewriteOwnLine(line, from, indentText, unit, columnDelta, own),
+    rewriteOwnLine(line, from, indentText, unit, columnDelta, carry),
   );
+  // A node's own lines are text or not by their column past the node's
+  // container, which a node laid out afresh does not keep; a child's first
+  // line is placed by its column past the node itself.
+  const apart = keepColumnPast(from, indentText, columnDelta);
   const children = layChildren(written, node.children, indentText, unit, carry, (child) =>
     leadingWhitespace(
       rewriteOwnLine(child.lines[0] ?? '', from, indentText, unit, columnDelta, apart),
@@ -2428,23 +2426,16 @@ function rewriteSubtree(
 }
 
 /**
- * How a line at or past a node's indentation that does not open with it moves:
- * by its offset in columns, written in spaces after the node's new
- * indentation. Such a line is a child or a continuation written in another
- * unit from its node, `\ttext` under `  - n`; carried with the block root's
- * prefix, a tab in it absorbed the spaces written in front of it and it fell
- * short of the node's content column. A line short of the node's indentation
- * is a lazy continuation, and goes to `carry`.
+ * How a child's first line that does not open with its parent's indentation
+ * moves: by its offset in columns, written in spaces after the parent's new
+ * indentation. Such a child is written in another unit from its parent,
+ * `\ttext` under `  - n`; carried with the block root's prefix, a tab in it
+ * absorbed the spaces written in front of it and it fell short of the parent's
+ * content column.
  */
-function keepColumnPast(
-  from: string,
-  to: string,
-  columnDelta: number,
-  carry: (line: string) => string,
-): (line: string) => string {
+function keepColumnPast(from: string, to: string, columnDelta: number): (line: string) => string {
   return (line) => {
     const ws = leadingWhitespace(line);
-    if (line.trim() === '' || indentWidth(ws) < indentWidth(from)) return carry(line);
     const offset = indentWidth(ws) - indentWidth(from) + columnDelta;
     return to + ' '.repeat(Math.max(0, offset)) + line.slice(ws.length);
   };
@@ -2479,7 +2470,7 @@ function layChildren(
         childIndent = reachContentColumn(indentText, parent);
       }
     }
-    const rewritten = rewriteSubtree(child, childIndent, unit, carry, 0, true);
+    const rewritten = rewriteSubtree(child, childIndent, unit, carry);
     if (rewritten.kind === 'list-item') lastItem = rewritten;
     laid.push(rewritten);
   }

@@ -1,0 +1,57 @@
+import { it } from 'vitest';
+import * as A from '../zz-A/ops';
+import * as F from '../zz-F/ops';
+import { parse } from '../src/parse';
+import { encode } from '../src/encode';
+
+// Every spelling of three lines under one root, from 14 indentations each, at six destinations.
+// `zz-A/` is `main` and `zz-F/` the branch, both counting the fallback of `reindentSubtree` and
+// `convertInUnit` in `globalThis.__fb`.
+const sh = (n: any): string =>
+  `${n.kind === 'paragraph' || n.kind === 'list-item' ? 'b' : n.kind}[${n.lines
+    .map((l: string) => l.trim().replace(/^(\d+[.)]|[-*+])\s+/, '- '))
+    .join('|')}](${n.children.map(sh).join(',')})`;
+const W = ['', ' ', '  ', '   ', '    ', '     ', '      ', '        ', '\t', ' \t', '  \t', '\t ', '\t  ', '\t\t'];
+const roots = ['- p', '1. p', '-  p', '-\tp', 'p'];
+const sets = [['- k', 'x', '> q'], ['text', '- k', '> q'], ['- n', '1. m', '> q']];
+const dests: [string, number[]][] = [
+  ['- a\n  1. b\n', [0, 0]], ['- a\n', [0]], ['- a\n\t- b\n', [0, 0]],
+  ['- a\n    - b\n', [0, 0]], ['- a\n  - b\n    - c\n', [0, 0, 0]], ['# H\n- a\n', [0, 0]],
+];
+
+it('exhaustive', () => {
+  const out: Record<string, Record<string, number>> = {};
+  for (const set of sets) {
+    const st = { runs: 0, fbMain: 0, fbHere: 0, newFb: 0, broken: 0, fixed: 0 };
+    for (const root of roots) for (const w1 of W) for (const w2 of W) for (const w3 of W) {
+      const payload = `${root}\n${w1}${set[0]}\n${w2}${set[1]}\n${w3}${set[2]}\n`;
+      const pp = parse(payload).children;
+      if (pp.length !== 1) continue;
+      const want = sh(pp[0]);
+      for (const [doc, path] of dests) {
+        const res: any = {};
+        for (const [k, O] of [['A', A], ['F', F]] as const) {
+          (globalThis as any).__fb = 0;
+          const d = parse(doc);
+          let anchor: any = { children: d.children };
+          for (const _ of path) anchor = anchor.children[anchor.children.length - 1];
+          const r = (O as any).insertSubtrees(d, anchor.id, parse(payload).children, 'after');
+          if (!r.ok) { res[k] = { rej: true }; continue; }
+          let parent: any = { children: parse(encode(r.value.doc)).children };
+          for (const _ of path.slice(0, -1)) parent = parent?.children[parent.children.length - 1];
+          const got = parent?.children[parent.children.length - 1];
+          res[k] = { fb: (globalThis as any).__fb > 0, ok: !!got && sh(got) === want };
+        }
+        if (res.A.rej || res.F.rej) continue;
+        st.runs++;
+        if (res.A.fb) st.fbMain++;
+        if (res.F.fb) st.fbHere++;
+        if (!res.A.fb && res.F.fb) st.newFb++;
+        if (res.A.ok && !res.F.ok) st.broken++;
+        if (!res.A.ok && res.F.ok) st.fixed++;
+      }
+    }
+    out[set.join(' / ')] = st;
+  }
+  require('node:fs').writeFileSync(process.env.SWEEP_OUT ?? 'exhaustive.out', JSON.stringify(out, null, 1));
+});

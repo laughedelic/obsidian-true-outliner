@@ -18,6 +18,10 @@ return reindentSubtreeVerbatim(node, indentText);
   destinations. A payload that parses as more than one root, or holds an unclosed fence, is
   skipped. It counts the runs that reach the fallback and the runs whose `- p` no longer
   re-parses as the tree it had; its `for` line picks the copies compared.
+- `exhaustive.test.ts.txt` writes every spelling of three lines under one root (three piece sets,
+  five roots, 14 indentations per line) at six list destinations, and counts new fallbacks, trees
+  `main` kept and the branch breaks, and the reverse. Its copies count `convertInUnit`'s fallback
+  as well as `reindentSubtree`'s.
 - `smallest.test.ts.txt` walks two-line payloads under `- p` and lists the shortest that reach the
   fallback on `zz-f/` and change tree there.
 
