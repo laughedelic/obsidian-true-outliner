@@ -71,9 +71,18 @@ and the real one, so what the maintainer reviews is what runs.
 
 ## Open Questions
 
-- One comment per issue per run, or one per change?
-- Should a reported recurrence rate ("two of five jobs") move a tooling issue to `p1` without the
-  maintainer, as the skill's recurrence test suggests, or stay a question? #327 and #328 are the
-  cases.
-- Should the `steward` skill name the `triage` marker? Its comments land on issues, which PR events
-  do not wake a session for.
+- **One comment per issue per run, or one per change?** Recommendation: one per change, as #344 asks.
+  An issue with a label change and a pull request link then gets two, and each comment names one
+  piece of evidence.
+- **Should a reported recurrence rate ("two of five jobs") move a tooling issue to `p1` without the
+  maintainer**, as the skill's recurrence test suggests? #327 and #328 are the cases. Recommendation:
+  keep it a question in the run's summary until a rate is recorded as a measurement rather than as a
+  data point from one run.
+- **How does the first run go?** It would write about twenty comments. Recommendation: the
+  maintainer's first run uses `dry run`, and the real ones start after that table is accepted.
+- **What is measured before the schedule is enabled?** Whether `issue_write` replaces or adds to the
+  label set, and how a routine's fresh session compares with the interactive one the dry run used.
+  Recommendation: the first `dry run` of the created routine answers the second; a single label
+  change on one issue answers the first.
+- **Should the `steward` skill name the `triage` marker?** Its comments land on issues, which PR
+  events do not wake a session for. Recommendation: no.
