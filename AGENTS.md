@@ -39,12 +39,13 @@ every restack. Stack when the change reads code the other branch adds, or when m
 conflicts; a shared file with disjoint hunks is not a reason.
 
 ```bash
-git diff main...origin/<other>                    # what the other branch adds: does the change read it?
+git fetch origin <other>
+git diff origin/main...origin/<other>             # what the other branch adds: does the change read it?
 git merge-tree --write-tree HEAD origin/<other>   # exits 1 and names the paths when the two conflict
 ```
 
-`git diff --name-only` of the first is the cheap first pass that picks which open branches are worth
-the second. The merge needs the change's code, so it runs before the PR opens and before the version
+`git diff --name-only` of the second is the cheap first pass that picks which open branches are worth
+the third. The merge needs the change's code, so it runs before the PR opens and before the version
 bump, which every unstacked branch makes and which would always conflict. Otherwise stay on `main`,
 where the change merges and releases on its own schedule. Prefer short stacks — two or three layers
 that are genuinely one unit of work. State the reading in the PR; let the user decide.
