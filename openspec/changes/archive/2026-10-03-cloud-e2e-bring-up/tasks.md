@@ -23,7 +23,7 @@
       inside the wrapper in this cloud session, which returns when the run ends with the same exit
       status as the run, and by a failing command, whose status the wrapper passes on. Negative
       control: restoring `exec "$@"` makes the piped run hang, as in the research note's "before".
-- [ ] 2.2 Block landing on `npm run test:e2e:docker -- 00-smoke` running to completion and, run
+- [x] 2.2 Block landing on `npm run test:e2e:docker -- 00-smoke` running to completion and, run
       again, being interrupted with Ctrl-C and stopping the container promptly. This VM has no Docker
       daemon, so the maintainer runs it and the result goes in the PR and in the research note's "Not
       measured". An interruption that regressed is fixed before landing, by running the command in the
@@ -43,7 +43,7 @@
 
 ## 4. Integration
 
-- [ ] 4.1 Run `npm run typecheck:scripts`, `npm run lint`, `npm test`, and
+- [x] 4.1 Run `npm run typecheck:scripts`, `npm run lint`, `npm test`, and
       `openspec validate cloud-e2e-bring-up --strict`. Verified by all four exiting 0. The change
       touches only `scripts/`, `e2e-tests/` and `docs/`, so `node scripts/check-landed.ts
       origin/main "fix(agents): ..."` passes without a version bump.

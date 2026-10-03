@@ -5,7 +5,7 @@ session, and installs only in a throwaway one (a cloud session, or `--install`).
 asks whether `node_modules` exists. The wrapper is the one starter for a virtual display: cloud
 sessions run it by hand, and `scripts/e2e-docker.ts` passes it to `docker compose run` as the
 container's command. Measurements for every figure below are in
-[`cloud-e2e-bring-up`](../../../docs/research/cloud-e2e-bring-up.md).
+[`cloud-e2e-bring-up`](../../../../docs/research/cloud-e2e-bring-up.md).
 
 ## Goals / Non-Goals
 

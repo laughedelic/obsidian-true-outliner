@@ -12,7 +12,7 @@ scratch (#336, a sub-issue of #334):
   `tail` or `head` does not return after the tests finish.
 
 Both reproduce on `main` in a cloud session
-([`docs/research/cloud-e2e-bring-up.md`](../../../docs/research/cloud-e2e-bring-up.md)).
+([`docs/research/cloud-e2e-bring-up.md`](../../../../docs/research/cloud-e2e-bring-up.md)).
 
 ## What Changes
 
@@ -32,7 +32,7 @@ Both reproduce on `main` in a cloud session
 
 - **Comparing modification times.** A clone's files carry the clone time, so the lockfile is
   always newer than a snapshot's `node_modules` and every session would reinstall
-  ([`cloud-e2e-bring-up`](../../../docs/research/cloud-e2e-bring-up.md), "A stale `node_modules`").
+  ([`cloud-e2e-bring-up`](../../../../docs/research/cloud-e2e-bring-up.md), "A stale `node_modules`").
 - **Detecting a changed `package.json` with an unchanged lockfile.** `npm ci` refuses that state
   itself.
 - **Forwarding signals to the wrapped command**, and **a free-display search** in place of the

@@ -65,9 +65,10 @@ given.
 - **Xvfb's output is mostly noise.** A start prints about twenty lines of `xkbcomp`
   warnings (`Could not resolve keysym XF86…`) on stderr and says that they are not fatal. Hiding them is
   what the redirect does; what the redirect must not hide is a start that fails.
-- **A leftover server on `:99` makes the next start's own server exit** with "already active", while
-  the readiness poll passes on the old socket. The next run works, on the old server. Not measured
-  here; read from how Xvfb treats a held display and how the poll is written.
+- **A leftover server on `:99` does not stop the next run.** With one holding the display, the
+  wrapper's readiness poll passed at once on the existing socket, the command ran with `DISPLAY=:99`
+  and exited 0, and the leftover stayed up. What became of the wrapper's own second server was not
+  observed: its log was still empty when read, and whether the display answered was not checked.
 
 ### The proposed shape, tried outside the repository
 
@@ -118,14 +119,7 @@ VM, the stale snapshot from the first section still in place when the drift chec
 ## Docker interruption
 
 On `main`, with the `exec` wrapper, the maintainer interrupted `npm run test:e2e:docker` with
-Ctrl-C: the prompt came back after about 1 s, and the run printed "Goodbye". The same reading on
-the changed wrapper is the one that gates landing.
-
-## Not measured
-
-- **The Docker path under the changed wrapper.** `scripts/e2e-docker.ts` passes the wrapper to
-  `docker compose run` as the container's command, so without `exec` the shell is PID 1 where the
-  test runner was, and an interrupt reaches the shell, which holds its trap until the foreground
-  command ends. This VM has the Docker client and no daemon (`docker ps` cannot reach the socket).
-  Whether a Ctrl-C of `npm run test:e2e:docker` still stops the container within the baseline's
-  second is for a machine with a daemon, and the change does not land before it is read.
+Ctrl-C: the prompt came back after about 1 s, and the run printed "Goodbye". On this change's
+branch, with the wrapper no longer `exec`ing, the maintainer ran the same two steps (a run to
+completion, then an interrupt) and saw no difference. The reading is by hand and records no
+timing beyond that, so a difference smaller than a second would not show in it.
