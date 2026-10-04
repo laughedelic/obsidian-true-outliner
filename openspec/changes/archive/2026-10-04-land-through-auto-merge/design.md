@@ -1,7 +1,7 @@
 ## Context
 
 See proposal.md for the motivation. What the design rests on, with the measurements in
-[`docs/research/landing-process.md`](../../../docs/research/landing-process.md):
+[`docs/research/landing-process.md`](../../../../docs/research/landing-process.md):
 
 - `Landed` is not a required check, and the ruleset's strict setting is off.
 - A job skipped by its `if` counts as passing a required check, and `landed.yml` has such an `if` and
