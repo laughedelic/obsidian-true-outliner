@@ -89,7 +89,7 @@ classified from its body whoever wrote it.
   the mechanism: the code or the behaviour that causes it. A pull request that only exists does not
   say so.
 - `needs/decision` — a comment of the maintainer's states the choice, or a pull request carrying the
-  choice's implementation is open. A proposal with no code is not the implementation.
+  choice's implementation is open or merged. A proposal with no code is not the implementation.
 - `needs/research` — the note exists on the default branch, and the maintainer's comment or a merged
   pull request says it answers what the issue asked. A note that exists, or answers part of it, does
   not.
