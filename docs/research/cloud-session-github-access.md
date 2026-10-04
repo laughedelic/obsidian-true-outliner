@@ -215,11 +215,11 @@ Three places could hold the branch convention; only one is early enough.
 | `git push --all origin`, `--mirror`, a `refs/heads/*` refspec, with a local `claude/*` branch | deny; allow once no such branch exists |
 | `git commit -m "git push origin claude/x"`, `git commit -m 'fix && git push origin claude/x'` | allow — quotes hide operators and words from the command lexer |
 | `GIT_TRACE=1 git push origin claude/x`, `cd /x && git push origin claude/x`, `echo "a; b" \| git push origin HEAD:claude/x` | deny |
-| `mcp__github__merge_pull_request`, `mcp__github__enable_pr_auto_merge` | deny — a merge is the maintainer's (AGENTS.md, "Change lifecycle", step 5) |
+| `mcp__github__merge_pull_request`, `mcp__github__enable_pr_auto_merge`, `mcp__github__disable_pr_auto_merge` | deny — a merge is the maintainer's (AGENTS.md, "Change lifecycle", step 5) |
 | `gh pr merge 12` with any flags (`--squash`, `--auto`, `--disable-auto`, `--help`), `gh -R o/r pr merge 12`, `gh pr -R o/r merge 12`, `GH_TOKEN=x gh pr merge`, `npm test && gh pr merge 12`, `gh stack merge --yes` | deny |
 | the same behind a keyword or a wrapper: `for … do`, `if … then`, `{ … }`, `!`, `time`, `env -u X`, `command`, `xargs -n 1`, `sudo -u root`, `timeout 5`, an absolute path to `gh`, an assignment whose value is `$(…)`; the rule looks for the `gh` word, not the first word | deny |
-| `gh api -X PUT …/pulls/12/merge`, `…/pulls/$PR/merge`, `…/pulls/12/merge?merge_method=squash`, `-X GET -X PUT …/pulls/12/merge` (the last method flag wins), `-X PUT …/pulls/12/auto-merge`, `-XPUT …/ccr/auto_merge`, `…/pulls/12/merge -f merge_method=squash` (a field makes it a POST) | deny |
-| `gh pr view 12`, `gh pr create`, `gh pr comment … pr merge`, `gh api …/pulls/12`, `gh api …/pulls/12/merge` (a read), `gh api -X DELETE …/ccr/auto_merge` (turns it off), a write to a path that only ends in `auto_merge` or in a merge route, `git merge main`, `git commit -m "gh pr merge"`, MCP `update_pull_request_branch`, MCP `disable_pr_auto_merge` | allow |
+| `gh api -X PUT …/pulls/12/merge`, `…/pulls/$PR/merge`, `…/pulls/12/merge?merge_method=squash`, `-X GET -X PUT …/pulls/12/merge` (the last method flag wins), `-X PUT …/pulls/12/auto-merge`, `-XPUT …/ccr/auto_merge`, `…/pulls/12/merge -f merge_method=squash` (a field makes it a POST), `-X DELETE …/ccr/auto_merge` and `-X DELETE …/pulls/12/auto-merge` (turning it off) | deny |
+| `gh pr view 12`, `gh pr create`, `gh pr comment … pr merge`, `gh api …/pulls/12`, `gh api …/pulls/12/merge` (a read), a write to a path that only ends in `auto_merge` or in a merge route, `git merge main`, `git commit -m "gh pr merge"`, MCP `update_pull_request_branch` | allow |
 | `echo hi⏎git push origin claude/x`, `gh pr \⏎merge 12` (a second command on a new line, or a line continuation) | deny — a newline was whitespace before, so the push rule did not see it |
 | `# don't wait for CI⏎gh pr merge 1`, `npm test # it's fine⏎…`, `# retry \⏎git push origin claude/x`, `echo a # <<EOF⏎…` | deny — a comment runs to the end of its line, so its apostrophe, trailing backslash or `<<` hides nothing |
 | `cat > f <<'EOF'⏎git push origin claude/x⏎EOF`, the same with a merge, `<<\EOF`, and a `git commit -m "$(cat <<'EOF' … EOF)"` whose body names one | allow — a here-document's body is text; the command after its delimiter line is still read |
@@ -267,6 +267,11 @@ guards, and none survives:
 | `<<-` not read, and tabs not stripped from the delimiter line | 1: a tab-indented terminator that names a merge |
 | the `<<"EOF"` form dropped | 1 |
 | only the first here-document of a line skipped | 1 |
+
+The counts above were measured against the rule as #352 left it, which let the DELETE and the MCP
+`disable_pr_auto_merge` through. The change `land-through-auto-merge` refuses both: a session never turns
+auto-merge on or off, so the DELETE rows and the MCP row now read deny, and the rows that count them
+as allowed are not re-measured.
 
 A differential sweep of the earlier script against the new lexer (80 000 decisions, each difference
 checked against bash with stubbed commands) found two further classes that changed, both correct for a

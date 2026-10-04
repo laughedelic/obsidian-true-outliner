@@ -7,10 +7,11 @@
  *
  * It needs the OpenSpec CLI on the path, which reads the change and the specs.
  *
- * `<base>` is the tip of the branch the pull request merges into; the pull
- * request is HEAD. What the pull request changes is read against their merge
- * base, and the version against the base's tip, since that is the version the
- * merge has to move past.
+ * `<base>` is the tip of the branch the pull request merges into, fetched when the
+ * check runs and not read from the event; the pull request is HEAD. What the pull
+ * request changes is read against their merge base, and the version against the
+ * base's tip, since that is the version the merge has to move past. A pull request
+ * that has something to land also has to contain that tip (`scripts/landed-rules.ts`).
  *
  * Whether a release is owed is read from two things the pull request already
  * carries. The kind, from the title's conventional-commit prefix: a feature or a
@@ -21,6 +22,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import { freshnessProblem, landsSomething, shipsPath, versionProblems, type Kind } from './landed-rules.ts';
 
 const [base, title] = process.argv.slice(2);
 if (!base || title === undefined) {
@@ -40,7 +42,7 @@ const problems: string[] = [];
 
 // The same reading of the title as `.github/workflows/labeler.yml`, which
 // derives the `kind/` label from it; the two change together.
-const KINDS: Record<string, string> = {
+const KINDS: Record<string, Kind> = {
   feat: 'feature',
   fix: 'bug',
   chore: 'chore', docs: 'chore', refactor: 'chore', test: 'chore', ci: 'chore',
@@ -138,10 +140,6 @@ for (const item of openspec<{ items: Validated[] }>('validate', '--specs', '--st
 }
 
 const read = (rev: string, file: string) => JSON.parse(git('show', `${rev}:${file}`));
-const parse = (v: string): [number, number, number] | null => {
-  const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(v);
-  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
-};
 
 // The version the merge produces: the pull request's own when it edits the
 // manifest, the base's otherwise, however far behind the branch has fallen.
@@ -150,19 +148,23 @@ const at = editsManifest ? 'HEAD' : base;
 const before = read(base, 'manifest.json').version;
 const manifest = read(at, 'manifest.json');
 const after = manifest.version;
-const [was, now] = [parse(before), parse(after)];
-if (!was || !now) problems.push(`a version is not major.minor.patch: ${before} -> ${after}`);
 
-const ships = [...touched].filter((f) => /^(src|styles)\//.test(f));
-const bumped = was && now && (now[0] - was[0] || now[1] - was[1] || now[2] - was[2]) > 0;
-const minor = was && now && (now[0] > was[0] || (now[0] === was[0] && now[1] > was[1]));
-if (editsManifest && !bumped) {
-  problems.push(`manifest.json moves from ${before} to ${after}, which is not forward`);
-} else if (ships.length > 0 && kind === 'feature' && !minor) {
-  problems.push(`a feature that ships takes a minor bump: the base is ${before}, the merge would be ${after}`);
-} else if (ships.length > 0 && kind === 'bug' && !bumped) {
-  problems.push(`a fix that ships takes at least a patch bump: the base is ${before}, the merge would be ${after}`);
-}
+const ships = [...touched].some(shipsPath);
+problems.push(...versionProblems({ kind, ships, editsManifest, before, after }));
+
+// The tip of the base is what the version above was judged against, so a pull
+// request that lands has to be built on it.
+const containsTip = (() => {
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', base, 'HEAD'], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+})();
+const lands = landsSomething(kind, [...touched]);
+const stale = freshnessProblem(lands, containsTip, git('rev-parse', base).trim());
+if (stale) problems.push(stale);
 
 // `npm version` writes all four; a hand edit usually misses one.
 if (editsManifest) {
@@ -177,7 +179,8 @@ if (editsManifest) {
 }
 
 console.log(`kind: ${kind ?? 'none'}`);
-console.log(`ships: ${ships.length > 0 ? `${ships.length} file(s) under src/ or styles/` : 'nothing'}`);
+console.log(`ships: ${ships ? 'files under src/ or styles/' : 'nothing'}`);
+console.log(`lands: ${lands ? 'something to land' : 'nothing to land'}`);
 console.log(`version: ${before} -> ${after}`);
 
 if (problems.length > 0) {

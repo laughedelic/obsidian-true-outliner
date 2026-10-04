@@ -87,3 +87,8 @@ rewrites each branch onto `main` with that layer's own commits and retargets its
 #351 under #352. A session holding one of those layers finds its local branch diverged from `origin`
 and resets to the remote (`AGENTS.md`, "Branching and PR stacks"); each layer reruns its CI on the new
 head.
+
+The landing gate does not cover a stack (`AGENTS.md`, "Change lifecycle", step 5). GitHub offers a
+stacked PR no auto-merge, so `Landed` never deploys to `landing-zone` for one, and the `land` skill
+refuses a layer. How a stack lands under the gate is not settled: the design records it as accepted
+(`openspec/changes/archive/*-land-through-auto-merge/design.md`, "What this accepts").

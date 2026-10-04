@@ -44,6 +44,7 @@ function decide(cwd: string, payload: Record<string, unknown>): Decision {
 const MERGE: Row[] = [
   ['MCP merge_pull_request', tool('mcp__github__merge_pull_request', { pullNumber: 1 }), 'deny'],
   ['MCP enable_pr_auto_merge', tool('mcp__github__enable_pr_auto_merge', { pullNumber: 1 }), 'deny'],
+  ['MCP disable_pr_auto_merge', tool('mcp__github__disable_pr_auto_merge', { pullNumber: 1 }), 'deny'],
   ['gh pr merge 12 --squash', bash('gh pr merge 12 --squash'), 'deny'],
   ['gh -R o/r pr merge 12', bash('gh -R laughedelic/obsidian-true-outliner pr merge 12'), 'deny'],
   ['gh --repo o/r pr merge 12', bash('gh --repo o/r pr merge 12'), 'deny'],
@@ -99,8 +100,8 @@ const MERGE: Row[] = [
   ['gh api …/pulls/12', bash('gh api repos/o/r/pulls/12'), 'allow'],
   ['a read of …/merge', bash('gh api repos/o/r/pulls/12/merge'), 'allow'],
   ['a GET with a field', bash('gh api -X GET repos/o/r/pulls/12/merge -f x=1'), 'allow'],
-  ['the DELETE that turns auto-merge off', bash('gh api -X DELETE repos/o/r/pulls/12/ccr/auto_merge'), 'allow'],
-  ['the DELETE on the standard auto-merge route', bash('gh api -X DELETE repos/o/r/pulls/12/auto-merge'), 'allow'],
+  ['the DELETE that turns auto-merge off', bash('gh api -X DELETE repos/o/r/pulls/12/ccr/auto_merge'), 'deny'],
+  ['the DELETE on the standard auto-merge route', bash('gh api -X DELETE repos/o/r/pulls/12/auto-merge'), 'deny'],
   ['the last of two method flags is a GET', bash('gh api -X PUT -X GET repos/o/r/pulls/12/merge'), 'allow'],
   ['a field whose value ends in a merge path', bash('gh api repos/o/r/issues/1/comments -f body=see/pulls/1/merge'), 'allow'],
   ['a quoted field with a merge path', bash('gh api repos/o/r/issues/1/comments -f body="see /pulls/1/merge"'), 'allow'],
@@ -108,8 +109,8 @@ const MERGE: Row[] = [
   ['a write to a ref named auto_merge', bash('gh api -X PATCH repos/o/r/git/refs/heads/auto_merge -f sha=x'), 'allow'],
   ['a write to a contents path that ends in a merge route', bash('gh api -X PUT repos/o/r/contents/pulls/1/merge -f message=x'), 'allow'],
   ['--method=GET on a merge route', bash('gh api --method=GET repos/o/r/pulls/12/merge'), 'allow'],
-  ['--method=DELETE on an auto-merge route', bash('gh api --method=DELETE repos/o/r/pulls/12/ccr/auto_merge'), 'allow'],
-  ['a lower-case delete', bash('gh api -X delete repos/o/r/pulls/12/ccr/auto_merge'), 'allow'],
+  ['--method=DELETE on an auto-merge route', bash('gh api --method=DELETE repos/o/r/pulls/12/ccr/auto_merge'), 'deny'],
+  ['a lower-case delete', bash('gh api -X delete repos/o/r/pulls/12/ccr/auto_merge'), 'deny'],
   ['a field whose value is a bare merge path', bash('gh api repos/o/r/issues/1/comments -f body=repos/o/r/pulls/1/merge'), 'allow'],
   ['a write below a merge route', bash('gh api -X PUT repos/o/r/pulls/1/merge/x -f a=b'), 'allow'],
   ['git merge', bash('git merge main'), 'allow'],
@@ -117,7 +118,6 @@ const MERGE: Row[] = [
   ['a commit message with an operator', bash("git commit -m 'x && gh pr merge 1'"), 'allow'],
   ['a comment that mentions a merge', bash('gh issue comment 1 -b "pr merge"'), 'allow'],
   ['MCP update_pull_request_branch', tool('mcp__github__update_pull_request_branch', { pullNumber: 1 }), 'allow'],
-  ['MCP disable_pr_auto_merge', tool('mcp__github__disable_pr_auto_merge', { pullNumber: 1 }), 'allow'],
 ];
 
 const LEXER: Row[] = [

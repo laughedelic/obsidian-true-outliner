@@ -12,9 +12,9 @@
 //   to keep a "safety-net" check-in through `send_later` (docs/research/pr-watching-wakes.md).
 //   PreToolUse refuses `send_later` unless the maintainer asked for the reminder, and
 //   `ScheduleWakeup` unless the maintainer typed `/loop`.
-// - An agent never merges: the maintainer lands. AGENTS.md ("Change lifecycle", step 5) says so,
-//   and PreToolUse refuses the direct forms as a guard behind it: the GitHub MCP merge and
-//   auto-merge tools, and in Bash `gh pr merge`, `gh stack merge` and a `gh api` write to a merge
+// - An agent never merges: the maintainer lands, by enabling auto-merge. AGENTS.md ("Change
+//   lifecycle", step 5) says so, and PreToolUse refuses the direct forms as a guard behind it: the
+//   GitHub MCP merge tools and the tools that enable or disable auto-merge, and in Bash `gh pr merge`, `gh stack merge` and a `gh api` write to a merge
 //   route. It sees no more than that, and has no exception: it cannot tell a merge the maintainer
 //   asked for from one the session chose.
 // - PR descriptions carry no agent attribution. The GitHub MCP tool
@@ -30,7 +30,13 @@ const HARNESS = /^(?:refs\/heads\/)?claude\//;
 const TYPES = "`feat/<slug>`, `fix/<slug>` or `chore/<slug>`";
 const SEND_LATER = "mcp__claude-code-remote__send_later";
 const SCHEDULE_WAKEUP = "ScheduleWakeup";
-const MERGE_TOOLS = new Set(["mcp__github__merge_pull_request", "mcp__github__enable_pr_auto_merge"]);
+// Disabling auto-merge is refused with enabling it: allowing one and not the other would need a rule
+// about intent, and a session that finds a concern simply does not finish landing.
+const MERGE_TOOLS = new Set([
+  "mcp__github__merge_pull_request",
+  "mcp__github__enable_pr_auto_merge",
+  "mcp__github__disable_pr_auto_merge",
+]);
 // A pull request's `merge` route, its `auto-merge` route, or the cloud proxy's `…/ccr/auto_merge`, as
 // a `repos/…` path. The number may be a shell variable and a query string may follow.
 const MERGE_ROUTE = /(?:^|\/)repos\/[^/]+\/[^/]+\/pulls\/[^/?]+\/(?:merge|auto-merge|ccr\/auto_merge)(?:\?.*)?$/;
@@ -126,7 +132,7 @@ function refuseSelfReminder(initiation: unknown): void {
 function refuseMerge(what: string): void {
   deny(
     `No merges by an agent (AGENTS.md, "Change lifecycle", step 5): ${what} is refused. Prepare landing ` +
-      "and stop; the maintainer merges from the PR page. Report that the PR is ready and what, if " +
+      "and stop; the maintainer merges, or enables auto-merge, from the PR page. Report that the PR is ready and what, if " +
       "anything, is left.",
   );
 }
@@ -136,8 +142,8 @@ function refuseMerge(what: string): void {
 // among a simple command's words, so `env`, `xargs`, `sudo`, `time` and the like need no list of
 // their options. `gh pr merge` and `gh stack merge` are named by their first two words that are not
 // flags (`-R owner/repo` stands between them) and are refused with any flags; `gh api` is a merge
-// when a word is a merge route and it writes, so a read of one and the DELETE that turns auto-merge
-// off pass.
+// when a word is a merge route and it writes, DELETE included: a session never turns auto-merge on or
+// off, so a read of a route is all that passes.
 //
 // Not seen: `curl` and GraphQL mutations; a command inside `bash -c`, `eval`, backticks or `$(…)`;
 // a variable or a script written first or piped to a shell; a `gh` alias; a function or a `case`
@@ -178,7 +184,7 @@ function apiWrites(words: string[]): boolean {
   if (flag >= 0) {
     const word = words[flag] ?? "";
     const method = /^--method=|^-X./.test(word) ? word.replace(/^--method=|^-X/, "") : (words[flag + 1] ?? "");
-    return !/^(GET|DELETE)$/i.test(method);
+    return !/^GET$/i.test(method);
   }
   return words.some((w) => /^(-f|-F|--field|--raw-field|--input)(=|$)/.test(w) || /^-[fF]./.test(w));
 }
