@@ -17,11 +17,13 @@ name: Landed
 #
 # The `auto_merge` field is read from the event, which is a snapshot: a push generated just before
 # the approval can skip and cancel the run the approval started. The pull request is then blocked,
-# not merged, and the next push or a re-run clears it.
+# not merged, and the next push or a re-run clears it. `auto_merge_disabled` starts a run that the
+# `if` skips, and the concurrency group cancels a run still in progress for the approval just
+# withdrawn. A deployment that has already succeeded certifies that the commit landed, and stays.
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited, auto_merge_enabled]
+    types: [opened, synchronize, reopened, edited, auto_merge_enabled, auto_merge_disabled]
 
 permissions:
   contents: read

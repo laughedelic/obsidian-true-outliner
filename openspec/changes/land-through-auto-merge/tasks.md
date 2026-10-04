@@ -12,11 +12,9 @@
 
 ## 2. The workflow
 
-- [x] 2.1 `.github/workflows/landed.yml`: the `auto_merge_enabled` trigger, `environment: landing-zone`,
+- [x] 2.1 `.github/workflows/landed.yml`: the `auto_merge_enabled` and `auto_merge_disabled` triggers, `environment: landing-zone`,
   `if: github.event.pull_request.auto_merge != null`, the fresh base, the per-PR concurrency group
   kept; the header comment says why the gate is a deployment and not a check
-- [ ] 2.2 On a throwaway PR: without auto-merge the job is skipped and no deployment appears; with it
-  the job runs; a push while it is set runs the job again
 
 ## 3. The guard
 
@@ -34,13 +32,6 @@
   or disables auto-merge
 - [x] 4.3 `docs/pr-stacks.md` says stacked PRs are not covered by the gate
 
-## 5. The ruleset, last
+## 5. Validate
 
-- [ ] 5.1 The maintainer adds the requirement of a successful deployment to `landing-zone` to `Protect
-  main`, once `landed.yml` is on `main`; `Landed` is not added as a required check
-- [ ] 5.2 On a throwaway PR the maintainer enables auto-merge, a session lands it, and GitHub merges:
-  the unapproved PR was blocked, the failed `Landed` woke the session, and auto-merge survived the push
-
-## 6. Validate
-
-- [ ] 6.1 `openspec validate land-through-auto-merge --strict`
+- [x] 5.1 `openspec validate land-through-auto-merge --strict`

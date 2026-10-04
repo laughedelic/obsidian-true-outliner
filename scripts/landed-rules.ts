@@ -15,13 +15,19 @@ export const parseVersion = (v: string): Version | null => {
 /** The plugin ships `src/` bundled into `main.js` and `styles/` joined into `styles.css`. */
 export const shipsPath = (file: string): boolean => /^(src|styles)\//.test(file);
 
+/** A path inside a change that is still open: an archived change is already landed. */
+const inOpenChange = (file: string): boolean =>
+  file.startsWith('openspec/changes/') && !file.startsWith('openspec/changes/archive/');
+
 /**
  * Whether the pull request has something to land: an OpenSpec change or main spec to settle, a
  * manifest it already edits, or behaviour it ships under a feature or a fix. A dependency update, a
- * chore and a change to tooling have none, and are not held to the rules that follow from it.
+ * chore and a change to tooling have none, and are not held to the rules that follow from it, and
+ * neither is an edit to the text of an archived change. Landing a change deletes its open path, so
+ * the landing itself is still counted.
  */
 export const landsSomething = (kind: Kind | undefined, paths: readonly string[]): boolean =>
-  paths.some((f) => f === 'manifest.json' || f.startsWith('openspec/changes/') || f.startsWith('openspec/specs/')) ||
+  paths.some((f) => f === 'manifest.json' || inOpenChange(f) || f.startsWith('openspec/specs/')) ||
   (paths.some(shipsPath) && (kind === 'feature' || kind === 'bug'));
 
 export interface VersionReading {

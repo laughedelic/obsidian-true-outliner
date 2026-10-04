@@ -28,7 +28,9 @@ requires a successful deployment to `landing-zone`. A PR without auto-merge cann
 enable it; a PR with nothing to land passes `check-landed.ts` at once and merges on the same gesture.
 
 The workflow keeps its per-PR concurrency group with cancel-in-progress: a push supersedes whatever an
-older run would say. The `auto_merge` field of a payload is a snapshot, so a push generated before the
+older run would say, and so does the withdrawal of auto-merge, whose event starts a run the `if` skips.
+A deployment that has already succeeded certifies that the commit landed, and a revoked approval does
+not undo it: the maintainer decides every merge, and may still make one by hand. The `auto_merge` field of a payload is a snapshot, so a push generated before the
 approval can skip and cancel the run the approval started. The result is a blocked PR, not a merged
 one, and a push or a re-run clears it. We accept that.
 
@@ -81,6 +83,19 @@ and not an enable would need a rule about intent.
 - **The ruleset change precedes nothing it depends on.** Adding the requirement before `landed.yml`
   is on `main` blocks every merge, and a PR that predates the workflow carries the old one until its
   branch is updated. The ruleset is changed last.
+
+## Rollout
+
+These steps need the change on `main` or the maintainer's rights, so they are not tasks of the change
+and happen after it merges.
+
+1. The maintainer adds the requirement of a successful deployment to `landing-zone` to the `Protect
+   main` ruleset, once `landed.yml` is on `main`. Until then the gate is not enforced: a PR can merge
+   while `Landed` is failing or skipped. `Landed` is not added as a required check.
+2. On a throwaway PR the maintainer enables auto-merge and a session lands it. The unapproved PR is
+   blocked, the failed `Landed` wakes the session, auto-merge survives the push, and GitHub merges.
+3. On a throwaway PR with auto-merge on, the job runs and deploys; with it off the job is skipped and
+   no deployment appears.
 
 ## Open Questions
 

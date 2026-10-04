@@ -43,6 +43,15 @@ describe('what has something to land', () => {
     expect(landsSomething('chore', ['manifest.json'])).toBe(true);
   });
 
+  it('counts the landing of a change, which deletes its open path and adds its archive', () => {
+    expect(landsSomething('chore', ['openspec/changes/x/tasks.md', 'openspec/changes/archive/2026-10-04-x/tasks.md'])).toBe(true);
+  });
+
+  // The text of a change that already landed is not a change to land.
+  it('does not count an edit to an archived change alone', () => {
+    expect(landsSomething('chore', ['openspec/changes/archive/2026-10-03-x/design.md'])).toBe(false);
+  });
+
   it('counts behaviour that ships under a feature or a fix, and not under a chore', () => {
     expect(landsSomething('bug', ['src/ops.ts'])).toBe(true);
     expect(landsSomething('feature', ['styles/10-editor.css'])).toBe(true);
