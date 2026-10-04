@@ -1,0 +1,1 @@
+A throwaway file for a probe of whether a push turns auto-merge off. The PR is closed unmerged.
