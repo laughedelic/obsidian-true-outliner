@@ -10,7 +10,7 @@ it starts landing. The `Landed` check then runs, finds a PR that has something t
 landed, and fails; that failure wakes the session. This skill is the sequence that turns it green.
 GitHub merges when every requirement is met, and the session's work ends at the push.
 The design and its measurements are in `openspec/changes/archive/*-land-through-auto-merge/` and
-[`docs/research/landing-as-a-command.md`](../../../docs/research/landing-as-a-command.md).
+[`docs/research/landing-process.md`](../../../docs/research/landing-process.md).
 
 ## Before starting
 

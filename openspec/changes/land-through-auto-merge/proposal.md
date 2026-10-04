@@ -5,7 +5,7 @@ a cycle on almost every PR, repeats the same sequence in each session, and colli
 together. The `Landed` check is red by design on a ready PR that has not landed, and a race in
 `landed.yml` can leave it `skipped`, which counts as passing. Issue #338, under #334, asks for landing
 as a command with the deterministic steps automated. The figures are in
-[`docs/research/landing-as-a-command.md`](../../../docs/research/landing-as-a-command.md).
+[`docs/research/landing-process.md`](../../../docs/research/landing-process.md).
 
 ## What Changes
 

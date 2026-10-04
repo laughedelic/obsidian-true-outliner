@@ -3,7 +3,7 @@ type: "research"
 description: "What landing a PR costs, measured over the 84 PRs merged since 09-14 and the `Landed` runs since 09-25 (version collisions, red-by-design runs, the `landed.yml` skip race, what a strict up-to-date rule would cost), and what each rule of the design in the `land-through-auto-merge` change would have done to them"
 ---
 
-# Landing as a command
+# The landing process
 
 Landing a PR — archive its OpenSpec change, sync the delta specs, bump the version, run
 `scripts/check-landed.ts` — costs a cycle on almost every PR and collides between PRs that land

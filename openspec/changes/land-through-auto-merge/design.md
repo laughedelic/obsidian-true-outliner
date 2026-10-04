@@ -1,7 +1,7 @@
 ## Context
 
 See proposal.md for the motivation. What the design rests on, with the measurements in
-[`docs/research/landing-as-a-command.md`](../../../docs/research/landing-as-a-command.md):
+[`docs/research/landing-process.md`](../../../docs/research/landing-process.md):
 
 - `Landed` is not a required check, and the ruleset's strict setting is off.
 - A job skipped by its `if` counts as passing a required check, and `landed.yml` has such an `if` and
@@ -67,8 +67,9 @@ enables auto-merge, before the landing commits exist; they are mechanical.
 
 ### The merge guard
 
-`mcp__github__disable_pr_auto_merge` joins `MERGE_TOOLS` in `scripts/agent-conventions.ts`. Allowing a
-disable and not an enable would need a rule about intent.
+`mcp__github__disable_pr_auto_merge` joins `MERGE_TOOLS` in `scripts/agent-conventions.ts`, and a
+`gh api -X DELETE` on an auto-merge route is refused as a write like the others. Allowing a disable
+and not an enable would need a rule about intent.
 
 ## Risks / Trade-offs
 

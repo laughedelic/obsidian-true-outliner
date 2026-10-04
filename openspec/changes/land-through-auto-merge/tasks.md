@@ -22,6 +22,8 @@
 
 - [x] 3.1 `scripts/agent-conventions.ts` refuses `mcp__github__disable_pr_auto_merge`; the test
   beside the others in `tests/agent-conventions.test.ts` fails with the line removed
+- [x] 3.2 A `gh api` DELETE on an auto-merge route is refused too; the four rows that allowed it
+  now deny, and they fail with DELETE excluded from the write test again
 
 ## 4. The skill and the docs
 

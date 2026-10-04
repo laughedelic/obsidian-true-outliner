@@ -142,8 +142,8 @@ function refuseMerge(what: string): void {
 // among a simple command's words, so `env`, `xargs`, `sudo`, `time` and the like need no list of
 // their options. `gh pr merge` and `gh stack merge` are named by their first two words that are not
 // flags (`-R owner/repo` stands between them) and are refused with any flags; `gh api` is a merge
-// when a word is a merge route and it writes, so a read of one and the DELETE that turns auto-merge
-// off pass.
+// when a word is a merge route and it writes, DELETE included: a session never turns auto-merge on or
+// off, so a read of a route is all that passes.
 //
 // Not seen: `curl` and GraphQL mutations; a command inside `bash -c`, `eval`, backticks or `$(…)`;
 // a variable or a script written first or piped to a shell; a `gh` alias; a function or a `case`
@@ -184,7 +184,7 @@ function apiWrites(words: string[]): boolean {
   if (flag >= 0) {
     const word = words[flag] ?? "";
     const method = /^--method=|^-X./.test(word) ? word.replace(/^--method=|^-X/, "") : (words[flag + 1] ?? "");
-    return !/^(GET|DELETE)$/i.test(method);
+    return !/^GET$/i.test(method);
   }
   return words.some((w) => /^(-f|-F|--field|--raw-field|--input)(=|$)/.test(w) || /^-[fF]./.test(w));
 }
