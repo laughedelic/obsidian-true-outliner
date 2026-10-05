@@ -20,8 +20,9 @@ assistant turn, where a turn is one model call and its tool results.
   hidden message (`prewalk-plan.md`): stop exploring, write a complete plan in the next reply, then
   record 5–9 todo items, each a concrete step with its verification, and carry on. A one-line
   "continue, do not end the turn here" follows, so the model does not stop at the plan.
-- **The trigger.** The first `edit` or `write` tool result, counted only once the `todo` tool has
-  been called (the "todo gate"). A write through a device (LSP, `ast_edit`) counts only when it
+- **The trigger.** The first `edit` or `write` tool result, counted only once the todo gate is
+  open: after a successful `todo` call (an errored one does not open it), or from the start when
+  the `todo` tool is not active, as in a reduced tool set. A write through a device (LSP, `ast_edit`) counts only when it
   resolved to a write or exec tier, so read-only lookups do not switch the model mid-investigation.
 - **The pruning.** At the switch, the plan message is spliced out of the live messages and the
   agent state, and it is never written to the session file, so it does not come back after a
