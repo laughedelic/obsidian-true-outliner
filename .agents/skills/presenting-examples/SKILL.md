@@ -183,6 +183,9 @@ keys: ⇥ | ⇧⇥
   writes them: ⌘⇧⌥⌃ in front of ⇥ ⏎ ⌫ ⌦ ↑ ↓ ← → ⎋ or one character, spelled keys (`Home`, `End`,
   `PageUp`, `PageDown`, `Esc`) and chords (`mod-shift-enter`), `×N` for a repeat, `"quoted text"`
   typed as characters. ⌘ is the platform's Mod key. ⌘V pastes the `clipboard` column.
+  Each phase ends with a pause past Obsidian's 50 ms suggester debounce, so a key that an opened
+  suggester would take (↑ ↓ ⏎ ⇥ after a `#tag` or a `[[`) starts a phase of its own: within
+  one phase it races the suggester and can reach the editor before it opens.
 - **Columns**: `clipboard` (read by a ⌘V step), `before` (the state the case starts from) and
   `expected` or `after …` (the state after each phase, one per phase). Any other header, `actual`
   included, is a reference the run ignores, so a failure report runs again as it was printed; a

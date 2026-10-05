@@ -10,7 +10,7 @@ import { readdirSync, statSync } from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { KeyStep } from '../scripts/notation.ts';
-import { PRIMARY_MOD, pasteText } from './helpers.js';
+import { PRIMARY_MOD, pasteText, waitBudget } from './helpers.js';
 
 export const CASES_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'cases');
 
@@ -55,7 +55,13 @@ export function chordKeys(step: Extract<KeyStep, { kind: 'chord' }>): string[] {
   return [...step.mods.map((m) => MODIFIERS[m]), NAMED[step.key] ?? step.key];
 }
 
-/** Presses one phase. ⌘V with a clipboard column is a real paste of that text. */
+/** How long a phase waits after its last key. Obsidian re-runs its editor suggesters 50 ms after
+ * an edit, and an opened suggester takes the arrow keys, Enter and ⇥; so a phase boundary is where
+ * that has happened, and keys within one phase can race it. */
+const PHASE_SETTLE_MS = 100;
+
+/** Presses one phase, then waits for Obsidian's deferred reactions to the edit. ⌘V with a
+ * clipboard column is a real paste of that text. */
 export async function pressPhase(phase: readonly KeyStep[], clipboard: string | undefined): Promise<void> {
   for (const step of phase) {
     if (step.kind === 'text') {
@@ -68,4 +74,5 @@ export async function pressPhase(phase: readonly KeyStep[], clipboard: string | 
       else await browser.keys(chordKeys(step));
     }
   }
+  await browser.pause(waitBudget(PHASE_SETTLE_MS));
 }
