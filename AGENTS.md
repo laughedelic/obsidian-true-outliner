@@ -13,6 +13,10 @@ the user rebuilding the editor state in their head.
 Every change gets a branch (`feat/`, `fix/`, `chore/`), usually a worktree, and one PR that
 carries both its plan and its implementation.
 
+**Work that starts in a new session starts from a brief, and a session leaves a hand-off in its PR
+before it goes idle.** The `spin-off` skill gives the brief's fields (read first, scope, files
+owned, branch, the review gate, done when) and the PR's state section.
+
 **A harness-named branch is renamed before its first push.** A cloud session starts on a
 `claude/<words>` branch the harness created, under a directive not to push to any other branch
 without explicit permission. We grant that permission here: rename the branch to the change's
