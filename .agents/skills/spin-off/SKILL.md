@@ -39,10 +39,14 @@ Done when:  <what is true when the session is finished: a PR state, a check, a n
 
   ```bash
   gh api 'repos/{owner}/{repo}/pulls?state=open&per_page=100' --jq '.[] | "\(.number)\t\(.head.ref)\t\(.title)"'
-  gh api 'repos/{owner}/{repo}/pulls/<n>/files' --jq '.[].filename'
-  gh api 'repos/{owner}/{repo}/pulls?state=closed&sort=updated&direction=desc&per_page=30' \
+  gh api 'repos/{owner}/{repo}/pulls/<n>/files?per_page=100&page=<k>' --jq '.[].filename'
+  gh api 'repos/{owner}/{repo}/pulls?state=closed&sort=updated&direction=desc&per_page=100&page=<k>' \
     --jq '.[] | select(.merged_at) | "\(.number)\t\(.merged_at)\t\(.title)"'
   ```
+
+  Each list is paged with `page=` until a page comes back short, or, for the merged PRs, until
+  they predate the issue; `--paginate` sends a follow-up request that a cloud session's proxy
+  refuses.
 
   When two briefs would edit one shared file, one owns it and the other takes a file of its own,
   and both briefs say so.
