@@ -1,0 +1,17 @@
+case: ↑ after indenting a node that ends in a tag moves the caret, not the tag suggester (#346)
+tabs: on
+known-failing: #346
+keys: ⇥ | ↑
+
+=== before
+- one
+- foo #blocked┃
+=== expected
+- one
+	- foo #blocked┃
+=== expected
+- one┃
+	- foo #blocked
+=== actual ↑
+- one
+	- foo #blocked┃

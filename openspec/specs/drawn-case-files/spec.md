@@ -167,9 +167,9 @@ case SHALL run in a note of its own with the case's two settings applied and res
 It SHALL set the caret, selection or block selection the `before` column draws in one step and
 read back the editor's state; when that state is not the drawn `before`, the case fails there. Each
 phase SHALL press its keys, with ⌘V writing the `clipboard` column to the clipboard and pasting,
-and read the state. A phase passes when the text equals the `expected` column's, and, when the
-column draws a caret or selection, the main range equals it, and, when it draws `▒`, the
-block-selected lines equal it. Running a file with `--record` SHALL never fail on a difference and
+wait past Obsidian's 50 ms debounce on its editor suggesters, and read the state. A phase passes
+when the text equals the `expected` column's, and, when the column draws a caret or selection, the
+main range equals it, and, when it draws `▒`, the block-selected lines equal it. Running a file with `--record` SHALL never fail on a difference and
 SHALL write the case file with its result columns filled from the app; for a file with
 `known-failing` it SHALL keep the marker and the `expected` columns and write the state the app
 gave at the first phase that differs from them as the `actual` column, drawing a caret, selection
@@ -181,6 +181,12 @@ or `▒` only where that phase's `expected` draws one, and it SHALL say when no 
   `- a` and the caret at its end
 - **THEN** on desktop and under mobile emulation the case passes, and passes only if the text and
   the caret are both as drawn
+
+#### Scenario: A phase boundary waits for the suggesters
+
+- **WHEN** a case draws `- foo #blocked┃` and keys `⇥ | ↑`
+- **THEN** ↑ is pressed after Obsidian's tag suggester has had its chance to open, so the case
+  reads what ↑ does with the suggester open, not what it does before the suggester opens
 
 #### Scenario: An unreachable before fails at before
 
