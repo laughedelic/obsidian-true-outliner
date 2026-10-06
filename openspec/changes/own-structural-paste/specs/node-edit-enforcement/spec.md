@@ -45,8 +45,15 @@ indentation; the enforcement passed that replacement as an ordinary edit
   event handled
 - **THEN** the outline inserts nothing of its own
 
-#### Scenario: A clipboard of files is Obsidian's
-- **WHEN** the clipboard holds a file, an image or Obsidian's properties
+#### Scenario: A list beside an image is taken
+- **WHEN** the clipboard holds an HTML list `a` with a nested `b` and also an image, inside the HTML
+  from a web address or as a file beside it, and the user pastes on the empty item of `- top` /
+  `  - mid` / `    - `
+- **THEN** `b` is `a`'s child on every Obsidian build
+
+#### Scenario: A clipboard whose paste is not its text is Obsidian's
+- **WHEN** the clipboard holds only files, HTML that is a lone image beside a file, Obsidian's
+  properties, or a plain text beside a different `text/uri-list`
 - **THEN** the paste goes through Obsidian's own handling
 
 **Covered by**: `tests/structural-paste.test.ts`;
