@@ -12,7 +12,7 @@ answers "which tests flake, and how often", and how a session reads that.
 
 ## What Codecov holds
 
-- About 2.3 million test runs: 2,345,094 pass, 99,822 skip, 425 failure, 20 `flaky_fail`, no
+- About 2.45 million test runs: 2,345,094 pass, 99,822 skip, 425 failure, 20 `flaky_fail`, no
   `error`. By flag, the 421 failures counted on 10-03 split 244 `e2e-mobile`, 157 `e2e-desktop` and 20
   `unittests`.
 - A run's `timestamp` is when Codecov received the upload, not when the test ran. Everything
@@ -21,6 +21,9 @@ answers "which tests flake, and how often", and how a session reads that.
   tests were not backfilled and have under two weeks of history. Live uploads cover 09-25 to now.
 - Every upload is one run attempt of one job, keyed by commit, so a rerun of a job is a second
   upload for the same commit, flag and test. That is what makes a same-commit comparison possible.
+  Upload order is the attempt order for live uploads. The backfill uploaded a run's attempts
+  within milliseconds of each other and in no fixed order, so on its rows (09-25, 20:00 to 21:15)
+  a pass can carry an earlier `timestamp` and `upload_id` than the failure it followed.
 - Codecov's own view (GraphQL, 30 days) reports six flaky tests and a flake rate of
   8.6e-6 per test run. None is flagged within seven days.
   Those six are: `heading level markers` ×2 (8 and 7 flagged failures), `the footer's
@@ -56,9 +59,13 @@ restricted network policy needs that host allowed). The upload token in CI is fo
 
 ## What flakes
 
-A flake here is a test that failed on a commit and passed on the same commit in a later upload of
+A flake here is a test that failed on a commit and passed on the same commit in a later attempt of
 the same flag. Failures that never passed on their commit are not counted: they are real
-failures, or nobody reran them.
+failures, or nobody reran them. For live uploads "later" is read from `timestamp` and
+`upload_id`; for the backfill it cannot be, so those rows are confirmed from Actions instead:
+each of the 19 backfill pairs is on a commit whose first attempt failed a job and whose later
+attempt passed it. All 11 pairs from live uploads also pass the upload-order check, and all 30 are
+on such a commit.
 
 Pairing the REST rows by commit (every commit with a failure, about 350,000 rows) gives 30 such
 cases across 18 tests, in 13 specs. Specs with the most:
@@ -130,7 +137,8 @@ relies on.
 - The rule stays: rerun an unrelated failure once. 32 of 40 reruns passed; 8 failed again.
 - To ask "has this test flaked before", a session lists failures (`outcome=failure`), fetches
   each failing commit's rows (`commit_sha=<sha>&page_size=1000`) and looks for the same
-  `computed_name` and flag with both a failing and a passing row. The pairing is a short
+  `computed_name` and flag with a failing row and a passing row uploaded after it (`timestamp`
+  and `upload_id` both later; a pass uploaded earlier is a later failure, not a rerun). The pairing is a short
   script; the analysis here ran it over the commits that had a failure. We leave it out of
   the repository until the CI-triage work under #334 shows it is wanted as a script.
 - Recording our own would add a store and a writer to maintain for data Codecov already keeps;
