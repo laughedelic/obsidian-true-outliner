@@ -4,13 +4,13 @@ on:
   push:
     branches: [main]
   pull_request:
-  # Runs use the latest Obsidian; this pins an older build when chasing a
-  # version-specific bug (docs/research/open-questions Q21, Q27). It cannot reach an
-  # insider build — this workflow holds no Catalyst credentials.
+  # Runs use the build pinned in `env.obsidian-version`; this runs another one when
+  # chasing a version-specific bug (docs/research/open-questions Q21, Q27). It cannot
+  # reach an insider build — this workflow holds no Catalyst credentials.
   workflow_dispatch:
     inputs:
       obsidian-version:
-        description: "Obsidian version for the e2e suites (e.g. 1.12.7). Blank = latest public."
+        description: "Obsidian version for the e2e suites (e.g. 1.12.7). Blank = the build pinned in this workflow."
         required: false
         default: ""
 
@@ -24,6 +24,10 @@ concurrency:
 
 env:
   node-version: "26"
+  # The Obsidian build the required e2e suites run on, held at the last one they
+  # passed on until #372 is fixed. The newest public build is still run weekly by
+  # newest-installer.yml.
+  obsidian-version: "1.13.7"
   # Obsidian instances per e2e job. Beyond the runner's core count this stops
   # paying, and a group can never beat its longest single spec. Note that
   # `waitBudget` in e2e-tests/helpers.ts widens the harness timeouts off this value:
@@ -125,7 +129,7 @@ jobs:
       - uses: ./.github/actions/e2e
         with:
           node-version: ${{ env.node-version }}
-          obsidian-version: ${{ inputs.obsidian-version || 'latest' }}
+          obsidian-version: ${{ inputs.obsidian-version || env.obsidian-version }}
           group: ${{ matrix.group }}
           platform: desktop
           max-instances: ${{ env.max-instances }}
@@ -148,7 +152,7 @@ jobs:
       - uses: ./.github/actions/e2e
         with:
           node-version: ${{ env.node-version }}
-          obsidian-version: ${{ inputs.obsidian-version || 'latest' }}
+          obsidian-version: ${{ inputs.obsidian-version || env.obsidian-version }}
           group: ${{ matrix.group }}
           platform: mobile
           max-instances: ${{ env.max-instances }}
