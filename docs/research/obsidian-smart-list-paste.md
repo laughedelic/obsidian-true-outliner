@@ -1,6 +1,6 @@
 ---
 type: "research"
-description: "Why three paste cases fail on Obsidian 1.14.4 and pass on 1.13.7 (#372): with Smart lists on, 1.14.4's own paste hook (`tryCollapseListMarker`) turns a list pasted at a list item's content start into a replacement of the item's marker, which our classifier reads as an ordinary within-node edit and passes; the two transactions drawn side by side, the Obsidian code that builds the second, the one clause in `classify` that lets it through, which pastes it reaches, what the transaction no longer carries (the first pasted line's indentation, measured on sibling and deep payloads) and the paste event's clipboard text that does, the candidate fixes with what each costs, and a prototype of one run on both builds, desktop and mobile emulation, over the whole `clipboard` group and eight edge shapes; how to run a 1.14.4 build in a cloud session when the harness's own download fails"
+description: "Why three paste cases fail on Obsidian 1.14.4 and pass on 1.13.7 (#372): with Smart lists on, 1.14.4's own paste hook (`tryCollapseListMarker`) turns a list pasted at a list item's content start into a replacement of the item's marker, which our classifier reads as an ordinary within-node edit and passes; the two transactions side by side, the clause in `classify` that lets the second through, which pastes it reaches, and what it drops (the first pasted line's indentation, measured on sibling and deep payloads); where Obsidian's paste handling starts and how it picks the text, the same code on both builds, and the CodeMirror handler order that lets a plugin take a paste after `editor-paste` and before Obsidian's hook; everything Smart lists reaches and what public API can and cannot do about it; two prototypes measured on both builds, desktop and mobile emulation (taking a structural paste before the hook, the same transaction and result on both builds; reading 1.14.4's rewrite back, which works on that build only); how to run a 1.14.4 build in a cloud session when the harness's own download fails"
 ---
 
 # Obsidian's smart-list paste: a marker rewrite our filter does not read as a paste
@@ -120,27 +120,134 @@ For a clipboard Obsidian converts from HTML, the text it collapses is the conver
 no `clipboardData` entry holds. That text always starts at depth 0, so the collapse loses nothing
 there.
 
+## A version-independent entry point
+
+`app.js` of both builds: Obsidian's Markdown editor installs a CodeMirror DOM handler for `paste`
+among its local extensions (`clipboardManager.handlePaste`). It fires the public `editor-paste`
+workspace event unless the event is already handled, and returns true, which stops CodeMirror, when a
+listener called `preventDefault()`. The paste itself happens afterwards, in CodeMirror's built-in
+`paste` handler, through Obsidian's `clipboardPasteHook`. The hook picks the text with
+`handleDataTransfer`, then tries a URL over a selection (`tryPasteUrl`), on 1.14.4 tries
+`tryCollapseListMarker`, inserts text it converted with `replaceSelection(…, "input.paste")`, or
+inserts files. With none of those, CodeMirror's stock paste inserts the plain text.
+
+`handlePaste` and `handleDataTransfer` are the same code on 1.13.7 and 1.14.4, minifier names aside.
+`handleDataTransfer` takes, in order:
+
+1. for HTML holding `<!-- obsidian -->` (Obsidian's own copy) beside a plain text: nothing, so the
+   plain text is pasted;
+2. `text/markdown`, when present;
+3. for other HTML: nothing when "Convert pasted HTML to Markdown" (`autoConvertHtml`) is off or when
+   the HTML is a lone image beside files, otherwise the HTML converted, large `data:` images saved as
+   attachments;
+4. otherwise nothing, and the plain text is pasted.
+
+CodeMirror runs DOM event handlers in precedence order, its built-in handlers last, and stops at the
+first that returns true. Obsidian's local extensions come before every plugin's
+`registerEditorExtension` extensions, so a plugin's `paste` handler at default precedence runs after
+`handlePaste`, so after every `editor-paste` listener, and before the built-in paste with its hook.
+The handler sees the `EditorView`, and what it does there does not depend on what the hook would have
+done. `Workspace.on('editor-paste')` and `htmlToMarkdown` are public (`obsidian.d.ts`);
+`vault.getConfig`, which reads `autoConvertHtml` and `smartIndentList`, is not.
+
+## What Smart lists reaches
+
+`smartIndentList` defaults to on in both builds and is read in three places on 1.14.4, two on 1.13.7:
+
+| Where | What it does | Builds | In an outline-mode editor |
+| --- | --- | --- | --- |
+| Enter and Shift-Enter in the Markdown editor's keymap, read at each keypress | continues or ends the list | both | our keymap runs first, at `Prec.highest` (`src/plugin/keymap.ts`) |
+| A transaction filter, installed while the setting is on | appends the renumbering of ordered lists to a transaction; skips one marked with a private annotation, `set`, `input.renumber`, a table cell's and a composition | both | runs before our filters (`docs/research/obsidian-list-renumbering`, "Filter order"); its changes are set aside before an edit is judged, a `rewrite` replaces them and a `pass` keeps them (#263) |
+| `tryCollapseListMarker` in the paste hook | this note | 1.14.4 | taken before it runs, by the second prototype below |
+
+Tab (`indentList`) is bound whatever the setting.
+
+No public API reads or turns off the setting. `vault.getConfig` and `vault.setConfig` are private,
+the value is one vault-wide setting that applies in every other note too, and the annotation that
+exempts a transaction from renumbering is private. What public API allows is intercepting each entry
+point: the keymap by precedence, the paste at the DOM handler above, and the renumbering in our own
+transaction filter, which receives Obsidian's appended changes and can drop them. A behaviour Obsidian
+adds under the setting in a later build is a new entry point, found the way this one was, by the
+suites on the newest build.
+
 ## Candidate fixes
 
-1. **Read the collapse from the transaction alone**, as the paste at the content start of the text it
+1. **Take a structural paste before Obsidian's paste hook.** A `paste` handler at the entry point
+   above inserts the clipboard's text, chosen in `handleDataTransfer`'s order, as CodeMirror's stock
+   paste does, for the pastes the enforcement treats as structural, and leaves every other paste to
+   Obsidian. The same transaction reaches the enforcement on every build. The second prototype,
+   below.
+2. **Read the collapse from the transaction alone**, as the paste at the content start of the text it
    inserts. It fixes the three cases, whose payloads lose nothing, and it gives the 1.14.4 column of
    the table above for an indented first line (the sibling payload's `b` under `a`). That follows
    from the measurement above and was not run as code.
-2. **Record the clipboard text on the paste event, and read the collapse as the paste of that
+3. **Record the clipboard text on the paste event, and read the collapse as the paste of that
    text** when the transaction is exactly what Obsidian builds from it; where no recorded text
-   reproduces the change (the HTML case), read the inserted text as the payload. The prototype
-   below.
-3. **Take paste over in outline mode** with a higher-precedence paste hook that inserts the text
-   itself. It would also preempt Obsidian's URL paste, HTML conversion and file paste, and the hook's
-   text argument is the plain text, not the converted one. Not tried.
-4. **Turn Smart lists off for outline-mode notes.** It is a vault setting that also drives
-   renumbering and Enter (`docs/research/obsidian-list-renumbering`), and whether outline mode should
-   override Obsidian's smart-list behaviour is already the open question of #263 for renumbering.
-   Not tried.
-5. **Hold CI on 1.13.7** (#359). It keeps the required suites green and leaves every user on 1.14.4
+   reproduces the change (the HTML case), read the inserted text as the payload. The first
+   prototype, below. It reads one build's output, and a later build's rewrite would need its own
+   reading.
+4. **Take every paste over in outline mode.** It would also replace Obsidian's URL paste, file paste
+   and the collapse of a lone item, for pastes the enforcement passes anyway. Not tried.
+5. **Turn Smart lists off for outline-mode notes.** Private API, and a vault-wide setting ("What
+   Smart lists reaches"). Not tried.
+6. **Hold CI on 1.13.7** (#359). It keeps the required suites green and leaves every user on 1.14.4
    with Smart lists on exposed, since Obsidian updates itself.
 
-## Prototype of the second
+## Taking the paste: the second prototype
+
+Thirty-six lines in `src/plugin/structural-paste.ts`, registered with the enforcement's extensions
+(source below). For outline mode, outside a nested editor, with one selection range and a text
+clipboard, it takes the text in `handleDataTransfer`'s order, converting HTML with `htmlToMarkdown`;
+when `isStructuralBlockSequence(parse(text).children)` holds, it dispatches
+`replaceSelection(text)` with `input.paste` and returns true. Otherwise it returns false.
+
+The same ⌘V on each build, logged at `cm.dispatch`. Every structural shape is dispatched by the
+plugin's handler on both builds, and Obsidian's hook never dispatches for it:
+
+| Shape | Change, both builds | Result, both builds |
+| --- | --- | --- |
+| Case 1 | 18 to 18, the clipboard whole | as 1.13.7 in "What goes wrong" |
+| Sibling payload `  - a⏎  - b`, empty top-level item | 6 to 6 | `a`, `b` siblings |
+| Deep payload `    - x⏎      - y`, empty top-level item | 6 to 6 | `y` one level under `x` |
+| Empty task item `- [ ] `, `- a⏎- b` | 10 to 10 | `a`, `b` after the empty task item |
+| Numbered empty item `2. `, `- a⏎  - b` | 8 to 8 | `- a` with `b` under it |
+| Start of non-empty `beta`, `- p⏎  - q` | 6 to 6 | `p` after `beta`, `q` under `p` |
+| First pasted line a task, `- [x] a⏎- b` | 6 to 6 | `- [x] a`, `- b` |
+| HTML list `a` with a nested `b`, empty item two levels deep | 20 to 20, `- a⏎    - b` | `b` under `a` |
+
+Each change is the one 1.13.7's own paste dispatches for the same shape, logged with no prototype in
+or with the first, which dispatches nothing of its own; each result is 1.13.7's.
+
+The pastes it leaves to Obsidian, whose result follows the build:
+
+| Paste | 1.13.7 | 1.14.4 |
+| --- | --- | --- |
+| Lone childless item `- a`, empty item | `- - a` | `- a` |
+| Two carets in two empty items, `- a⏎- b` | `- - a`, `- - b` | `- a`, `- b` |
+| Plain lines with no block structure, mid-paragraph | inserted as typed | same |
+
+With an `editor-paste` listener registered, on both builds: the listener runs first and sees the
+event unhandled. When it leaves the paste, the plugin's handler dispatches it; when it calls
+`preventDefault()` and inserts text of its own, only that text lands and the plugin's handler
+dispatches nothing.
+
+e2e with the prototype in, one run at a time:
+
+| Run | 1.13.7 | 1.14.4 |
+| --- | --- | --- |
+| The three failing cases, desktop and mobile emulation | 6 of 6 | 6 of 6 |
+| `clipboard` group, desktop | 205 of 207 | 205 of 207 |
+| `clipboard` group, mobile emulation | not run | 187 of 189 |
+| `drawn-cases`, desktop | 19 of 19 | 19 of 19 |
+
+The failures are the two ~2000-line budget tests, and on 1.13.7 the zoom test that runs after the
+budget test's 60 s timeout, which passes alone. Both budget tests fail the same way without the
+prototype on this VM since its worker restarted: the zoom one times out on plain `main` on both
+builds, and the verdict budget reads 3.6 and 3.5 ms against its 3 ms on plain `main` on 1.14.4 (3.4
+and 3.5 ms with the prototype). The same group passed 207 of 207 with the first prototype before the
+restart.
+
+## Reading the rewrite instead: the first prototype
 
 Sixty-two lines in `src/plugin/smart-list-paste.ts` and three edits in `transaction-filter.ts` (below).
 `pasteRecorder` stores the clipboard's `text/markdown` and `text/plain` on each paste and handles
@@ -181,25 +288,26 @@ per-caret collapse stands, and its result is a pair of list items.
 
 Without the prototype, on 1.14.4: the sibling payload gives `a` with `b` as its child (above), the
 deep payload gives `y` six spaces in, and the nested HTML list gives `a` and `b` as siblings at
-depth 2. The first two are the measurements behind the second candidate over the first.
+depth 2. The first two are the measurements behind recording the clipboard text rather than reading
+the transaction alone.
 
 ## Not measured
 
 - A real paste on iOS or Android. The mobile runs are Chromium's mobile emulation, which delivers the
   same `paste` event.
-- A clipboard of files or an image, which Obsidian handles before `tryCollapseListMarker`.
-- A paste over a non-empty selection that starts at a content start. The code allows it (`to` is the
-  range's end); no case drives it.
-- A clipboard with `\r\n` line breaks, and any text Obsidian normalizes before collapsing it, which
-  the prototype's fallback would read from the inserted text.
+- A clipboard of files, an image or Obsidian's properties. The second prototype leaves each to
+  Obsidian by its first test; no case drives one.
+- "Convert pasted HTML to Markdown" turned off, under which the second prototype still converts a
+  structural HTML paste, and whether a plain-text paste (⌘⇧V) carries any HTML.
+- For the first prototype: a paste over a non-empty selection that starts at a content start, and a
+  clipboard with `\r\n` line breaks, which its fallback would read from the inserted text.
 - Which build introduced the method (above).
 
 ## Where the pin stands
 
-CI on `main` at `cd48e98` runs `latest`. The pin the issue's last step removes is #359's:
-`env.obsidian-version: "1.13.7"` in `.github/workflows/ci.yml`, with a comment naming #372. #359 is
-open. A change that fixes this and removes the pin edits the lines #359 adds, so whichever lands
-second carries the removal.
+The pin the issue's last step removes is #359's, on `main` since `4f06fe3`:
+`env.obsidian-version: "1.13.7"` in `.github/workflows/ci.yml`, with a comment naming #372, read by
+both e2e jobs in place of `latest`.
 
 ## Running a 1.14.4 build in a cloud session
 
@@ -226,9 +334,59 @@ unzip -q -o cd.zip -d "$D" && rm -f "$D/chromedriver.debug"   # 483 MB, not used
 The harness then runs with `OBSIDIAN_VERSION=1.14.4`. A failed run leaves a `.tmp.*` directory beside
 the target, to be removed first.
 
-## The prototype's source
+## The prototypes' source
 
-`src/plugin/smart-list-paste.ts`:
+The second, `src/plugin/structural-paste.ts`:
+
+```ts
+import { EditorView } from '@codemirror/view';
+import { htmlToMarkdown } from 'obsidian';
+import { parse } from '../parse';
+import { isStructuralBlockSequence } from '../classify';
+import { isOutlineMode } from './outline-state';
+import { isNestedEditor } from './nested-editor';
+
+/** The comment Obsidian's copy puts at the head of the HTML it writes. */
+const OBSIDIAN_HTML = '<!-- obsidian -->';
+
+/** The text Obsidian's paste would insert from this clipboard, as its
+ * `handleDataTransfer` chooses it, or `undefined` for a clipboard whose paste is
+ * not text (files, properties, media). */
+export function pastedText(data: DataTransfer): string | undefined {
+  if (data.files.length > 0 || data.getData('obsidian/properties')) return undefined;
+  const html = data.getData('text/html');
+  const plain = data.getData('text/plain');
+  if (html && html.includes(OBSIDIAN_HTML) && plain) return plain;
+  const markdown = data.getData('text/markdown');
+  if (markdown) return markdown;
+  if (html) return /<(img|audio|video)\b/i.test(html) ? undefined : htmlToMarkdown(html);
+  return plain || undefined;
+}
+
+/** Takes a structural paste in an outline-mode editor before Obsidian's own paste
+ * hook can rewrite it, and inserts it as CodeMirror's stock paste does. */
+export const structuralPaste = EditorView.domEventHandlers({
+  paste(event, view) {
+    if (!isOutlineMode(view.state) || isNestedEditor(view) || !event.clipboardData) return false;
+    if (view.state.selection.ranges.length !== 1) return false;
+    const text = pastedText(event.clipboardData);
+    if (text === undefined || !isStructuralBlockSequence(parse(text).children)) return false;
+    view.dispatch(view.state.replaceSelection(text), { userEvent: 'input.paste', scrollIntoView: true });
+    return true;
+  },
+});
+```
+
+and in `src/plugin/transaction-filter.ts`:
+
+```diff
++import { structuralPaste } from './structural-paste';
+@@
+-  return [filter, vetoCue];
++  return [filter, vetoCue, structuralPaste];
+```
+
+The first, `src/plugin/smart-list-paste.ts`:
 
 ```ts
 import { Prec, type Text, type Transaction } from '@codemirror/state';
