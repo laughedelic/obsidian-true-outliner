@@ -38,14 +38,11 @@ the same on both builds are measured in `docs/research/obsidian-smart-list-paste
 - **The clipboard text is the one Obsidian's paste takes**, in the order Obsidian's code follows on
   both builds: the plain text of Obsidian's own copy; else the clipboard's Markdown; else its HTML,
   sanitized with the public `sanitizeHTMLToDom` and converted with the public `htmlToMarkdown`; else
-  its plain text. Files decide the paste only where Obsidian's would let them: when no text was
-  chosen, or the HTML is a lone image. CodeMirror's public `clipboardInputFilter`s then apply, as
-  they do to its own paste.
-- **What Obsidian's paste turns into something else stays Obsidian's**: media it saves as an
-  attachment or rewrites to a vault link, and a plain text it links to a different
-  `text/uri-list`.
-- **Everything else stays Obsidian's.** A non-structural paste, a paste over more than one range and
-  a paste outside outline mode go through Obsidian's handling as they do today.
+  its plain text, through CodeMirror's public `clipboardInputFilter`s, the one branch Obsidian's paste
+  filters. Files decide the paste only where Obsidian's would let them: when no text was chosen, or
+  when the HTML is a lone image.
+- **What Obsidian's paste turns into something else stays Obsidian's**: files when no text is
+  chosen, and a plain text it links to a different `text/uri-list`.
 - **The CI pin is removed with it** (#372, step 4): #359 held the required suites on 1.13.7 until
   this is fixed, and the suites return to the newest build in the same change.
 
@@ -57,10 +54,11 @@ the same on both builds are measured in `docs/research/obsidian-smart-list-paste
   decision of its own.
 - A paste over more than one range, which Obsidian distributes across the ranges differently on each
   build. The enforcement passes such a paste either way.
-- A structural HTML paste whose media Obsidian saves as an attachment (a `data:` source over 1000
-  characters) or rewrites to a vault link (a desktop resource path), and a plain text with a
-  different `text/uri-list`. They stay Obsidian's; on 1.14.4 such an HTML list pasted at a list
-  item's content start still collapses and passes as dispatched, as the classification rule says.
+- A structural plain text beside a file, with no HTML. Obsidian's paste decides it, and the builds
+  differ there: 1.13.7 inserts the file and drops the text, and on 1.14.4, at a list item's content
+  start, the collapse inserts the text without its first line's indentation and no file (round 2 of
+  the review). Taking it would drop the file on 1.13.7, a decision of its own. A plain text beside a
+  different `text/uri-list` stays Obsidian's too; Obsidian links it on both builds.
 - CodeMirror's linewise paste. After a copy made with empty selections, CodeMirror inserts at the
   start of the caret's line; the change inserts at the selection, which "A paste on the blank line
   under a node lands inside it" asks for (the note's review measurements).
@@ -84,10 +82,11 @@ None.
 
 ## Impact
 
-- `src/plugin/structural-paste.ts`: the clipboard-text choice, with Obsidian's sanitizer and
-  converter passed in, and a CodeMirror `paste`
-  handler registered with the enforcement's extensions in `src/plugin/transaction-filter.ts`. The
-  prototype measured in the note is 65 lines and two edits there.
+- `src/paste-text.ts`: the clipboard-text choice, a pure function with the HTML inspection and the
+  converter passed in. `src/plugin/structural-paste.ts`: Obsidian's sanitizer and converter, and a
+  CodeMirror `paste` handler registered with the enforcement's extensions in
+  `src/plugin/transaction-filter.ts`. The prototype measured in the note is 88 lines in the two
+  modules and two edits there.
 - Unit tests for the clipboard-text choice; e2e coverage in the three failing specs
   (`61-selection-enforcement`, `62-outline-edit-enforcement`, `80-outline-zoom`), new cases for the
   payloads whose indentation 1.14.4's rewrite drops, an HTML clipboard, and the pastes left to

@@ -138,10 +138,13 @@ inserts files. With none of those, CodeMirror's stock paste inserts the plain te
 2. `text/markdown`, when present;
 3. for other HTML: nothing when "Convert pasted HTML to Markdown" (`autoConvertHtml`) is off.
    Otherwise the HTML goes through `sanitizeHTMLToDom` (public), which strips a `javascript:` link's
-   target among other things. Nothing when the result is a lone image beside files. Otherwise each
-   media element whose source is under the desktop resource prefix is rewritten to a vault link, each
-   `data:` source over 1000 characters is taken out and saved as an attachment in the background, and
-   the serialized HTML is converted to Markdown. Media from a web address stays in the text;
+   target among other things. Nothing when the result is a lone image beside files. Otherwise the
+   serialized HTML is converted to Markdown. A loop between the two is written to rewrite media
+   under the desktop resource prefix to vault links and to save `data:` sources over 1000 characters
+   as attachments, but it walks the sanitized fragment after the fragment has been appended to the
+   element that is serialized, which empties it: on both builds it finds nothing and media stays in
+   the text as it was (measured in round 2 of the review: a 1200-character `data:` image stays
+   inline and no file is saved);
 4. without HTML, a `text/uri-list`: the URI when there is no plain text (or a dropped `.webloc` or
    `.url` file's name), and `[plain](uri)` when it differs from the plain text;
 5. otherwise nothing.
@@ -180,8 +183,9 @@ suites on the newest build.
 ## Candidate fixes
 
 1. **Take a structural paste before Obsidian's paste hook.** A `paste` handler at the entry point
-   above inserts the clipboard's text, chosen in `handleDataTransfer`'s order, as CodeMirror's stock
-   paste does, for the pastes the enforcement treats as structural, and leaves every other paste to
+   above inserts the clipboard's text, chosen in `handleDataTransfer`'s order, through the
+   transaction `state.replaceSelection` builds, as Obsidian's paste does, for the pastes the
+   enforcement treats as structural, and leaves every other paste to
    Obsidian. The same transaction reaches the enforcement on every build. The second prototype,
    below.
 2. **Read the collapse from the transaction alone**, as the paste at the content start of the text it
@@ -202,17 +206,19 @@ suites on the newest build.
 
 ## Taking the paste: the second prototype
 
-A `paste` handler in `src/plugin/structural-paste.ts`, registered with the enforcement's extensions
-(source below, as revised after round 1 of the review). For outline mode, outside a nested editor,
-with one selection range, it takes the text in `handleDataTransfer`'s order, HTML through
-`sanitizeHTMLToDom` and `htmlToMarkdown`, and returns false wherever Obsidian's paste would insert
-something other than that text: files with no text, a lone image beside files, media Obsidian saves or
-rewrites, a plain text linked to a different `text/uri-list`. It applies the state's
-`clipboardInputFilter`s, and when `isStructuralBlockSequence(parse(text).children)` holds, it
-dispatches `replaceSelection(text)` with `input.paste` and returns true. Otherwise it returns false.
+A `paste` handler in `src/plugin/structural-paste.ts`, registered with the enforcement's extensions,
+and the text choice in `src/paste-text.ts` (source below, as revised after rounds 1 and 2 of the
+review). For outline mode, outside a nested editor, with one selection range, it takes the text in
+`handleDataTransfer`'s order, HTML through `sanitizeHTMLToDom` and `htmlToMarkdown`, and returns
+false wherever Obsidian's paste would insert something other than that text: files with no text, a
+lone image beside files, a plain text linked to a different `text/uri-list`. On the plain-text branch
+only, it applies the state's `clipboardInputFilter`s and sets `scrollIntoView`, as Obsidian's paste
+does. When `isStructuralBlockSequence(parse(text).children)` holds, it dispatches
+`replaceSelection(text)` with `input.paste` and returns true. Otherwise it returns false.
 
 The first version, measured in the tables below, gave up on any clipboard with files and on any HTML
-with media, and applied no input filter; "Review round 1" has what that left out.
+with media, and applied no input filter; "Review round 1" and "Review round 2" have what it and the
+next version left out.
 
 The same ⌘V on each build, logged at `cm.dispatch`. Every structural shape is dispatched by the
 plugin's handler on both builds, and Obsidian's hook never dispatches for it:
@@ -279,6 +285,20 @@ clipboard the first version and Obsidian gave the same text. The review measured
 synthetic `paste` event carrying the raw HTML; whether HTML copied in another application reaches a
 paste event unsanitized was not measured. The revised version sanitizes as Obsidian does either way.
 
+## Review round 2
+
+The light review of the round-1 response measured that Obsidian's media loop changes nothing, that
+Obsidian's paste filters only its plain-text branch, and that a plain structural text beside a file
+is decided differently by the two builds. Run again here with the third version, ⌘V on the empty item
+of `- top` / `  - mid` / `    - `:
+
+| Clipboard | 1.13.7 | 1.14.4 |
+| --- | --- | --- |
+| HTML list `a` with a nested `b`, and a 1200-character `data:` image | taken: `b` under `a`, the image inline in an item after it | the same |
+| Plain `- a⏎  - b` beside an `image/png` | left to Obsidian: the file embedded, the text dropped | left to Obsidian: collapsed, `b` beside `a`, no file |
+| Plain `- a⏎  - b`, with a registered `clipboardInputFilter` | taken, filtered, as outline mode off filters it | taken, filtered; outline mode off collapses it unfiltered |
+| HTML list, with the same filter | taken, not filtered, as outline mode off | taken, not filtered; outline mode off collapses it |
+
 ## Reading the rewrite instead: the first prototype
 
 Sixty-two lines in `src/plugin/smart-list-paste.ts` and three edits in `transaction-filter.ts` (below).
@@ -327,10 +347,10 @@ the transaction alone.
 
 - A real paste on iOS or Android. The mobile runs are Chromium's mobile emulation, which delivers the
   same `paste` event.
-- A clipboard of files with no text, a lone image beside a file, Obsidian's properties, a `data:`
-  image over 1000 characters, a resource-path image and a `text/uri-list`. The revised second
-  prototype leaves each to Obsidian; no case here drives one. Whether office applications put an
-  image file beside their HTML.
+- A clipboard of files with no text, a lone image beside a file, Obsidian's properties and a
+  `text/uri-list`, here; round 2 of the review drove each through a synthetic event. Whether office
+  applications put an image file beside their HTML, and whether HTML copied from Obsidian's reading
+  view carries resource-path images.
 - The DOM observer flush CodeMirror's own paste makes and the handler cannot, on Android.
 - "Convert pasted HTML to Markdown" turned off, under which the second prototype still converts a
   structural HTML paste, and whether a plain-text paste (⌘⇧V) carries any HTML.
@@ -371,71 +391,99 @@ the target, to be removed first.
 
 ## The prototypes' source
 
-The second, `src/plugin/structural-paste.ts`, as revised after round 1:
+The second, as revised after rounds 1 and 2: `src/paste-text.ts`,
 
 ```ts
-import { EditorView } from '@codemirror/view';
-import { Platform, htmlToMarkdown, sanitizeHTMLToDom } from 'obsidian';
-import { parse } from '../parse';
-import { isStructuralBlockSequence } from '../classify';
-import { isOutlineMode } from './outline-state';
-import { isNestedEditor } from './nested-editor';
+/**
+ * The text Obsidian's paste takes from a clipboard, read in the order of its
+ * `handleDataTransfer`, with the DOM work passed in so it runs without a DOM.
+ */
 
 /** The comment Obsidian's copy puts at the head of the HTML it writes. */
 const OBSIDIAN_HTML = '<!-- obsidian -->';
 
-/** A media source Obsidian's paste saves as an attachment or rewrites to a vault
- * link, rather than converting as it stands. */
-function rewrittenByObsidian(src: string): boolean {
-  if (src.startsWith('data:') && src.length > 1000) return true;
-  return Platform.isDesktopApp && src.startsWith(Platform.resourcePathPrefix);
+/** What the paste reads from a clipboard: a `DataTransfer` has both. */
+export interface ClipboardEntries {
+  getData(type: string): string;
+  readonly files: { readonly length: number };
+}
+
+/** Sanitized HTML, serialized, and whether it is a lone image. */
+export interface HtmlInspection {
+  readonly html: string;
+  readonly loneImage: boolean;
+}
+
+/** The text Obsidian's paste inserts, and whether it is the plain-text branch,
+ * the one that goes through CodeMirror's own paste. */
+export interface PastedText {
+  readonly text: string;
+  readonly plain: boolean;
 }
 
 /** The text Obsidian's paste would insert from this clipboard, in the order of its
- * `handleDataTransfer`, or `undefined` where its paste is not that text alone
- * (files, a link to a URL, media it saves or rewrites). */
-export function pastedText(data: DataTransfer): string | undefined {
+ * `handleDataTransfer`, or `undefined` where its paste inserts something else
+ * (files, a URL, a link). The DOM work is passed in, so this runs without one. */
+export function pastedText(
+  data: ClipboardEntries,
+  inspect: (html: string) => HtmlInspection,
+  toMarkdown: (html: string) => string,
+): PastedText | undefined {
   if (data.getData('obsidian/properties')) return undefined;
   const html = data.getData('text/html');
   const plain = data.getData('text/plain');
-  let chosen: string | null = null;
+  let chosen = '';
   if (html && html.includes(OBSIDIAN_HTML) && plain) {
-    chosen = null;
+    chosen = '';
   } else if (data.getData('text/markdown')) {
     chosen = data.getData('text/markdown');
   } else if (html) {
-    const holder = createDiv();
-    // eslint-disable-next-line no-restricted-syntax -- detached DOM: serialised here, as Obsidian's paste does, never mounted
-    holder.appendChild(sanitizeHTMLToDom(html));
-    if (data.files.length > 0 && /^<img [^>]+>$/.test(holder.innerHTML.trim())) {
-      chosen = null;
-    } else {
-      const media = Array.from(holder.querySelectorAll<HTMLImageElement | HTMLMediaElement>('img, audio, video'));
-      if (media.some((el) => rewrittenByObsidian(el.src))) return undefined;
-      chosen = htmlToMarkdown(holder.innerHTML.trim());
-    }
+    const seen = inspect(html);
+    chosen = data.files.length > 0 && seen.loneImage ? '' : toMarkdown(seen.html);
   } else if (data.getData('text/uri-list')) {
     const uri = data.getData('text/uri-list');
     if (!plain) return undefined;
     const same = uri.toLowerCase() === plain.toLowerCase() || decodeURIComponent(uri.toLowerCase()) === plain.toLowerCase();
     if (!same) return undefined;
   }
-  if (chosen) return chosen;
-  if (data.files.length > 0) return undefined;
-  return plain || undefined;
+  if (chosen) return { text: chosen, plain: false };
+  if (data.files.length > 0 || !plain) return undefined;
+  return { text: plain, plain: true };
+}
+```
+
+`src/plugin/structural-paste.ts`,
+
+```ts
+import { EditorView } from '@codemirror/view';
+import { htmlToMarkdown, sanitizeHTMLToDom } from 'obsidian';
+import { parse } from '../parse';
+import { isStructuralBlockSequence } from '../classify';
+import { isOutlineMode } from './outline-state';
+import { isNestedEditor } from './nested-editor';
+import { pastedText, type HtmlInspection } from '../paste-text';
+
+function inspectHtml(html: string): HtmlInspection {
+  const holder = createDiv();
+  // eslint-disable-next-line no-restricted-syntax -- detached DOM: serialised here, as Obsidian's paste does, never mounted
+  holder.appendChild(sanitizeHTMLToDom(html));
+  const serialized = holder.innerHTML.trim();
+  return { html: serialized, loneImage: /^<img [^>]+>$/.test(serialized) };
 }
 
 /** Takes a structural paste in an outline-mode editor before Obsidian's own paste
- * hook can rewrite it, and inserts it over the selection. */
+ * hook can rewrite it, and inserts it over the selection as Obsidian's paste would. */
 export const structuralPaste = EditorView.domEventHandlers({
   paste(event, view) {
     if (!isOutlineMode(view.state) || isNestedEditor(view) || !event.clipboardData) return false;
     if (view.state.selection.ranges.length !== 1) return false;
-    const raw = pastedText(event.clipboardData);
-    if (raw === undefined) return false;
-    const text = view.state.facet(EditorView.clipboardInputFilter).reduce((t, filter) => filter(t, view.state), raw);
+    const choice = pastedText(event.clipboardData, inspectHtml, htmlToMarkdown);
+    if (choice === undefined) return false;
+    const text = choice.plain
+      ? view.state.facet(EditorView.clipboardInputFilter).reduce((t, filter) => filter(t, view.state), choice.text)
+      : choice.text;
     if (!isStructuralBlockSequence(parse(text).children)) return false;
-    view.dispatch(view.state.replaceSelection(text), { userEvent: 'input.paste', scrollIntoView: true });
+    view.dispatch(view.state.replaceSelection(text), { userEvent: 'input.paste', scrollIntoView: choice.plain });
     return true;
   },
 });

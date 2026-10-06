@@ -2,25 +2,25 @@
 
 ## 1. Take the structural paste
 
-- [ ] 1.1 Write the clipboard-text choice in `src/plugin/structural-paste.ts` as a function of the
-  clipboard's entries and file count, with the sanitizer, the converter and the resource prefix
-  passed in. Unit-test it in `tests/structural-paste.test.ts` against Obsidian's order
+- [ ] 1.1 Write the clipboard-text choice in `src/paste-text.ts` as a pure function of the
+  clipboard's entries and file count, with the HTML inspection (sanitized, serialized, a lone image
+  or not) and the converter passed in as functions of strings; the handler passes Obsidian's. It
+  returns the text and whether it came from the plain-text branch. Unit-test it in
+  `tests/paste-text.test.ts` with stand-ins for the two functions, against Obsidian's order
   (`docs/research/obsidian-smart-list-paste`, "A version-independent entry point"). Every fixture
   that holds Markdown or HTML also holds a `text/plain` that differs from it, as a real clipboard
   does. The rows:
-  - Obsidian's own copy gives its plain text; `text/markdown` wins over HTML;
-  - other HTML goes through the sanitizer, then the converter, so a `javascript:` link comes out as
-    the sanitizer leaves it;
-  - an HTML list with an `<img>` from a web address, and an HTML list beside a file, give the list's
-    Markdown;
-  - HTML that is a lone image beside a file, a `data:` image over 1000 characters, a source under the
-    resource prefix, a plain text beside a different `text/uri-list`, files with no text, and
-    `obsidian/properties` give nothing;
-  - plain text alone is itself.
+  - Obsidian's own copy gives its plain text, on the plain branch; `text/markdown` wins over HTML;
+  - other HTML goes through the inspection, then the converter, also beside a file;
+  - HTML the inspection calls a lone image, beside a file, gives nothing; without a file it is
+    converted;
+  - a plain text beside a file, a plain text beside a different `text/uri-list`, a `text/uri-list`
+    alone, files alone and `obsidian/properties` give nothing;
+  - plain text alone is itself, on the plain branch; Markdown and HTML text are not on it.
 
   Negative control: a choice that prefers `text/plain` fails the Markdown and HTML rows; one that
-  skips the sanitizer fails the `javascript:` row; one that gives nothing whenever files are present
-  fails the list-beside-a-file row.
+  gives nothing whenever files are present fails the HTML-beside-a-file row; one that puts every
+  branch on the plain one fails the branch rows.
 - [ ] 1.2 Write the decision whether to take a paste as a pure function of the editor state and the
   text, and unit-test it: taken for each payload of the note's version-independent table (case 1's,
   the sibling and the deep payload, the task and numbered destinations, a non-empty item's start, a
@@ -28,9 +28,10 @@
   block structure, two ranges, a nested editor's state, or outline mode off. Negative control: a
   decision that takes every text paste fails the not-taken cases.
 - [ ] 1.3 Register the CodeMirror `paste` handler at default precedence with the enforcement's
-  extensions in `transaction-filter.ts`: apply the state's `clipboardInputFilter`s to the text, and
-  when taken, dispatch `replaceSelection(text)` with `userEvent: 'input.paste'` and
-  `scrollIntoView`, and return true. Verify with `npm test`, `npm run lint` and `npm run typecheck`.
+  extensions in `transaction-filter.ts`, with Obsidian's `sanitizeHTMLToDom` and `htmlToMarkdown`
+  behind the inspection and the converter. Apply the state's `clipboardInputFilter`s to the
+  plain-text branch only, and when taken, dispatch `replaceSelection(text)` with `userEvent:
+  'input.paste'`, and `scrollIntoView` on the plain-text branch only, and return true. Verify with `npm test`, `npm run lint` and `npm run typecheck`.
 
 ## 2. In the app, on 1.13.7 and on 1.14.4
 
@@ -50,7 +51,15 @@ and `--mobile`. Setting up a 1.14.4 build in a cloud session is in the research 
   of the review).
 - [ ] 2.3 In `62-outline-edit-enforcement`, add the pastes a case file cannot hold:
   - an HTML clipboard (a list `a` with a nested `b`, written with `ClipboardItem`) into an empty item
-    two levels deep, alone, with an `<img>` from a web address in the HTML, and beside an `image/png`;
+    two levels deep: alone, with an `<img>` from a web address in the HTML, with a `data:` image over
+    1000 characters in it, and beside an `image/png`;
+  - the same list as raw HTML holding a `javascript:` link, through a synthetic `paste` event, since
+    the asynchronous clipboard sanitizes on write: the text inserted equals Obsidian's paste of it
+    with outline mode off;
+  - a `clipboardInputFilter` the test registers: it changes a plain-text paste and not an HTML one,
+    as Obsidian's paste does with outline mode off on 1.13.7;
+  - a plain structural text beside an `image/png`, left to Obsidian: the result equals the same paste
+    with outline mode off on the same build;
   - a paste on a gap line after a linewise copy (two carets with empty selections, ⌘C), which lands
     at the caret, inside the node above;
   - case 1's paste with "Smart lists" off, through `app.vault.setConfig('smartIndentList', false)` in
@@ -60,7 +69,9 @@ and `--mobile`. Setting up a 1.14.4 build in a cloud session is in the research 
   - a lone childless item and two carets with a two-line clipboard, asserting the result equals the
     same paste with outline mode off on the same build.
 
-  Negative control: the three HTML pastes fail on 1.14.4 with the handler unregistered; the
+  Negative control: the four HTML pastes fail on 1.14.4 with the handler unregistered; the
+  synthetic `javascript:` paste fails with the inspection unsanitized; the filter case fails with
+  the filters applied on every branch; the
   linewise case fails with the handler unregistered, on both builds; the `editor-paste` case fails
   with the handler at `Prec.highest`.
 - [ ] 2.4 Run the `clipboard` and `drawn-cases` groups on both builds, desktop and mobile, one run at

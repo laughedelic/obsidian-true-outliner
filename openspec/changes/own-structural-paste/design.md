@@ -72,25 +72,39 @@ builds (the note, "A version-independent entry point"):
    own, so the plain text below.
 2. `text/markdown`.
 3. Other HTML, sanitized with the public `sanitizeHTMLToDom` and serialized: a lone image beside
-   files gives no text; media whose source Obsidian saves as an attachment (`data:` over 1000
-   characters) or rewrites to a vault link (`Platform.resourcePathPrefix` on desktop) leaves the
-   paste to Obsidian; otherwise the public `htmlToMarkdown` of it.
+   files gives no text; otherwise the public `htmlToMarkdown` of it. Obsidian's code also holds a
+   loop meant to rewrite resource paths and save large `data:` images as attachments, but it runs
+   over the sanitized fragment after the fragment has been moved into the element that is
+   serialized, so on both builds it changes nothing and media stays in the text as it was (round 2
+   of the review).
 4. Without HTML, a `text/uri-list`: with no plain text, or one that differs from it, Obsidian makes a
    URL or a link of it, and the paste stays Obsidian's.
-5. With no text chosen, files leave the paste to Obsidian, which inserts them; otherwise the plain
-   text.
+5. With no text chosen, files leave the paste to Obsidian; otherwise the plain text. On 1.13.7
+   Obsidian then inserts the files. On 1.14.4 its collapse runs first, so a structural plain text
+   at a list item's content start is inserted without its first line's indentation and without the
+   file (proposal, Non-goals).
 
 Obsidian converts HTML only when its "Convert pasted HTML to Markdown" setting is on, which a plugin
 reads only through the private `vault.getConfig`. Converting always is the choice here: a structural
-paste is the one kind whose structure the outline exists to keep. The choice is a function of the
-clipboard's entries with the sanitizer, the converter and the resource prefix passed in, so the unit
-suite, which cannot load Obsidian's runtime, tests it. CodeMirror's `clipboardInputFilter`s, public
-API another plugin may register, then apply to the text as they do in CodeMirror's own paste.
+paste is the one kind whose structure the outline exists to keep.
 
-**Inserted at the selection.** `state.replaceSelection(text)` with `userEvent: 'input.paste'` and
-`scrollIntoView`. That is CodeMirror's own paste for one range except after a linewise copy, a copy
-made with empty selections, when CodeMirror inserts at the start of the caret's line instead, from
-state it does not expose. On a gap line the two land in different places, and the selection is the
+CodeMirror's `clipboardInputFilter`s, public API another plugin may register, apply to the plain
+text of the last step only. That is the one branch Obsidian's paste sends through CodeMirror's own
+paste, where the filters run; Markdown and HTML text it inserts with `editor.replaceSelection`, which
+no filter reaches (round 2 of the review).
+
+The choice is a pure function in a module of its own, `src/paste-text.ts`, with the HTML inspection
+(sanitize, serialize, say whether it is a lone image) and the converter passed in as functions of
+strings. The unit suite, which has no DOM and cannot load Obsidian's runtime, tests it with stand-ins
+for both; the DOM side is the e2e rows of task 2.3.
+
+**Inserted at the selection.** `state.replaceSelection(text)` with `userEvent: 'input.paste'`, the
+transaction Obsidian's paste builds for one range on every branch, with `scrollIntoView` where it sets
+it: on the plain-text branch, which goes through CodeMirror's paste, and not on the Markdown and HTML
+branches, which go through `editor.replaceSelection` (round 2 of the review). The enforcement reads
+neither the flag nor which branch it was. The one place they differ is after a linewise copy, a copy
+made with empty selections, when CodeMirror's paste inserts the plain text at the start of the
+caret's line instead, from state it does not expose. On a gap line the two land in different places, and the selection is the
 place "A paste on the blank line under a node lands inside it" asks for; on a node's own line they
 gave the same result (round 1 of the review, and the note). For every other shape measured, the
 prototype's dispatches equal 1.13.7's own change for change (the note's table).
@@ -122,8 +136,8 @@ prototype's dispatches equal 1.13.7's own change for change (the note's table).
 - [CodeMirror's own paste flushes the DOM observer before it dispatches; the handler cannot, since
   `view.observer` is not public API] → A change still pending in the DOM when the paste event arrives
   (during a composition, on Android) would meet a state that does not hold it yet. Unmeasured.
-- [HTML whose media Obsidian saves or rewrites stays Obsidian's] → On 1.14.4 a structural one pasted
-  at a list item's content start collapses and passes, as today (proposal, Non-goals).
+- [A structural plain text beside a file, with no HTML, stays Obsidian's] → The builds differ there,
+  1.13.7 inserting the file and 1.14.4 collapsing the text (proposal, Non-goals).
 
 ## Migration Plan
 
