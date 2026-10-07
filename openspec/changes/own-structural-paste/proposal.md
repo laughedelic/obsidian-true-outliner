@@ -43,27 +43,41 @@ the same on both builds are measured in `docs/research/obsidian-smart-list-paste
   when the HTML is a lone image.
 - **What Obsidian's paste turns into something else stays Obsidian's**: files when no text is
   chosen, and a plain text it links to a different `text/uri-list`.
+- **A list item pasted at an item's content start does not repeat the item's marker**, on every
+  build. Where the enforcement does not rewrite the paste, and a range of it sits right after a list
+  item's marker, a pasted first line that is itself a list item is written without its own marker:
+  `- a` pasted on an empty item gives `- a`, not `- - a`. The item keeps its indentation and marker,
+  and takes the pasted line's task box when it has one. Each range of a paste over several ranges is
+  treated the same way, with the text distributed across them as CodeMirror and Obsidian distribute
+  it. The maintainer's decision: a repeated marker has no use in an outline, and outline mode gives
+  the same result on every build.
+- **A differential check holds the text choice to Obsidian's.** An e2e spec generates clipboards
+  from combinations of plain text, Markdown, HTML, `text/uri-list` and files, pastes each with outline
+  mode off and on, and requires the text the handler takes to equal the text Obsidian's own paste
+  inserts, on every build the suites run. Its sweep, measured in the note, found no difference on
+  either build.
 - **The CI pin is removed with it** (#372, step 4): #359 held the required suites on 1.13.7 until
   this is fixed, and the suites return to the newest build in the same change.
 
 ## Non-goals
 
-- A paste the enforcement does not treat as structural. Obsidian's result for it follows the build:
-  a lone childless list item pasted on an empty item reads `- - a` on 1.13.7 and `- a` on 1.14.4
-  (the note's version-independent prototype). Making outline mode give one result there is a
-  decision of its own.
-- A paste over more than one range, which Obsidian distributes across the ranges differently on each
-  build. The enforcement passes such a paste either way.
+- A non-structural paste anywhere but right after a list item's marker: in a paragraph, or in the
+  middle of an item's text. It stays Obsidian's, and the two builds give the same result there (the
+  note's fourth prototype), so `- a` pasted inside `beta` still reads `be- ata`.
+- A structural paste over more than one range with no range right after a marker. It stays
+  Obsidian's; the enforcement passes it, and the builds give the same result.
 - A structural plain text beside a file, with no HTML. Obsidian's paste decides it, and the builds
   differ there: 1.13.7 inserts the file and drops the text, and on 1.14.4, at a list item's content
   start, the collapse inserts the text without its first line's indentation and no file (round 2 of
-  the review). Taking it would drop the file on 1.13.7, a decision of its own. A plain text beside a
-  different `text/uri-list` stays Obsidian's too; Obsidian links it on both builds.
+  the review). Taking it would drop the file on 1.13.7; the choice waits on the maintainer. A plain
+  text beside a different `text/uri-list` stays Obsidian's too: Obsidian links it, the same on both
+  builds, and the differential check lists those rows as the ones left.
 - CodeMirror's linewise paste. After a copy made with empty selections, CodeMirror inserts at the
   start of the caret's line; the change inserts at the selection, which "A paste on the blank line
   under a node lands inside it" asks for (the note's review measurements).
 - Obsidian's "Convert pasted HTML to Markdown" setting. It can be read only through a private API,
-  so a structural HTML clipboard is converted in outline mode even with the setting off.
+  so a structural HTML clipboard is converted in outline mode even with the setting off. The
+  maintainer accepted this; the delta states it as a scenario.
 - Smart lists' other behaviours. Enter and Shift-Enter are already taken by the plugin's keymap at the
   highest precedence; the renumbering Obsidian appends is set aside for judging, and whether outline
   mode drops it from what it passes is #263.
@@ -77,18 +91,20 @@ None.
 
 ### Modified Capabilities
 
-- `node-edit-enforcement`: a new requirement, "A structural paste is taken before Obsidian's paste
-  handling", alongside "Structural pastes splice at node boundaries", whose payloads it delivers.
+- `node-edit-enforcement`: two new requirements. "A structural paste is taken before Obsidian's
+  paste handling", alongside "Structural pastes splice at node boundaries", whose payloads it
+  delivers; and "A pasted list item does not repeat its destination's marker", for the pastes the
+  enforcement does not rewrite.
 
 ## Impact
 
-- `src/paste-text.ts`: the clipboard-text choice, a pure function with the HTML inspection and the
-  converter passed in. `src/plugin/structural-paste.ts`: Obsidian's sanitizer and converter, and a
-  CodeMirror `paste` handler registered with the enforcement's extensions in
-  `src/plugin/transaction-filter.ts`. The prototype measured in the note is 88 lines in the two
-  modules and two edits there.
-- Unit tests for the clipboard-text choice; e2e coverage in the three failing specs
-  (`61-selection-enforcement`, `62-outline-edit-enforcement`, `80-outline-zoom`), new cases for the
-  payloads whose indentation 1.14.4's rewrite drops, an HTML clipboard, and the pastes left to
-  Obsidian; every one run on both builds.
+- `src/paste-text.ts`: the clipboard-text choice, the marker rule and the distribution across
+  ranges, pure functions with the HTML inspection and the converter passed in.
+  `src/plugin/structural-paste.ts`: Obsidian's sanitizer and converter, and a CodeMirror `paste`
+  handler registered with the enforcement's extensions in `src/plugin/transaction-filter.ts`. The
+  prototype measured in the note is 135 lines in the two modules and two edits there.
+- Unit tests for the pure functions; e2e coverage in the three failing specs
+  (`61-selection-enforcement`, `62-outline-edit-enforcement`, `80-outline-zoom`), drawn cases for the
+  payloads whose indentation 1.14.4's rewrite drops and for the marker rule, the differential spec,
+  and the HTML and other clipboard shapes; every one run on both builds.
 - `.github/workflows/ci.yml`: `env.obsidian-version`, which #359 added, is removed.

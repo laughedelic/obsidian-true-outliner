@@ -21,10 +21,12 @@ converts HTML, links a URL over a selection, inserts files and, on 1.14.4, rewri
 - The enforcement receives the same transaction for a structural paste on every Obsidian build, and
   it is the one it already judges correctly: the clipboard's text inserted over the selection.
 - Nothing in the plugin recognises a particular build's output.
+- A pasted list item never repeats the marker of the item it lands at, on any build.
 
 **Non-Goals:**
 - Changing `classify`, the verdict layer or the rewrite.
-- Taking pastes the enforcement would pass anyway (proposal, Non-goals).
+- Taking pastes the enforcement would pass anyway, other than the ones the marker rule rewrites
+  (proposal, Non-goals).
 
 ## Decisions
 
@@ -60,10 +62,10 @@ whether outline mode is on.
 **Which pastes it takes.** Outline mode on; not a nested table-cell editor; one selection range; a
 clipboard whose paste Obsidian would make the text below; text that is a structural block sequence by
 the same `isStructuralBlockSequence(parse(text).children)` the classifier applies. Everything else
-returns false and continues as today. These are the pastes "Structural pastes splice at node
-boundaries" rewrites, so taking them changes which code builds the transaction and nothing about how
-it is judged. One range only, because CodeMirror's own paste splits a clipboard across several ranges
-by line, and the enforcement passes such a paste anyway.
+returns false and continues as today, unless the marker rule below rewrites it. These are the
+pastes "Structural pastes splice at node boundaries" rewrites, so taking them changes which code
+builds the transaction and nothing about how it is judged. One range only, because the enforcement
+passes a paste over several ranges anyway; such a paste is taken only by the marker rule.
 
 **The text Obsidian's paste would take**, in the order of its `handleDataTransfer`, identical on both
 builds (the note, "A version-independent entry point"):
@@ -109,6 +111,38 @@ place "A paste on the blank line under a node lands inside it" asks for; on a no
 gave the same result (round 1 of the review, and the note). For every other shape measured, the
 prototype's dispatches equal 1.13.7's own change for change (the note's table).
 
+**A pasted list item does not repeat its destination's marker.** The maintainer's decision
+(2026-10-07): `- - a` has no use in an outline, and outline mode gives one result on every build. For
+a paste the handler does not take as structural, each range whose line holds nothing before it but a
+list prefix with a marker, and whose text's first line starts with a list prefix of its own, is
+written from the start of the item's marker as: the item's marker, the pasted line's task box or else
+the item's, then the pasted text after its first line's prefix. Other ranges get their text as it
+is. The text is distributed across ranges as CodeMirror and Obsidian both do: a line each when the
+lines match the ranges one for one, the whole text in each otherwise. If no range meets the rule,
+the paste stays Obsidian's.
+
+The formula is the one 1.14.4's `tryCollapseListMarker` writes, so on 1.14.4 the result is what
+Obsidian gives today, and on 1.13.7 it is the same instead of `- - a` (the note's fourth prototype).
+It applies only where the enforcement passes the paste, so the indentation the formula drops cannot
+change a structure the enforcement would have kept. The transaction it dispatches is a replacement
+made from a caret, which classifies as an ordinary edit and passes, as Obsidian's own does on 1.14.4.
+
+- *Read a lone item as a node*, replacing an empty item and landing as a sibling at a non-empty
+  item's start. At `- beta`'s start that gives `- a` above `- beta` instead of `- abeta`; on an empty
+  item the two agree. It would make a lone item structural, a change to "Structural pastes splice at
+  node boundaries" that the decision did not ask for.
+- *Rewrite only on an empty item.* It leaves `- - abeta` at a non-empty item's start on 1.13.7, where
+  1.14.4 gives `- abeta`.
+
+**The text choice is checked against Obsidian's own paste.** Rounds 1 and 2 of the review each found
+a branch of `handleDataTransfer` read wrong by hand. A differential check settles the choice as a
+whole: generated clipboards (plain text, Markdown, HTML, `text/uri-list`, files, in combination) are
+pasted into an empty note with outline mode off, Obsidian's paste being the oracle, and with outline
+mode on, and the text the handler takes must equal the oracle's. An empty note has no list prefix, so
+1.14.4's collapse does not reach the oracle. The check uses Obsidian's behaviour, not its code, so it
+needs no private API, and it runs on whatever build the suites run on. The sweep, 672 clipboards on
+each build, is in the note ("The differential check"); it becomes an e2e spec (tasks.md).
+
 **Alternatives considered.**
 - *Read 1.14.4's rewrite back as the paste*, with the clipboard text recorded at the event. Measured
   and working on 1.14.4 (the note), rejected as a per-build reading.
@@ -126,13 +160,17 @@ prototype's dispatches equal 1.13.7's own change for change (the note's table).
 - [A plugin hooks Obsidian's paste below `editor-paste`, through its hook or CodeMirror's built-in
   handler] → It no longer sees a structural paste in outline mode. The documented route,
   `editor-paste`, runs first and is unaffected.
+- [The marker rule meets a copy made with empty selections] → CodeMirror's linewise paste inserts
+  each line at its caret line's start; the rule writes it at the range instead. Unmeasured for several
+  ranges; for one range, the design's "Inserted at the selection" applies.
 - [A future Obsidian moves its paste handling into a DOM handler that runs after ours, or stops
   firing `editor-paste` before it] → The prototype measured the order on 1.13.7 and 1.14.4 only; the
   weekly newest-build run and the drawn cases on both builds show a change.
 - [A real paste on iOS or Android arrives differently] → Unmeasured; Chromium's mobile emulation
   delivers the same `paste` event.
-- [Non-structural and multi-range pastes still differ between builds] → They are Obsidian's results
-  for pastes the enforcement passes; the proposal names the measured difference.
+- [A non-structural paste away from a marker, and a structural paste over several ranges, stay
+  Obsidian's] → The builds give the same result for them (the note's fourth prototype); a pasted
+  `- a` inside an item's text is written as text.
 - [CodeMirror's own paste flushes the DOM observer before it dispatches; the handler cannot, since
   `view.observer` is not public API] → A change still pending in the DOM when the paste event arrives
   (during a composition, on Android) would meet a state that does not hold it yet. Unmeasured.

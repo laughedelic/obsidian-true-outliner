@@ -1,0 +1,37 @@
+// Copied to tests/zz-paste-diff.test.ts and run with
+//   ROWS=<rows.json> AXES=<axes.json> npx vitest run tests/zz-paste-diff.test.ts
+// It reads the probe's rows and sorts each into one verdict, using the parser the classifier uses.
+import { readFileSync } from 'node:fs';
+import { it } from 'vitest';
+import { parse } from '../src/parse';
+import { isStructuralBlockSequence } from '../src/classify';
+
+interface Row {
+  p: number; m: number; h: number; u: number; f: number;
+  oracle: string; taken: boolean; takenText: string | null; scroll: boolean | null;
+}
+
+it('paste differential', () => {
+  const rows: Row[] = JSON.parse(readFileSync(process.env.ROWS!, 'utf8'));
+  const axes = JSON.parse(readFileSync(process.env.AXES!, 'utf8'));
+  const verdicts = new Map<string, Row[]>();
+  const put = (k: string, r: Row) => verdicts.set(k, [...(verdicts.get(k) ?? []), r]);
+  for (const r of rows) {
+    const file = r.oracle.includes('![[Pasted image');
+    const structural = !file && r.oracle !== '' && isStructuralBlockSequence(parse(r.oracle).children);
+    if (r.taken && r.takenText !== r.oracle) put('taken, text differs from Obsidian', r);
+    else if (r.taken && file) put('taken where Obsidian inserts a file', r);
+    else if (r.taken) put('taken, text equal', r);
+    else if (structural) put('left, Obsidian inserts structural text', r);
+    else put('left, Obsidian inserts non-structural text or a file', r);
+  }
+  const show = (r: Row) =>
+    JSON.stringify({
+      plain: axes.plain[r.p], markdown: axes.markdown[r.m], html: axes.html[r.h] && String(axes.html[r.h]).slice(0, 60),
+      uri: axes.uri[r.u], files: axes.files[r.f], oracle: r.oracle.slice(0, 80), taken: r.takenText?.slice(0, 80),
+    });
+  for (const [k, rs] of verdicts) {
+    process.stdout.write(`${rs.length}\t${k}\n`);
+    if (!k.endsWith('text equal') && !k.endsWith('or a file')) for (const r of rs.slice(0, 40)) process.stdout.write('    ' + show(r) + '\n');
+  }
+});

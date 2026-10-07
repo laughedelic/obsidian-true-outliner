@@ -1,6 +1,6 @@
 ---
 type: "research"
-description: "Why three paste cases fail on Obsidian 1.14.4 and pass on 1.13.7 (#372): with Smart lists on, 1.14.4's own paste hook (`tryCollapseListMarker`) turns a list pasted at a list item's content start into a replacement of the item's marker, which our classifier reads as an ordinary within-node edit and passes; the two transactions side by side, the clause in `classify` that lets the second through, which pastes it reaches, and what it drops (the first pasted line's indentation, measured on sibling and deep payloads); where Obsidian's paste handling starts and how it picks the text, the same code on both builds, and the CodeMirror handler order that lets a plugin take a paste after `editor-paste` and before Obsidian's hook; everything Smart lists reaches and what public API can and cannot do about it; two prototypes measured on both builds, desktop and mobile emulation (taking a structural paste before the hook, the same transaction and result on both builds; reading 1.14.4's rewrite back, which works on that build only); how to run a 1.14.4 build in a cloud session when the harness's own download fails"
+description: "Why three paste cases fail on Obsidian 1.14.4 and pass on 1.13.7 (#372): with Smart lists on, 1.14.4's own paste hook (`tryCollapseListMarker`) turns a list pasted at a list item's content start into a replacement of the item's marker, which our classifier reads as an ordinary within-node edit and passes; the two transactions side by side, which pastes it reaches, and what it drops (the first pasted line's indentation); where Obsidian's paste handling starts and how it picks the text, the same code on both builds, and the CodeMirror handler order that lets a plugin take a paste after `editor-paste` and before Obsidian's hook; everything Smart lists reaches and what public API can and cannot do about it; the prototypes measured on both builds, desktop and mobile emulation, with what two review rounds found in the text choice; a differential check of 672 generated clipboards against Obsidian's own paste, with no difference on either build; the rule that writes a pasted list item without repeating its destination's marker; how to run a 1.14.4 build in a cloud session when the harness's own download fails"
 ---
 
 # Obsidian's smart-list paste: a marker rewrite our filter does not read as a paste
@@ -187,7 +187,7 @@ suites on the newest build.
    transaction `state.replaceSelection` builds, as Obsidian's paste does, for the pastes the
    enforcement treats as structural, and leaves every other paste to
    Obsidian. The same transaction reaches the enforcement on every build. The second prototype,
-   below.
+   below, its review rounds, and the differential check.
 2. **Read the collapse from the transaction alone**, as the paste at the content start of the text it
    inserts. It fixes the three cases, whose payloads lose nothing, and it gives the 1.14.4 column of
    the table above for an indented first line (the sibling payload's `b` under `a`). That follows
@@ -299,6 +299,55 @@ of `- top` / `  - mid` / `    - `:
 | Plain `- a⏎  - b`, with a registered `clipboardInputFilter` | taken, filtered, as outline mode off filters it | taken, filtered; outline mode off collapses it unfiltered |
 | HTML list, with the same filter | taken, not filtered, as outline mode off | taken, not filtered; outline mode off collapses it |
 
+## The differential check
+
+After two rounds of the review each found a branch of `handleDataTransfer` read wrong by hand, the
+text choice was checked against Obsidian's own paste as a whole. The probe
+(`docs/research/prototypes/paste-differential/`) generates 672 clipboards from seven plain texts,
+Markdown or none, eight HTML clipboards, three `text/uri-list` values and a file or none, and pastes
+each, as a synthetic `paste` event, into an empty note with outline mode off, where Obsidian's paste
+is the oracle, and into one with outline mode on. An empty note has no list prefix, so 1.14.4's
+collapse reaches neither side. A `clipboardInputFilter` appending `⟦F⟧` is registered throughout, so
+each row shows its branch. The third prototype and the fourth (below) gave the same verdicts, on each
+build:
+
+| Verdict | 1.13.7 | 1.14.4 |
+| --- | --- | --- |
+| Taken, and the text equals Obsidian's | 548 | 548 |
+| Taken, and the text differs | 0 | 0 |
+| Taken where Obsidian inserts a file | 0 | 0 |
+| Left to Obsidian, which inserts non-structural text or a file | 116 | 116 |
+| Left to Obsidian, which inserts structural text | 8 | 8 |
+
+The 8 rows are a plain text beside a different `text/uri-list`, which Obsidian writes as a link,
+`[- a⏎  - b](https://example.com/other)`, and which parses as more than one block. The link text
+does not open with a list prefix, so 1.14.4's collapse does not reach it, and both builds insert the
+same text. No row differs between the two builds in any field. Of the 548 taken, the 32 on the
+plain-text branch carry `scrollIntoView`, as Obsidian's paste sets it there, and the 516 others do
+not.
+
+## Repeated markers: the fourth prototype
+
+The maintainer's decision (2026-10-07): a list item pasted right after a list item's marker is
+written without its own marker, on every build. The fourth prototype adds that rule to the handler
+for pastes it does not take as structural, per range, with 1.14.4's formula: from the start of the
+item's marker, the item's marker, the pasted line's task box or else the item's, then the pasted
+text after its first line's prefix. The same ⌘V on each build:
+
+| Paste | Without the rule, 1.13.7 | Fourth prototype, both builds |
+| --- | --- | --- |
+| `- a` on the empty item of `- A` / `- ` | `- - a` | `- a`, the caret after `a` |
+| `- a` after the box of an empty `- [ ] ` | not run | `- [ ] a` |
+| `- [x] a` on an empty `- ` | not run | `- [x] a` |
+| `- a` on the empty item of `1. A` / `2. ` | not run | `2. a` |
+| `- a` at the content start of `- beta` | not run | `- abeta`, the caret after `a` |
+| `- a⏎- b` with a caret in each of two empty items | `- - a`, `- - b` | `- a`, `- b` |
+| `- a` in the middle of `beta` | `- be- ata` | left to Obsidian: `- be- ata` on both |
+| `- a` in the middle of a paragraph | inserted as typed | left to Obsidian, the same on both |
+
+Without the rule, 1.14.4 already gives the second column wherever its collapse applies. Case 1 and
+the sibling payload, run again with the fourth prototype, are unchanged on both builds.
+
 ## Reading the rewrite instead: the first prototype
 
 Sixty-two lines in `src/plugin/smart-list-paste.ts` and three edits in `transaction-filter.ts` (below).
@@ -391,7 +440,7 @@ the target, to be removed first.
 
 ## The prototypes' source
 
-The second, as revised after rounds 1 and 2: `src/paste-text.ts`,
+The second, in its fourth version (after rounds 1 and 2 of the review, with the marker rule): `src/paste-text.ts`,
 
 ```ts
 /**
@@ -450,18 +499,44 @@ export function pastedText(
   if (data.files.length > 0 || !plain) return undefined;
   return { text: plain, plain: true };
 }
+
+/** A list line's prefix, as Obsidian's paste reads it: indentation and `>` quotes,
+ * a bullet or number marker, then an optional task box. */
+const LIST_PREFIX = /^([>\s]*)(([*+-] |(\d+)([.)] ))(?:\[(.)\] )?)?/;
+
+/** Where a list item pasted at an item's content start is written without its own
+ * marker: from the start of the item's marker, the item's marker, the pasted task box
+ * (or the item's), then the pasted text after its first line's prefix. `before` is the
+ * line's text up to the insertion point. */
+export function withoutRepeatedMarker(before: string, text: string): { readonly from: number; readonly insert: string } | undefined {
+  const dest = LIST_PREFIX.exec(before);
+  if (!dest?.[2] || dest[0] !== before) return undefined;
+  const pasted = LIST_PREFIX.exec(text.split('\n', 1)[0]!);
+  if (!pasted?.[2]) return undefined;
+  const box = pasted[6] ?? dest[6];
+  return { from: dest[1]!.length, insert: dest[3]! + (box ? `[${box}] ` : '') + text.slice(pasted[0].length) };
+}
+
+/** The text each range of a paste receives: a line each when the lines match the
+ * ranges one for one, the whole text in each otherwise, as CodeMirror and Obsidian
+ * both distribute it. */
+export function textPerRange(text: string, ranges: number): readonly string[] {
+  const lines = text.split(/\r\n?|\n/);
+  return ranges > 1 && lines.length === ranges ? lines : Array.from({ length: ranges }, () => text);
+}
 ```
 
 `src/plugin/structural-paste.ts`,
 
 ```ts
+import { EditorSelection } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { htmlToMarkdown, sanitizeHTMLToDom } from 'obsidian';
 import { parse } from '../parse';
 import { isStructuralBlockSequence } from '../classify';
 import { isOutlineMode } from './outline-state';
 import { isNestedEditor } from './nested-editor';
-import { pastedText, type HtmlInspection } from '../paste-text';
+import { pastedText, textPerRange, withoutRepeatedMarker, type HtmlInspection } from '../paste-text';
 
 function inspectHtml(html: string): HtmlInspection {
   const holder = createDiv();
@@ -472,18 +547,39 @@ function inspectHtml(html: string): HtmlInspection {
 }
 
 /** Takes a structural paste in an outline-mode editor before Obsidian's own paste
- * hook can rewrite it, and inserts it over the selection as Obsidian's paste would. */
+ * hook can rewrite it, and inserts it over the selection as Obsidian's paste would;
+ * and writes a list item pasted at an item's content start without repeating the
+ * item's marker, on every build. */
 export const structuralPaste = EditorView.domEventHandlers({
   paste(event, view) {
     if (!isOutlineMode(view.state) || isNestedEditor(view) || !event.clipboardData) return false;
-    if (view.state.selection.ranges.length !== 1) return false;
     const choice = pastedText(event.clipboardData, inspectHtml, htmlToMarkdown);
     if (choice === undefined) return false;
+    const state = view.state;
     const text = choice.plain
-      ? view.state.facet(EditorView.clipboardInputFilter).reduce((t, filter) => filter(t, view.state), choice.text)
+      ? state.facet(EditorView.clipboardInputFilter).reduce((t, filter) => filter(t, state), choice.text)
       : choice.text;
-    if (!isStructuralBlockSequence(parse(text).children)) return false;
-    view.dispatch(view.state.replaceSelection(text), { userEvent: 'input.paste', scrollIntoView: choice.plain });
+    const ranges = state.selection.ranges;
+    if (ranges.length === 1 && isStructuralBlockSequence(parse(text).children)) {
+      view.dispatch(state.replaceSelection(text), { userEvent: 'input.paste', scrollIntoView: choice.plain });
+      return true;
+    }
+    const pieces = textPerRange(text, ranges.length);
+    let rewritten = false;
+    let i = 0;
+    const spec = state.changeByRange((range) => {
+      const piece = pieces[i++]!;
+      const line = state.doc.lineAt(range.from);
+      const marker = withoutRepeatedMarker(state.sliceDoc(line.from, range.from), piece);
+      if (marker) {
+        rewritten = true;
+        const from = line.from + marker.from;
+        return { changes: { from, to: range.to, insert: marker.insert }, range: EditorSelection.cursor(from + marker.insert.length) };
+      }
+      return { changes: { from: range.from, to: range.to, insert: piece }, range: EditorSelection.cursor(range.from + piece.length) };
+    });
+    if (!rewritten) return false;
+    view.dispatch(spec, { userEvent: 'input.paste', scrollIntoView: true });
     return true;
   },
 });
