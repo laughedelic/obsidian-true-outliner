@@ -1,37 +1,125 @@
 // Copied to tests/zz-paste-diff.test.ts and run with
-//   ROWS=<rows.json> AXES=<axes.json> npx vitest run tests/zz-paste-diff.test.ts
-// It reads the probe's rows and sorts each into one verdict, using the parser the classifier uses.
+//   ROWS=<rows.json> [OTHER=<the other build's rows.json>] npx vitest run tests/zz-paste-diff.test.ts
+// It reads the probe's rows and sorts each paste into one verdict, using the parser the classifier
+// uses. A verdict marked ✗ is a disagreement with what outline mode is to do; with OTHER, it also
+// lists every paste whose outline-mode result differs between the two builds. A paste left to
+// Obsidian is still judged by the enforcement, which may rewrite what Obsidian inserted, as it does
+// without the handler; the builds must agree on it all the same.
 import { readFileSync } from 'node:fs';
 import { it } from 'vitest';
 import { parse } from '../src/parse';
 import { isStructuralBlockSequence } from '../src/classify';
 
+interface Side { off: string; on: string; taken: string | null; scroll?: boolean | null }
 interface Row {
-  p: number; m: number; h: number; u: number; f: number;
-  oracle: string; taken: boolean; takenText: string | null; scroll: boolean | null;
+  p: number; m: number; h: number; u: number; f: number; k: number;
+  oracle?: string; note?: Side; item: Side; drop?: { off: string; on: string; taken: boolean } | null;
+}
+interface Probe { rows: Row[]; axes: Record<string, unknown[]>; settings: Record<string, boolean>[] }
+
+const ITEM = '- A\n- ';
+const LIST_PREFIX = /^([>\s]*)(([*+-] |(\d+)([.)] ))(?:\[(.)\] )?)?/;
+
+const read = (path: string): Probe => JSON.parse(readFileSync(path, 'utf8'));
+const key = (r: Row) => `${r.p}.${r.m}.${r.h}.${r.u}.${r.f}`;
+
+const LONE_IMAGE = '<img src="https://example.com/x.png">';
+
+/** Whether outline mode takes the clipboard's converted HTML: the HTML is not Obsidian's own copy
+ * beside a plain text, no Markdown comes first, and it is not a lone image beside files. */
+function fromHtml(axes: Probe['axes'], r: Row): boolean {
+  const html = axes.html![r.h] as string | null;
+  const plain = axes.plain![r.p] as string | null;
+  if (html === null || (html.includes('<!-- obsidian -->') && plain !== null)) return false;
+  if (axes.markdown![r.m] !== null) return false;
+  return !(html === LONE_IMAGE && axes.files![r.f]);
+}
+
+/** What outline mode is to make of the oracle's text at a destination. */
+function expectation(oracle: string, html: boolean): 'structural' | 'marker' | 'html' | 'obsidian' {
+  if (oracle.includes('![[Pasted image')) return 'obsidian';
+  if (/^\[[^]*\]\(https?:/.test(oracle)) return 'obsidian';
+  if (oracle !== '' && isStructuralBlockSequence(parse(oracle).children)) return 'structural';
+  if (LIST_PREFIX.exec(oracle.split(/\r\n?|\n/, 1)[0]!)?.[2]) return 'marker';
+  return html ? 'html' : 'obsidian';
+}
+
+/** The empty item after the marker rule: the item's marker, the pasted box, the rest. */
+function withMarkerRule(oracle: string): string {
+  const pasted = LIST_PREFIX.exec(oracle.split('\n', 1)[0]!)!;
+  return ITEM.slice(0, ITEM.lastIndexOf('\n') + 1) + '- ' + (pasted[6] ? `[${pasted[6]}] ` : '') + oracle.slice(pasted[0].length);
 }
 
 it('paste differential', () => {
-  const rows: Row[] = JSON.parse(readFileSync(process.env.ROWS!, 'utf8'));
-  const axes = JSON.parse(readFileSync(process.env.AXES!, 'utf8'));
-  const verdicts = new Map<string, Row[]>();
-  const put = (k: string, r: Row) => verdicts.set(k, [...(verdicts.get(k) ?? []), r]);
-  for (const r of rows) {
-    const file = r.oracle.includes('![[Pasted image');
-    const structural = !file && r.oracle !== '' && isStructuralBlockSequence(parse(r.oracle).children);
-    if (r.taken && r.takenText !== r.oracle) put('taken, text differs from Obsidian', r);
-    else if (r.taken && file) put('taken where Obsidian inserts a file', r);
-    else if (r.taken) put('taken, text equal', r);
-    else if (structural) put('left, Obsidian inserts structural text', r);
-    else put('left, Obsidian inserts non-structural text or a file', r);
-  }
-  const show = (r: Row) =>
+  const probe = read(process.env.ROWS!);
+  const { axes, settings } = probe;
+  const verdicts = new Map<string, string[]>();
+  const show = (r: Row, extra: Record<string, unknown>) =>
     JSON.stringify({
-      plain: axes.plain[r.p], markdown: axes.markdown[r.m], html: axes.html[r.h] && String(axes.html[r.h]).slice(0, 60),
-      uri: axes.uri[r.u], files: axes.files[r.f], oracle: r.oracle.slice(0, 80), taken: r.takenText?.slice(0, 80),
+      plain: axes.plain![r.p], md: axes.markdown![r.m], html: axes.html![r.h] && String(axes.html![r.h]).slice(0, 50),
+      uri: axes.uri![r.u], files: axes.files![r.f], settings: settings[r.k], ...extra,
     });
-  for (const [k, rs] of verdicts) {
-    process.stdout.write(`${rs.length}\t${k}\n`);
-    if (!k.endsWith('text equal') && !k.endsWith('or a file')) for (const r of rs.slice(0, 40)) process.stdout.write('    ' + show(r) + '\n');
+  const put = (k: string, line: string) => verdicts.set(k, [...(verdicts.get(k) ?? []), line]);
+  const oracles = new Map<string, string>();
+  for (const r of probe.rows) if (r.k === 0) oracles.set(key(r), r.oracle!);
+
+  for (const r of probe.rows) {
+    const oracle = oracles.get(key(r))!;
+    const want = expectation(oracle, fromHtml(axes, r));
+    if (r.k === 0 && r.note) {
+      const n = r.note;
+      if (want === 'structural') {
+        if (n.taken === oracle) put('note: taken, text equal', '');
+        else put(`✗ note: ${n.taken === null ? 'left' : 'taken, text differs'} where the oracle is structural`, show(r, { oracle, taken: n.taken }));
+      } else if (want === 'html' || (want === 'marker' && fromHtml(axes, r))) {
+        if (n.taken === oracle && n.on === oracle) put('note: HTML taken, text equal', '');
+        else put('✗ note: HTML not taken as converted', show(r, { oracle, taken: n.taken, on: n.on }));
+      } else if (n.taken !== null) put('✗ note: taken where the oracle is not structural', show(r, { oracle, taken: n.taken }));
+      else if (n.on === n.off) put('note: left, the same as outline mode off', '');
+      else put('note: left, the enforcement rewrote what Obsidian inserted', show(r, { off: n.off, on: n.on }));
+    }
+    const i = r.item;
+    if (want === 'structural') {
+      if (i.taken === oracle) put('item: taken, text equal', '');
+      else put(`✗ item: ${i.taken === null ? 'left' : 'taken, text differs'} where the oracle is structural`, show(r, { oracle, taken: i.taken, on: i.on }));
+    } else if (want === 'marker') {
+      const expected = withMarkerRule(oracle);
+      if (i.on === expected) put('item: the marker rule, as expected', '');
+      else put('✗ item: differs from the marker rule', show(r, { oracle, expected, on: i.on, off: i.off }));
+    } else if (want === 'html') {
+      if (i.on === ITEM + oracle) put('item: HTML taken, inserted as converted', '');
+      else put('✗ item: HTML not inserted as converted', show(r, { oracle, taken: i.taken, on: i.on }));
+    } else if (i.taken !== null) put('✗ item: taken where the oracle is left to Obsidian', show(r, { oracle, taken: i.taken, on: i.on }));
+    else if (i.on === i.off) put('item: left, the same as outline mode off', '');
+    else put('item: left, the enforcement rewrote what Obsidian inserted', show(r, { oracle, off: i.off, on: i.on }));
+    if (r.k === 0 && r.drop) {
+      const d = r.drop;
+      const repeated = /^- - /m.test(d.on.split('\n').slice(1).join('\n'));
+      put(`drop: ${d.on === d.off ? 'the same as outline mode off' : 'differs from outline mode off'}${repeated ? ', a repeated marker' : ''}`, show(r, { off: d.off, on: d.on }));
+    } else if (r.k === 0) put('drop: not run', show(r, {}));
+  }
+
+  // A paste outline mode takes gives one result whatever the settings say.
+  const firstOn = new Map<string, string>();
+  for (const r of probe.rows) if (r.k === 0) firstOn.set(key(r), r.item.on);
+  for (const r of probe.rows) {
+    if (r.k === 0 || expectation(oracles.get(key(r))!, fromHtml(axes, r)) === 'obsidian') continue;
+    if (r.item.on !== firstOn.get(key(r))) put('✗ item: the result depends on the settings', show(r, { defaults: firstOn.get(key(r)), here: r.item.on }));
+  }
+
+  if (process.env.OTHER) {
+    const other = new Map(read(process.env.OTHER).rows.map((r) => [`${key(r)}.${r.k}`, r]));
+    for (const r of probe.rows) {
+      const o = other.get(`${key(r)}.${r.k}`);
+      if (!o) continue;
+      if (o.item.on !== r.item.on) put('✗ builds differ: item', show(r, { here: r.item.on, other: o.item.on }));
+      if (r.note && o.note && o.note.on !== r.note.on) put('✗ builds differ: note', show(r, { here: r.note.on, other: o.note.on }));
+      if (r.drop && o.drop && o.drop.on !== r.drop.on) put('builds differ: drop', show(r, { here: r.drop.on, other: o.drop.on }));
+    }
+  }
+
+  for (const [k, lines] of [...verdicts].sort()) {
+    process.stdout.write(`${lines.length}\t${k}\n`);
+    if (k.startsWith('✗') || process.env.ALL) for (const l of lines.filter(Boolean).slice(0, 30)) process.stdout.write('    ' + l + '\n');
   }
 });
