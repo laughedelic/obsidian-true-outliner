@@ -260,6 +260,9 @@ of Claude Code's built-in `code-review`; so `independent-review` itself is linke
 `.claude/skills/` only. Regenerate the OpenSpec skills with `openspec update`, which rewrites its own tree and leaves
 the symlinks alone, rather than editing one by hand.
 
+`.agents/routines/` holds the prompts of our scheduled routines, one file each. A routine's
+trigger points at its file, so a change to a routine is a reviewed PR like any other.
+
 `scripts/agent-setup.sh` is the one list of what an agent session needs — the project's
 dependencies, the OpenSpec CLI and the GitHub CLI. The `SessionStart`
 hook in `.claude/settings.json` runs it and `copilot-setup-steps.yml` runs it with `--install`,
