@@ -1,6 +1,6 @@
 ---
 type: "research"
-description: "Why a quote, callout, rule or HTML block inside a list item reads as a paragraph (#136, #158's kind half): the `^ {0,3}` anchors measured from column 0 rather than from the holding item's content column; a prototype that measures quotes, callouts and rules from the item; 610 shapes read by `commonmark`, `main` and the prototype — 184 of 570 in-item shapes agreeing on `main`, 422 with the prototype, none of them moving away; the corpus unchanged; the insertion differential's kind losses from 132 to 54, the rest being #138's root divergence and HTML blocks; why headings stay measured from column 0, and why HTML blocks do too — an inline tag opening a block, and a block running past the item that holds it"
+description: "Why a quote, callout, rule or HTML block inside a list item reads as a paragraph (#136, #158's kind half): the `^ {0,3}` anchors measured from column 0 rather than from the holding item's content column; a prototype that measures quotes, callouts and rules from the item; 610 shapes read by `commonmark`, `main` and the prototype — 184 of 570 in-item shapes agreeing on `main`, 422 with the prototype, none of them moving away; the corpus unchanged; the insertion differential's kind losses from 132 to 54, the rest being #138's root divergence and HTML blocks; why HTML blocks stay measured from column 0 — an inline tag opening a block, and a block running past the item that holds it; and #136's heading decision measured: a heading line inside an open item read as a paragraph child, 300 shapes and the corpus on `main` and a prototype"
 ---
 
 # Block starts measured from the list item that holds them
@@ -87,7 +87,81 @@ not index `- ## Notes` as a heading, though both editing surfaces style it as on
 section, which is a grammar decision rather than a parser fix. The paragraph interruption test
 keeps a `-` or `=` rule under a paragraph reading from column 0 for the same reason: at the
 margin it would be a setext underline, and so a heading. The heading case stays open in
-[#136](https://github.com/laughedelic/obsidian-true-outliner/issues/136).
+[#136](https://github.com/laughedelic/obsidian-true-outliner/issues/136), and the next section
+measures the decision that closes it.
+
+## A heading line inside an open item: measured for #136's decision
+
+The maintainer decided on #136 that a heading line inside an OPEN list item is a paragraph child of
+that item, styled as a heading, and never opens a section: whether an item is still open at the
+line decides it, not the heading's own indentation or the node above it. Measured from column 0,
+a heading at one to three columns opened a section there and took what followed it; at four or
+more columns, or with a tab, the same line was already a paragraph. The prototype reads a heading
+line, ATX or setext, only where no open item holds the line, so the first spelling reads as the
+second already did.
+
+Each pair below is the same shape spelled at two spaces and at four under `- item`, read by
+`parse` on `main` (at `4f06fe3`) and with the prototype. `⟶ root` marks a node outside the item.
+
+| shape | two spaces, `main` | two spaces, prototype | four spaces, `main` and prototype |
+| --- | --- | --- | --- |
+| blank, `## H`, blank, `more` | heading ⟶ root, `more` its child | paragraph child, `more` at the root | paragraph child, `more` at the root |
+| blank, `para`, `## H` | `para` a child, `## H` a heading ⟶ root | one two-line paragraph child | one two-line paragraph child |
+| blank, `## A`, `## B` | two headings ⟶ root | one two-line paragraph child | one two-line paragraph child |
+| blank, `Title`, `===`, blank, `more` | setext heading ⟶ root, `more` its child | two-line paragraph child, `more` at the root | two-line paragraph child, `more` at the root |
+| blank, `## H \| x`, `\| - \|` | heading ⟶ root, the row its child | table child | table child |
+
+The rows where the heading line follows text with no blank line come out as continuation lines,
+not as nodes of their own. That is how a heading line directly under an item's own text already
+reads (#136's case 4), and how every four-space row above already reads on `main`; the prototype
+adds no reading of its own.
+
+The scope comment on #136 names three shapes the decision keeps apart: an item still open at the
+line, and a list closed by a column-0 paragraph or rule before it.
+
+| shape | `main` | prototype |
+| --- | --- | --- |
+| `- item`, blank, `  para`, blank, `  ## H`, blank, `more` | heading ⟶ root, `more` its child | paragraph child of `- item`, `more` at the root |
+| `- item`, blank, `para`, blank, `  ## H`, blank, `more` | heading ⟶ root, `more` its child | the same |
+| `- item`, blank, `---`, blank, `  ## H`, blank, `more` | heading ⟶ root, `more` its child | the same |
+| `- a`, `  - b`, blank, `  ## H` | heading ⟶ root | paragraph child of `- a` |
+| `- a`, blank, `  para`, `## H` (column 0) | heading ⟶ root | the same |
+
+A grid of 300 documents: five containers (`- a`; `1. a`; `  - b` under `- a`; `⏵- b` under
+`- a`; a paragraph child of `- a`) × three spellings (`## H`, `Title` over `===`, `Title` over
+`---`) × with and without a blank line above × offsets from two columns short of the innermost
+item's content column to five past it × spaces or a tab, each followed by a blank line and a
+column-0 `more`. A shape is INSIDE when the heading line sits at or past the outermost open
+item's content column.
+
+| | shapes | heading, `more` taken into its section | held by an item, `more` at the root |
+| --- | --- | --- | --- |
+| inside, `main` | 252 | 33 | 219 |
+| inside, prototype | 252 | 0 | 252 |
+| outside, `main` | 48 | 48 | 0 |
+| outside, prototype | 48 | 48 | 0 |
+
+Every `.md` under `tests/corpus/` and `test-vault/`, 40 files, parsed on `main` and with the
+prototype and compared node by node on depth, kind, first line and child count: **0 files
+differ**. None of the 40 holds an indented heading line, so the comparison shows only that the
+change moves nothing else. The unit suite with the prototype fails four tests, each of which asserts the
+column-0 reading this replaces: one in `tests/roundtrip.test.ts` (a setext underline at the
+margin closes it) and three seam cases in `tests/edit-ops.test.ts` that build a heading at an
+item's content column.
+
+In the real app, `⇥` on an item followed by a blank line and a heading line at its content
+column indents the item alone on `main` and leaves the heading line where it was. With the
+prototype the heading line moves with the item, as a paragraph child does
+(`e2e-tests/cases/document-tree-mapping/a-heading-line-in-an-open-item-is-its-child.case`,
+desktop and mobile emulation, Obsidian 1.14.4).
+
+Moved out of every item, a heading-line paragraph child changes kind. `moveSubtreesTo`, the
+operation a bullet drag releases into, carrying `- a`'s child out to the root between `more` and
+`last` (`- a`, blank, the child, blank, `more`, blank, `last`) writes it at column 0, and the
+re-parse reads a heading that takes `last` into its section. On `main` that already happens to the
+child spelled `    ## H` or `⏵## H`, and to a paragraph child `      > q`, which comes back a
+quote; with the prototype the two-space `  ## H` joins them, where on `main` it was a root heading
+to begin with. Measured through the operation, not driven in the app.
 
 ## Measured: one line, every column
 
