@@ -1,0 +1,25 @@
+case: a heading line at an open item's content column is that item's child (#136)
+known-failing: #136
+keys: ⇥
+
+=== before
+- first
+- other┃
+
+  ## H
+
+more
+=== expected
+- first
+    - other┃
+
+      ## H
+
+more
+=== actual ⇥
+- first
+    - other┃
+
+  ## H
+
+more
