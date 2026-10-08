@@ -44,10 +44,12 @@ The indentation measured SHALL be spaces and tabs only.
   quote, also a child of `- a` — the margin stays open at `- a`'s content column
 
 #### Scenario: A setext heading closes the margin
-- **WHEN** `- a`, a blank line, one space then `para`, one space then `---`, and four spaces
-  then `> q` are parsed
-- **THEN** ` para` is a setext heading at the root, short of `- a`'s content column, and the last
-  line is a paragraph, its child — measured from column 0, where four columns do not open a quote
+- **WHEN** `- a`, a blank line, `  para`, an underline at column 0, and four spaces then `> q`
+  are parsed, the underline written in turn as `---` and as `=====`
+- **THEN** each time `  para` and its underline are a setext heading at the root, the underline
+  short of `- a`'s content column, and the last line is a paragraph, the heading's child —
+  measured from column 0, where four columns do not open a quote, although `  para` itself sat
+  inside `- a`
 
 #### Scenario: An inline tag opening a child paragraph is not an HTML block
 - **WHEN** `- a`, a blank line, `⏵<b>Note</b> text` and `⏵- c` are parsed

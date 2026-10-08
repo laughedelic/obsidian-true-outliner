@@ -75,6 +75,9 @@ document will contain, which is the contract `kindAsWritten` states. A paragraph
 seam that the parse made is never one this changes: the parse produces no such seam without a
 blank line, because the paragraph loop no longer stops at a heading line inside an item.
 
+`structural-operations`' "Boundary separation is judged on the kind the re-parse will read"
+states the old judgement, a heading at column 0 wherever it sits, and changes with it.
+
 `tailAsWritten` reads a node's later lines by parsing them under a `- x` context at the same
 margin, so it follows the new parse with no edit of its own.
 
@@ -89,6 +92,14 @@ margin, so it follows the new parse with no edit of its own.
   item (`structural-operations`, `node-dragging`), and `kindAsWritten` now reports the paragraph,
   so the seam is separated for what the re-parse reads. The three seam tests in
   `tests/edit-ops.test.ts` that construct such a node are rewritten to assert the paragraph.
+- [A heading-line paragraph child moved out of every item re-parses as a heading.] → Open. A
+  drag or a move that writes `  ## H`, now `- a`'s paragraph child, at the root writes `## H`,
+  which re-parses as a heading and takes the root siblings after it into its section, against
+  `node-dragging`'s "A dragged node SHALL keep its kind wherever the column's parent can hold it".
+  `main` already does this to a four-space or tab-indented heading line, and to a paragraph whose
+  text opens a quote; the change brings the two-space spelling, the column the plugin writes a
+  `- ` item's children at, into that class. Neither #136's decision nor the specs say what such a
+  paragraph becomes outside every item, so the plan does not choose; the question is on the PR.
 - [The decorations draw a heading-styled paragraph child.] → Both editing surfaces already style
   the line as a heading, and case 2 (four spaces) already draws this way; `driving-obsidian`
   confirms the painted result before the change is marked ready.

@@ -6,9 +6,12 @@ A heading line written one to three columns into an open list item opens a secti
 it closes the list and takes every node after it as its children, while the same line written
 four columns in, or after a tab, is a paragraph child of the item. The maintainer decided on
 [#136](https://github.com/laughedelic/obsidian-true-outliner/issues/136) that a heading line
-inside an open item is that item's paragraph child, styled as a heading, at any indentation; the
-spec still requires the column-0 reading, so the two disagree and every structural operation
-follows the spec's. `docs/research/block-start-margin` ("A heading line inside an open item")
+inside an open item is that item's paragraph child, styled as a heading, at any indentation. The
+specs contradict each other here: "A list item's own lines, and what its children may be" makes
+any block at or past the item's content column after a blank line its child, which already asks
+for the decided reading, while "A block start inside a list item is measured from the item"
+measures a heading from column 0 and has it close every item's margin, which is what the parser
+does and every structural operation follows. `docs/research/block-start-margin` ("A heading line inside an open item")
 has the shapes, measured on `main` and with a prototype.
 
 ## What Changes
@@ -36,6 +39,9 @@ None.
   measuring a heading from column 0 inside an open item. The sentence that every heading closes
   every list item's margin narrows to headings outside every open item, and two of its scenarios
   change with it.
+- `structural-operations`: "Boundary separation is judged on the kind the re-parse will read"
+  stops judging a heading at column 0 wherever it sits: inside a list item it is judged as the
+  paragraph, or the list item, its line re-parses as.
 
 ## Non-goals
 

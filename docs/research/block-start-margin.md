@@ -143,7 +143,8 @@ item's content column.
 
 Every `.md` under `tests/corpus/` and `test-vault/`, 40 files, parsed on `main` and with the
 prototype and compared node by node on depth, kind, first line and child count: **0 files
-differ**. The unit suite with the prototype fails four tests, each of which asserts the
+differ**. None of the 40 holds an indented heading line, so the comparison shows only that the
+change moves nothing else. The unit suite with the prototype fails four tests, each of which asserts the
 column-0 reading this replaces: one in `tests/roundtrip.test.ts` (a setext underline at the
 margin closes it) and three seam cases in `tests/edit-ops.test.ts` that build a heading at an
 item's content column.
@@ -153,6 +154,14 @@ column indents the item alone on `main` and leaves the heading line where it was
 prototype the heading line moves with the item, as a paragraph child does
 (`e2e-tests/cases/document-tree-mapping/a-heading-line-in-an-open-item-is-its-child.case`,
 desktop and mobile emulation, Obsidian 1.14.4).
+
+Moved out of every item, a heading-line paragraph child changes kind. `moveSubtreesTo`, the
+operation a bullet drag releases into, carrying `- a`'s child out to the root between `more` and
+`last` (`- a`, blank, the child, blank, `more`, blank, `last`) writes it at column 0, and the
+re-parse reads a heading that takes `last` into its section. On `main` that already happens to the
+child spelled `    ## H` or `⏵## H`, and to a paragraph child `      > q`, which comes back a
+quote; with the prototype the two-space `  ## H` joins them, where on `main` it was a root heading
+to begin with. Measured through the operation, not driven in the app.
 
 ## Measured: one line, every column
 
