@@ -6,7 +6,8 @@ block sequence SHALL insert that text over the selection as a plain paste, befor
 paste handling runs and after its `editor-paste` listeners, so the enforcement judges the same paste
 on every Obsidian build. The clipboard text SHALL be the one Obsidian's paste chooses, except that
 HTML SHALL be converted whatever Obsidian's "Convert pasted HTML to Markdown" says, and a plain text
-beside files SHALL be the text where Obsidian's paste would insert the files. A paste a listener
+whose first line is a list item SHALL be the text where Obsidian's paste would insert the
+clipboard's files instead. A paste a listener
 handled SHALL be left alone, and any other paste SHALL be left to Obsidian unless "An HTML paste is
 inserted as converted on every build" or "A pasted list item does not repeat its destination's
 marker" takes it.
@@ -72,8 +73,9 @@ indentation; the enforcement passed that replacement as an ordinary edit
   file is inserted, on every Obsidian build
 
 #### Scenario: A clipboard whose paste is not its text is Obsidian's
-- **WHEN** the clipboard holds files and no text, a plain text that is not a list beside a file,
-  Obsidian's properties, or a plain text beside a different `text/uri-list`
+- **WHEN** the clipboard holds files and no text, files beside a plain text whose first line is not a
+  list item (two paragraphs, say), Obsidian's properties, or a plain text beside a different
+  `text/uri-list`
 - **THEN** the paste goes through Obsidian's own handling
 
 **Covered by**: `tests/paste-text.test.ts`;
@@ -88,8 +90,10 @@ real-vault repro)", and the HTML, conversion-setting, list-beside-a-file, two-pa
 ### Requirement: An HTML paste is inserted as converted on every build
 In an outline-mode editor, a paste whose clipboard text is converted HTML, as "A structural paste is
 taken before Obsidian's paste handling" chooses it, SHALL insert that text over every selection
-range, whatever Obsidian's "Convert pasted HTML to Markdown" says, unless Obsidian's paste would
-write it as a link over the selection. The enforcement then judges it as any paste.
+range, whatever Obsidian's "Convert pasted HTML to Markdown" says. Where Obsidian's paste would
+write the text as links over the selection, a URL over a non-empty range, outline mode SHALL write
+those links: the selected text linked to the URL, and the URL itself at an empty range. The
+enforcement then judges the paste as any paste.
 
 *(Added `own-structural-paste`: the maintainer's decision. With the conversion off, Obsidian's paste
 takes the clipboard's plain text instead, which on 1.14.4 its collapse rewrites at a list item; the
@@ -102,10 +106,11 @@ setting is read only through a private API, so outline mode converts on every bu
   its end
 - **THEN** the line reads `p**a**`, on every Obsidian build
 
-#### Scenario: A URL over a selection is Obsidian's link
-- **WHEN** the clipboard holds HTML whose text is the URL `https://example.com`, and the user pastes
-  over the selected word `see`
-- **THEN** the paste goes through Obsidian's own handling, which writes `[see](https://example.com)`
+#### Scenario: A URL over a selection is a link whatever the conversion setting says
+- **WHEN** Obsidian's "Convert pasted HTML to Markdown" is off, the clipboard holds HTML whose text is
+  the URL `https://example.com` beside the plain text `x`, and the user pastes over the selected word
+  `see` in `x see y`
+- **THEN** the line reads `x [see](https://example.com) y`, on every Obsidian build
 
 **Covered by**: `tests/paste-text.test.ts`; `e2e-tests/specs/62-outline-edit-enforcement.e2e.ts`
 (the conversion-off and URL-over-a-selection pastes); `e2e-tests/specs/69-paste-differential.e2e.ts`

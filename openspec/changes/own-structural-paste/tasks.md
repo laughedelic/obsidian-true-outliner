@@ -15,42 +15,48 @@
   - other HTML goes through the inspection, then the converter, also beside a file, from HTML;
   - HTML the inspection calls a lone image, beside a file, gives the plain text, where Obsidian's
     paste would insert the file; without a file it is converted;
-  - a plain text beside a file, with no HTML or Markdown, is the plain text, where Obsidian's paste
-    would insert the file (the maintainer's decisions);
+  - a plain text beside a file, with no HTML or Markdown, is the plain text when its first line is a
+    list item, where Obsidian's paste would insert the file (the maintainer's decisions); two
+    paragraphs, and a heading with a paragraph, beside a file give nothing;
   - a plain text beside a different `text/uri-list`, a `text/uri-list` alone, files alone and
     `obsidian/properties` give nothing;
   - plain text alone is itself, from the plain text.
 
   Negative control: a choice that prefers `text/plain` fails the Markdown and HTML rows; one that
   gives nothing whenever files are present fails the HTML-beside-a-file and the two
-  plain-beside-a-file rows; one that names every source plain fails the source rows.
+  plain-beside-a-file rows; one that gives any plain text beside files fails the paragraphs row
+  (round 4 of the review); one that names every source plain fails the source rows.
 - [ ] 1.2 Write the decision whether to take a paste as a structural one as a pure function of the
   editor state and the text, and unit-test it: taken for each payload of the note's
   version-independent table (case 1's, the sibling and the deep payload, the task and numbered
   destinations, a non-empty item's start, a first-line task, the HTML list's Markdown); not taken for
-  a lone childless item, plain lines with no block structure, two ranges, a nested editor's state, or
-  outline mode off. Negative control: a decision that takes every text paste fails the not-taken
-  cases.
+  a lone childless item, plain lines with no block structure, two ranges, a nested editor's state, a
+  read-only state, or outline mode off. Negative control: a decision that takes every text paste
+  fails the not-taken cases; one that ignores the read-only state fails its row (round 4 of the
+  review).
 - [ ] 1.3 Write the marker rule, the distribution across ranges and the link test in
   `src/paste-text.ts` as pure functions: from the line's text before the range and the range's text,
-  where to start and what to write; the text each of several ranges receives, by source; and
-  whether Obsidian's paste writes a text as links over the selection. Unit-test them on the rows of
+  where to start and what to write; the text each of several ranges receives, by source; and the
+  URL each range receives where Obsidian's paste writes a text as links over the selection. Unit-test them on the rows of
   the note's fourth-prototype table: an empty item, an empty task item, a pasted task, a pasted task
   on an empty task item (both boxes), a numbered item, a non-empty item's start, two ranges a line
   each, three ranges with a two-line text (the whole text in each); on two ranges with a two-line
   Markdown or HTML text (the whole text in each); and on what they must leave: a range in the middle
   of an item's text, on a paragraph, a text with no list prefix, a quote's `> ` prefix with no
   marker. The link test: a URL over a selected word, `mailto:` over it, two URL lines over two
-  selections, are links; a URL at a caret, over a selection across lines, a text with a space, and
-  two URL lines over one selection are not. Negative control: a rule that also matches mid-text
+  selections, and a URL over a selection beside a caret (the URL itself at the caret) are links; a
+  URL at a caret alone, over a selection across lines, a text with a space, and two URL lines over
+  one selection are not. Negative control: a rule that also matches mid-text
   fails the mid-text row; one that keeps the item's box over the pasted one fails the both-boxes
   row; one that ignores the pasted box fails the pasted-task row; a distribution that splits every
   source fails the Markdown and HTML rows; a link test that ignores empty ranges fails the caret
   row.
 - [ ] 1.4 Register the CodeMirror `paste` handler at default precedence with the enforcement's
   extensions in `transaction-filter.ts`, with Obsidian's `sanitizeHTMLToDom` and `htmlToMarkdown`
-  behind the inspection and the converter. A text the link test calls links returns false. Apply
-  the state's `clipboardInputFilter`s to the plain text only. A structural paste over one range
+  behind the inspection and the converter. A read-only editor returns false. Where the link test
+  gives URLs, converted HTML dispatches the links (the selected text linked to its URL, the URL at an
+  empty range) and any other text returns false. Apply the state's `clipboardInputFilter`s to the
+  plain text only. A structural paste over one range
   dispatches `replaceSelection(text)`; otherwise, when the marker rule rewrites at least one range
   or the text is converted HTML, it dispatches the ranges' changes. Every dispatch carries
   `userEvent: 'input.paste'`, and `scrollIntoView` for the plain text only; it returns true, and
@@ -76,8 +82,10 @@ and `--mobile`. Setting up a 1.14.4 build in a cloud session is in the research 
   item is left out: it lands after the item on both builds, against that scenario, the defect #374.
   Add drawn cases for the marker rule beside them: a lone item on an empty item, on an empty task
   item, a pasted task, a pasted task on an empty task item, a numbered item, and a non-empty item's
-  start, each recorded on both builds and platforms. Negative control: each gives `- - a` (or its
-  like) on 1.13.7 with the handler unregistered.
+  start, each recorded on both builds and platforms, with each clipboard ending in `∅`: a
+  clipboard column otherwise ends in a newline, which pushes the item's text onto a line of its own
+  (round 4 of the review). Negative control: each gives `- - a` (or its like) on 1.13.7 with the
+  handler unregistered.
 - [ ] 2.3 In `62-outline-edit-enforcement`, add the pastes a case file cannot hold:
   - an HTML clipboard (a list `a` with a nested `b`, written with `ClipboardItem`) into an empty item
     two levels deep: alone, with an `<img>` from a web address in the HTML, with a `data:` image over
@@ -101,7 +109,12 @@ and `--mobile`. Setting up a 1.14.4 build in a cloud session is in the research 
     own `<img>` as HTML;
   - with "Convert pasted HTML to Markdown" off, `<p><b>a</b></p>` beside the plain text `- x`, pasted
     at the end of the paragraph `p`: `p**a**` on both builds; and the HTML text `https://example.com`
-    over the selected word `see`: `[see](https://example.com)`, as with outline mode off;
+    beside the plain text `x`, over the selected word `see` in `x see y`:
+    `x [see](https://example.com) y` on both builds, where outline mode off gives `x x y`;
+  - a structural plain text and a two-paragraph one, each beside an `image/png`, on the empty item of
+    `- A` / `- `: the list taken, no file; the paragraphs left to Obsidian, the file inserted;
+  - a structural paste into an editor made read-only by the test (`EditorState.readOnly` through
+    `registerEditorExtension`): nothing inserted, as with outline mode off;
   - an `editor-paste` listener, registered by the test, that handles the paste: the note keeps only
     what the listener inserted;
   - two carets in two empty items with a two-line clipboard: `- a` and `- b` on both builds; two
@@ -117,22 +130,27 @@ and `--mobile`. Setting up a 1.14.4 build in a cloud session is in the research 
   every number of ranges; the list beside a file fails on 1.14.4 with a choice that gives nothing
   beside files; the "Smart lists" off `- a` fails on 1.14.4 with the handler unregistered; the
   conversion-off paragraph fails with the handler leaving HTML that is not structural; the URL over
-  a selection fails without the link test.
+  a selection fails with the handler leaving HTML links to Obsidian; the paragraphs beside a file
+  fail with a choice that takes any plain text beside files; the read-only case fails without the
+  read-only check.
 - [ ] 2.4 Add `e2e-tests/specs/69-paste-differential.e2e.ts` from the probe in
-  `docs/research/prototypes/paste-differential/`: the same generated clipboards, pasted as synthetic
-  events into the oracle's empty note and onto the empty item of `- A` / `- ` with outline mode off
-  and on, at the item under the four combinations of the two settings (set through
-  `app.vault.setConfig` in the test only, restored afterwards), and the analysis's rules as
-  assertions: a structural oracle text is taken with the oracle's text, a list item at the marker is
-  written by the marker rule, other converted HTML is inserted as it is, anything else is left to
-  Obsidian, and a taken paste gives the same result under every setting. The drop and the empty
-  note stay in the probe. Split it into one `it` per settings combination and HTML value (84
-  clipboards each), each well inside mocha's 60 s, and wait for the editors' text to change, up to
-  1.5 s, rather than a fixed time (round 3 of the review). Measure its time on both platforms and
-  quote it in the PR; it runs in the `selection` group its prefix falls in, needing no system
-  clipboard, unless that time asks for a group of its own. Negative control: with the sanitizer, the
-  filter rule, the file rule, the marker rule, or the HTML fallthrough removed from the handler, the
-  spec fails and names the clipboards.
+  `docs/research/prototypes/paste-differential/`: the same generated clipboards, a web link, Google
+  Docs' wrapper, a table and a `StartFragment` copy among them, pasted as synthetic events into the
+  oracle's empty note, and with outline mode off and on onto the empty item of `- A` / `- `, over
+  the word `see` selected in `x see y`, and over `beta` selected in `- beta`, under the four
+  combinations of the two settings (set through `app.vault.setConfig` in the test only, restored
+  afterwards). The analysis's rules become the assertions: a URL over a selection is linked, a
+  structural oracle text is taken with the oracle's text, a list item at the marker is written by
+  the marker rule, other converted HTML is inserted as it is, a paste whose clipboard Obsidian links
+  or inserts as files is left to it, judged from the clipboard's entries rather than the text's shape
+  (round 4 of the review), and a taken paste gives the same result under every setting. The drop and
+  the empty note stay in the probe. Split it into one `it` per settings combination and HTML value
+  (84 clipboards each), each well inside mocha's 60 s, and wait for the editors' text to change, up
+  to 1.5 s, rather than a fixed time (round 3). Measure its time on both platforms and quote it in
+  the PR; it runs in the `selection` group its prefix falls in, needing no system clipboard, unless
+  that time asks for a group of its own. Negative control: with the sanitizer, the filter rule, the
+  file rule, the list test beside files, the marker rule, the HTML fallthrough or the link writer
+  removed from the handler, the spec fails and names the clipboards.
 - [ ] 2.5 Run the `clipboard` and `drawn-cases` groups on both builds, desktop and mobile, one run at
   a time (the groups share the machine's clipboard), and quote the counts in the PR. Push the
   checkpoint and read CI's jobs, which run on the pinned build until 3.1.

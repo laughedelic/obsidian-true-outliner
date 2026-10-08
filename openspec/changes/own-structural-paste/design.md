@@ -59,7 +59,8 @@ whether outline mode is on.
 - *`Prec.highest`* would run before Obsidian's own handler and before `editor-paste`, taking the
   paste from plugins that handle it the documented way.
 
-**Which pastes it takes.** Outline mode on; not a nested table-cell editor; one selection range; a
+**Which pastes it takes.** Outline mode on; not a nested table-cell editor; an editor that is not
+read-only, since CodeMirror's own paste refuses one (round 4 of the review); one selection range; a
 clipboard with a text chosen as below; text that is a structural block sequence by the same
 `isStructuralBlockSequence(parse(text).children)` the classifier applies. These are the pastes
 "Structural pastes splice at node boundaries" rewrites, so taking them changes which code builds the
@@ -81,13 +82,15 @@ builds (the note, "A version-independent entry point"):
    as it was (round 2 of the review).
 4. Without HTML, a `text/uri-list`: with no plain text, or one that differs from it, Obsidian makes a
    URL or a link of it, and the paste stays Obsidian's.
-5. With no text chosen, the plain text, also beside files. Obsidian's paste inserts the files
-   there instead on 1.13.7; on 1.14.4 its collapse runs first, so at a list item's content start it
-   inserts the text without its first line's indentation and without the file (round 2 of the
-   review). The handler takes such a text when it is structural or when the marker rule below
-   rewrites it, and leaves any other text beside files to Obsidian, which inserts the files: a list
-   beside a file lands as text, without the file, on both builds (the maintainer's decisions,
-   2026-10-08, for a clipboard with no HTML and for one whose HTML is the image's own `<img>`).
+5. With no text chosen, the plain text; beside files, only a plain text whose first line is a list
+   item. Obsidian's paste inserts the files there instead on 1.13.7; on 1.14.4 its collapse runs
+   first, and it reaches exactly such a text, which at a list item's content start it inserts
+   without its first line's indentation and without the file (round 2 of the review). The handler
+   takes the text when it is structural or when the marker rule below rewrites it, and leaves any
+   other paste beside files to Obsidian, which inserts the files: a list beside a file lands as
+   text, without the file, on both builds, and two paragraphs beside a file give the file on both
+   (the maintainer's decisions, 2026-10-08, for a clipboard with no HTML and for one whose HTML is
+   the image's own `<img>`; round 4 of the review).
 
 **Every HTML paste is taken as converted.** Obsidian converts HTML only when its "Convert pasted HTML
 to Markdown" setting is on, which a plugin reads only through the private `vault.getConfig`; with
@@ -98,12 +101,15 @@ paste whose text is converted HTML, not only a structural one, so a paste never 
 plain text that Obsidian's paste would then insert differently on each build. It inserts the text
 as Obsidian's paste does with the setting on: with `replaceSelection`, the whole text in each range,
 `input.paste`, and no `scrollIntoView`. With the setting on, its result is Obsidian's; with it off,
-it is what the setting on would give. It leaves a URL over a selection, which Obsidian's paste
-writes as a link over the selected text (`tryPasteUrl`): some range is not empty, none spans lines,
-and the text is a URL, no space and accepted by the URL parser, or a URL a line with a line for each
-range. The handler applies the same test to every text it would take. A lone image beside files
-gives no converted text (step 3), so it falls to the plain text, and Obsidian inserts the files
-unless that text is a list.
+it is what the setting on would give. That includes a URL over a selection, which Obsidian's paste
+writes as links (`tryPasteUrl`) from the converted text with the setting on and from the plain text
+with it off (round 4 of the review): where some range is not empty, none spans lines, and the text
+is a URL, no space and accepted by the URL parser, or a URL a line with a line for each range, the
+handler writes the selected text of each range linked to its URL, and the URL itself at an empty
+range, as `tryPasteUrl` does. A plain or Markdown URL over a selection stays Obsidian's, which
+links it the same way on both builds and under either setting. A lone image beside files gives no
+converted text (step 3), so it falls to the plain text, and Obsidian inserts the files unless that
+text is a list.
 
 CodeMirror's `clipboardInputFilter`s, public API another plugin may register, apply to the plain
 text of the last step only. That is the one branch Obsidian's paste sends through CodeMirror's own
@@ -142,10 +148,12 @@ both.
 
 The formula is the one 1.14.4's `tryCollapseListMarker` writes, so with "Smart lists" on, 1.14.4's
 result is the one it gives today for every paste whose text its collapse and the handler agree on,
-and 1.13.7's is the same instead of `- - a` (the note's fourth prototype). They disagree in two
+and 1.13.7's is the same instead of `- - a` (the note's fourth prototype). They disagree in three
 places, and the handler follows the text Obsidian's paste chooses, as 1.13.7 inserts it: the collapse
-takes a plain text without CodeMirror's input filters, and it splits a CRLF text across carets on
-`\n` alone, leaving a stray line (round 3 of the review). Every other range's line is the one
+takes a plain text without CodeMirror's input filters; it splits a CRLF text across carets on `\n`
+alone, leaving a stray line (round 3 of the review); and it deals the lines of any text a line to
+each caret when their counts match, where Obsidian's `replaceSelection` gives Markdown and converted
+HTML whole to each caret (round 4). Every other range's line is the one
 Obsidian's paste writes. Where the rule's range is a selection across nodes, the enforcement then
 rewrites the edit as it rewrites the same paste without the rule, and the two results are the same
 (round 3). The transaction it dispatches from a caret is a replacement, which classifies as an
@@ -161,20 +169,22 @@ ordinary edit and passes, as Obsidian's own does on 1.14.4.
 **The text choice and the rules are checked against Obsidian's own paste.** Rounds 1 to 3 of the
 review each found a branch of `handleDataTransfer`, a setting or a destination read wrong by hand. A
 differential check settles them as a whole: generated clipboards (plain text, Markdown, HTML,
-`text/uri-list`, files, in combination) are pasted with outline mode off and on, into an empty note
-and onto the empty item of `- A` / `- `, at the item under the four combinations of "Smart lists"
-and "Convert pasted HTML to Markdown". The oracle is Obsidian's paste into an empty note with
+`text/uri-list`, files, in combination) are pasted with outline mode off and on, into an empty note,
+onto the empty item of `- A` / `- `, and over a word selected in a paragraph and an item's text
+selected, those three under the four combinations of "Smart lists" and "Convert pasted HTML to
+Markdown". The oracle is Obsidian's paste into an empty note with
 outline mode off and the conversion on, of the clipboard, or of its plain text alone where Obsidian's
-paste would insert the files; an empty note has no list prefix, so 1.14.4's collapse does not reach
-it. Each paste is held, by its oracle, to one of the rules above: a structural text is taken with
-the oracle's text, a list item at the marker is written by the marker rule, other converted HTML is
-inserted as it is, and anything else is left to Obsidian. Outline mode's result must also be the
+paste would insert the files and that text opens with a list item; an empty note has no list
+prefix, so 1.14.4's collapse does not reach it. Each paste is held, by its oracle and its clipboard's
+entries, to one of the rules above: a URL over a selection is linked, a structural text is taken
+with the oracle's text, a list item at the marker is written by the marker rule, other converted
+HTML is inserted as it is, and anything else is left to Obsidian. Outline mode's result must also be the
 same on both builds, and for a paste it takes, under every setting. The check uses Obsidian's
 behaviour, not its code, so it needs no private API in the plugin, and it runs on whatever build the
-suites run on. The sweep, 840 clipboards and 3360 pastes at the item on each build, is in the note
-("The extended check"); it found the image and conversion gaps the decisions above close, and with
-the sixth prototype no paste against its rule and no difference between the builds. It becomes an
-e2e spec (tasks.md).
+suites run on. The sweeps are in the note ("The extended check", "The check after round 4"): they
+found the image, conversion and link gaps the decisions above close, and with the seventh prototype,
+over 1300 clipboards and 5000 pastes at each destination on each build, no paste against its rule
+and no difference between the builds. It becomes an e2e spec (tasks.md).
 
 **Alternatives considered.**
 - *Read 1.14.4's rewrite back as the paste*, with the clipboard text recorded at the event. Measured
@@ -195,7 +205,8 @@ e2e spec (tasks.md).
   converted anyway. A list copied from a code editor, whose HTML holds a `<div>` a line, converts to
   a list item and a paragraph, where Obsidian's own paste with the setting off takes the plain text
   and keeps the list (the note, "The extended check"); outline mode off is the way to the stock
-  paste. Whether a plain-text paste (⌘⇧V) carries no HTML, and so stays unconverted, is not measured.
+  paste. A plain-text paste (⌘⇧V, and the context menu's "Paste as plain text") carries only the
+  plain text, so it stays unconverted (round 4 of the review).
 - [A plugin hooks Obsidian's paste below `editor-paste`, through its hook or CodeMirror's built-in
   handler] → It no longer sees a structural paste in outline mode. The documented route,
   `editor-paste`, runs first and is unaffected.
@@ -215,15 +226,18 @@ e2e spec (tasks.md).
   weekly newest-build run and the drawn cases on both builds show a change.
 - [A real paste on iOS or Android arrives differently] → Unmeasured; Chromium's mobile emulation
   delivers the same `paste` event.
-- [A non-structural paste away from a marker, and a structural paste over several ranges, stay
-  Obsidian's] → The builds give the same result for them (the note's fourth prototype); a pasted
-  `- a` inside an item's text is written as text.
+- [A non-structural plain paste away from a marker, and a structural plain paste over several
+  ranges, stay Obsidian's] → The builds give the same result for them (the note's fourth prototype);
+  a pasted `- a` inside an item's text is written as text. A plain text beside a different
+  `text/uri-list`, which Obsidian writes as a link, is the exception over several carets with "Smart
+  lists" on: 1.13.7 writes the link at each caret, and 1.14.4's collapse deals its lines to the
+  carets (round 4 of the review).
 - [CodeMirror's own paste flushes the DOM observer before it dispatches; the handler cannot, since
   `view.observer` is not public API] → A change still pending in the DOM when the paste event arrives
   (during a composition, on Android) would meet a state that does not hold it yet. Unmeasured.
-- [A list beside a file, with no HTML or Markdown, is taken as text] → The file is not inserted, on
-  either build. A copy that puts a list in its plain text beside an image is rare; Obsidian's own
-  choices were the file on 1.13.7 and the collapsed text on 1.14.4.
+- [A list beside a file, with no HTML or Markdown or only the image's `<img>`, is taken as text] →
+  The file is not inserted, on either build. A copy that puts a list in its plain text beside an
+  image is rare; Obsidian's own choices were the file on 1.13.7 and the collapsed text on 1.14.4.
 
 ## Migration Plan
 

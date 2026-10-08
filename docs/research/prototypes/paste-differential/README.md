@@ -1,17 +1,19 @@
 # Paste differential
 
-The probe behind "The extended check: the empty item, the settings and a drop" in
+The probe behind "The extended check: the empty item, the settings and a drop" and "The check after
+round 4" in
 [`../../obsidian-smart-list-paste.md`](../../obsidian-smart-list-paste.md). It pastes every
 combination of a set of clipboard entries, as synthetic `paste` events, with outline mode off
-(Obsidian's own paste) and on (the plugin's paste handler), at two destinations: an empty note, and
-the empty item of `- A` / `- `. The empty item is pasted at under the four combinations of "Smart
-lists" and "Convert pasted HTML to Markdown", and dropped on with the defaults.
+(Obsidian's own paste) and on (the plugin's paste handler), at four destinations: an empty note, the
+empty item of `- A` / `- `, the word `see` selected in `x see y`, and `beta` selected in `- beta`.
+The last three are pasted at under the four combinations of "Smart lists" and "Convert pasted HTML
+to Markdown", and the empty item is dropped on with the defaults.
 
 The oracle is a third editor: Obsidian's paste into an empty note with outline mode off and the
 conversion on, of the clipboard, or of its plain text alone where Obsidian's paste would insert the
-files. That is the text outline mode takes, by the maintainer's decisions: a list beside a file is
-taken as text, and HTML is converted whatever the setting says. An empty note has no list prefix, so
-1.14.4's marker collapse does not reach the oracle.
+files and that text opens with a list item. That is the text outline mode takes, by the maintainer's
+decisions: a list beside a file is taken as text, and HTML is converted whatever the setting says.
+An empty note has no list prefix, so 1.14.4's marker collapse does not reach the oracle.
 
 `probe.js` runs inside a driven Obsidian (`.agents/skills/driving-obsidian`), with the build to test
 in the working tree. It starts the sweep and returns, since one evaluation must answer within 20 s:
@@ -41,20 +43,23 @@ rm tests/zz-paste-diff.test.ts
 
 A verdict marked ✗ is a paste where outline mode does something other than the rule it is held to:
 
+- a URL over a selection is linked, as Obsidian's `tryPasteUrl` links it;
 - a structural oracle text is taken, and the text the handler inserts equals it;
-- a non-structural text whose first line is a list item lands on the empty item as the marker rule
+- a non-structural text whose first line is a list item lands after a marker as the marker rule
   writes it;
 - other converted HTML is inserted as it is;
 - anything else is left to Obsidian, which the enforcement may then rewrite as it does without the
-  handler;
+  handler. Which clipboards those are is read from their entries (files, a `text/uri-list` link), not
+  from the text's shape;
 
 and, given the other build's rows, every outline-mode result is the same on both builds, and a
 paste outline mode takes gives the same result under every setting.
 
 The axes: seven plain texts (none, nested and first-line-indented lists, paragraphs, a lone item, a
-URL, CRLF line breaks), Markdown or none, ten HTML clipboards (none, a list, Obsidian's own copy, a
-list with an image from a web address, with a 1200-character `data:` image, with a `javascript:`
-link, a lone image, paragraphs, a lone item in bold, a code editor's copy), three `text/uri-list`
-values (none, the plain text, another URL), and a PNG file or none: 840 clipboards, 3360 pastes at
-the item, about 7 minutes a build. A `clipboardInputFilter` that appends `⟦F⟧` is registered for
-the run, so a row shows which branch each paste took.
+URL, CRLF line breaks), Markdown or none, sixteen HTML clipboards (none, a list, Obsidian's own
+copy, a list with an image from a web address, with a 1200-character `data:` image, with a
+`javascript:` link, a lone image, paragraphs, a lone item in bold, a code editor's copy, a web link,
+a link whose text is its URL, Google Docs' wrapper, a table, a `StartFragment` copy, a URL as text),
+three `text/uri-list` values (none, the plain text, another URL), and a PNG file or none: 1344
+clipboards, 5376 pastes at each of the three destinations. A `clipboardInputFilter` that appends
+`⟦F⟧` is registered for the run, so a row shows which branch each paste took.

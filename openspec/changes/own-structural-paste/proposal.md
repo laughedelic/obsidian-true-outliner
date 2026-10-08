@@ -41,18 +41,19 @@ the same on both builds are measured in `docs/research/obsidian-smart-list-paste
   its plain text, through CodeMirror's public `clipboardInputFilter`s, the one branch Obsidian's paste
   filters. HTML is converted whatever Obsidian's "Convert pasted HTML to Markdown" says, which a
   plugin can read only through a private API (the maintainer's decision).
-- **Every HTML paste is taken as converted**, structural or not, apart from a URL over a selection,
-  which Obsidian's paste writes as a link. With the conversion off, Obsidian's paste would take the
-  plain text instead, and 1.14.4's collapse would rewrite it at a list item; outline mode converts on
-  every build and setting (the maintainer's decision).
+- **Every HTML paste is taken as converted**, structural or not, a URL over a selection included,
+  which outline mode writes as the link Obsidian's paste writes with the conversion on. With the
+  conversion off, Obsidian's paste would take the plain text instead, and 1.14.4's collapse would
+  rewrite it at a list item; outline mode converts on every build and setting (the maintainer's
+  decision).
 - **A list beside a file is taken as text.** Where the clipboard holds a plain text and files, with no
   Markdown, and no HTML or only an image's `<img>`, Obsidian's paste inserts the files on 1.13.7, and
   on 1.14.4, at a list item, its collapse inserts the text with #372's indentation loss and no file.
-  Outline mode takes the text when it is a list, on both builds, and the file is not inserted (the
-  maintainer's decisions).
+  Outline mode takes the text when it is a list, its first line a list item, on both builds, and the
+  file is not inserted (the maintainer's decisions).
 - **What Obsidian's paste turns into something else stays Obsidian's**: files with no text, files
-  beside a plain text that is not a list, a URL pasted over a selection, and a plain text it links
-  to a different `text/uri-list`.
+  beside a plain text that is not a list, a plain or Markdown URL pasted over a selection, and a
+  plain text it links to a different `text/uri-list`.
 - **A list item pasted at an item's content start does not repeat the item's marker**, on every
   build and whatever "Smart lists" says. For a paste the handler does not take as structural, each
   range that sits right after a list item's marker, with a pasted first line that is itself a list
@@ -65,9 +66,9 @@ the same on both builds are measured in `docs/research/obsidian-smart-list-paste
   result on every build.
 - **A differential check holds the handler to Obsidian's paste.** An e2e spec generates clipboards
   from combinations of plain text, Markdown, HTML, `text/uri-list` and files, pastes each with outline
-  mode off and on, into an empty note and onto an empty list item, under both settings, and requires
-  each paste to follow the rule it falls under, with the text Obsidian's own paste chooses, and the
-  same result on every build the suites run. Its sweep, measured in the note, found the gaps the
+  mode off and on, into an empty note, onto an empty list item and over two selections, under both
+  settings, and requires each paste to follow the rule it falls under, with the text Obsidian's own
+  paste chooses, and the same result on every build the suites run. Its sweep, measured in the note, found the gaps the
   maintainer's decisions above close, and then none on either build.
 - **The CI pin is removed with it** (#372, step 4): #359 held the required suites on 1.13.7 until
   this is fixed, and the suites return to the newest build in the same change.
@@ -79,8 +80,9 @@ the same on both builds are measured in `docs/research/obsidian-smart-list-paste
   note's fourth prototype), so `- a` pasted inside `beta` still reads `be- ata`.
 - A structural paste over more than one range with no range right after a marker. It stays
   Obsidian's; the enforcement passes it, and the builds give the same result.
-- A plain text beside a different `text/uri-list`. Obsidian links it, the same on both builds, and
-  the differential check lists those rows as the ones left.
+- A plain text beside a different `text/uri-list`. Obsidian links it, the same on both builds at one
+  caret; over several carets with "Smart lists" on, 1.14.4's collapse deals the link's lines to the
+  carets where 1.13.7 writes it at each (round 4 of the review).
 - Pastes that arrive without a paste event: a text drop, and the mobile app's Paste command and its
   context menu, which insert with a dispatch that carries no user event. The enforcement reads such
   a dispatch as programmatic, so a structural text is not spliced and a lone item repeats the
@@ -107,18 +109,19 @@ None.
 
 ### Modified Capabilities
 
-- `node-edit-enforcement`: two new requirements. "A structural paste is taken before Obsidian's
+- `node-edit-enforcement`: three new requirements. "A structural paste is taken before Obsidian's
   paste handling", alongside "Structural pastes splice at node boundaries", whose payloads it
-  delivers; and "A pasted list item does not repeat its destination's marker", for the pastes the
-  enforcement does not rewrite.
+  delivers; "An HTML paste is inserted as converted on every build"; and "A pasted list item does not
+  repeat its destination's marker", for the pastes the enforcement does not rewrite.
 
 ## Impact
 
-- `src/paste-text.ts`: the clipboard-text choice, the marker rule and the distribution across
-  ranges, pure functions with the HTML inspection and the converter passed in.
+- `src/paste-text.ts`: the clipboard-text choice, the marker rule, the distribution across ranges
+  and the link test, pure functions with the HTML inspection and the converter passed in.
   `src/plugin/structural-paste.ts`: Obsidian's sanitizer and converter, and a CodeMirror `paste`
   handler registered with the enforcement's extensions in `src/plugin/transaction-filter.ts`. The
-  prototype measured in the note is 135 lines in the two modules and two edits there.
+  prototype measured in the note, in its seventh version, is 185 lines in the two modules and two
+  edits there.
 - Unit tests for the pure functions; e2e coverage in the three failing specs
   (`61-selection-enforcement`, `62-outline-edit-enforcement`, `80-outline-zoom`), drawn cases for the
   payloads whose indentation 1.14.4's rewrite drops and for the marker rule, the differential spec,
