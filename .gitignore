@@ -43,3 +43,6 @@ design/
 # Raw frames and stills from website/capture/capture.e2e.ts; the encoded
 # media under website/public/media/ is what the site ships.
 /website/capture/out/
+
+# Playwright MCP session output — screenshots, page snapshots and console logs
+/.playwright-mcp/
